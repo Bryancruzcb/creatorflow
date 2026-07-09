@@ -1,0 +1,685 @@
+/* CreatorFlow design system — "studio console"
+ *
+ * Warm graphite neutrals with a single steel-blue accent; semantic status
+ * colors (good / warn / bad) are separate from the accent and always appear
+ * with a label, never as color alone. Type is native Windows: Segoe UI for
+ * text, Cascadia Mono for hashes and file types.
+ */
+
+.root {
+    -fx-font-family: "Segoe UI";
+    -fx-font-size: 13px;
+
+    /* modena base ladder, so built-in control skins inherit the dark theme */
+    -fx-base: #26231F;
+    -fx-background: #171614;
+    -fx-control-inner-background: #1E1C19;
+    -fx-control-inner-background-alt: #24211D;
+    -fx-accent: #4E739C;
+    -fx-focus-color: #5D86B4;
+    -fx-faint-focus-color: #5D86B422;
+    -fx-selection-bar: #5D86B440;
+    -fx-selection-bar-non-focused: #5D86B426;
+
+    /* design tokens */
+    -cf-bg: #171614;
+    -cf-surface: #1E1C19;
+    -cf-raised: #26231F;
+    -cf-border: #312E28;
+    -cf-border-strong: #403C34;
+    -cf-ink: #ECE8E0;
+    -cf-ink-2: #A8A296;
+    -cf-ink-3: #736D61;
+    -cf-accent: #4E739C;
+    -cf-accent-strong: #5D86B4;
+    -cf-good: #7FB08A;
+    -cf-warn: #D2A24C;
+    -cf-bad: #C96A55;
+}
+
+.app-root {
+    -fx-background-color: -cf-bg;
+}
+
+/* ---- sidebar ------------------------------------------------------- */
+
+.sidebar {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: transparent -cf-border transparent transparent;
+    -fx-border-width: 0 1 0 0;
+    -fx-padding: 20 12 16 12;
+    -fx-spacing: 18;
+}
+
+.logo-area {
+    -fx-padding: 0 8 0 8;
+}
+
+.logo-title {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 16px;
+    -fx-text-fill: -cf-ink;
+}
+
+.logo-subtitle {
+    -fx-font-size: 11px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.nav-section {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 10px;
+    -fx-text-fill: -cf-ink-3;
+    -fx-padding: 0 8 0 8;
+}
+
+.nav-item {
+    -fx-padding: 8 10 8 10;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+
+.nav-item:hover {
+    -fx-background-color: -cf-raised;
+}
+
+.nav-item-active {
+    -fx-background-color: -cf-raised;
+}
+
+.nav-label {
+    -fx-font-size: 13px;
+    -fx-text-fill: -cf-ink-2;
+}
+
+.nav-item-active .nav-label {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-text-fill: -cf-ink;
+}
+
+.nav-count {
+    -fx-font-family: "Cascadia Mono", "Consolas";
+    -fx-font-size: 10px;
+    -fx-text-fill: -cf-ink-3;
+    -fx-background-color: #FFFFFF0A;
+    -fx-background-radius: 99;
+    -fx-padding: 1 7 1 7;
+}
+
+/* ---- page chrome ---------------------------------------------------- */
+
+.page {
+    -fx-padding: 24 28 28 28;
+    -fx-background-color: -cf-bg;
+}
+
+.page-scroll {
+    -fx-background-color: transparent;
+    -fx-background-insets: 0;
+    -fx-padding: 0;
+}
+
+.page-scroll > .viewport {
+    -fx-background-color: transparent;
+}
+
+.page-title {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 20px;
+    -fx-text-fill: -cf-ink;
+}
+
+.page-subtitle {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.section-label {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 10px;
+    -fx-text-fill: -cf-ink-3;
+    -fx-padding: 4 0 0 2;
+}
+
+/* ---- buttons --------------------------------------------------------- */
+
+.button {
+    -fx-background-insets: 0;
+    -fx-background-radius: 6;
+    -fx-padding: 7 14 7 14;
+    -fx-font-size: 12px;
+    -fx-cursor: hand;
+    -fx-background-color: -cf-raised;
+    -fx-text-fill: -cf-ink-2;
+    -fx-border-color: -cf-border-strong;
+    -fx-border-radius: 6;
+    -fx-border-width: 1;
+}
+
+.button:hover {
+    -fx-text-fill: -cf-ink;
+    -fx-background-color: #2D2A25;
+}
+
+.primary-button {
+    -fx-background-color: -cf-accent;
+    -fx-text-fill: white;
+    -fx-border-color: transparent;
+    -fx-font-family: "Segoe UI Semibold";
+}
+
+.primary-button:hover {
+    -fx-background-color: -cf-accent-strong;
+    -fx-text-fill: white;
+}
+
+.primary-button:pressed {
+    -fx-background-color: #406083;
+}
+
+.ghost-button {
+    -fx-background-color: transparent;
+    -fx-border-color: -cf-border-strong;
+    -fx-text-fill: -cf-ink-2;
+}
+
+.ghost-button:hover {
+    -fx-background-color: -cf-raised;
+    -fx-text-fill: -cf-ink;
+}
+
+/* ---- stat cards ------------------------------------------------------ */
+
+.stat-card {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 14 16 12 16;
+}
+
+.stat-value {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 26px;
+    -fx-text-fill: -cf-ink;
+}
+
+.stat-name {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 10px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.stat-detail {
+    -fx-font-size: 11px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.stat-card-flagged {
+    -fx-border-color: #D2A24C55;
+}
+
+.stat-card-flagged .stat-value {
+    -fx-text-fill: -cf-warn;
+}
+
+/* ---- panels & rows --------------------------------------------------- */
+
+.panel {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 2 0 2 0;
+}
+
+.list-row {
+    -fx-padding: 10 14 10 14;
+}
+
+.list-row:hover {
+    -fx-background-color: #FFFFFF06;
+}
+
+.row-title {
+    -fx-font-size: 13px;
+    -fx-text-fill: -cf-ink;
+}
+
+.row-note {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+/* ---- project cards ---------------------------------------------------- */
+
+.project-card {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 12;
+    -fx-cursor: hand;
+}
+
+.project-card:hover {
+    -fx-border-color: -cf-border-strong;
+    -fx-background-color: #211F1B;
+}
+
+.project-cover {
+    -fx-background-color: -cf-raised;
+    -fx-background-radius: 6;
+}
+
+.project-monogram {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 30px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.card-title {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 13px;
+    -fx-text-fill: -cf-ink;
+    -fx-padding: 6 0 0 0;
+}
+
+.card-meta {
+    -fx-font-size: 11px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.card-description {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-ink-2;
+}
+
+/* ---- status badges ----------------------------------------------------- */
+
+.status-badge {
+    -fx-background-radius: 99;
+    -fx-padding: 3 10 3 8;
+}
+
+.status-text {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 11px;
+}
+
+.status-clear {
+    -fx-background-color: #7FB08A1C;
+}
+
+.status-clear .status-dot {
+    -fx-fill: -cf-good;
+}
+
+.status-clear .status-text {
+    -fx-text-fill: #A3C7AC;
+}
+
+.status-similar {
+    -fx-background-color: #D2A24C1F;
+}
+
+.status-similar .status-dot {
+    -fx-fill: -cf-warn;
+}
+
+.status-similar .status-text {
+    -fx-text-fill: #DDB878;
+}
+
+.status-duplicate {
+    -fx-background-color: #C96A5521;
+}
+
+.status-duplicate .status-dot {
+    -fx-fill: -cf-bad;
+}
+
+.status-duplicate .status-text {
+    -fx-text-fill: #D98D7C;
+}
+
+/* ---- type chips --------------------------------------------------------- */
+
+.type-chip {
+    -fx-font-family: "Cascadia Mono", "Consolas";
+    -fx-font-size: 10px;
+    -fx-background-radius: 4;
+    -fx-padding: 2 6 2 6;
+    -fx-background-color: #FFFFFF0D;
+    -fx-text-fill: -cf-ink-2;
+}
+
+.type-chip-image {
+    -fx-background-color: #86A9CB14;
+    -fx-text-fill: #86A9CB;
+}
+
+.type-chip-audio {
+    -fx-background-color: #C9A86A14;
+    -fx-text-fill: #C9A86A;
+}
+
+.type-chip-model {
+    -fx-background-color: #A08FC914;
+    -fx-text-fill: #A08FC9;
+}
+
+/* ---- table --------------------------------------------------------------- */
+
+.table-view {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-background-insets: 0;
+    -fx-padding: 2;
+}
+
+.table-view .column-header-background {
+    -fx-background-color: transparent;
+}
+
+.table-view .column-header {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -cf-border transparent;
+    -fx-size: 36px;
+}
+
+.table-view .column-header .label {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 11px;
+    -fx-text-fill: -cf-ink-3;
+    -fx-alignment: center-left;
+}
+
+.table-view .filler {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent -cf-border transparent;
+}
+
+.table-row-cell {
+    -fx-background-color: transparent;
+    -fx-border-color: transparent transparent #FFFFFF08 transparent;
+    -fx-cell-size: 44px;
+}
+
+.table-row-cell:hover {
+    -fx-background-color: #FFFFFF06;
+}
+
+.table-row-cell:selected {
+    -fx-background-color: #5D86B426;
+}
+
+.table-cell {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-ink-2;
+    -fx-border-color: transparent;
+    -fx-alignment: center-left;
+    -fx-padding: 0 10 0 10;
+}
+
+/* ---- inputs ------------------------------------------------------------------ */
+
+.text-field, .text-area {
+    -fx-background-color: -cf-raised;
+    -fx-background-radius: 6;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 6;
+    -fx-text-fill: -cf-ink;
+    -fx-prompt-text-fill: -cf-ink-3;
+    -fx-highlight-fill: #5D86B440;
+}
+
+.text-field {
+    -fx-padding: 7 10 7 10;
+}
+
+.text-field:focused, .text-area:focused {
+    -fx-border-color: -cf-accent-strong;
+}
+
+.text-area .content {
+    -fx-background-color: -cf-raised;
+    -fx-background-radius: 6;
+}
+
+.combo-box {
+    -fx-background-color: -cf-raised;
+    -fx-background-radius: 6;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 6;
+    -fx-background-insets: 0;
+}
+
+.combo-box .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -cf-ink;
+    -fx-padding: 5 8 5 8;
+    -fx-font-size: 12px;
+}
+
+.combo-box-popup .list-view {
+    -fx-background-color: -cf-raised;
+    -fx-border-color: -cf-border-strong;
+    -fx-background-insets: 0;
+}
+
+.combo-box-popup .list-cell {
+    -fx-background-color: transparent;
+    -fx-text-fill: -cf-ink-2;
+    -fx-padding: 6 10 6 10;
+}
+
+.combo-box-popup .list-cell:hover {
+    -fx-background-color: #5D86B426;
+    -fx-text-fill: -cf-ink;
+}
+
+.check-box {
+    -fx-text-fill: -cf-ink;
+    -fx-font-size: 12.5px;
+}
+
+.check-box .box {
+    -fx-background-color: -cf-raised;
+    -fx-background-radius: 4;
+    -fx-border-color: -cf-border-strong;
+    -fx-border-radius: 4;
+    -fx-padding: 3;
+}
+
+.check-box:selected .box {
+    -fx-background-color: -cf-accent;
+    -fx-border-color: -cf-accent;
+}
+
+.check-box:selected .mark {
+    -fx-background-color: white;
+}
+
+/* ---- dialogs -------------------------------------------------------------------- */
+
+.cf-dialog {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: -cf-border-strong;
+    -fx-border-width: 1;
+}
+
+.cf-dialog .button-bar .container {
+    -fx-background-color: transparent;
+}
+
+.dialog-content {
+    -fx-padding: 6 2 2 2;
+}
+
+.dialog-lede {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 13px;
+    -fx-text-fill: -cf-ink;
+}
+
+.field-label {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 10px;
+    -fx-text-fill: -cf-ink-3;
+    -fx-padding: 4 0 0 0;
+}
+
+.field-note {
+    -fx-font-size: 11px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.field-error {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-bad;
+}
+
+/* ---- originality report ------------------------------------------------------------ */
+
+.report-title {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 15px;
+    -fx-text-fill: -cf-ink;
+}
+
+.verdict-banner {
+    -fx-background-radius: 6;
+    -fx-padding: 10 12 10 12;
+}
+
+.verdict-text {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-ink-2;
+}
+
+.verdict-clear {
+    -fx-background-color: #7FB08A12;
+}
+
+.verdict-similar {
+    -fx-background-color: #D2A24C14;
+}
+
+.verdict-duplicate {
+    -fx-background-color: #C96A5514;
+}
+
+.layer-chip {
+    -fx-font-family: "Cascadia Mono", "Consolas";
+    -fx-font-size: 10px;
+    -fx-background-color: #FFFFFF0D;
+    -fx-background-radius: 4;
+    -fx-padding: 2 6 2 6;
+    -fx-text-fill: -cf-ink-2;
+    -fx-min-width: 62px;
+    -fx-alignment: center;
+}
+
+.report-preview {
+    -fx-background-color: -cf-raised;
+    -fx-background-radius: 6;
+    -fx-padding: 10;
+    -fx-alignment: center;
+}
+
+.kv-key {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-ink-3;
+}
+
+.kv-value {
+    -fx-font-size: 12px;
+    -fx-text-fill: -cf-ink;
+}
+
+.report-footer {
+    -fx-font-size: 11px;
+    -fx-text-fill: -cf-ink-3;
+    -fx-padding: 2 0 0 0;
+}
+
+.report-shot {
+    -fx-background-color: -cf-bg;
+    -fx-padding: 24;
+}
+
+.mono {
+    -fx-font-family: "Cascadia Mono", "Consolas";
+    -fx-font-size: 11px;
+}
+
+/* ---- empty states ------------------------------------------------------------------- */
+
+.empty-state {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 44 24 44 24;
+}
+
+.empty-title {
+    -fx-font-family: "Segoe UI Semibold";
+    -fx-font-size: 15px;
+    -fx-text-fill: -cf-ink;
+}
+
+.empty-message {
+    -fx-font-size: 12.5px;
+    -fx-text-fill: -cf-ink-3;
+    -fx-text-alignment: center;
+}
+
+/* ---- settings ------------------------------------------------------------------------ */
+
+.settings-card {
+    -fx-background-color: -cf-surface;
+    -fx-border-color: -cf-border;
+    -fx-border-radius: 8;
+    -fx-background-radius: 8;
+    -fx-padding: 16;
+}
+
+/* ---- scrollbars & tooltips ------------------------------------------------------------ */
+
+.scroll-bar {
+    -fx-background-color: transparent;
+}
+
+.scroll-bar:vertical {
+    -fx-pref-width: 10;
+}
+
+.scroll-bar:horizontal {
+    -fx-pref-height: 10;
+}
+
+.scroll-bar .thumb {
+    -fx-background-color: #FFFFFF1A;
+    -fx-background-radius: 99;
+}
+
+.scroll-bar .thumb:hover {
+    -fx-background-color: #FFFFFF2E;
+}
+
+.scroll-bar .increment-button, .scroll-bar .decrement-button {
+    -fx-padding: 0;
+    -fx-background-color: transparent;
+}
+
+.tooltip {
+    -fx-background-color: #2D2A25;
+    -fx-text-fill: -cf-ink;
+    -fx-font-size: 11px;
+    -fx-background-radius: 6;
+    -fx-padding: 6 10 6 10;
+}
