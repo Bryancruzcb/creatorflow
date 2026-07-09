@@ -1,0 +1,131 @@
+.root, .app-root {
+    -fx-background-color: #FFFFFF;
+    -fx-font-family: "Segoe UI", "Arial", sans-serif;
+}
+
+.sidebar {
+    -fx-background-color: #F7F6F2;
+    -fx-border-color: #E0DED7;
+    -fx-border-width: 0 1 0 0;
+}
+
+.logo-area {
+    -fx-padding: 20 16 16 16;
+    -fx-border-color: #E0DED7;
+    -fx-border-width: 0 0 1 0;
+}
+
+.logo-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2C2C2A;
+}
+
+.logo-subtitle, .stat-label, .file-meta {
+    -fx-text-fill: #888780;
+}
+
+.logo-subtitle {
+    -fx-font-size: 11px;
+}
+
+.nav-list {
+    -fx-padding: 8 0 0 0;
+}
+
+.nav-button {
+    -fx-background-color: transparent;
+    -fx-text-fill: #888780;
+    -fx-font-size: 13px;
+    -fx-cursor: hand;
+}
+
+.nav-button:hover {
+    -fx-background-color: #FFFFFF;
+    -fx-text-fill: #2C2C2A;
+}
+
+.nav-button-active {
+    -fx-background-color: #FFFFFF;
+    -fx-text-fill: #2C2C2A;
+    -fx-font-weight: bold;
+    -fx-border-color: #1D9E75;
+    -fx-border-width: 0 0 0 2;
+}
+
+.main-panel {
+    -fx-background-color: #FFFFFF;
+}
+
+.top-bar {
+    -fx-padding: 14 24 14 24;
+    -fx-border-color: #E0DED7;
+    -fx-border-width: 0 0 1 0;
+}
+
+.page-title {
+    -fx-font-size: 15px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2C2C2A;
+}
+
+.primary-button {
+    -fx-background-color: #1D9E75;
+    -fx-text-fill: white;
+    -fx-font-size: 12px;
+    -fx-padding: 6 14 6 14;
+    -fx-background-radius: 6;
+    -fx-cursor: hand;
+}
+
+.content-area {
+    -fx-padding: 20 24 20 24;
+}
+
+.stat-card {
+    -fx-padding: 12;
+    -fx-pref-width: 120;
+    -fx-background-color: #F7F6F2;
+    -fx-background-radius: 8;
+}
+
+.stat-number {
+    -fx-font-size: 22px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #2C2C2A;
+}
+
+.stat-label {
+    -fx-font-size: 11px;
+}
+
+.section-label {
+    -fx-font-size: 11px;
+    -fx-font-weight: bold;
+    -fx-text-fill: #888780;
+}
+
+.recent-files-list {
+    -fx-background-color: #FFFFFF;
+    -fx-border-color: #E0DED7;
+    -fx-border-radius: 10;
+    -fx-background-radius: 10;
+}
+
+.file-row {
+    -fx-padding: 10 14 10 14;
+}
+
+.file-row-bordered {
+    -fx-border-color: #E0DED7;
+    -fx-border-width: 0 0 1 0;
+}
+
+.file-name {
+    -fx-font-size: 12px;
+    -fx-text-fill: #2C2C2A;
+}
+
+.file-meta {
+    -fx-font-size: 12px;
+}
