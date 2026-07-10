@@ -194,6 +194,7 @@ public final class ReportDialog {
             case "phash" -> "pHash";
             case "dhash" -> "dHash";
             case "audio" -> "AUDIO";
+            case "registry" -> "REGISTRY";
             default -> layer;
         };
     }
