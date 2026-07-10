@@ -2,29 +2,41 @@ package creatorflow.service;
 
 import creatorflow.db.AssetRepository;
 import creatorflow.model.Asset;
+import creatorflow.model.AssetMatch;
 import creatorflow.model.OriginalityReport;
+import creatorflow.model.VerificationStatus;
+import creatorflow.service.registry.RegistryClient;
 import creatorflow.verification.OriginalityEngine;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Brings a file into the managed library: verifies it against everything
- * already indexed, copies it into the library folder, and persists the asset
- * together with its match evidence.
+ * already indexed locally — and, when a community registry is configured,
+ * against every other account's fingerprints — then copies it into the
+ * library folder and persists the asset with its match evidence.
  */
 public final class AssetImporter {
 
     private final AssetRepository assets;
     private final OriginalityEngine engine;
     private final Path libraryDir;
+    private final RegistryClient registry;
 
     public AssetImporter(AssetRepository assets, OriginalityEngine engine, Path libraryDir) {
+        this(assets, engine, libraryDir, RegistryClient.disabled());
+    }
+
+    public AssetImporter(AssetRepository assets, OriginalityEngine engine, Path libraryDir,
+                         RegistryClient registry) {
         this.assets = assets;
         this.engine = engine;
         this.libraryDir = libraryDir;
+        this.registry = registry;
     }
 
     public record ImportRequest(Path source, long projectId, String license, boolean ownershipDeclared) {
@@ -36,7 +48,30 @@ public final class AssetImporter {
     public ImportResult importFile(ImportRequest request) throws IOException {
         List<Asset> indexed = assets.findAll();
         OriginalityEngine.Result result = engine.verify(request.source(), indexed);
-        OriginalityReport report = result.report();
+
+        VerificationStatus status = result.report().status();
+        List<AssetMatch> matches = new ArrayList<>(result.report().matches());
+        List<String> findings = new ArrayList<>(result.report().findings());
+        List<String> layersRun = new ArrayList<>(result.report().layersRun());
+
+        if (registry.isConfigured()) {
+            try {
+                RegistryClient.RemoteVerdict remote = registry.verify(
+                        request.source().getFileName().toString(),
+                        result.sha256(), result.dHash(), result.pHash(), result.audioFp());
+                for (RegistryClient.RemoteMatch match : remote.matches()) {
+                    matches.add(new AssetMatch(match.assetId(),
+                            match.fileName() + " — registered by " + match.owner(),
+                            "registry", match.distance(), match.note()));
+                }
+                if (remote.verdict().ordinal() > status.ordinal()) {
+                    status = remote.verdict();
+                }
+                layersRun.add("Community registry (fingerprints only)");
+            } catch (Exception e) {
+                findings.add("Community registry unreachable — verified against the local library only.");
+            }
+        }
 
         Path stored = copyIntoLibrary(request.source(), request.projectId());
 
@@ -55,12 +90,23 @@ public final class AssetImporter {
                 result.audioFp(),
                 request.license(),
                 request.ownershipDeclared(),
-                report.status(),
-                String.join("\n", report.findings()),
+                status,
+                String.join("\n", findings),
                 Instant.now());
 
-        Asset saved = assets.insert(asset, report.matches());
-        return new ImportResult(saved, report);
+        Asset saved = assets.insert(asset, matches);
+
+        if (registry.isConfigured()) {
+            try {
+                registry.register(saved);
+            } catch (Exception e) {
+                // the local import already succeeded; a failed registration just means
+                // this asset is not yet visible to other accounts
+            }
+        }
+
+        return new ImportResult(saved, new OriginalityReport(
+                status, List.copyOf(matches), List.copyOf(findings), List.copyOf(layersRun)));
     }
 
     /** Copies into {@code library/<projectId>/}, suffixing the name if it collides. */
