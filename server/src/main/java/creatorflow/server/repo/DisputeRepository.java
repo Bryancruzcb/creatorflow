@@ -9,4 +9,6 @@ public interface DisputeRepository extends JpaRepository<Dispute, Long> {
     List<Dispute> findByClaimantIdOrderByCreatedAtDesc(Long claimantId);
 
     List<Dispute> findByAsset_Owner_IdOrderByCreatedAtDesc(Long ownerId);
+
+    long countByAssetIdAndStatus(Long assetId, String status);
 }

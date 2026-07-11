@@ -2,8 +2,8 @@ package creatorflow.server.web;
 
 import creatorflow.server.domain.UserAccount;
 import creatorflow.server.repo.UserAccountRepository;
+import creatorflow.server.service.ApiKeys;
 import java.util.Map;
-import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -38,9 +38,7 @@ public class AccountController {
         if (accounts.existsByUsernameIgnoreCase(username)) {
             throw new ApiException(HttpStatus.CONFLICT, "Username “" + username + "” is taken.");
         }
-        String apiKey = UUID.randomUUID().toString().replace("-", "")
-                + UUID.randomUUID().toString().replace("-", "");
-        UserAccount account = accounts.save(new UserAccount(username, apiKey));
+        UserAccount account = accounts.save(new UserAccount(username, ApiKeys.newKey()));
         return ResponseEntity.status(HttpStatus.CREATED)
                 .body(new AccountResponse(account.getUsername(), account.getApiKey()));
     }

@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Log in')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+
+<main class="container">
+    <div class="panel auth-card">
+        <h1>Log in</h1>
+        <p class="lead">Welcome back to the registry.</p>
+
+        <div class="flash flash-good" th:if="${param.created != null}" style="margin-top:12px">
+            Account created — log in to start uploading.
+        </div>
+        <div class="flash flash-bad" th:if="${param.error != null}" style="margin-top:12px">
+            Wrong username or password.
+        </div>
+        <div class="flash flash-good" th:if="${param.logout != null}" style="margin-top:12px">
+            Logged out.
+        </div>
+
+        <form th:action="@{/login}" method="post" class="field-full">
+            <label for="username">Username</label>
+            <input id="username" name="username" autocomplete="username" autofocus required>
+
+            <label for="password">Password</label>
+            <input id="password" name="password" type="password"
+                   autocomplete="current-password" required>
+
+            <button class="btn btn-accent" type="submit">Log in</button>
+        </form>
+
+        <p class="aside-note">No account yet? <a th:href="@{/signup}">Sign up</a> — it also
+            issues the API key the desktop app uses.</p>
+    </div>
+</main>
+
+<footer th:replace="~{fragments :: footer}"></footer>
+</body>
+</html>
