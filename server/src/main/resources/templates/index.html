@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Gallery')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+
+<main class="container">
+    <div class="page-head">
+        <div>
+            <h1>Community gallery</h1>
+            <p class="sub">Sprites, textures and sounds from members — every upload is
+                fingerprint-checked against the whole registry before it publishes.</p>
+        </div>
+        <div class="filters">
+            <a th:href="@{/(q=${q})}" th:classappend="${type == ''} ? active">All</a>
+            <a th:href="@{/(q=${q}, type='image')}" th:classappend="${type == 'image'} ? active">Images</a>
+            <a th:href="@{/(q=${q}, type='audio')}" th:classappend="${type == 'audio'} ? active">Audio</a>
+        </div>
+    </div>
+
+    <p class="result-note" th:if="${q != ''}">
+        Results for “<span th:text="${q}"></span>” · <a th:href="@{/}">clear search</a>
+    </p>
+
+    <div class="masonry" th:if="${!assets.empty}">
+        <div th:each="a : ${assets.content}" th:insert="~{fragments :: card(${a})}"></div>
+    </div>
+
+    <div class="empty" th:if="${assets.empty}">
+        <strong>Nothing here yet</strong>
+        <span th:if="${q == ''}">Be the first — <a th:href="@{/upload}">upload an asset</a>.</span>
+        <span th:if="${q != ''}">No assets match this search.</span>
+    </div>
+
+    <div class="pagination" th:if="${assets.totalPages > 1}">
+        <a th:if="${assets.hasPrevious()}"
+           th:href="@{/(q=${q}, type=${type}, page=${assets.number - 1})}">← newer</a>
+        <span th:text="|page ${assets.number + 1} of ${assets.totalPages}|">page 1 of 1</span>
+        <a th:if="${assets.hasNext()}"
+           th:href="@{/(q=${q}, type=${type}, page=${assets.number + 1})}">older →</a>
+    </div>
+</main>
+
+<footer th:replace="~{fragments :: footer}"></footer>
+</body>
+</html>

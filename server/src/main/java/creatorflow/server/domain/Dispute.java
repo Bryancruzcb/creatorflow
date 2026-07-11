@@ -74,4 +74,8 @@ public class Dispute {
     public Instant getCreatedAt() {
         return createdAt;
     }
+
+    public String getCreatedDisplay() {
+        return Dates.display(createdAt);
+    }
 }

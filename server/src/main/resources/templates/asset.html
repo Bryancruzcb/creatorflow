@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head(${asset.displayTitle})}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+
+<main class="container">
+    <div class="flash flash-good" th:if="${published == 'CLEAR'}">
+        Published. The originality check found no conflicts in the registry.
+    </div>
+    <div class="flash flash-warn" th:if="${published == 'SIMILAR'}">
+        Published with a similarity flag — review the evidence below. If this is not your
+        work, take it down; if it is, the flag simply records what the registry found.
+    </div>
+    <div class="flash flash-good" th:if="${disputeFiled}">
+        Dispute filed. It is now attached to this asset for the uploader to answer.
+    </div>
+    <div class="flash flash-bad" th:if="${disputeError}" th:text="${disputeError}"></div>
+
+    <div class="asset-layout">
+        <div class="preview-panel">
+            <img th:if="${asset.image}" th:src="@{/files/{id}(id=${asset.id})}"
+                 th:alt="${asset.displayTitle}"
+                 th:style="${asset.width != null and asset.height != null} ? |aspect-ratio: ${asset.width} / ${asset.height}| : null">
+            <audio th:if="${asset.audio}" controls preload="metadata"
+                   th:src="@{/files/{id}(id=${asset.id})}"></audio>
+        </div>
+
+        <div class="rail">
+            <section>
+                <h1 th:text="${asset.displayTitle}">Title</h1>
+                <p class="byline">by
+                    <a th:href="@{/u/{name}(name=${asset.owner.username})}"
+                       th:text="${asset.owner.publicName}">creator</a>
+                </p>
+                <div>
+                    <span class="chip" th:text="${asset.fileType}">png</span>
+                    <span class="chip" th:text="${asset.license}">license</span>
+                    <span class="chip chip-warn" th:if="${asset.flaggedSimilar}">flagged similar</span>
+                    <span class="chip chip-bad" th:if="${openDisputes > 0}"
+                          th:text="|${openDisputes} open dispute${openDisputes == 1 ? '' : 's'}|"></span>
+                </div>
+                <p class="desc" th:if="${asset.description != null}" th:text="${asset.description}"></p>
+
+                <dl class="meta-rows">
+                    <div>
+                        <dt>Uploaded</dt>
+                        <dd th:text="${asset.createdDisplay}">date</dd>
+                    </div>
+                    <div>
+                        <dt>Dimensions</dt>
+                        <dd th:if="${asset.width != null}"
+                            th:text="|${asset.width} × ${asset.height} px|"></dd>
+                        <dd th:if="${asset.width == null}">—</dd>
+                    </div>
+                    <div>
+                        <dt>Ownership</dt>
+                        <dd th:text="${asset.ownershipDeclared} ? 'Declared by uploader' : 'Not declared'"></dd>
+                    </div>
+                    <div>
+                        <dt>SHA-256</dt>
+                        <dd><span class="hash" th:text="${#strings.substring(asset.sha256, 0, 16)} + '…'"
+                                  th:title="${asset.sha256}">hash</span></dd>
+                    </div>
+                </dl>
+
+                <div class="actions">
+                    <a class="btn btn-accent"
+                       th:href="@{/files/{id}(id=${asset.id}, download=true)}">Download</a>
+                </div>
+            </section>
+
+            <section>
+                <div class="report-head">
+                    <h2 style="margin:0">Originality at upload</h2>
+                    <span class="badge"
+                          th:classappend="${report.verdict == 'CLEAR'} ? 'badge-clear' : (${report.verdict == 'SIMILAR'} ? 'badge-similar' : 'badge-duplicate')"
+                          th:text="${report.verdict == 'CLEAR'} ? 'No conflicts' : (${report.verdict == 'SIMILAR'} ? 'Similar found' : 'Duplicate')">verdict</span>
+                </div>
+
+                <ul class="report-list" th:if="${!report.matches.empty}">
+                    <li th:each="m : ${report.matches}">
+                        <div class="layer-line">
+                            <span class="chip" th:text="${m.layer}">layer</span>
+                            <span class="hash" th:text="|distance ${m.distance}/64|">distance</span>
+                        </div>
+                        <div class="note" th:text="${m.note}">note</div>
+                    </li>
+                </ul>
+
+                <ul class="findings" th:if="${!report.findings.empty}">
+                    <li th:each="f : ${report.findings}" th:text="${f}">finding</li>
+                </ul>
+
+                <p class="layers-note" th:if="${!report.layers.empty}"
+                   th:text="'Layers run: ' + ${#strings.listJoin(report.layers, ' · ')}"></p>
+                <p class="layers-note">A clear result means no conflict was found in this
+                    registry — it does not prove originality. That is what the uploader's
+                    declaration and the dispute process are for.</p>
+            </section>
+
+            <section th:if="${canDispute}">
+                <details class="reveal">
+                    <summary>Is this your work? File a dispute</summary>
+                    <form th:action="@{/assets/{id}/dispute(id=${asset.id})}" method="post" class="field-full">
+                        <label for="reason">Why you believe this asset is yours</label>
+                        <textarea id="reason" name="reason" minlength="10" required
+                                  placeholder="Describe your claim — where the original lives, when you made it."></textarea>
+                        <button class="btn" type="submit">File dispute</button>
+                    </form>
+                </details>
+            </section>
+            <section th:if="${currentUser == null}">
+                <p class="aside-note" style="margin:0">
+                    <a th:href="@{/login}">Log in</a> to file an ownership dispute if this
+                    work is yours.</p>
+            </section>
+        </div>
+    </div>
+</main>
+
+<footer th:replace="~{fragments :: footer}"></footer>
+</body>
+</html>

@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('My library')}"></head>
+<body>
+<nav th:replace="~{fragments :: nav}"></nav>
+
+<main class="container">
+    <div class="profile-head">
+        <h1 th:text="${account.publicName}">name</h1>
+        <span class="username" th:text="'@' + ${account.username}">@user</span>
+    </div>
+    <p class="profile-sub" th:text="|Member since ${account.createdDisplay} · ${uploads.size()} published · ${fingerprintOnly} fingerprint-only registration${fingerprintOnly == 1 ? '' : 's'} from the desktop app|"></p>
+
+    <div class="panel" style="margin-bottom:22px">
+        <h2 style="margin-top:0">Connect the desktop app</h2>
+        <p class="lead">In CreatorFlow Desktop, open Settings → Community registry, point it
+            at this server, and paste your API key. Anything you register there is matched
+            against gallery uploads too — and you can publish it here later by uploading the
+            same file.</p>
+        <details class="reveal" style="margin-top:10px">
+            <summary>Reveal API key</summary>
+            <span class="hash" th:text="${account.apiKey}">key</span>
+        </details>
+    </div>
+
+    <h2>My published assets</h2>
+    <div class="masonry" th:if="${!uploads.empty}">
+        <div th:each="a : ${uploads}" th:insert="~{fragments :: card(${a})}"></div>
+    </div>
+    <div class="empty" th:if="${uploads.empty}">
+        <strong>Nothing published yet</strong>
+        <span><a th:href="@{/upload}">Upload your first asset</a> — it will be checked
+            against the registry first.</span>
+    </div>
+
+    <th:block th:if="${!disputesReceived.empty}">
+        <h2>Disputes on my assets</h2>
+        <table class="table">
+            <tr><th>Asset</th><th>Claimant</th><th>Reason</th><th>Status</th><th>Filed</th></tr>
+            <tr th:each="d : ${disputesReceived}">
+                <td><a th:if="${d.asset.galleryAsset}" th:href="@{/assets/{id}(id=${d.asset.id})}"
+                       th:text="${d.asset.displayTitle}"></a>
+                    <span th:unless="${d.asset.galleryAsset}" th:text="${d.asset.fileName}"></span></td>
+                <td th:text="${d.claimant.publicName}"></td>
+                <td th:text="${d.reason}"></td>
+                <td><span class="chip chip-warn" th:text="${d.status}"></span></td>
+                <td th:text="${d.createdDisplay}"></td>
+            </tr>
+        </table>
+    </th:block>
+
+    <th:block th:if="${!disputesFiled.empty}">
+        <h2>Disputes I filed</h2>
+        <table class="table">
+            <tr><th>Asset</th><th>Uploader</th><th>Reason</th><th>Status</th><th>Filed</th></tr>
+            <tr th:each="d : ${disputesFiled}">
+                <td><a th:if="${d.asset.galleryAsset}" th:href="@{/assets/{id}(id=${d.asset.id})}"
+                       th:text="${d.asset.displayTitle}"></a>
+                    <span th:unless="${d.asset.galleryAsset}" th:text="${d.asset.fileName}"></span></td>
+                <td th:text="${d.asset.owner.publicName}"></td>
+                <td th:text="${d.reason}"></td>
+                <td><span class="chip chip-warn" th:text="${d.status}"></span></td>
+                <td th:text="${d.createdDisplay}"></td>
+            </tr>
+        </table>
+    </th:block>
+</main>
+
+<footer th:replace="~{fragments :: footer}"></footer>
+</body>
+</html>

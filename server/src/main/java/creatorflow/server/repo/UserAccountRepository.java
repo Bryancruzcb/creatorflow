@@ -8,5 +8,7 @@ public interface UserAccountRepository extends JpaRepository<UserAccount, Long> 
 
     Optional<UserAccount> findByApiKey(String apiKey);
 
+    Optional<UserAccount> findByUsernameIgnoreCase(String username);
+
     boolean existsByUsernameIgnoreCase(String username);
 }

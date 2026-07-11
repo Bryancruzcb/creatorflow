@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Error')}"></head>
+<body>
+<nav class="topnav">
+    <div class="nav-inner">
+        <a class="wordmark" th:href="@{/}">CreatorFlow<span class="wordmark-sub">community gallery</span></a>
+    </div>
+</nav>
+
+<main class="container">
+    <div class="empty">
+        <strong th:text="${status != null} ? ${status} + ' — ' + ${error} : 'Something went wrong'">Error</strong>
+        <span th:if="${message != null and message != ''}" th:text="${message}"></span>
+        <p style="margin-top:14px"><a th:href="@{/}">Back to the gallery</a></p>
+    </div>
+</main>
+
+<footer th:replace="~{fragments :: footer}"></footer>
+</body>
+</html>
