@@ -13,11 +13,16 @@ public interface RegisteredAssetRepository extends JpaRepository<RegisteredAsset
 
     List<RegisteredAsset> findByOwnerIdOrderByCreatedAtDesc(Long ownerId);
 
-    /** Public gallery: stored files only, optional search text and file-type filter. */
+    /**
+     * Public gallery: latest version of each stored stack, optional search text,
+     * file-type filter, and a feedback-wanted-only switch.
+     */
     @Query("""
             select a from RegisteredAsset a
             where a.hasFile = true
+              and (a.latestVersion = true or a.latestVersion is null)
               and a.fileType in :types
+              and (:feedbackOnly = false or a.feedbackWanted = true)
               and (:q = '' or lower(a.title) like concat('%', :q, '%')
                    or lower(a.fileName) like concat('%', :q, '%')
                    or lower(a.description) like concat('%', :q, '%')
@@ -26,9 +31,12 @@ public interface RegisteredAssetRepository extends JpaRepository<RegisteredAsset
             """)
     Page<RegisteredAsset> gallery(@Param("q") String q,
                                   @Param("types") Collection<String> types,
+                                  @Param("feedbackOnly") boolean feedbackOnly,
                                   Pageable pageable);
 
     List<RegisteredAsset> findByOwnerIdAndHasFileTrueOrderByCreatedAtDesc(Long ownerId);
+
+    List<RegisteredAsset> findByRootIdOrderByVersionNumberDesc(Long rootId);
 
     long countByOwnerId(Long ownerId);
 }

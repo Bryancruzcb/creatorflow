@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments :: head('Compare ' + ${from.versionLabel} + ' → ' + ${to.versionLabel})}"></head>
+<body>
+<div class="shell">
+    <aside th:replace="~{fragments :: sidebar('gallery')}"></aside>
+    <div class="main">
+        <header th:replace="~{fragments :: topbar}"></header>
+
+        <main class="content">
+            <div class="page-head">
+                <div>
+                    <h1 th:text="'“' + ${to.displayTitle} + '” — ' + ${from.versionLabel} + ' → ' + ${to.versionLabel}">Compare</h1>
+                    <p class="sub">Pixel difference plus the fingerprint distances the engine uses.
+                        Unchanged pixels are dimmed; changes are tinted amber to rust by magnitude.</p>
+                </div>
+                <div class="filters">
+                    <a th:href="@{/assets/{id}(id=${to.id})}">← back to the asset</a>
+                </div>
+            </div>
+
+            <div class="compare-stats">
+                <span class="chip" th:if="${diff.changedPercent != null}"
+                      th:text="|${diff.changedPercent}% of pixels changed|"></span>
+                <span class="chip" th:if="${diff.dHashDistance != null}"
+                      th:text="|dHash ${diff.dHashDistance}/64|"></span>
+                <span class="chip" th:if="${diff.pHashDistance != null}"
+                      th:text="|pHash ${diff.pHashDistance}/64|"></span>
+                <span class="chip" th:if="${diff.audioDistance != null}"
+                      th:text="|audio ${diff.audioDistance}/64|"></span>
+                <span class="chip chip-good"
+                      th:if="${diff.dHashDistance != null and diff.dHashDistance <= 10}">reads as the same work</span>
+                <span class="chip chip-warn"
+                      th:if="${diff.dHashDistance != null and diff.dHashDistance > 10}">substantial revision</span>
+            </div>
+
+            <div class="compare-grid" th:if="${diff.heatmap != null}">
+                <div class="compare-cell">
+                    <div class="cell-label" th:text="${from.versionLabel} + ' · ' + ${from.createdDisplay}">from</div>
+                    <div class="tile"><img th:src="@{/files/{id}(id=${from.id})}" th:alt="${from.versionLabel}"></div>
+                </div>
+                <div class="compare-cell">
+                    <div class="cell-label" th:text="${to.versionLabel} + ' · ' + ${to.createdDisplay}">to</div>
+                    <div class="tile"><img th:src="@{/files/{id}(id=${to.id})}" th:alt="${to.versionLabel}"></div>
+                </div>
+                <div class="compare-cell">
+                    <div class="cell-label">difference</div>
+                    <div class="tile"><img th:src="@{/diffs/{a}/{b}(a=${from.id}, b=${to.id})}" alt="difference heatmap"></div>
+                </div>
+            </div>
+
+            <div class="empty" th:if="${diff.heatmap == null}">
+                <strong>No visual diff for this pair</strong>
+                <span>Audio versions compare by fingerprint distance (above), not pixels.</span>
+            </div>
+        </main>
+
+        <footer th:replace="~{fragments :: footer}"></footer>
+    </div>
+</div>
+</body>
+</html>

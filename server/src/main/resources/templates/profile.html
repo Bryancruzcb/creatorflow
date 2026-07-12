@@ -2,24 +2,29 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head(${profileUser.publicName})}"></head>
 <body>
-<nav th:replace="~{fragments :: nav}"></nav>
+<div class="shell">
+    <aside th:replace="~{fragments :: sidebar('')}"></aside>
+    <div class="main">
+        <header th:replace="~{fragments :: topbar}"></header>
 
-<main class="container">
-    <div class="profile-head">
-        <h1 th:text="${profileUser.publicName}">name</h1>
-        <span class="username" th:text="'@' + ${profileUser.username}">@user</span>
-    </div>
-    <p class="profile-sub" th:text="|Member since ${profileUser.createdDisplay} · ${uploads.size()} published asset${uploads.size() == 1 ? '' : 's'} · ${registeredCount} fingerprint${registeredCount == 1 ? '' : 's'} in the registry|"></p>
+        <main class="content">
+            <div class="profile-head">
+                <h1 th:text="${profileUser.publicName}">name</h1>
+                <span class="username" th:text="'@' + ${profileUser.username}">@user</span>
+            </div>
+            <p class="profile-sub" th:text="|Member since ${profileUser.createdDisplay} · ${uploads.size()} published asset${uploads.size() == 1 ? '' : 's'} · ${registeredCount} fingerprint${registeredCount == 1 ? '' : 's'} in the registry|"></p>
 
-    <div class="masonry" th:if="${!uploads.empty}">
-        <div th:each="a : ${uploads}" th:insert="~{fragments :: card(${a})}"></div>
-    </div>
-    <div class="empty" th:if="${uploads.empty}">
-        <strong>No published assets</strong>
-        <span>This member registers fingerprints without publishing files.</span>
-    </div>
-</main>
+            <div class="grid" th:if="${!uploads.empty}">
+                <div th:each="a : ${uploads}" th:insert="~{fragments :: tile(${a})}"></div>
+            </div>
+            <div class="empty" th:if="${uploads.empty}">
+                <strong>No published assets</strong>
+                <span>This member registers fingerprints without publishing files.</span>
+            </div>
+        </main>
 
-<footer th:replace="~{fragments :: footer}"></footer>
+        <footer th:replace="~{fragments :: footer}"></footer>
+    </div>
+</div>
 </body>
 </html>

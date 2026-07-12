@@ -6,6 +6,7 @@ import creatorflow.server.domain.RegisteredAsset;
 import creatorflow.server.domain.UserAccount;
 import creatorflow.server.repo.RegisteredAssetRepository;
 import creatorflow.server.storage.FileStore;
+import creatorflow.verification.ImageHashes;
 import creatorflow.verification.OriginalityEngine;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -169,6 +170,10 @@ public class GalleryService {
                 local.width() > 0 ? local.width() : null,
                 local.height() > 0 ? local.height() : null);
         asset = assets.save(asset);
+        if (asset.getRootId() == null) {
+            asset.setRootId(asset.getId());
+            asset = assets.save(asset);
+        }
 
         files.store(source, local.sha256());
         if (IMAGE_TYPES.contains(fileType)) {
@@ -178,15 +183,158 @@ public class GalleryService {
                 local.report().findings());
     }
 
+    /**
+     * Publish the next version of an existing stack. Similarity to earlier
+     * versions of the same stack is expected — it is recorded as fingerprint
+     * lineage, not flagged. Similarity to anything outside the stack keeps its
+     * usual consequences, and a byte-identical repeat of any version is refused.
+     */
+    @Transactional
+    public UploadOutcome publishNewVersion(UserAccount user, long parentAssetId, MultipartFile file,
+                                           String description, boolean ownershipDeclared)
+            throws IOException {
+        if (file == null || file.isEmpty()) {
+            return UploadOutcome.blocked("Choose a file to upload.", null, List.of(), List.of());
+        }
+        String fileName = cleanFileName(file.getOriginalFilename());
+        String fileType = OriginalityEngine.fileType(Path.of(fileName));
+        Path tmp = Files.createTempFile("cf-version-", fileType.isEmpty() ? ".bin" : "." + fileType);
+        try {
+            file.transferTo(tmp);
+            return publishNextVersion(user, parentAssetId, tmp, fileName, file.getSize(),
+                    description, ownershipDeclared);
+        } finally {
+            Files.deleteIfExists(tmp);
+        }
+    }
+
+    /** Version publishing from a file on disk — also used by the demo seeder. */
+    @Transactional
+    public UploadOutcome publishNextVersion(UserAccount user, long parentAssetId, Path source,
+                                            String originalName, long size, String description,
+                                            boolean ownershipDeclared) throws IOException {
+        RegisteredAsset parent = assets.findById(parentAssetId)
+                .filter(RegisteredAsset::isGalleryAsset).orElse(null);
+        if (parent == null) {
+            return UploadOutcome.blocked("That asset does not exist.", null, List.of(), List.of());
+        }
+        if (!parent.getOwner().getId().equals(user.getId())) {
+            return UploadOutcome.blocked("Only the owner can publish a new version.",
+                    null, List.of(), List.of());
+        }
+        if (!ownershipDeclared) {
+            return UploadOutcome.blocked(
+                    "You must declare that you created this work or hold the rights to share it.",
+                    null, List.of(), List.of());
+        }
+
+        List<RegisteredAsset> stack = versionsOf(parent);
+        RegisteredAsset previous = stack.get(0); // newest first
+        Set<Long> stackIds = new HashSet<>();
+        for (RegisteredAsset version : stack) {
+            stackIds.add(version.getId());
+        }
+
+        String fileName = cleanFileName(originalName);
+        String fileType = OriginalityEngine.fileType(Path.of(fileName));
+        boolean sameCategory = IMAGE_TYPES.contains(fileType) == previous.isImage()
+                && AUDIO_TYPES.contains(fileType) == previous.isAudio();
+        if (!(IMAGE_TYPES.contains(fileType) || AUDIO_TYPES.contains(fileType)) || !sameCategory) {
+            return UploadOutcome.blocked("A new version must stay "
+                    + (previous.isImage() ? "an image" : "audio") + " — “" + fileType
+                    + "” does not fit this stack.", null, List.of(), List.of());
+        }
+
+        OriginalityEngine.Result local = new OriginalityEngine().verify(source, List.of());
+        RegistryService.Verdict remote = registry.verify(new RegistryService.Fingerprints(
+                fileName, local.sha256(), local.dHash(), local.pHash(), local.audioFp()), user);
+
+        List<RegistryService.Match> outsideStack = new ArrayList<>();
+        for (RegistryService.Match match : remote.matches()) {
+            if (stackIds.contains(match.assetId())) {
+                if ("sha256".equals(match.layer())) {
+                    return UploadOutcome.blocked("Byte-identical to an existing version of this "
+                            + "stack — a new version has to actually differ.",
+                            "DUPLICATE", remote.matches(), local.report().findings());
+                }
+                continue; // in-stack similarity is lineage, handled below
+            }
+            if ("sha256".equals(match.layer())) {
+                return UploadOutcome.blocked("This exact file is already registered by “"
+                        + match.owner() + "” outside this stack. Byte-identical uploads are "
+                        + "never published.", "DUPLICATE", remote.matches(),
+                        local.report().findings());
+            }
+            outsideStack.add(match);
+        }
+
+        String verdict = outsideStack.isEmpty() ? "CLEAR" : "SIMILAR";
+        List<String> findings = new ArrayList<>(local.report().findings());
+        findings.add(lineageFinding(previous, local));
+        List<String> layers = new ArrayList<>(local.report().layersRun());
+        layers.add("Community registry cross-check (all accounts)");
+        layers.add("Version lineage check (vs " + previous.getVersionLabel() + ")");
+        String reportJson = writeReport(new StoredReport(verdict, outsideStack, findings, layers));
+
+        if (previous.getRootId() == null) {
+            previous.setRootId(previous.getId());
+        }
+        RegisteredAsset next = new RegisteredAsset(user, fileName, fileType, size,
+                local.sha256(), local.dHash(), local.pHash(), local.audioFp(),
+                previous.getLicense(), true);
+        next.publishToGallery(previous.getTitle(),
+                clip(description, 2000) != null ? clip(description, 2000) : previous.getDescription(),
+                MIME_BY_TYPE.get(fileType), verdict, reportJson,
+                local.width() > 0 ? local.width() : null,
+                local.height() > 0 ? local.height() : null);
+        next.joinStackAfter(previous);
+        previous.markSuperseded();
+        assets.save(previous);
+        next = assets.save(next);
+
+        files.store(source, local.sha256());
+        if (IMAGE_TYPES.contains(fileType)) {
+            files.writeThumbnail(source, local.sha256());
+        }
+        return new UploadOutcome(true, next, null, verdict, outsideStack, findings);
+    }
+
+    /** All versions of an asset's stack, newest first. */
     @Transactional(readOnly = true)
-    public Page<RegisteredAsset> browse(String q, String type, int page) {
+    public List<RegisteredAsset> versionsOf(RegisteredAsset asset) {
+        List<RegisteredAsset> stack =
+                assets.findByRootIdOrderByVersionNumberDesc(asset.getRootIdOrSelf());
+        return stack.isEmpty() ? List.of(asset) : stack;
+    }
+
+    private static String lineageFinding(RegisteredAsset previous, OriginalityEngine.Result local) {
+        List<String> parts = new ArrayList<>();
+        if (previous.getDHash() != null && local.dHash() != null) {
+            parts.add("dHash " + ImageHashes.hammingDistance(previous.getDHash(), local.dHash()) + "/64");
+        }
+        if (previous.getPHash() != null && local.pHash() != null) {
+            parts.add("pHash " + ImageHashes.hammingDistance(previous.getPHash(), local.pHash()) + "/64");
+        }
+        if (previous.getAudioFp() != null && local.audioFp() != null) {
+            parts.add("audio " + ImageHashes.hammingDistance(previous.getAudioFp(), local.audioFp()) + "/64");
+        }
+        return parts.isEmpty()
+                ? "Version lineage vs " + previous.getVersionLabel()
+                        + " recorded (no comparable fingerprints)."
+                : "Version lineage vs " + previous.getVersionLabel() + ": "
+                        + String.join(", ", parts) + " — fingerprint-verified iteration.";
+    }
+
+    @Transactional(readOnly = true)
+    public Page<RegisteredAsset> browse(String q, String type, boolean feedbackOnly, int page) {
         Set<String> types = switch (type == null ? "" : type) {
             case "image" -> IMAGE_TYPES;
             case "audio" -> AUDIO_TYPES;
             default -> allTypes();
         };
         String query = q == null ? "" : q.strip().toLowerCase(Locale.ROOT);
-        return assets.gallery(query, types, PageRequest.of(Math.max(0, page), PAGE_SIZE));
+        return assets.gallery(query, types, feedbackOnly,
+                PageRequest.of(Math.max(0, page), PAGE_SIZE));
     }
 
     public StoredReport report(RegisteredAsset asset) {

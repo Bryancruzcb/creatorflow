@@ -4,52 +4,74 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title th:text="${title} + ' — CreatorFlow'">CreatorFlow</title>
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%234E739C'/%3E%3Crect x='3' y='3' width='6' height='6' rx='1' fill='%23ECE8E0'/%3E%3Crect x='7' y='7' width='6' height='6' rx='1' fill='%23ECE8E0' opacity='.55'/%3E%3C/svg%3E">
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%235B8DEE'/%3E%3Crect x='3' y='3' width='6' height='6' rx='1' fill='%23E8EAF0'/%3E%3Crect x='7' y='7' width='6' height='6' rx='1' fill='%23E8EAF0' opacity='.55'/%3E%3C/svg%3E">
     <link rel="stylesheet" th:href="@{/css/site.css}">
 </head>
 <body>
 
-<nav th:fragment="nav" class="topnav">
-    <div class="nav-inner">
-        <a class="wordmark" th:href="@{/}">CreatorFlow<span class="wordmark-sub">community gallery</span></a>
-        <form class="nav-search" th:action="@{/}" method="get">
-            <input type="search" name="q" placeholder="Search assets and creators"
-                   th:value="${q != null} ? ${q} : ''" aria-label="Search">
-        </form>
-        <div class="nav-links">
-            <a th:href="@{/}">Gallery</a>
-            <a class="btn btn-accent" th:href="@{/upload}">Upload</a>
-            <th:block th:if="${currentUser != null}">
-                <a th:href="@{/me}" th:text="${currentUser.publicName}">me</a>
-                <form class="inline-form" th:action="@{/logout}" method="post">
-                    <button class="linklike" type="submit">Log out</button>
-                </form>
-            </th:block>
-            <th:block th:if="${currentUser == null}">
-                <a th:href="@{/login}">Log in</a>
-                <a class="btn" th:href="@{/signup}">Sign up</a>
-            </th:block>
-        </div>
+<aside th:fragment="sidebar(active)" class="sidebar">
+    <a class="wordmark" th:href="@{/}">CreatorFlow<small>screening room</small></a>
+    <nav>
+        <div class="nav-section">Browse</div>
+        <a class="nav-item" th:classappend="${active == 'gallery'} ? active" th:href="@{/}">Gallery</a>
+        <a class="nav-item" th:classappend="${active == 'image'} ? active" th:href="@{/(type='image')}">Images</a>
+        <a class="nav-item" th:classappend="${active == 'audio'} ? active" th:href="@{/(type='audio')}">Audio</a>
+        <a class="nav-item" th:classappend="${active == 'feedback'} ? active" th:href="@{/(feedback=true)}">Feedback wanted</a>
+    </nav>
+    <nav>
+        <div class="nav-section">You</div>
+        <a class="nav-item" th:classappend="${active == 'me'} ? active" th:href="@{/me}">My library</a>
+        <a class="nav-item" th:classappend="${active == 'upload'} ? active" th:href="@{/upload}">Upload</a>
+    </nav>
+    <div class="sidebar-footer">
+        <th:block th:if="${currentUser != null}">
+            <a th:href="@{/me}" th:text="${currentUser.publicName}">me</a> ·
+            <form class="inline-form" th:action="@{/logout}" method="post">
+                <button class="linklike" type="submit">Log out</button>
+            </form>
+        </th:block>
+        <th:block th:if="${currentUser == null}">
+            <a th:href="@{/login}">Log in</a> · <a th:href="@{/signup}">Sign up</a>
+        </th:block>
     </div>
-</nav>
+</aside>
 
-<div th:fragment="card(a)" class="asset-card">
-    <a class="card-link" th:href="@{/assets/{id}(id=${a.id})}">
-        <div class="thumb-wrap">
+<header th:fragment="topbar" class="topbar">
+    <form class="topbar-search" th:action="@{/}" method="get">
+        <input type="search" name="q" placeholder="Search assets and creators"
+               th:value="${q != null} ? ${q} : ''" aria-label="Search">
+    </form>
+    <div class="topbar-links">
+        <a class="only-narrow" th:href="@{/}">Gallery</a>
+        <a class="btn btn-accent" th:href="@{/upload}">Upload</a>
+        <th:block th:if="${currentUser != null}">
+            <a th:href="@{/me}" th:text="${currentUser.publicName}">me</a>
+        </th:block>
+        <th:block th:if="${currentUser == null}">
+            <a th:href="@{/login}">Log in</a>
+        </th:block>
+    </div>
+</header>
+
+<div th:fragment="tile(a)">
+    <a class="tile-link" th:href="@{/assets/{id}(id=${a.id})}">
+        <div class="tile">
+            <span class="version-tag" th:if="${a.versionNumberOrOne > 1}"
+                  th:text="${a.versionLabel}">V2</span>
             <img th:if="${a.image}" th:src="@{/thumbs/{id}(id=${a.id})}"
-                 th:alt="${a.displayTitle}" loading="lazy"
-                 th:style="${a.width != null and a.height != null} ? |aspect-ratio: ${a.width} / ${a.height}| : null">
+                 th:alt="${a.displayTitle}" loading="lazy">
             <div th:unless="${a.image}" class="audio-tile">
                 <span class="bars"><i></i><i></i><i></i><i></i><i></i></span>
                 <span class="audio-ext" th:text="${a.fileType}">wav</span>
             </div>
         </div>
-        <div class="card-body">
-            <div class="card-title" th:text="${a.displayTitle}">Title</div>
-            <div class="card-meta">
+        <div class="tile-caption">
+            <div class="tile-title" th:text="${a.displayTitle}">Title</div>
+            <div class="tile-meta">
                 <span th:text="${a.owner.publicName}">creator</span>
                 <span class="chip" th:text="${a.fileType}">png</span>
                 <span class="chip chip-warn" th:if="${a.flaggedSimilar}">flagged similar</span>
+                <span class="chip chip-accent" th:if="${a.feedbackWanted}">feedback wanted</span>
             </div>
         </div>
     </a>

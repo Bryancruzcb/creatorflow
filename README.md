@@ -16,6 +16,10 @@ member**. Byte-identical re-uploads never publish. Perceptually similar uploads 
 flagged, with the evidence attached. Every asset carries its license, its uploader's ownership
 declaration, and its originality report — and anyone can file a dispute.
 
+On top of that sits a **review workflow in the frame.io tradition**: assets grow in
+**fingerprint-verified version stacks**, any two versions can be compared with a **pixel-diff
+heatmap**, and feedback lands as **comments pinned to a point on the artwork itself**.
+
 ![Community gallery](docs/screenshots/web-gallery.png)
 
 Three Maven modules share one engine:
@@ -42,37 +46,46 @@ Requires JDK 21+ and Maven.
 ```bash
 git clone https://github.com/Bryancruzcb/creatorflow.git
 cd creatorflow
-mvn install                                # build everything once (41 tests)
-java -jar server/target/creatorflow-server-1.2.0.jar --creatorflow.demo-seed=true
+mvn install                                # build everything once (47 tests)
+java -jar server/target/creatorflow-server-1.3.0.jar --creatorflow.demo-seed=true
 ```
 
-Open **http://localhost:8080** — the demo seed publishes three members and eight generated
-assets through the real pipeline, including one deliberately re-uploaded image so a
-**flagged-similar** asset (and its evidence) is visible immediately. Demo accounts
-(`mira_pixels`, `ada_shaders`, `tomas_sound`) share the password `creatorflow-demo`, or sign up
-fresh and upload something yourself. Drop the flag for an empty registry;
-`mvn -pl server spring-boot:run` works too.
+Open **http://localhost:8080** — the demo seed publishes three members and a working gallery
+through the real pipeline: a deliberately re-uploaded image (so a **flagged-similar** asset and
+its evidence are visible immediately), a **two-version stack** with a pinned review comment, and
+a couple of feedback requests. Demo accounts (`mira_pixels`, `ada_shaders`, `tomas_sound`) share
+the password `creatorflow-demo`, or sign up fresh and upload something yourself. Drop the flag
+for an empty registry; `mvn -pl server spring-boot:run` works too.
 
 ## The platform
 
-- **Gallery** — masonry browse with search and image/audio filters; flagged assets are labeled
-  right on the card
+- **Gallery** — a dark, media-first grid ("screening room") with search, image/audio filters and
+  a *feedback wanted* view; version badges and flags are labeled right on the tile
 - **Upload flow** — pick a file, declare ownership, choose a license, and the pipeline decides:
   **duplicate ⇒ never publishes** (you're pointed at the existing asset and the dispute process),
   **similar ⇒ publishes flagged** with per-layer evidence, **clear ⇒ publishes** with the report
   recorded
-- **Asset pages** — preview (image or audio player), license and declaration, SHA-256, the full
-  originality report at upload time, download, and an ownership-dispute form
+- **Version stacks** — publish V2 from the asset page and the engine verifies the lineage:
+  similarity *inside* your stack is recorded as iteration ("dHash 7/64 — fingerprint-verified
+  iteration"), never flagged; similarity to anything *outside* it keeps its consequences, and a
+  byte-identical repeat of any version is refused. The gallery shows only the latest version.
+- **Visual diff** — compare any two image versions: a pixel-difference heatmap (changes tinted
+  amber→rust by magnitude) plus %-changed and the fingerprint distances
+- **Pinned comments** — click a point on the artwork and your comment carries a numbered pin,
+  frame.io-style; owners can toggle *feedback wanted* to invite review
+- **Asset pages** — near-black stage, versions rail, details, the full originality report at
+  upload time, download, and an ownership-dispute form
 - **Profiles & library** — every member has a public page; `/me` shows your uploads, disputes in
   both directions, and the API key that connects the desktop app
 - **One account, two doors** — browsers use session login (BCrypt + CSRF via Spring Security);
   the desktop app and API clients use per-account `X-Api-Key` headers
 - **Content-addressed storage** — files are stored by their SHA-256, so identical bytes exist
-  once and the hash doubles as a perfect ETag
+  once and the hash doubles as a perfect ETag (diff heatmaps are deterministic, so a SHA pair
+  makes a strong ETag there too)
 
-| Flagged asset with evidence | Member profile |
+| Version stack with a pinned review comment | Visual diff between versions |
 | --- | --- |
-| ![Asset page](docs/screenshots/web-asset.png) | ![Profile](docs/screenshots/web-profile.png) |
+| ![Asset page](docs/screenshots/web-asset.png) | ![Compare view](docs/screenshots/web-compare.png) |
 
 A note on SVG: user-supplied SVG can embed script, so files are served with a no-script
 `Content-Security-Policy` and only ever embedded through `<img>`, which never executes it.
@@ -166,10 +179,11 @@ flowchart LR
 ```
 
 `core` has no UI, database or Spring dependencies — the platform and the desktop app share it as
-a plain library, so a fingerprint means exactly the same thing on both sides. 41 tests across the
+a plain library, so a fingerprint means exactly the same thing on both sides. 47 tests across the
 three modules (`mvn verify`): engine algorithms, persistence, importer + registry escalation, the
-REST API, and the full web flow (signup → upload → duplicate blocked → similar flagged → files
-served hardened).
+REST API, the full web flow (signup → upload → duplicate blocked → similar flagged → files served
+hardened), and the review layer (version lineage vs foreign similarity, stack-only compare,
+pinned comments, feedback filtering).
 
 ## Roadmap
 
@@ -178,6 +192,7 @@ served hardened).
   (registry matching is currently a linear scan — fine at this scale, BK-tree/ANN is the next step)
 - [C2PA Content Credentials](https://c2pa.org/) verification for provenance-signed files
 - Collections/boards, tags, and following — the curation half of a gallery
+- Audio waveform rendering and time-anchored comments (the pin, but for sound)
 - Pluggable reverse-image-search connector (e.g. Google Vision web detection) for public-web checks
 - JWT/OAuth accounts, takedown resolution workflow for disputes, hosted deployment
 
