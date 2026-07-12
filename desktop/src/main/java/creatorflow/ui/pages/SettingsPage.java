@@ -56,7 +56,7 @@ public final class SettingsPage {
         content.getChildren().add(registryCard(context));
 
         content.getChildren().add(card("About",
-                "CreatorFlow 1.2.0 — asset manager with a built-in originality check.",
+                "CreatorFlow 1.3.0 — asset manager with a built-in originality check.",
                 note("Java " + System.getProperty("java.version")
                         + " · JavaFX " + System.getProperty("javafx.version", "runtime"))));
 

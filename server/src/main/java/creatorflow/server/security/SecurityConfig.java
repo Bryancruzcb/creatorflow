@@ -23,6 +23,9 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.ignoringRequestMatchers("/api/**"))
                 .authorizeHttpRequests(auth -> auth
+                        .requestMatchers(org.springframework.http.HttpMethod.GET,
+                                "/assets/*/compare/*", "/diffs/*/*")
+                        .permitAll()
                         .requestMatchers("/", "/assets/*", "/u/**", "/files/**", "/thumbs/**",
                                 "/css/**", "/js/**", "/login", "/signup", "/error", "/api/**")
                         .permitAll()

@@ -75,6 +75,23 @@ public class RegisteredAsset {
     private Integer width;
     private Integer height;
 
+    /*
+     * Version stack — every published asset belongs to a stack identified by the
+     * id of its first version. Fingerprints prove the lineage: similarity inside
+     * the stack is iteration, similarity outside it is a flag.
+     */
+
+    /** Id of the stack's first version; equals this asset's own id for a V1. */
+    private Long rootId;
+
+    private Integer versionNumber;
+
+    /** Only the latest version of a stack appears in the gallery (null = legacy = latest). */
+    private Boolean latestVersion;
+
+    /** Owner is actively asking the community for feedback. */
+    private Boolean feedbackWanted;
+
     protected RegisteredAsset() {
         // JPA
     }
@@ -158,6 +175,58 @@ public class RegisteredAsset {
         this.reportJson = reportJson;
         this.width = width;
         this.height = height;
+        if (this.versionNumber == null) {
+            this.versionNumber = 1;
+        }
+        this.latestVersion = true;
+    }
+
+    /** Wire this asset into a stack as the next version after {@code previous}. */
+    public void joinStackAfter(RegisteredAsset previous) {
+        this.rootId = previous.getRootIdOrSelf();
+        this.versionNumber = previous.getVersionNumberOrOne() + 1;
+        this.latestVersion = true;
+    }
+
+    public void markSuperseded() {
+        this.latestVersion = false;
+    }
+
+    public void setRootId(Long rootId) {
+        this.rootId = rootId;
+    }
+
+    public Long getRootId() {
+        return rootId;
+    }
+
+    /** Stack id, tolerating pre-stack rows that never had one written. */
+    public Long getRootIdOrSelf() {
+        return rootId != null ? rootId : id;
+    }
+
+    public Integer getVersionNumber() {
+        return versionNumber;
+    }
+
+    public int getVersionNumberOrOne() {
+        return versionNumber == null ? 1 : versionNumber;
+    }
+
+    public String getVersionLabel() {
+        return "V" + getVersionNumberOrOne();
+    }
+
+    public boolean isLatestVersion() {
+        return latestVersion == null || latestVersion;
+    }
+
+    public boolean isFeedbackWanted() {
+        return Boolean.TRUE.equals(feedbackWanted);
+    }
+
+    public void toggleFeedbackWanted() {
+        this.feedbackWanted = !isFeedbackWanted();
     }
 
     public boolean isGalleryAsset() {

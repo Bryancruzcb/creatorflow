@@ -2,40 +2,46 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Sign up')}"></head>
 <body>
-<nav th:replace="~{fragments :: nav}"></nav>
+<div class="shell">
+    <aside th:replace="~{fragments :: sidebar('')}"></aside>
+    <div class="main">
+        <header th:replace="~{fragments :: topbar}"></header>
 
-<main class="container">
-    <div class="panel auth-card">
-        <h1>Create an account</h1>
-        <p class="lead">One account for the gallery, the API and the desktop app.</p>
+        <main class="content">
+            <div class="panel auth-card">
+                <h1>Create an account</h1>
+                <p class="lead">One account for the gallery, the API and the desktop app.</p>
 
-        <div class="flash flash-bad" th:if="${error != null}" th:text="${error}" style="margin-top:12px"></div>
+                <div class="flash flash-bad" th:if="${error != null}" th:text="${error}"
+                     style="margin-top:12px"></div>
 
-        <form th:action="@{/signup}" method="post" class="field-full">
-            <label for="username">Username</label>
-            <input id="username" name="username" th:value="${username}" required
-                   pattern="[A-Za-z0-9._-]{3,40}" autocomplete="username"
-                   title="3–40 characters: letters, digits, dots, dashes, underscores">
+                <form th:action="@{/signup}" method="post" class="field-full">
+                    <label for="username">Username</label>
+                    <input id="username" name="username" th:value="${username}" required
+                           pattern="[A-Za-z0-9._-]{3,40}" autocomplete="username"
+                           title="3–40 characters: letters, digits, dots, dashes, underscores">
 
-            <label for="displayName">Display name <span style="color:var(--ink-3)">(optional)</span></label>
-            <input id="displayName" name="displayName" th:value="${displayName}" maxlength="60"
-                   placeholder="Shown on your uploads instead of the username">
+                    <label for="displayName">Display name <span style="color:var(--ink-3)">(optional)</span></label>
+                    <input id="displayName" name="displayName" th:value="${displayName}" maxlength="60"
+                           placeholder="Shown on your uploads instead of the username">
 
-            <label for="password">Password</label>
-            <input id="password" name="password" type="password" minlength="8" required
-                   autocomplete="new-password">
+                    <label for="password">Password</label>
+                    <input id="password" name="password" type="password" minlength="8" required
+                           autocomplete="new-password">
 
-            <label for="confirm">Password, again</label>
-            <input id="confirm" name="confirm" type="password" minlength="8" required
-                   autocomplete="new-password">
+                    <label for="confirm">Password, again</label>
+                    <input id="confirm" name="confirm" type="password" minlength="8" required
+                           autocomplete="new-password">
 
-            <button class="btn btn-accent" type="submit">Create account</button>
-        </form>
+                    <button class="btn btn-accent" type="submit">Create account</button>
+                </form>
 
-        <p class="aside-note">Already a member? <a th:href="@{/login}">Log in</a>.</p>
+                <p class="aside-note">Already a member? <a th:href="@{/login}">Log in</a>.</p>
+            </div>
+        </main>
+
+        <footer th:replace="~{fragments :: footer}"></footer>
     </div>
-</main>
-
-<footer th:replace="~{fragments :: footer}"></footer>
+</div>
 </body>
 </html>

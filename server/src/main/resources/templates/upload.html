@@ -2,70 +2,77 @@
 <html xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments :: head('Upload')}"></head>
 <body>
-<nav th:replace="~{fragments :: nav}"></nav>
+<div class="shell">
+    <aside th:replace="~{fragments :: sidebar('upload')}"></aside>
+    <div class="main">
+        <header th:replace="~{fragments :: topbar}"></header>
 
-<main class="container narrow">
-    <div class="panel">
-        <h1>Upload an asset</h1>
-        <p class="lead">Before anything publishes, it runs the full originality pipeline —
-            exact hash, perceptual image hashes, audio fingerprint, metadata — against
-            every registered asset in the community.</p>
+        <main class="content narrow">
+            <div class="panel">
+                <h1>Upload an asset</h1>
+                <p class="lead">Before anything publishes, it runs the full originality pipeline —
+                    exact hash, perceptual image hashes, audio fingerprint, metadata — against
+                    every registered asset in the community.</p>
 
-        <div class="flash flash-bad" th:if="${outcome != null and !outcome.published}" style="margin-top:14px">
-            <strong>Not published.</strong>
-            <span th:text="${outcome.blockReason}">reason</span>
-            <ul class="report-list" th:if="${!outcome.matches.empty}" style="margin-top:10px">
-                <li th:each="m : ${outcome.matches}">
-                    <div class="layer-line">
-                        <span class="chip" th:text="${m.layer}">layer</span>
-                        <span class="hash" th:text="|distance ${m.distance}/64|"></span>
+                <div class="flash flash-bad" th:if="${outcome != null and !outcome.published}"
+                     style="margin-top:14px">
+                    <strong>Not published.</strong>
+                    <span th:text="${outcome.blockReason}">reason</span>
+                    <ul class="report-list" th:if="${!outcome.matches.empty}" style="margin-top:10px">
+                        <li th:each="m : ${outcome.matches}">
+                            <div class="layer-line">
+                                <span class="chip" th:text="${m.layer}">layer</span>
+                                <span class="hash" th:text="|distance ${m.distance}/64|"></span>
+                            </div>
+                            <div class="note" th:text="${m.note}">note</div>
+                        </li>
+                    </ul>
+                </div>
+
+                <form th:action="@{/upload}" method="post" enctype="multipart/form-data" class="field-full">
+                    <label>File</label>
+                    <div class="drop-hint">
+                        <label class="btn" for="file" style="margin:0">Choose a file</label>
+                        <input id="file" name="file" type="file" required
+                               accept=".png,.jpg,.jpeg,.gif,.bmp,.webp,.svg,.wav,.mp3,.ogg,.aif,.aiff">
+                        <div class="file-chosen" id="file-chosen">PNG, JPG, GIF, BMP, WebP, SVG · WAV, MP3, OGG, AIFF · up to 25 MB</div>
+                        <img id="upload-preview" alt="">
                     </div>
-                    <div class="note" th:text="${m.note}">note</div>
-                </li>
-            </ul>
-        </div>
 
-        <form th:action="@{/upload}" method="post" enctype="multipart/form-data" class="field-full">
-            <label>File</label>
-            <div class="drop-hint">
-                <label class="btn" for="file" style="margin:0">Choose a file</label>
-                <input id="file" name="file" type="file" required
-                       accept=".png,.jpg,.jpeg,.gif,.bmp,.webp,.svg,.wav,.mp3,.ogg,.aif,.aiff">
-                <div class="file-chosen" id="file-chosen">PNG, JPG, GIF, BMP, WebP, SVG · WAV, MP3, OGG, AIFF · up to 25 MB</div>
-                <img id="upload-preview" alt="">
+                    <label for="title">Title</label>
+                    <input id="title" name="title" maxlength="120" th:value="${title}"
+                           placeholder="What should this be called in the gallery?">
+
+                    <label for="description">Description <span style="color:var(--ink-3)">(optional)</span></label>
+                    <textarea id="description" name="description" maxlength="2000"
+                              th:text="${description}"
+                              placeholder="What it is, how it was made, how others may use it."></textarea>
+
+                    <label for="license">License</label>
+                    <select id="license" name="license">
+                        <option th:each="l : ${licenses}" th:value="${l}" th:text="${l}"
+                                th:selected="${l == license}"></option>
+                    </select>
+
+                    <div class="check-row">
+                        <input type="checkbox" id="ownershipDeclared" name="ownershipDeclared" value="true">
+                        <label for="ownershipDeclared" style="margin:0">I created this work, or I hold
+                            the rights to share it under the license above. I understand this
+                            declaration is recorded with the asset.</label>
+                    </div>
+
+                    <button class="btn btn-accent" type="submit" id="upload-submit">Run the check and publish</button>
+                    <p class="aside-note">Exact duplicates of anything already registered are never
+                        published. Perceptually similar uploads publish with a visible flag and the
+                        evidence attached. Publishing a new take on your own asset? Do it from the
+                        asset's page — “Publish a new version” keeps the stack together.</p>
+                </form>
             </div>
+        </main>
 
-            <label for="title">Title</label>
-            <input id="title" name="title" maxlength="120" th:value="${title}"
-                   placeholder="What should this be called in the gallery?">
-
-            <label for="description">Description <span style="color:var(--ink-3)">(optional)</span></label>
-            <textarea id="description" name="description" maxlength="2000"
-                      th:text="${description}"
-                      placeholder="What it is, how it was made, how others may use it."></textarea>
-
-            <label for="license">License</label>
-            <select id="license" name="license">
-                <option th:each="l : ${licenses}" th:value="${l}" th:text="${l}"
-                        th:selected="${l == license}"></option>
-            </select>
-
-            <div class="check-row">
-                <input type="checkbox" id="ownershipDeclared" name="ownershipDeclared" value="true">
-                <label for="ownershipDeclared" style="margin:0">I created this work, or I hold
-                    the rights to share it under the license above. I understand this
-                    declaration is recorded with the asset.</label>
-            </div>
-
-            <button class="btn btn-accent" type="submit" id="upload-submit">Run the check and publish</button>
-            <p class="aside-note">Exact duplicates of anything already registered are never
-                published. Perceptually similar uploads publish with a visible flag and the
-                evidence attached.</p>
-        </form>
+        <footer th:replace="~{fragments :: footer}"></footer>
     </div>
-</main>
-
-<footer th:replace="~{fragments :: footer}"></footer>
+</div>
 <script th:src="@{/js/upload.js}"></script>
 </body>
 </html>

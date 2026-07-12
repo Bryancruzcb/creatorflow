@@ -1,6 +1,10 @@
 package creatorflow.server.service;
 
+import creatorflow.server.domain.Comment;
+import creatorflow.server.domain.RegisteredAsset;
 import creatorflow.server.domain.UserAccount;
+import creatorflow.server.repo.CommentRepository;
+import creatorflow.server.repo.RegisteredAssetRepository;
 import creatorflow.server.repo.UserAccountRepository;
 import java.awt.Color;
 import java.awt.Graphics2D;
@@ -41,12 +45,17 @@ public class DemoSeeder implements ApplicationRunner {
     private static final String DEMO_PASSWORD = "creatorflow-demo";
 
     private final UserAccountRepository accounts;
+    private final RegisteredAssetRepository assets;
+    private final CommentRepository comments;
     private final GalleryService gallery;
     private final PasswordEncoder passwordEncoder;
 
-    public DemoSeeder(UserAccountRepository accounts, GalleryService gallery,
+    public DemoSeeder(UserAccountRepository accounts, RegisteredAssetRepository assets,
+                      CommentRepository comments, GalleryService gallery,
                       PasswordEncoder passwordEncoder) {
         this.accounts = accounts;
+        this.assets = assets;
+        this.comments = comments;
         this.gallery = gallery;
         this.passwordEncoder = passwordEncoder;
     }
@@ -54,7 +63,8 @@ public class DemoSeeder implements ApplicationRunner {
     @Override
     public void run(ApplicationArguments args) throws Exception {
         if (accounts.existsByUsernameIgnoreCase("mira_pixels")) {
-            log.info("Demo content already present — seeder skipped.");
+            log.info("Demo accounts already present — base seed skipped.");
+            seedReviewContentIfMissing();
             return;
         }
         UserAccount mira = account("mira_pixels", "Mira K.");
@@ -103,6 +113,104 @@ public class DemoSeeder implements ApplicationRunner {
             }
             Files.deleteIfExists(dir);
         }
+        seedReviewContentIfMissing();
+    }
+
+    /**
+     * Review-demo content added in v1.3 (a version stack, pinned comments,
+     * feedback flags) — applied separately so databases seeded by earlier
+     * releases pick it up on the next start.
+     */
+    private void seedReviewContentIfMissing() throws Exception {
+        boolean hasVersions = assets.findAll().stream()
+                .anyMatch(a -> a.getVersionNumberOrOne() > 1);
+        if (hasVersions) {
+            return;
+        }
+        UserAccount mira = accounts.findByUsernameIgnoreCase("mira_pixels").orElse(null);
+        UserAccount ada = accounts.findByUsernameIgnoreCase("ada_shaders").orElse(null);
+        UserAccount tomas = accounts.findByUsernameIgnoreCase("tomas_sound").orElse(null);
+        RegisteredAsset dune = findByTitle(mira, "Dune strider sprite");
+        if (mira == null || ada == null || tomas == null || dune == null) {
+            return;
+        }
+
+        Path dir = Files.createTempDirectory("cf-demo-review");
+        try {
+            Path v2 = dir.resolve("dune_strider_v2.png");
+            ImageIO.write(spriteRevision(101, 1012), "png", v2.toFile());
+            GalleryService.UploadOutcome outcome = gallery.publishNextVersion(mira, dune.getId(),
+                    v2, "dune_strider_v2.png", Files.size(v2),
+                    "Brightened the visor and cleaned the back leg silhouette.", true);
+            log.info("Seeded version → {}", outcome.published()
+                    ? outcome.asset().getVersionLabel() : "blocked: " + outcome.blockReason());
+
+            if (outcome.published()) {
+                RegisteredAsset latest = outcome.asset();
+                comments.save(new Comment(latest, ada,
+                        "The visor reads much better now — but the shoulder still gets muddy "
+                                + "at 1×. Maybe drop the highlight a pixel.", 0.63, 0.34));
+                comments.save(new Comment(latest, mira,
+                        "Good catch, thanks — queued for V3.", null, null));
+                latest.toggleFeedbackWanted();
+                assets.save(latest);
+            }
+
+            RegisteredAsset nebula = findByTitle(ada, "Nebula noise field");
+            if (nebula != null) {
+                nebula.toggleFeedbackWanted();
+                assets.save(nebula);
+            }
+            RegisteredAsset drip = findByTitle(tomas, "Cavern drip");
+            if (drip != null) {
+                comments.save(new Comment(drip, mira,
+                        "Sits perfectly under the cave loop — using it in the demo level.",
+                        null, null));
+            }
+            log.info("Review demo content seeded: 1 version stack, 3 comments, 2 feedback flags.");
+        } finally {
+            try (var paths = Files.list(dir)) {
+                for (Path p : paths.toList()) {
+                    Files.deleteIfExists(p);
+                }
+            }
+            Files.deleteIfExists(dir);
+        }
+    }
+
+    private RegisteredAsset findByTitle(UserAccount owner, String title) {
+        if (owner == null) {
+            return null;
+        }
+        return assets.findByOwnerIdAndHasFileTrueOrderByCreatedAtDesc(owner.getId()).stream()
+                .filter(a -> title.equals(a.getDisplayTitle()))
+                .findFirst().orElse(null);
+    }
+
+    /** The same sprite with a deterministic handful of cells changed — an iteration, not a copy. */
+    private static BufferedImage spriteRevision(long seed, long revisionSeed) {
+        BufferedImage img = sprite(seed);
+        Random rnd = new Random(revisionSeed);
+        int grid = 16;
+        int scale = img.getWidth() / grid;
+        Graphics2D g = img.createGraphics();
+        for (int i = 0; i < 10; i++) {
+            int x = rnd.nextInt(grid / 2);
+            int y = rnd.nextInt(grid);
+            Color c = new Color(200 + rnd.nextInt(55), 180 + rnd.nextInt(60), 90 + rnd.nextInt(80));
+            if (rnd.nextBoolean()) {
+                g.setColor(c);
+                g.fillRect(x * scale, y * scale, scale, scale);
+                g.fillRect((grid - 1 - x) * scale, y * scale, scale, scale);
+            } else {
+                g.setComposite(java.awt.AlphaComposite.Clear);
+                g.fillRect(x * scale, y * scale, scale, scale);
+                g.fillRect((grid - 1 - x) * scale, y * scale, scale, scale);
+                g.setComposite(java.awt.AlphaComposite.SrcOver);
+            }
+        }
+        g.dispose();
+        return img;
     }
 
     private UserAccount account(String username, String displayName) {
