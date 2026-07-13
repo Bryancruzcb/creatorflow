@@ -1,0 +1,289 @@
+package creatorflow.bridge;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import com.fasterxml.jackson.databind.ObjectMapper;
+import creatorflow.TestMedia;
+import creatorflow.db.AuditRepository;
+import creatorflow.db.Database;
+import creatorflow.db.DecisionRepository;
+import creatorflow.db.LocalProjectRepository;
+import creatorflow.db.ReleaseRepository;
+import creatorflow.db.ScanRepository;
+import creatorflow.db.WorkspaceStateRepository;
+import creatorflow.workflow.ReleaseExportService;
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
+import java.io.OutputStreamWriter;
+import java.net.Socket;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.Arrays;
+import java.util.Optional;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+
+class LocalBridgeServerTest {
+
+    @TempDir
+    Path directory;
+
+    private Database database;
+    private LocalBridgeServer server;
+    private HttpClient client;
+    private URI origin;
+    private URI launchUri;
+    private String cookie;
+    private String csrf;
+    private Path webRoot;
+    private LocalProjectRepository localProjects;
+    private ScanRepository scans;
+    private DecisionRepository decisions;
+    private ReleaseRepository releases;
+    private WorkspaceStateRepository workspaceState;
+
+    @BeforeEach
+    void start() throws Exception {
+        database = new Database(directory.resolve("bridge.db"));
+        webRoot = Files.createDirectories(directory.resolve("web"));
+        startBridge();
+        client = HttpClient.newBuilder().followRedirects(HttpClient.Redirect.NEVER).build();
+        authenticate();
+    }
+
+    private void startBridge() {
+        localProjects = new LocalProjectRepository(database);
+        scans = new ScanRepository(database);
+        decisions = new DecisionRepository(database);
+        releases = new ReleaseRepository(database);
+        workspaceState = new WorkspaceStateRepository(database);
+        var audit = new AuditRepository(database);
+        var coordinator = new ScanCoordinator(scans, localProjects, audit);
+        var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
+                releases, audit);
+        server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
+                decisions, releases, workspaceState, releaseExports, coordinator, webRoot).start();
+    }
+
+    private void authenticate() throws Exception {
+        origin = server.origin();
+        launchUri = server.launchUri();
+
+        HttpResponse<String> launch = client.send(HttpRequest.newBuilder(launchUri).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(303, launch.statusCode());
+        String setCookie = launch.headers().firstValue("set-cookie").orElseThrow();
+        assertTrue(setCookie.contains("HttpOnly"));
+        assertTrue(setCookie.contains("SameSite=Strict"));
+        cookie = setCookie.split(";", 2)[0];
+        HttpResponse<String> session = get("/api/v1/session", cookie);
+        assertEquals(200, session.statusCode());
+        csrf = new ObjectMapper().readTree(session.body()).get("csrfToken").asText();
+    }
+
+    @AfterEach
+    void stop() {
+        server.close();
+        database.close();
+    }
+
+    @Test
+    void launchTokenIsSingleUseAndSessionIsHttpOnlySameSite() throws Exception {
+        HttpResponse<String> reused = client.send(HttpRequest.newBuilder(launchUri).GET().build(),
+                HttpResponse.BodyHandlers.ofString());
+        assertEquals(401, reused.statusCode());
+
+        HttpResponse<String> missingSession = get("/api/v1/session", null);
+        assertEquals(401, missingSession.statusCode());
+
+        HttpResponse<String> page = get("/", null);
+        assertEquals(200, page.statusCode());
+        assertTrue(page.headers().firstValue("content-security-policy").isPresent());
+        assertFalse(page.headers().firstValue("access-control-allow-origin").isPresent());
+    }
+
+    @Test
+    void mutationsRequireSameOriginAndCsrfBeforeOpeningPicker() throws Exception {
+        assertEquals(403, post("/api/v1/project-picker", cookie, null, null).statusCode());
+        assertEquals(403, post("/api/v1/project-picker", cookie, "https://evil.test", csrf).statusCode());
+        assertEquals(403, post("/api/v1/project-picker", cookie, origin.toString(), "wrong").statusCode());
+
+        HttpResponse<String> accepted = post("/api/v1/project-picker", cookie, origin.toString(), csrf);
+        assertEquals(201, accepted.statusCode());
+        assertTrue(accepted.body().contains("projectId"));
+        assertFalse(accepted.body().contains(directory.toString()));
+    }
+
+    @Test
+    void rejectsForgedHostAndEncodedTraversal() throws Exception {
+        assertTrue(rawRequest("GET / HTTP/1.1\r\nHost: evil.invalid\r\nConnection: close\r\n\r\n")
+                .startsWith("HTTP/1.1 403"));
+        int port = origin.getPort();
+        String traversal = rawRequest("GET /%2e%2e/secret HTTP/1.1\r\nHost: 127.0.0.1:" + port
+                + "\r\nConnection: close\r\n\r\n");
+        assertTrue(traversal.startsWith("HTTP/1.1 400"));
+    }
+
+    @Test
+    void servesDecoderAndLargeModelTypesFromTheConfiguredWebRoot() throws Exception {
+        byte[] wasm = new byte[] {0, 97, 115, 109};
+        byte[] model = new byte[2 * 1024 * 1024];
+        Arrays.fill(model, (byte) 7);
+        Files.write(webRoot.resolve("decoder.wasm"), wasm);
+        Files.write(webRoot.resolve("scene.glb"), model);
+
+        HttpResponse<byte[]> decoder = client.send(
+                HttpRequest.newBuilder(origin.resolve("/decoder.wasm")).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, decoder.statusCode());
+        assertEquals("application/wasm", decoder.headers().firstValue("content-type").orElseThrow());
+        assertTrue(Arrays.equals(wasm, decoder.body()));
+
+        HttpResponse<byte[]> scene = client.send(
+                HttpRequest.newBuilder(origin.resolve("/scene.glb")).GET().build(),
+                HttpResponse.BodyHandlers.ofByteArray());
+        assertEquals(200, scene.statusCode());
+        assertEquals("model/gltf-binary", scene.headers().firstValue("content-type").orElseThrow());
+        assertEquals(model.length, scene.body().length);
+        assertEquals("public, max-age=31536000, immutable",
+                scene.headers().firstValue("cache-control").orElseThrow());
+    }
+
+    @Test
+    void selectedProjectCanRunARealScanAndReturnPersistedAssets() throws Exception {
+        TestMedia.writePng(directory, "hero.png", TestMedia.structuredImage(9));
+        ObjectMapper json = new ObjectMapper();
+        HttpResponse<String> picked = post("/api/v1/project-picker", cookie, origin.toString(), csrf);
+        long projectId = json.readTree(picked.body()).get("projectId").asLong();
+
+        HttpRequest scanRequest = HttpRequest.newBuilder(
+                        origin.resolve("/api/v1/projects/" + projectId + "/scan-runs"))
+                .header("Cookie", cookie)
+                .header("Origin", origin.toString())
+                .header("X-CreatorFlow-CSRF", csrf)
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"release\":\"test-1\"}"))
+                .build();
+        HttpResponse<String> started = client.send(scanRequest, HttpResponse.BodyHandlers.ofString());
+        assertEquals(202, started.statusCode());
+        String runId = json.readTree(started.body()).get("id").asText();
+
+        String state = "QUEUED";
+        for (int attempt = 0; attempt < 100 && !"COMPLETED".equals(state); attempt++) {
+            Thread.sleep(25);
+            state = json.readTree(get("/api/v1/scan-runs/" + runId, cookie).body())
+                    .get("state").asText();
+        }
+        assertEquals("COMPLETED", state);
+        HttpResponse<String> assets = get("/api/v1/projects/" + projectId + "/assets", cookie);
+        assertEquals(200, assets.statusCode());
+        assertEquals("hero.png", json.readTree(assets.body()).get("items").get(0).get("fileName").asText());
+        assertFalse(assets.body().contains(directory.toString()));
+
+        long assetId = json.readTree(assets.body()).get("items").get(0).get("id").asLong();
+        assertEquals(403, postJson("/api/v1/assets/" + assetId + "/source-evidence",
+                cookie, origin.toString(), null,
+                "{\"source\":\"Contract\",\"license\":\"Owned\"}").statusCode());
+        assertEquals(201, postJson("/api/v1/assets/" + assetId + "/source-evidence",
+                cookie, origin.toString(), csrf,
+                "{\"source\":\"Contract\",\"license\":\"Owned\",\"evidenceUrl\":\"https://example.test/hero\"}")
+                .statusCode());
+        assertEquals(201, postJson("/api/v1/assets/" + assetId + "/decisions",
+                cookie, origin.toString(), csrf,
+                "{\"type\":\"APPROVED\",\"reason\":\"Contract verified\"}").statusCode());
+
+        HttpResponse<String> created = postJson("/api/v1/projects/" + projectId + "/releases",
+                cookie, origin.toString(), csrf,
+                "{\"scanRunId\":\"" + runId + "\",\"release\":\"test-1.0\"}");
+        assertEquals(201, created.statusCode());
+        assertTrue(json.readTree(created.body()).get("report").get("passed").asBoolean());
+        String releaseId = json.readTree(created.body()).get("id").asText();
+        HttpResponse<String> manifest = get("/api/v1/releases/" + releaseId + "/manifest", cookie);
+        assertEquals(200, manifest.statusCode());
+        assertTrue(manifest.headers().firstValue("content-disposition").orElseThrow()
+                .contains("test-1.0-manifest.json"));
+        assertFalse(manifest.body().contains("Contract verified"));
+        assertTrue(manifest.body().contains("\"decision\" : \"APPROVED\""));
+        assertTrue(manifest.body().contains("https://example.test/hero"));
+        var releaseList = json.readTree(get("/api/v1/projects/" + projectId + "/releases", cookie).body())
+                .get("items");
+        assertEquals(1, releaseList.size());
+        assertEquals(1, releaseList.get(0).get("comparison").get("added").asInt());
+    }
+
+    @Test
+    void projectListHidesRootsAndWorkspaceStateSurvivesBridgeRestart() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String body = "{\"activeProjectId\":" + projectId
+                + ",\"filters\":{\"status\":\"SIMILAR\"},\"queue\":[\"finding-1\"]}";
+        assertEquals(403, postJson("/api/v1/workspace-state", cookie, origin.toString(), null, body)
+                .statusCode());
+        assertEquals(200, postJson("/api/v1/workspace-state", cookie, origin.toString(), csrf, body)
+                .statusCode());
+
+        HttpResponse<String> projects = get("/api/v1/projects", cookie);
+        assertEquals(200, projects.statusCode());
+        assertTrue(projects.body().contains("projectId"));
+        assertFalse(projects.body().contains(directory.toString()));
+
+        server.close();
+        database.close();
+        database = new Database(directory.resolve("bridge.db"));
+        startBridge();
+        authenticate();
+
+        HttpResponse<String> restored = get("/api/v1/workspace-state", cookie);
+        assertEquals(projectId, json.readTree(restored.body()).get("activeProjectId").asLong());
+        assertEquals("SIMILAR", json.readTree(restored.body()).get("filters").get("status").asText());
+        assertEquals("finding-1", json.readTree(restored.body()).get("queue").get(0).asText());
+    }
+
+    private HttpResponse<String> get(String path, String requestCookie) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(origin.resolve(path)).GET();
+        if (requestCookie != null) request.header("Cookie", requestCookie);
+        return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> post(String path, String requestCookie, String requestOrigin,
+                                      String requestCsrf) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(origin.resolve(path))
+                .POST(HttpRequest.BodyPublishers.noBody());
+        if (requestCookie != null) request.header("Cookie", requestCookie);
+        if (requestOrigin != null) request.header("Origin", requestOrigin);
+        if (requestCsrf != null) request.header("X-CreatorFlow-CSRF", requestCsrf);
+        return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> postJson(String path, String requestCookie, String requestOrigin,
+                                          String requestCsrf, String body) throws Exception {
+        HttpRequest.Builder request = HttpRequest.newBuilder(origin.resolve(path))
+                .header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString(body));
+        if (requestCookie != null) request.header("Cookie", requestCookie);
+        if (requestOrigin != null) request.header("Origin", requestOrigin);
+        if (requestCsrf != null) request.header("X-CreatorFlow-CSRF", requestCsrf);
+        return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private String rawRequest(String request) throws Exception {
+        try (Socket socket = new Socket("127.0.0.1", origin.getPort());
+             OutputStreamWriter writer = new OutputStreamWriter(socket.getOutputStream(), StandardCharsets.US_ASCII);
+             BufferedReader reader = new BufferedReader(new InputStreamReader(
+                     socket.getInputStream(), StandardCharsets.US_ASCII))) {
+            writer.write(request);
+            writer.flush();
+            return reader.readLine();
+        }
+    }
+}

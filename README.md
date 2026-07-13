@@ -26,7 +26,7 @@ Three Maven modules share one engine:
 
 | Module | What it is | Stack |
 | --- | --- | --- |
-| `core` | The verification engine and domain model | plain Java — no UI, DB or Spring deps |
+| `core` | Verification engine, project scanner, and versioned manifest model | plain Java — no UI, DB or Spring deps |
 | `server` | **The platform**: gallery, accounts, uploads, registry API, disputes | Spring Boot 3.3, Thymeleaf, JPA/H2, Spring Security |
 | `desktop` | Companion app: local library, projects, offline checks, registry sync | JavaFX 21, SQLite |
 
@@ -46,7 +46,7 @@ Requires JDK 21+ and Maven.
 ```bash
 git clone https://github.com/Bryancruzcb/creatorflow.git
 cd creatorflow
-mvn install                                # build everything once (47 tests)
+mvn install                                # build everything once (66 tests)
 java -jar server/target/creatorflow-server-1.3.0.jar --creatorflow.demo-seed=true
 ```
 
@@ -136,6 +136,57 @@ Publishing to the gallery stores the file — that's the point of a gallery — 
 file whose fingerprints you had already registered from the desktop, the registration is upgraded
 in place rather than duplicated.
 
+## Release-manifest milestone
+
+`creatorflow-core` now has the first production slice of the release-preflight direction:
+
+- `ProjectScanner` recursively inventories supported creative files using project-relative paths.
+- Every file runs through the existing SHA-256, image, audio, and metadata layers.
+- Relationships inside the project—exact duplicates, perceptually similar images, and related audio—are retained in the inventory.
+- `CreativeManifest` defines the versioned `creatorflow.manifest/v0.1` contract.
+- `ManifestJson` writes deterministic JSON and re-imports it.
+- The JSON Schema ships inside the core JAR as `creatorflow-manifest-v0.1.schema.json`.
+- Source/license resolution is an explicit interface; an absent record remains unresolved instead of being mistaken for a clean ownership result.
+
+Run the current CLI bridge against a real project directory:
+
+```bash
+mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
+  -Dexec.mainClass=creatorflow.manifest.ManifestCli \
+  -Dexec.args='/path/to/project MyProject 0.1.0 /path/to/manifest.json'
+```
+
+The hardened scanner also exposes configurable exclusions, ordered progress events, cancellation with a usable partial manifest, per-file failure isolation, dependency findings, and symlink containment. The desktop module now owns a loopback-only local bridge and migrated workflow store for project selection, immutable scan runs, source evidence, append-only decisions, releases, and workspace restoration.
+
+To run the desktop-owned browser workspace directly from a frontend build:
+
+```bash
+npm --prefix /path/to/creatorflow-preflight run build
+mvn -pl desktop javafx:run \
+  -Djavafx.options="-Dcreatorflow.web.root=/path/to/creatorflow-preflight/dist -Dcreatorflow.web.open=true"
+```
+
+For a self-contained desktop artifact, activate the packaging profile by supplying the same build
+directory at package time:
+
+```bash
+mvn -pl desktop -am package \
+  -Dcreatorflow.web.dist=/path/to/creatorflow-preflight/dist
+```
+
+Large demonstration GLBs are intentionally optional: serving an external `dist` keeps ordinary
+desktop builds lean, while the packaged profile is available for an offline showcase build.
+
+Run the default release policy against a manifest with machine-readable output:
+
+```bash
+mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
+  -Dexec.mainClass=creatorflow.manifest.ReleaseGateCli \
+  -Dexec.args='/path/to/manifest.json --output /path/to/gate-report.json'
+```
+
+The command exits `0` when the release passes, `2` when policy blocks it, and `3` for invalid input or execution failure. `.github/workflows/creatorflow-release-gate.yml` shows the CI integration and report upload.
+
 ![Desktop dashboard](docs/screenshots/dashboard.png)
 
 ## API
@@ -172,14 +223,16 @@ flowchart LR
     end
     subgraph core
         ENG["OriginalityEngine<br/>Sha256 · ImageHashes · WavFingerprint · MetadataInspector"]
+        MAN["ProjectScanner → CreativeManifest v0.1<br/>deterministic JSON · relative paths"]
     end
     GAL --> ENG
     SVC --> ENG
+    MAN --> ENG
     RC -- HTTPS --> API
 ```
 
 `core` has no UI, database or Spring dependencies — the platform and the desktop app share it as
-a plain library, so a fingerprint means exactly the same thing on both sides. 47 tests across the
+a plain library, so a fingerprint means exactly the same thing on both sides. 66 tests across the
 three modules (`mvn verify`): engine algorithms, persistence, importer + registry escalation, the
 REST API, the full web flow (signup → upload → duplicate blocked → similar flagged → files served
 hardened), and the review layer (version lineage vs foreign similarity, stack-only compare,
@@ -187,6 +240,9 @@ pinned comments, feedback filtering).
 
 ## Roadmap
 
+- Add project-wide source aggregation, server-side evidence search, and saved filter views
+- Add incremental scan caching and resumable work after process termination
+- Sign exported release artifacts and verify signatures in the CI gate
 - [Chromaprint](https://acoustid.org/chromaprint) spectral audio fingerprints
 - CLIP-style image embeddings with an ANN index, to catch "same character, redrawn"
   (registry matching is currently a linear scan — fine at this scale, BK-tree/ANN is the next step)

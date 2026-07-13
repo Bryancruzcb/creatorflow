@@ -68,4 +68,49 @@
       </plugin>
     </plugins>
   </build>
+
+  <!--
+    The production investigation UI lives in a separate React workspace. Supplying
+    -Dcreatorflow.web.dist=/absolute/path/to/dist turns that build into classpath
+    resources in the desktop artifact; ordinary Java-only builds retain the small,
+    explicit fallback page.
+  -->
+  <profiles>
+    <profile>
+      <id>package-react-workspace</id>
+      <activation>
+        <property>
+          <name>creatorflow.web.dist</name>
+        </property>
+      </activation>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-resources-plugin</artifactId>
+            <version>3.3.1</version>
+            <executions>
+              <execution>
+                <id>copy-react-workspace</id>
+                <phase>process-resources</phase>
+                <goals>
+                  <goal>copy-resources</goal>
+                </goals>
+                <configuration>
+                  <outputDirectory>${project.build.outputDirectory}/creatorflow/web</outputDirectory>
+                  <overwrite>true</overwrite>
+                  <resources>
+                    <resource>
+                      <directory>${creatorflow.web.dist}</directory>
+                      <filtering>false</filtering>
+                    </resource>
+                  </resources>
+                </configuration>
+              </execution>
+            </executions>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>
