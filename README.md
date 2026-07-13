@@ -136,6 +136,22 @@ Publishing to the gallery stores the file — that's the point of a gallery — 
 file whose fingerprints you had already registered from the desktop, the registration is upgraded
 in place rather than duplicated.
 
+## The Roblox Studio plugin
+
+`roblox-plugin/` is a Studio plugin (Luau + [Rojo](https://rojo.space)) that brings the registry to
+Roblox animation teams: select a `KeyframeSequence`, and the plugin canonicalizes it, fingerprints
+it with pure-Luau SHA-256, and checks it against the community registry through the same
+`/api/v1/verify` + `X-Api-Key` contract the desktop app uses — **the animation itself never
+leaves Studio**. Clean versions can be registered from the panel, and Studio's per-plugin HTTP
+permissions mean nothing changes in the game's own settings.
+
+```bash
+rojo build roblox-plugin --plugin CreatorFlow.rbxm   # installs into Studio's plugins folder
+```
+
+See [`roblox-plugin/README.md`](roblox-plugin/README.md) for setup and the roadmap
+(team registries, Roblox animation-ID lifecycle tracking, version stacks from Studio).
+
 ## Release-manifest milestone
 
 `creatorflow-core` now has the first production slice of the release-preflight direction:
@@ -198,6 +214,8 @@ The command exits `0` when the release passes, `2` when policy blocks it, and `3
 | `POST /api/v1/verify` | `X-Api-Key` | fingerprints in → verdict + cross-account matches out |
 | `POST /api/v1/assets` | `X-Api-Key` | register fingerprints + ownership declaration + license |
 | `GET /api/v1/assets/mine` | `X-Api-Key` | your registered assets |
+| `POST /api/v1/assets/{id}/mappings` | `X-Api-Key` | record the Roblox id an asset was uploaded as in one ownership context (upsert per context) |
+| `GET /api/v1/assets/{id}/mappings` | `X-Api-Key` | the asset's Roblox ids per context, e.g. `group:12345 → 222` |
 | `POST /api/v1/disputes` | `X-Api-Key` | file an ownership claim against someone's asset |
 | `GET /api/v1/disputes/mine` | `X-Api-Key` | disputes you filed and disputes against your assets |
 
