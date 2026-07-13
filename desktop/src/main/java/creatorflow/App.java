@@ -25,6 +25,20 @@ public final class App extends Application {
         stage.setMinHeight(700);
         stage.show();
 
+        boolean bridgeEnabled = Boolean.parseBoolean(
+                System.getProperty("creatorflow.bridge.enabled", "true"));
+        boolean screenshotMode = System.getProperty("creatorflow.screenshot.dir") != null;
+        if (bridgeEnabled && !screenshotMode) {
+            try {
+                var bridge = context.startLocalBridge(() -> stage);
+                if (Boolean.getBoolean("creatorflow.web.open")) {
+                    getHostServices().showDocument(bridge.launchUri().toString());
+                }
+            } catch (RuntimeException error) {
+                System.err.println("CreatorFlow local bridge could not start: " + error.getMessage());
+            }
+        }
+
         Screenshots.maybeRun(stage, view, context);
     }
 
