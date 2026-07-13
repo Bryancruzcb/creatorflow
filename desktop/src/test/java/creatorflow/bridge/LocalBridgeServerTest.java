@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import creatorflow.TestMedia;
 import creatorflow.db.AuditRepository;
+import creatorflow.db.AnimationComparisonRepository;
 import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
@@ -66,12 +67,15 @@ class LocalBridgeServerTest {
         decisions = new DecisionRepository(database);
         releases = new ReleaseRepository(database);
         workspaceState = new WorkspaceStateRepository(database);
+        var animationComparisons = new AnimationComparisonRepository(database);
+        var pluginPairings = new PluginPairingService();
         var audit = new AuditRepository(database);
         var coordinator = new ScanCoordinator(scans, localProjects, audit);
         var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit);
         server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
-                decisions, releases, workspaceState, releaseExports, coordinator, webRoot).start();
+                decisions, releases, workspaceState, animationComparisons, pluginPairings,
+                releaseExports, coordinator, webRoot).start();
     }
 
     private void authenticate() throws Exception {
@@ -249,6 +253,55 @@ class LocalBridgeServerTest {
         assertEquals("finding-1", json.readTree(restored.body()).get("queue").get(0).asText());
     }
 
+    @Test
+    void pairedStudioPluginCanStoreMotionEvidenceWithoutBrowserCookiesOrOrigin() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        HttpResponse<String> issued = post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf);
+        assertEquals(201, issued.statusCode());
+        String token = json.readTree(issued.body()).get("token").asText();
+        assertEquals(origin.toString(), json.readTree(issued.body()).get("endpoint").asText());
+
+        assertEquals(401, pluginRequest("GET", "/plugin/v1/health", "wrong", null).statusCode());
+        HttpResponse<String> health = pluginRequest("GET", "/plugin/v1/health", token, null);
+        assertEquals(200, health.statusCode());
+        assertEquals("creatorflow.roblox-motion/v0.1",
+                json.readTree(health.body()).get("schema").asText());
+
+        String animation = """
+                {
+                  "assetId":"%s","name":"Walk","duration":1.0,"looped":true,
+                  "priority":"Movement","keyframes":[
+                    {"time":0.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                    {"time":1.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                  ]
+                }
+                """;
+        String body = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("1001") + ",\"candidate\":" + animation.formatted("1002") + "}";
+        HttpResponse<String> compared = pluginRequest(
+                "POST", "/plugin/v1/motion-comparisons", token, body);
+        assertEquals(201, compared.statusCode(), compared.body());
+        assertTrue(json.readTree(compared.body()).get("exactCurveData").asBoolean());
+        assertEquals(100, json.readTree(compared.body()).get("overallScore").asInt());
+        String comparisonId = json.readTree(compared.body()).get("id").asText();
+
+        HttpResponse<String> history = get(
+                "/api/v1/projects/" + projectId + "/motion-comparisons", cookie);
+        assertEquals(200, history.statusCode());
+        assertEquals(comparisonId, json.readTree(history.body()).get("items").get(0).get("id").asText());
+        assertEquals(401, get("/api/v1/motion-comparisons/" + comparisonId, null).statusCode());
+
+        HttpResponse<String> malformed = pluginRequest("POST", "/plugin/v1/motion-comparisons", token,
+                "{\"schema\":\"wrong\"}");
+        assertEquals(400, malformed.statusCode());
+        assertEquals(1, json.readTree(get(
+                "/api/v1/projects/" + projectId + "/motion-comparisons", cookie).body())
+                .get("items").size());
+    }
+
     private HttpResponse<String> get(String path, String requestCookie) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(origin.resolve(path)).GET();
         if (requestCookie != null) request.header("Cookie", requestCookie);
@@ -273,6 +326,18 @@ class LocalBridgeServerTest {
         if (requestCookie != null) request.header("Cookie", requestCookie);
         if (requestOrigin != null) request.header("Origin", requestOrigin);
         if (requestCsrf != null) request.header("X-CreatorFlow-CSRF", requestCsrf);
+        return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
+    }
+
+    private HttpResponse<String> pluginRequest(String method, String path, String token, String body)
+            throws Exception {
+        HttpRequest.BodyPublisher publisher = body == null
+                ? HttpRequest.BodyPublishers.noBody()
+                : HttpRequest.BodyPublishers.ofString(body);
+        HttpRequest.Builder request = HttpRequest.newBuilder(origin.resolve(path))
+                .header("Authorization", "Bearer " + token)
+                .method(method, publisher);
+        if (body != null) request.header("Content-Type", "application/json");
         return client.send(request.build(), HttpResponse.BodyHandlers.ofString());
     }
 

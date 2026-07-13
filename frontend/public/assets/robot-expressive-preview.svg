@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 960 540" role="img" aria-labelledby="title description">
+  <title id="title">Robot Expressive animation rig preview</title>
+  <description id="description">A technical joint diagram representing a humanoid animation rig.</description>
+  <rect width="960" height="540" fill="#161814"/>
+  <g fill="none" stroke="#363b35" stroke-width="1">
+    <path d="M0 90h960M0 180h960M0 270h960M0 360h960M0 450h960"/>
+    <path d="M120 0v540M240 0v540M360 0v540M480 0v540M600 0v540M720 0v540M840 0v540"/>
+  </g>
+  <g transform="translate(480 58)" fill="none" stroke="#d6ddd1" stroke-linecap="round" stroke-linejoin="round">
+    <circle cx="0" cy="48" r="35" stroke-width="9"/>
+    <path d="M0 86v73M-70 126L0 105l70 21M-70 126l-68 82M70 126l68 82M0 159l-48 105M0 159l48 105M-48 264l-22 121M48 264l22 121" stroke-width="18"/>
+    <path d="M-70 385h-58M70 385h58M-138 208l-32 16M138 208l32 16" stroke-width="15"/>
+  </g>
+  <g fill="#7aa7c7" stroke="#161814" stroke-width="5">
+    <circle cx="480" cy="163" r="10"/><circle cx="410" cy="184" r="10"/><circle cx="550" cy="184" r="10"/>
+    <circle cx="342" cy="266" r="10"/><circle cx="618" cy="266" r="10"/><circle cx="432" cy="322" r="10"/>
+    <circle cx="528" cy="322" r="10"/><circle cx="410" cy="443" r="10"/><circle cx="550" cy="443" r="10"/>
+  </g>
+  <g font-family="IBM Plex Mono,monospace" fill="#879084">
+    <text x="48" y="62" font-size="18">ROBOT EXPRESSIVE / 14 CLIPS</text>
+    <text x="48" y="92" font-size="13">LICENSED WORKFLOW PROXY · NOT A ROBLOX-OWNED ASSET</text>
+    <text x="746" y="484" font-size="13">74 NODES</text>
+    <text x="746" y="507" font-size="13">2 SKINS · 14 MESHES</text>
+  </g>
+</svg>

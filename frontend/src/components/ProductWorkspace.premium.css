@@ -1,0 +1,327 @@
+.product-sidebar nav button {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  transition:
+    color var(--motion-control) var(--ease-state),
+    background-color var(--motion-control) var(--ease-state),
+    border-color var(--motion-control) var(--ease-state);
+}
+
+.product-sidebar-bottom button.selected {
+  color: var(--ink);
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+}
+
+.product-sidebar nav {
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.product-nav-group {
+  display: grid;
+  gap: 2px;
+}
+
+.product-nav-group + .product-nav-group {
+  margin-top: 0.42rem;
+}
+
+.product-nav-group-label {
+  display: block;
+  padding: 0.22rem 0.75rem 0.12rem;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.5rem;
+  font-weight: 500;
+  letter-spacing: 0.075em;
+  line-height: 1.4;
+  text-transform: uppercase;
+}
+
+.product-nav-group[data-phase='fingerprint'] {
+  padding-block: 0.38rem;
+  background: color-mix(in srgb, var(--raised) 42%, transparent);
+  border-block: 1px solid color-mix(in srgb, var(--hairline) 72%, transparent);
+}
+
+.product-sidebar nav .product-mobile-settings {
+  display: none;
+}
+
+.product-nav-active-rail {
+  position: absolute;
+  inset: 0 auto 0 -1px;
+  z-index: -1;
+  width: 3px;
+  background: var(--blue-hover);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--blue-hover) 48%, transparent);
+}
+
+.workspace-proof-ribbon {
+  position: relative;
+  z-index: 6;
+  display: grid;
+  grid-template-columns: minmax(11rem, 14rem) minmax(0, 1fr);
+  align-items: stretch;
+  min-width: 0;
+  margin: clamp(0.75rem, 2vw, 1.35rem) clamp(1rem, 3vw, 2.4rem) 0;
+  background: color-mix(in srgb, var(--graphite) 88%, #0d100f);
+  border: 1px solid var(--hairline);
+  box-shadow: var(--depth-hairline);
+}
+
+.workspace-proof-ribbon-heading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 0.8rem 1rem;
+  border-right: 1px solid var(--hairline);
+}
+
+.workspace-proof-ribbon-heading > span,
+.workspace-proof-ribbon-heading > small {
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+
+.workspace-proof-ribbon-heading > span {
+  color: var(--blue-hover);
+  font-size: 0.5rem;
+  letter-spacing: 0.13em;
+}
+
+.workspace-proof-ribbon-heading > strong {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-proof-ribbon-heading > small {
+  margin-top: 0.18rem;
+  color: var(--ink-dim);
+  font-size: 0.43rem;
+  letter-spacing: 0.035em;
+  line-height: 1.35;
+}
+
+.workspace-proof-ribbon ol {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(8.5rem, 1fr));
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workspace-proof-ribbon li {
+  position: relative;
+  min-width: 0;
+}
+
+.workspace-proof-ribbon li + li::before {
+  position: absolute;
+  top: 50%;
+  left: -0.28rem;
+  z-index: 2;
+  width: 0.55rem;
+  height: 1px;
+  background: var(--hairline-strong);
+  content: '';
+}
+
+.workspace-proof-ribbon button {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.55rem;
+  width: 100%;
+  min-height: 4.2rem;
+  padding: 0.55rem 0.72rem;
+  overflow: hidden;
+  color: var(--ink-muted);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  border-left: 1px solid var(--hairline);
+  cursor: pointer;
+  transition: color var(--motion-control) var(--ease-state), background-color var(--motion-control) var(--ease-state);
+}
+
+.workspace-proof-ribbon li:first-child button {
+  border-left: 0;
+}
+
+.workspace-proof-ribbon button:hover,
+.workspace-proof-ribbon button[aria-current='step'] {
+  color: var(--ink);
+  background: color-mix(in srgb, var(--raised) 64%, transparent);
+}
+
+.workspace-proof-ribbon button > i {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 1.75rem;
+  height: 1.75rem;
+  color: var(--blue-hover);
+  border: 1px solid color-mix(in srgb, currentColor 42%, var(--hairline));
+  border-radius: 50%;
+  font-style: normal;
+}
+
+.workspace-proof-ribbon button > i em {
+  position: absolute;
+  top: -0.32rem;
+  right: -0.36rem;
+  padding: 0 0.15rem;
+  color: var(--ink-dim);
+  background: var(--graphite);
+  font-family: var(--font-mono);
+  font-size: 0.39rem;
+  font-style: normal;
+}
+
+.workspace-proof-ribbon button > span:not(.workspace-proof-cursor),
+.workspace-proof-ribbon button > span:not(.workspace-proof-cursor) strong,
+.workspace-proof-ribbon button > span:not(.workspace-proof-cursor) small {
+  position: relative;
+  z-index: 1;
+  display: block;
+  min-width: 0;
+}
+
+.workspace-proof-ribbon button > span strong {
+  color: inherit;
+  font-size: 0.64rem;
+  font-weight: 500;
+}
+
+.workspace-proof-ribbon button > span small {
+  overflow: hidden;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.45rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.workspace-proof-ribbon button > b {
+  position: relative;
+  z-index: 1;
+  align-self: start;
+  margin-top: 0.1rem;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.39rem;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.workspace-proof-ribbon li[data-tone='clear'] button > i,
+.workspace-proof-ribbon li[data-tone='clear'] button > b { color: var(--clear); }
+.workspace-proof-ribbon li[data-tone='review'] button > i,
+.workspace-proof-ribbon li[data-tone='review'] button > b { color: var(--review); }
+.workspace-proof-ribbon li[data-tone='waiting'] button > i,
+.workspace-proof-ribbon li[data-tone='waiting'] button > b { color: var(--blocked); }
+
+.workspace-proof-cursor {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  border-top: 1px solid color-mix(in srgb, var(--blue-hover) 52%, transparent);
+  border-bottom: 2px solid var(--blue-hover);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--blue-hover) 9%, transparent) inset;
+  pointer-events: none;
+}
+
+.product-view-frame {
+  min-width: 0;
+  will-change: opacity, transform, filter;
+}
+
+@media (max-width: 78rem) {
+  .workspace-proof-ribbon {
+    grid-template-columns: 10rem minmax(0, 1fr);
+  }
+
+  .workspace-proof-ribbon ol {
+    overflow-x: auto;
+    overscroll-behavior-inline: contain;
+    scrollbar-width: thin;
+  }
+
+  .workspace-proof-ribbon-heading > small {
+    display: none;
+  }
+}
+
+@media (max-width: 70rem) {
+  .product-nav-group {
+    display: contents;
+  }
+
+  .product-nav-group-label {
+    display: none;
+  }
+}
+
+@media (max-width: 48rem) {
+  .product-sidebar nav .product-mobile-settings {
+    display: grid;
+  }
+
+  .workspace-proof-ribbon {
+    display: block;
+    margin: 0.65rem 0.75rem 0;
+  }
+
+  .workspace-proof-ribbon-heading {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    gap: 0.25rem 0.6rem;
+    padding: 0.55rem 0.7rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--hairline);
+  }
+
+  .workspace-proof-ribbon-heading > strong {
+    font-size: 0.62rem;
+  }
+
+  .workspace-proof-ribbon-heading > small {
+    display: none;
+  }
+
+  .workspace-proof-ribbon ol {
+    grid-template-columns: repeat(5, minmax(7.6rem, 1fr));
+  }
+
+  .workspace-proof-ribbon button {
+    min-height: 3.65rem;
+    padding: 0.45rem 0.55rem;
+  }
+
+  .workspace-proof-ribbon button > b {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .product-sidebar nav button,
+  .workspace-proof-ribbon button {
+    transition: none;
+  }
+
+  .product-view-frame {
+    will-change: auto;
+  }
+}

@@ -1,0 +1,95 @@
+{
+  "generatedFixtures": [
+    {
+      "id": "texture-8k",
+      "path": "non3d/terrain_8k.png",
+      "format": "PNG",
+      "dimensions": "8192 × 8192",
+      "decodedBytes": 268435456,
+      "mode": "executable"
+    },
+    {
+      "id": "texture-8k-psd",
+      "path": "non3d/environment_master_8k.psd",
+      "format": "PSD",
+      "dimensions": "8192 × 8192",
+      "channels": 3,
+      "mode": "executable"
+    },
+    {
+      "id": "surround-wav",
+      "path": "non3d/ambisonic_6ch_96khz_24bit.wav",
+      "format": "WAV",
+      "channels": 6,
+      "sampleRate": 96000,
+      "bits": 24,
+      "duration": 30,
+      "mode": "executable"
+    },
+    {
+      "id": "prores-smoke",
+      "path": "non3d/prores_4k_2s.mov",
+      "format": "ProRes 422 Proxy",
+      "dimensions": "3840 × 2160",
+      "duration": 2,
+      "mode": "executable"
+    },
+    {
+      "id": "fbx-grid",
+      "path": "non3d/dense_environment_grid.fbx",
+      "format": "FBX 7.4 ASCII",
+      "vertices": 640000,
+      "polygons": 638401,
+      "mode": "executable"
+    },
+    {
+      "id": "font-family",
+      "path": "non3d/font-family/",
+      "format": "WOFF2",
+      "files": 6,
+      "mode": "executable"
+    }
+  ],
+  "capacityOnly": [
+    {
+      "id": "psd-8k",
+      "name": "environment_master_8k.psd",
+      "format": "PSD",
+      "bytes": 1482000000,
+      "layers": 187,
+      "note": "Profile only · source file intentionally not bundled"
+    },
+    {
+      "id": "prores-4k",
+      "name": "launch_master_4k_prores.mov",
+      "format": "ProRes 422 HQ",
+      "bytes": 3840000000,
+      "duration": 128,
+      "note": "Profile only · source file intentionally not bundled"
+    },
+    {
+      "id": "font-production",
+      "name": "Northwind variable family",
+      "format": "OTF / WOFF2",
+      "bytes": 18600000,
+      "files": 42,
+      "note": "Profile only · executable six-weight subset included"
+    },
+    {
+      "id": "blender-source",
+      "name": "northwind_world_master.blend",
+      "format": "BLEND",
+      "bytes": 2740000000,
+      "linkedFiles": 316,
+      "note": "Profile only · source file intentionally not bundled"
+    },
+    {
+      "id": "fbx-source",
+      "name": "hero_full_rig_source.fbx",
+      "format": "FBX",
+      "bytes": 884000000,
+      "linkedFiles": 94,
+      "note": "Profile only · source file intentionally not bundled"
+    }
+  ]
+}

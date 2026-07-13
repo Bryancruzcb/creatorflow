@@ -1,0 +1,11 @@
+RobotExpressive.glb
+
+License: CC0 1.0 Universal
+Model: Tomás Laulhé / Quaternius
+Modifications and glTF conversion: Don McCurdy
+
+Source:
+https://github.com/mrdoob/three.js/tree/dev/examples/models/gltf/RobotExpressive
+
+License record:
+https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/models/gltf/RobotExpressive/README.md

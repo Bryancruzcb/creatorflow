@@ -5,3 +5,4 @@ target/
 *.db
 .DS_Store
 Thumbs.db
+* 2.java

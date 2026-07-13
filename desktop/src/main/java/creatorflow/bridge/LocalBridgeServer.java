@@ -8,6 +8,7 @@ import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.sun.net.httpserver.Headers;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import creatorflow.db.AnimationComparisonRepository;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.ReleaseRepository;
@@ -15,6 +16,10 @@ import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.manifest.ScanOptions;
+import creatorflow.motion.MotionComparisonEngine;
+import creatorflow.motion.MotionComparisonRequest;
+import creatorflow.motion.NormalizedAnimation;
+import creatorflow.workflow.AnimationComparisonRecord;
 import creatorflow.workflow.DecisionType;
 import creatorflow.workflow.LocalProject;
 import creatorflow.workflow.ReleaseBundle;
@@ -60,9 +65,15 @@ public final class LocalBridgeServer implements AutoCloseable {
     public static final String WEB_ROOT_PROPERTY = "creatorflow.web.root";
     private static final String COOKIE_NAME = "creatorflow_session";
     private static final int MAX_REQUEST_BYTES = 64 * 1024;
+    private static final int MAX_MOTION_REQUEST_BYTES = 2 * 1024 * 1024;
+    private static final int MAX_MOTION_KEYFRAMES = 2_000;
+    private static final int MAX_MOTION_POSES = 20_000;
+    private static final String MOTION_INPUT_SCHEMA = "creatorflow.roblox-motion/v0.1";
     private static final Pattern PROJECT_SCANS = Pattern.compile("^/api/v1/projects/(\\d+)/scan-runs$");
     private static final Pattern PROJECT_ASSETS = Pattern.compile("^/api/v1/projects/(\\d+)/assets$");
     private static final Pattern PROJECT_RELEASES = Pattern.compile("^/api/v1/projects/(\\d+)/releases$");
+    private static final Pattern PROJECT_PLUGIN_PAIRING = Pattern.compile("^/api/v1/projects/(\\d+)/plugin-pairings$");
+    private static final Pattern PROJECT_MOTION_COMPARISONS = Pattern.compile("^/api/v1/projects/(\\d+)/motion-comparisons$");
     private static final Pattern SCAN = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)$");
     private static final Pattern SCAN_EVENTS = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/events$");
     private static final Pattern SCAN_CANCEL = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/cancel$");
@@ -72,6 +83,7 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern RELEASE_MANIFEST = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/manifest$");
     private static final Pattern RELEASE_REPORT = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/report$");
     private static final Pattern RELEASE = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)$");
+    private static final Pattern MOTION_COMPARISON = Pattern.compile("^/api/v1/motion-comparisons/([a-f0-9-]+)$");
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ProjectPicker picker;
@@ -80,6 +92,8 @@ public final class LocalBridgeServer implements AutoCloseable {
     private final DecisionRepository decisions;
     private final ReleaseRepository releases;
     private final WorkspaceStateRepository workspaceState;
+    private final AnimationComparisonRepository animationComparisons;
+    private final PluginPairingService pluginPairings;
     private final ReleaseExportService releaseExports;
     private final ScanCoordinator coordinator;
     private final Path staticRoot;
@@ -97,6 +111,8 @@ public final class LocalBridgeServer implements AutoCloseable {
     public LocalBridgeServer(ProjectPicker picker, LocalProjectRepository localProjects,
                              ScanRepository scans, DecisionRepository decisions,
                              ReleaseRepository releases, WorkspaceStateRepository workspaceState,
+                             AnimationComparisonRepository animationComparisons,
+                             PluginPairingService pluginPairings,
                              ReleaseExportService releaseExports, ScanCoordinator coordinator,
                              Path staticRoot) {
         this.picker = java.util.Objects.requireNonNull(picker, "picker");
@@ -105,6 +121,8 @@ public final class LocalBridgeServer implements AutoCloseable {
         this.decisions = java.util.Objects.requireNonNull(decisions, "decisions");
         this.releases = java.util.Objects.requireNonNull(releases, "releases");
         this.workspaceState = java.util.Objects.requireNonNull(workspaceState, "workspaceState");
+        this.animationComparisons = java.util.Objects.requireNonNull(animationComparisons, "animationComparisons");
+        this.pluginPairings = java.util.Objects.requireNonNull(pluginPairings, "pluginPairings");
         this.releaseExports = java.util.Objects.requireNonNull(releaseExports, "releaseExports");
         this.coordinator = java.util.Objects.requireNonNull(coordinator, "coordinator");
         this.staticRoot = normalizeStaticRoot(staticRoot);
@@ -151,6 +169,10 @@ public final class LocalBridgeServer implements AutoCloseable {
                 launch(exchange);
                 return;
             }
+            if (path.startsWith("/plugin/")) {
+                routePlugin(exchange, path);
+                return;
+            }
             if (path.startsWith("/api/")) {
                 requireSession(exchange);
                 requireSameOriginWhenPresent(exchange);
@@ -190,6 +212,79 @@ public final class LocalBridgeServer implements AutoCloseable {
         exchange.sendResponseHeaders(303, -1);
     }
 
+    private void routePlugin(HttpExchange exchange, String path) throws IOException {
+        PluginPairingService.Pairing pairing = requirePluginPairing(exchange);
+        if (localProjects.findByProjectId(pairing.projectId()).isEmpty()) {
+            throw new HttpError(401, "The paired CreatorFlow project no longer exists");
+        }
+        if ("/plugin/v1/health".equals(path)) {
+            requireMethod(exchange, "GET");
+            sendJson(exchange, 200, Map.of(
+                    "status", "ok",
+                    "projectId", pairing.projectId(),
+                    "expiresAt", pairing.expiresAt(),
+                    "schema", MOTION_INPUT_SCHEMA));
+            return;
+        }
+        if ("/plugin/v1/motion-comparisons".equals(path)) {
+            requireMethod(exchange, "POST");
+            JsonNode body = readJson(exchange, MAX_MOTION_REQUEST_BYTES);
+            MotionComparisonRequest request = parseMotionRequest(body);
+            var result = MotionComparisonEngine.compare(request);
+            NormalizedAnimation source = request.source();
+            NormalizedAnimation candidate = request.candidate();
+            AnimationComparisonRecord stored = animationComparisons.insert(
+                    pairing.projectId(), source.assetId(), candidate.assetId(),
+                    source.name(), candidate.name(), source.duration(), candidate.duration(),
+                    result.sourceFingerprint(), result.candidateFingerprint(),
+                    roundedPercent(result.overallPercent()), roundedPercent(result.posePercent()),
+                    roundedPercent(result.timingPercent()), roundedPercent(result.coveragePercent()),
+                    result.exactCurveData(), json.writeValueAsString(result), result.algorithmVersion());
+            sendJson(exchange, 201, animationComparisonView(stored));
+            return;
+        }
+        throw new HttpError(404, "Plugin endpoint not found");
+    }
+
+    private MotionComparisonRequest parseMotionRequest(JsonNode body) {
+        if (!body.isObject()) throw new IllegalArgumentException("Motion request must be a JSON object");
+        String schema = text(body, "schema", null);
+        if (!MOTION_INPUT_SCHEMA.equals(schema)) {
+            throw new IllegalArgumentException("Unsupported motion schema");
+        }
+        if (!body.path("source").isObject() || !body.path("candidate").isObject()) {
+            throw new IllegalArgumentException("Motion request requires source and candidate animations");
+        }
+        validateMotionEnvelope(body.get("source"), "source");
+        validateMotionEnvelope(body.get("candidate"), "candidate");
+        try {
+            return new MotionComparisonRequest(
+                    json.treeToValue(body.get("source"), NormalizedAnimation.class),
+                    json.treeToValue(body.get("candidate"), NormalizedAnimation.class));
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalArgumentException("Motion request is malformed");
+        }
+    }
+
+    private static void validateMotionEnvelope(JsonNode animation, String label) {
+        JsonNode keyframes = animation.path("keyframes");
+        if (!keyframes.isArray() || keyframes.isEmpty()) {
+            throw new IllegalArgumentException(label + " animation requires keyframes");
+        }
+        if (keyframes.size() > MAX_MOTION_KEYFRAMES) {
+            throw new IllegalArgumentException(label + " animation has too many keyframes");
+        }
+        int poseCount = 0;
+        for (JsonNode keyframe : keyframes) {
+            JsonNode poses = keyframe.path("poses");
+            if (!poses.isArray()) throw new IllegalArgumentException(label + " keyframe requires poses");
+            poseCount += poses.size();
+            if (poseCount > MAX_MOTION_POSES) {
+                throw new IllegalArgumentException(label + " animation has too many poses");
+            }
+        }
+    }
+
     private void routeApi(HttpExchange exchange, String path) throws IOException {
         if ("/api/v1/session".equals(path)) {
             requireMethod(exchange, "GET");
@@ -224,7 +319,54 @@ public final class LocalBridgeServer implements AutoCloseable {
             return;
         }
 
-        Matcher matcher = PROJECT_SCANS.matcher(path);
+        Matcher matcher = PROJECT_PLUGIN_PAIRING.matcher(path);
+        if (matcher.matches()) {
+            requireMutation(exchange);
+            long projectId = Long.parseLong(matcher.group(1));
+            localProjects.findByProjectId(projectId)
+                    .orElseThrow(() -> new HttpError(404, "Local project not found"));
+            PluginPairingService.IssuedPairing pairing = pluginPairings.issue(projectId);
+            sendJson(exchange, 201, Map.of(
+                    "projectId", pairing.projectId(),
+                    "endpoint", origin.toString(),
+                    "token", pairing.token(),
+                    "expiresAt", pairing.expiresAt()));
+            return;
+        }
+
+        matcher = PROJECT_MOTION_COMPARISONS.matcher(path);
+        if (matcher.matches()) {
+            requireMethod(exchange, "GET");
+            long projectId = Long.parseLong(matcher.group(1));
+            localProjects.findByProjectId(projectId)
+                    .orElseThrow(() -> new HttpError(404, "Local project not found"));
+            Map<String, String> query = query(exchange.getRequestURI().getRawQuery());
+            int limit = Math.max(1, Math.min(integer(query.get("limit"), 25), 100));
+            int offset = Math.max(0, integer(query.get("offset"), 0));
+            sendJson(exchange, 200, Map.of(
+                    "items", animationComparisons.forProject(projectId, limit, offset).stream()
+                            .map(record -> {
+                                try {
+                                    return animationComparisonView(record);
+                                } catch (IOException error) {
+                                    throw new IllegalStateException("Stored animation comparison is invalid", error);
+                                }
+                            }).toList(),
+                    "limit", limit,
+                    "offset", offset));
+            return;
+        }
+
+        matcher = MOTION_COMPARISON.matcher(path);
+        if (matcher.matches()) {
+            requireMethod(exchange, "GET");
+            AnimationComparisonRecord record = animationComparisons.findById(matcher.group(1))
+                    .orElseThrow(() -> new HttpError(404, "Animation comparison not found"));
+            sendJson(exchange, 200, animationComparisonView(record));
+            return;
+        }
+
+        matcher = PROJECT_SCANS.matcher(path);
         if (matcher.matches()) {
             requireMutation(exchange);
             long projectId = Long.parseLong(matcher.group(1));
@@ -620,6 +762,62 @@ public final class LocalBridgeServer implements AutoCloseable {
         return view;
     }
 
+    private Map<String, Object> animationComparisonView(AnimationComparisonRecord record) throws IOException {
+        JsonNode result = json.readTree(record.resultJson());
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", record.id());
+        view.put("projectId", record.projectId());
+        view.put("sourceAssetId", record.sourceAssetId());
+        view.put("candidateAssetId", record.candidateAssetId());
+        view.put("sourceName", record.sourceName());
+        view.put("candidateName", record.candidateName());
+        view.put("sourceDuration", record.sourceDuration());
+        view.put("candidateDuration", record.candidateDuration());
+        view.put("sourceFingerprint", record.sourceFingerprint());
+        view.put("candidateFingerprint", record.candidateFingerprint());
+        view.put("overallPercent", record.overallScore());
+        view.put("posePercent", record.poseScore());
+        view.put("timingPercent", record.timingScore());
+        view.put("coveragePercent", record.coverageScore());
+        view.put("overallScore", record.overallScore());
+        view.put("poseScore", record.poseScore());
+        view.put("timingScore", record.timingScore());
+        view.put("coverageScore", record.coverageScore());
+        view.put("exactCurveData", record.exactCurveData());
+        view.put("verdict", verdictLabel(result.path("verdict").asText("")));
+        view.put("algorithmVersion", record.algorithmVersion());
+        view.put("createdAt", record.createdAt());
+        view.put("result", result);
+        view.put("creatorFlowUrl", origin + "/#workspace?view=motion");
+        return view;
+    }
+
+    private static String verdictLabel(String verdict) {
+        return switch (verdict) {
+            case "EXACT_CURVE_DATA" -> "Exact curve data — provenance required";
+            case "HIGH_SIMILARITY" -> "Strong structural match — investigate";
+            case "MODERATE_SIMILARITY" -> "Substantial motion overlap";
+            case "LOW_SIMILARITY" -> "Low resemblance in this comparison";
+            default -> "Motion comparison recorded";
+        };
+    }
+
+    private static int roundedPercent(double value) {
+        return (int) Math.round(Math.max(0.0, Math.min(100.0, value)));
+    }
+
+    private PluginPairingService.Pairing requirePluginPairing(HttpExchange exchange) {
+        String authorization = exchange.getRequestHeaders().getFirst("Authorization");
+        String token = authorization != null && authorization.regionMatches(true, 0, "Bearer ", 0, 7)
+                ? authorization.substring(7).strip() : null;
+        Optional<PluginPairingService.Pairing> pairing = pluginPairings.authenticate(token);
+        if (pairing.isEmpty()) {
+            exchange.getResponseHeaders().set("WWW-Authenticate", "Bearer realm=\"CreatorFlow Studio bridge\"");
+            throw new HttpError(401, "A valid CreatorFlow Studio pairing is required");
+        }
+        return pairing.orElseThrow();
+    }
+
     private void requireSession(HttpExchange exchange) {
         String expected = sessionToken.get();
         String actual = cookies(exchange).get(COOKIE_NAME);
@@ -653,9 +851,17 @@ public final class LocalBridgeServer implements AutoCloseable {
     }
 
     private JsonNode readJson(HttpExchange exchange) throws IOException {
-        byte[] bytes = readLimited(exchange.getRequestBody(), MAX_REQUEST_BYTES);
+        return readJson(exchange, MAX_REQUEST_BYTES);
+    }
+
+    private JsonNode readJson(HttpExchange exchange, int maxBytes) throws IOException {
+        byte[] bytes = readLimited(exchange.getRequestBody(), maxBytes);
         if (bytes.length == 0) return json.createObjectNode();
-        return json.readTree(bytes);
+        try {
+            return json.readTree(bytes);
+        } catch (com.fasterxml.jackson.core.JsonProcessingException error) {
+            throw new IllegalArgumentException("Request body must be valid JSON");
+        }
     }
 
     private void sendJson(HttpExchange exchange, int status, Object body) throws IOException {

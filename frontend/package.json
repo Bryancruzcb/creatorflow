@@ -1,0 +1,40 @@
+{
+  "name": "creatorflow-preflight",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "assets:derive": "node scripts/derive-glb-assets.mjs",
+    "assets:ships": "node scripts/fetch-polyhaven-ships.mjs",
+    "assets:stress": "node scripts/generate-stress-fixtures.mjs",
+    "schema:check": "node scripts/check-manifest-schema.mjs",
+    "build": "npm run schema:check && tsc -b && vite build",
+    "preview": "vite preview --host 127.0.0.1",
+    "typecheck": "npm run schema:check && tsc -b --pretty false",
+    "test": "vitest run",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@fontsource/ibm-plex-mono": "5.2.7",
+    "@fontsource/ibm-plex-sans": "5.2.8",
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1",
+    "framer-motion": "12.42.2",
+    "lucide-react": "1.24.0",
+    "react": "19.2.7",
+    "react-dom": "19.2.7",
+    "three": "^0.185.1"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.4.1",
+    "@playwright/test": "^1.61.1",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@types/three": "^0.185.1",
+    "@vitejs/plugin-react": "6.0.3",
+    "typescript": "7.0.2",
+    "vite": "8.1.4",
+    "vitest": "^4.1.10"
+  }
+}

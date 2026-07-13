@@ -177,9 +177,9 @@ The hardened scanner also exposes configurable exclusions, ordered progress even
 To run the desktop-owned browser workspace directly from a frontend build:
 
 ```bash
-npm --prefix /path/to/creatorflow-preflight run build
+npm --prefix frontend run build
 mvn -pl desktop javafx:run \
-  -Djavafx.options="-Dcreatorflow.web.root=/path/to/creatorflow-preflight/dist -Dcreatorflow.web.open=true"
+  -Djavafx.options="-Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true"
 ```
 
 For a self-contained desktop artifact, activate the packaging profile by supplying the same build
@@ -187,11 +187,33 @@ directory at package time:
 
 ```bash
 mvn -pl desktop -am package \
-  -Dcreatorflow.web.dist=/path/to/creatorflow-preflight/dist
+  -Dcreatorflow.web.dist=$(pwd)/frontend/dist
 ```
 
 Large demonstration GLBs are intentionally optional: serving an external `dist` keeps ordinary
 desktop builds lean, while the packaged profile is available for an offline showcase build.
+
+### Roblox animation bridge prototype
+
+CreatorFlow now has a loopback-only Roblox Studio input for animation evidence. The Studio plugin
+reads two animation IDs that the signed-in creator is permitted to access, flattens each
+`KeyframeSequence` into stable joint paths and local `CFrame` values, and sends one bounded JSON
+request to the desktop app. The Java core recanonicalizes that data, computes deterministic
+SHA-256 curve fingerprints, compares pose/timing/joint coverage, and stores the result with the
+selected local project. Raw joint curves are not retained in SQLite.
+
+Friend-test flow:
+
+1. Build the React workspace and run the desktop-owned browser workspace with the commands above.
+2. Open a local project, choose **Animation compare**, and create a temporary Studio pairing.
+3. Install [`roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua`](roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua)
+   using the source-first instructions in the [desktop-bridge guide](roblox-plugin/desktop-bridge/README.md).
+4. Paste the displayed loopback endpoint and token into Studio, test the connection, then compare
+   two permitted animation IDs. The evidence inbox refreshes automatically.
+
+The first slice supports `KeyframeSequence` assets. `CurveAnimation`, inaccessible/private assets,
+rig retargeting, and copyright conclusions are explicitly outside v0.1. Roblox Studio decides
+whether an animation can be read; CreatorFlow does not bypass asset permissions.
 
 Run the default release policy against a manifest with machine-readable output:
 

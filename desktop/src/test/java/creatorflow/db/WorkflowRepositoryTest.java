@@ -42,7 +42,7 @@ class WorkflowRepositoryTest {
             try (var statement = database.connection().createStatement();
                  var result = statement.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(result.next());
-                assertEquals(4, result.getInt(1));
+                assertEquals(5, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }
@@ -94,6 +94,35 @@ class WorkflowRepositoryTest {
             workspace.save(new WorkspaceState(project.projectId(), run.id(), savedAsset.id(), null,
                     "{\"status\":\"SIMILAR\"}", "[]", Instant.now()));
             assertEquals(savedAsset.id(), workspace.load().orElseThrow().selectedAssetId());
+        }
+    }
+
+    @Test
+    void animationComparisonEvidenceSurvivesRestartAndCascadesWithProject() throws Exception {
+        Path file = directory.resolve("motion.db");
+        long projectId;
+        String comparisonId;
+        try (Database database = new Database(file)) {
+            var project = new LocalProjectRepository(database).adopt(directory);
+            projectId = project.projectId();
+            var repository = new AnimationComparisonRepository(database);
+            var record = repository.insert(projectId, "1001", "1002", "Walk A", "Walk B",
+                    1.25, 1.18, "a".repeat(64), "b".repeat(64),
+                    88, 91, 76, 100, false,
+                    "{\"verdict\":\"MODERATE_SIMILARITY\"}", "creatorflow.motion-compare/v0.1");
+            comparisonId = record.id();
+            assertEquals(1, repository.forProject(projectId, 25, 0).size());
+            assertEquals("1002", repository.findById(comparisonId).orElseThrow().candidateAssetId());
+        }
+
+        try (Database database = new Database(file)) {
+            var repository = new AnimationComparisonRepository(database);
+            assertEquals(88, repository.findById(comparisonId).orElseThrow().overallScore());
+            try (var statement = database.connection().prepareStatement("DELETE FROM projects WHERE id = ?")) {
+                statement.setLong(1, projectId);
+                assertEquals(1, statement.executeUpdate());
+            }
+            assertTrue(repository.findById(comparisonId).isEmpty());
         }
     }
 }

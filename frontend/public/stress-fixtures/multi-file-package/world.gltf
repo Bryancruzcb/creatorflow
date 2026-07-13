@@ -1,0 +1,170 @@
+{
+  "asset": {
+    "version": "2.0",
+    "generator": "CreatorFlow dependency stress fixture"
+  },
+  "buffers": [
+    {
+      "uri": "buffers/geometry.bin",
+      "byteLength": 262144
+    },
+    {
+      "uri": "buffers/animation.bin",
+      "byteLength": 98304
+    }
+  ],
+  "images": [
+    {
+      "uri": "textures/environment/texture_01.png"
+    },
+    {
+      "uri": "textures/environment/texture_02.png"
+    },
+    {
+      "uri": "textures/environment/texture_03.png"
+    },
+    {
+      "uri": "textures/environment/texture_04.png"
+    },
+    {
+      "uri": "textures/environment/texture_05.png"
+    },
+    {
+      "uri": "textures/environment/texture_06.png"
+    },
+    {
+      "uri": "textures/environment/texture_07.png"
+    },
+    {
+      "uri": "textures/environment/texture_08.png"
+    },
+    {
+      "uri": "textures/environment/texture_09.png"
+    },
+    {
+      "uri": "textures/environment/texture_10.png"
+    },
+    {
+      "uri": "textures/environment/texture_11.png"
+    },
+    {
+      "uri": "textures/environment/texture_12.png"
+    },
+    {
+      "uri": "textures/props/texture_13.png"
+    },
+    {
+      "uri": "textures/props/texture_14.png"
+    },
+    {
+      "uri": "textures/props/texture_15.png"
+    },
+    {
+      "uri": "textures/props/texture_16.png"
+    },
+    {
+      "uri": "textures/props/texture_17.png"
+    },
+    {
+      "uri": "textures/props/texture_18.png"
+    },
+    {
+      "uri": "textures/props/texture_19.png"
+    },
+    {
+      "uri": "textures/props/texture_20.png"
+    },
+    {
+      "uri": "textures/props/texture_21.png"
+    },
+    {
+      "uri": "textures/props/texture_22.png"
+    },
+    {
+      "uri": "textures/props/texture_23.png"
+    },
+    {
+      "uri": "textures/props/texture_24.png"
+    }
+  ],
+  "textures": [
+    {
+      "source": 0
+    },
+    {
+      "source": 1
+    },
+    {
+      "source": 2
+    },
+    {
+      "source": 3
+    },
+    {
+      "source": 4
+    },
+    {
+      "source": 5
+    },
+    {
+      "source": 6
+    },
+    {
+      "source": 7
+    },
+    {
+      "source": 8
+    },
+    {
+      "source": 9
+    },
+    {
+      "source": 10
+    },
+    {
+      "source": 11
+    },
+    {
+      "source": 12
+    },
+    {
+      "source": 13
+    },
+    {
+      "source": 14
+    },
+    {
+      "source": 15
+    },
+    {
+      "source": 16
+    },
+    {
+      "source": 17
+    },
+    {
+      "source": 18
+    },
+    {
+      "source": 19
+    },
+    {
+      "source": 20
+    },
+    {
+      "source": 21
+    },
+    {
+      "source": 22
+    },
+    {
+      "source": 23
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": []
+    }
+  ],
+  "scene": 0
+}
