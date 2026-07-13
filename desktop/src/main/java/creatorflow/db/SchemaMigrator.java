@@ -18,7 +18,8 @@ final class SchemaMigrator {
             new Migration(1, "legacy_library", "/creatorflow/db/migrations/V001__legacy_library.sql"),
             new Migration(2, "local_workflow", "/creatorflow/db/migrations/V002__local_workflow.sql"),
             new Migration(3, "workspace_state", "/creatorflow/db/migrations/V003__workspace_state.sql"),
-            new Migration(4, "release_artifacts", "/creatorflow/db/migrations/V004__release_artifacts.sql"));
+            new Migration(4, "release_artifacts", "/creatorflow/db/migrations/V004__release_artifacts.sql"),
+            new Migration(5, "animation_comparisons", "/creatorflow/db/migrations/V005__animation_comparisons.sql"));
 
     private final Connection connection;
 

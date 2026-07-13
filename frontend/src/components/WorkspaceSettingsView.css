@@ -1,0 +1,506 @@
+.workspace-settings-page {
+  width: min(100%, 82rem);
+  margin-inline: auto;
+  color: var(--ink);
+}
+
+.workspace-settings-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-8);
+  padding: clamp(1.5rem, 3vw, 2.75rem);
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--depth-raised);
+}
+
+.workspace-settings-hero > div > span {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--blue-hover);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.workspace-settings-hero h1 {
+  max-width: 22ch;
+  margin: var(--space-3) 0 var(--space-2);
+  font-size: 1.7rem;
+  font-weight: 500;
+  line-height: 1.16;
+  letter-spacing: -0.025em;
+}
+
+.workspace-settings-hero p {
+  max-width: 68ch;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.86rem;
+  line-height: 1.65;
+}
+
+.workspace-settings-hero > aside {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 13.5rem;
+  padding: var(--space-3) var(--space-4);
+  color: var(--clear);
+  background: color-mix(in srgb, var(--clear) 5%, var(--desk));
+  border: 1px solid color-mix(in srgb, var(--clear) 30%, var(--hairline));
+}
+
+.workspace-settings-hero > aside[data-state='unavailable'] {
+  color: var(--review);
+  background: color-mix(in srgb, var(--review) 5%, var(--desk));
+  border-color: color-mix(in srgb, var(--review) 30%, var(--hairline));
+}
+
+.workspace-settings-hero > aside span,
+.workspace-settings-hero > aside strong,
+.workspace-settings-hero > aside small {
+  display: block;
+}
+
+.workspace-settings-hero > aside strong {
+  color: var(--ink);
+  font-size: 0.76rem;
+  font-weight: 500;
+}
+
+.workspace-settings-hero > aside small {
+  margin-top: 0.1rem;
+  color: var(--ink-muted);
+  font-size: 0.65rem;
+}
+
+.workspace-settings-surface {
+  margin-top: var(--space-4);
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: var(--depth-hairline);
+}
+
+.workspace-settings-section {
+  display: grid;
+  grid-template-columns: minmax(14rem, 0.34fr) minmax(0, 1fr);
+  gap: clamp(1.5rem, 4vw, 4.5rem);
+  padding: clamp(1.5rem, 3vw, 2.5rem);
+}
+
+.workspace-settings-section + .workspace-settings-section {
+  border-top: 1px solid var(--hairline-strong);
+}
+
+.workspace-settings-section > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-content: start;
+  gap: var(--space-3);
+  color: var(--blue-hover);
+}
+
+.workspace-settings-section > header h2 {
+  margin: 0;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 500;
+  line-height: 1.3;
+}
+
+.workspace-settings-section > header p {
+  max-width: 35ch;
+  margin: var(--space-2) 0 0;
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+  line-height: 1.6;
+}
+
+.workspace-settings-rows {
+  min-width: 0;
+  border-top: 1px solid var(--hairline);
+}
+
+.workspace-setting-row {
+  display: grid;
+  grid-template-columns: minmax(11rem, 0.42fr) minmax(16rem, 1fr);
+  align-items: center;
+  gap: var(--space-6);
+  min-height: 5.5rem;
+  padding: var(--space-4) 0;
+  border-bottom: 1px solid var(--hairline);
+}
+
+.workspace-setting-row-wide {
+  align-items: start;
+}
+
+.workspace-setting-copy,
+.workspace-setting-copy strong,
+.workspace-setting-copy small {
+  display: block;
+}
+
+.workspace-setting-copy strong {
+  color: var(--ink);
+  font-size: 0.82rem;
+  font-weight: 500;
+}
+
+.workspace-setting-copy small {
+  max-width: 38ch;
+  margin-top: var(--space-1);
+  color: var(--ink-muted);
+  font-size: 0.7rem;
+  line-height: 1.55;
+}
+
+.workspace-setting-choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: 1px;
+  min-width: 0;
+  background: var(--hairline);
+  border: 1px solid var(--hairline);
+}
+
+.workspace-setting-choices-compact {
+  grid-template-columns: repeat(auto-fit, minmax(5.7rem, 1fr));
+}
+
+.workspace-setting-choices button {
+  min-height: 3.35rem;
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink-muted);
+  text-align: left;
+  background: var(--desk);
+  border: 0;
+  cursor: pointer;
+  transition: color var(--motion-control) var(--ease-state), background-color var(--motion-control) var(--ease-state), box-shadow var(--motion-control) var(--ease-state);
+}
+
+.workspace-setting-choices-compact button {
+  min-height: 2.7rem;
+  text-align: center;
+}
+
+.workspace-setting-choices button:hover {
+  color: var(--ink);
+  background: var(--raised);
+}
+
+.workspace-setting-choices button[aria-pressed='true'] {
+  color: var(--ink);
+  background: var(--raised-strong);
+  box-shadow: inset 0 -2px var(--blue-hover);
+}
+
+.workspace-setting-choices button strong,
+.workspace-setting-choices button small {
+  display: block;
+}
+
+.workspace-setting-choices button strong {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.workspace-setting-choices button small {
+  margin-top: 0.18rem;
+  color: var(--ink-dim);
+  font-size: 0.62rem;
+  line-height: 1.35;
+}
+
+.workspace-setting-choices button[aria-pressed='true'] small {
+  color: var(--ink-muted);
+}
+
+.workspace-setting-slider {
+  cursor: default;
+}
+
+.workspace-setting-range {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.workspace-setting-range > span {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  color: var(--ink-dim);
+}
+
+.workspace-setting-range > span strong {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.workspace-setting-range > span small {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+}
+
+.workspace-setting-range input {
+  width: 100%;
+  accent-color: var(--blue-hover);
+  cursor: pointer;
+}
+
+.workspace-setting-toggle-row {
+  cursor: pointer;
+}
+
+.workspace-setting-switch {
+  display: inline-grid;
+  grid-template-columns: auto auto;
+  align-items: center;
+  justify-self: end;
+  gap: var(--space-2);
+  min-width: 5.8rem;
+}
+
+.workspace-setting-switch input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+
+.workspace-setting-switch i {
+  position: relative;
+  width: 2.7rem;
+  height: 1.45rem;
+  background: var(--desk);
+  border: 1px solid var(--hairline-strong);
+  transition: background-color var(--motion-control) var(--ease-state), border-color var(--motion-control) var(--ease-state);
+}
+
+.workspace-setting-switch i::after {
+  position: absolute;
+  top: 0.2rem;
+  left: 0.2rem;
+  width: 0.93rem;
+  height: 0.93rem;
+  content: '';
+  background: var(--ink-dim);
+  transition: transform var(--motion-control) var(--ease-state), background-color var(--motion-control) var(--ease-state);
+}
+
+.workspace-setting-switch input:checked + i {
+  background: color-mix(in srgb, var(--blue) 25%, var(--desk));
+  border-color: var(--blue-hover);
+}
+
+.workspace-setting-switch input:checked + i::after {
+  background: var(--blue-hover);
+  transform: translateX(1.22rem);
+}
+
+.workspace-setting-switch input:focus-visible + i {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.workspace-setting-switch em {
+  min-width: 1.6rem;
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+  font-style: normal;
+}
+
+.workspace-settings-data {
+  background: color-mix(in srgb, var(--desk) 45%, var(--graphite));
+}
+
+.workspace-settings-data-ledger {
+  border-top: 1px solid var(--hairline);
+}
+
+.workspace-settings-data-ledger > div {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 4.7rem;
+  padding: var(--space-3) 0;
+  color: var(--blue-hover);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.workspace-settings-data-ledger span,
+.workspace-settings-data-ledger strong,
+.workspace-settings-data-ledger small {
+  display: block;
+}
+
+.workspace-settings-data-ledger strong {
+  color: var(--ink);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.workspace-settings-data-ledger small {
+  margin-top: 0.15rem;
+  color: var(--ink-muted);
+  font-size: 0.68rem;
+  line-height: 1.5;
+}
+
+.workspace-settings-data-ledger em {
+  color: var(--clear);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.workspace-settings-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-6);
+}
+
+.workspace-settings-actions > div {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  min-height: 5.5rem;
+  padding: var(--space-4);
+  background: var(--desk);
+  border: 1px solid var(--hairline);
+}
+
+.workspace-settings-actions > div > .button {
+  justify-self: start;
+}
+
+.workspace-settings-actions > div > small {
+  color: var(--ink-dim);
+  font-size: 0.66rem;
+  line-height: 1.45;
+}
+
+.workspace-settings-confirm {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.workspace-settings-confirm strong {
+  grid-column: 1 / -1;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.workspace-settings-confirm button {
+  min-height: 2.15rem;
+  padding: var(--space-2);
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  line-height: 1.25;
+  cursor: pointer;
+}
+
+.workspace-settings-confirm button:first-of-type {
+  color: var(--ink);
+  background: var(--raised);
+}
+
+.workspace-settings-confirm button:hover {
+  color: var(--ink);
+  border-color: var(--ink-dim);
+}
+
+.workspace-settings-footer {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  color: var(--ink-dim);
+  font-size: 0.67rem;
+  border: 1px solid var(--hairline);
+}
+
+@media (max-width: 72rem) {
+  .workspace-settings-section {
+    grid-template-columns: 1fr;
+    gap: var(--space-6);
+  }
+
+  .workspace-settings-section > header p {
+    max-width: 64ch;
+  }
+}
+
+@media (max-width: 52rem) {
+  .workspace-settings-hero {
+    grid-template-columns: 1fr;
+    align-items: start;
+  }
+
+  .workspace-settings-hero > aside {
+    min-width: 0;
+  }
+
+  .workspace-setting-row {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .workspace-setting-switch {
+    justify-self: start;
+  }
+
+  .workspace-settings-actions {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 34rem) {
+  .workspace-settings-hero,
+  .workspace-settings-section {
+    padding: var(--space-4);
+  }
+
+  .workspace-setting-choices,
+  .workspace-setting-choices-compact {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .workspace-settings-data-ledger > div {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .workspace-settings-data-ledger em {
+    grid-column: 2;
+  }
+
+  .workspace-settings-confirm {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .workspace-settings-confirm strong {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-setting-choices button,
+  .workspace-setting-switch i,
+  .workspace-setting-switch i::after {
+    transition: none;
+  }
+}

@@ -1,0 +1,21 @@
+node_modules/
+dist/
+*.tsbuildinfo
+vite.config.js
+vite.config.d.ts
+test-results/
+playwright-report/
+work/
+.impeccable/
+
+# Keep the repository and ordinary clones small. The motion/morph/fox fixtures
+# below are intentionally checked in; the large showcase GLBs stay local or in
+# external artifact storage.
+public/assets/*.glb
+!public/assets/robot-expressive.glb
+!public/assets/fox-animated.glb
+!public/assets/morph-stress-test.glb
+public/stress-fixtures/non3d/*.wav
+public/stress-fixtures/non3d/*.fbx
+public/stress-fixtures/non3d/*.mov
+src/components/* 2.tsx

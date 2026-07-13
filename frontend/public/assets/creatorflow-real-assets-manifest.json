@@ -1,0 +1,727 @@
+{
+  "$schema" : "creatorflow.manifest/v0.1",
+  "project" : {
+    "name" : "CreatorFlow-Real-Asset-Pack",
+    "release" : "0.1.0"
+  },
+  "generatedAt" : "2026-07-13T01:53:43.857436Z",
+  "summary" : {
+    "total" : 32,
+    "clear" : 31,
+    "similar" : 1,
+    "duplicate" : 0,
+    "unresolvedSources" : 32,
+    "pendingDecisions" : 32
+  },
+  "assets" : [ {
+    "path" : "avocado-project-derivative.glb",
+    "fileName" : "avocado-project-derivative.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 8110208,
+    "sha256" : "5d36edd89e44331da003f181b6fb3a2a98303922600e3093b213e78913415af7",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "avocado-source.glb",
+    "fileName" : "avocado-source.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 8110040,
+    "sha256" : "ccc9c3ce56423720b09399c2351537207cd5a65f859f9e6e2f30922762f3abd4",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "avocado-source.jpg",
+    "fileName" : "avocado-source.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 3414,
+    "sha256" : "e054be44df4b4f6ff99cf3467d78951b32557e6b6816a2a28af422db1abd98b4",
+    "width" : 130,
+    "height" : 130,
+    "fingerprints" : {
+      "dHash" : "2410642c4a2a1000",
+      "pHash" : "e58c9633b3cc3332",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "barramundi-project-derivative.glb",
+    "fileName" : "barramundi-project-derivative.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 12488340,
+    "sha256" : "1a4f497e657dcc33fc55c02fcbd7b5d610ab72b8f8b7ae8764ef69d9e20ed477",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "barramundi-source.glb",
+    "fileName" : "barramundi-source.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 12488144,
+    "sha256" : "ecc3bafb6b00f2c8b810863c388e3768a7b7ea0d0335e8cb8c574c266e571f4a",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "barramundi-source.jpg",
+    "fileName" : "barramundi-source.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 2138,
+    "sha256" : "34a9f786a7c9a32c629762b9241dd061f1833ccb7ecaa50b3193cf7ac0769933",
+    "width" : 130,
+    "height" : 130,
+    "fingerprints" : {
+      "dHash" : "00000a0244100000",
+      "pHash" : "e5cf9a30674d3886",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "beautiful-game-ktx2-draco.glb",
+    "fileName" : "beautiful-game-ktx2-draco.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 12105252,
+    "sha256" : "d950162d41e0064be9dfac0c09d80c7a23719a37af37f08cd79385b8af0af0c1",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "beautiful-game.glb",
+    "fileName" : "beautiful-game.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 42977928,
+    "sha256" : "bd7133b4b322aae97c589b8839dae8155ad2546acb35ae32a127e722a959d007",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "beautiful-game.jpg",
+    "fileName" : "beautiful-game.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 419052,
+    "sha256" : "d6cff003082c186639ac21df34ea12b402a1a906cf8059384a867b0166031237",
+    "width" : 2425,
+    "height" : 880,
+    "fingerprints" : {
+      "dHash" : "f0f25291c1d273f5",
+      "pHash" : "c8a195d217663ead",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "boombox-project-derivative.glb",
+    "fileName" : "boombox-project-derivative.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 10614356,
+    "sha256" : "1aa49e3fe779e292d39bcc0a71b0d297a098ccfbba5094fb46a162e59ce4f9a4",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "boombox-source.glb",
+    "fileName" : "boombox-source.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 10614184,
+    "sha256" : "f8b918445ebdd006768232205a62f5182d2208ca57f84c6ccc084943c0bc8f15",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "boombox-source.jpg",
+    "fileName" : "boombox-source.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 326958,
+    "sha256" : "604216e2a950fb2b4b34dcc012892bc42cc26684d27d3cf9b95d244e6d2b4c23",
+    "width" : 1000,
+    "height" : 924,
+    "fingerprints" : {
+      "dHash" : "002a97619b69150c",
+      "pHash" : "ffc1e52790dac260",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "Software: Greenshot" ]
+  }, {
+    "path" : "corset.glb",
+    "fileName" : "corset.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 13491364,
+    "sha256" : "9582c0dc0dee813be77f60e6ddf7213987c7e11497bf3cc66fd7b18957ae0d26",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "corset.jpg",
+    "fileName" : "corset.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 3150,
+    "sha256" : "93bd99c4eb74fe9b45a0026a0b95bdff683b130511abce4ec3fd7fb4eb163876",
+    "width" : 130,
+    "height" : 130,
+    "fingerprints" : {
+      "dHash" : "082a0c0c0c0e1628",
+      "pHash" : "e69ecd63b3613448",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "dutch-ship-large-01.glb",
+    "fileName" : "dutch-ship-large-01.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 107145484,
+    "sha256" : "968d8713cceebd13c8f36231f1368b11050537a8c2889e9c652ce2c275f08bf2",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "dutch-ship-large-01.png",
+    "fileName" : "dutch-ship-large-01.png",
+    "fileType" : "png",
+    "sizeBytes" : 438390,
+    "sha256" : "babf6105ea99b5a3fa633b22459c047161b9c46a865ca54dd23145851b92995b",
+    "width" : 455,
+    "height" : 799,
+    "fingerprints" : {
+      "dHash" : "0008122c59577438",
+      "pHash" : "956a6a853a4d6f92",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "dutch-ship-large-02.glb",
+    "fileName" : "dutch-ship-large-02.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 106163560,
+    "sha256" : "5bad7161f9ed1b7614621303c82730f6666c8fcbde17522220cc365aa2878ba8",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "dutch-ship-large-02.png",
+    "fileName" : "dutch-ship-large-02.png",
+    "fileType" : "png",
+    "sizeBytes" : 429569,
+    "sha256" : "0b181454b7b862d431556c35abf7a02d1e8adc0db2a78f04bd5c53ae23a2a720",
+    "width" : 433,
+    "height" : 799,
+    "fingerprints" : {
+      "dHash" : "000106261e556a38",
+      "pHash" : "9d626e8710cd6bb4",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "fox-animated.glb",
+    "fileName" : "fox-animated.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 162852,
+    "sha256" : "d97044e701822bac5a62696459b27d7b375aada5de8574ed4362edbba94771f7",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "fox-animated.jpg",
+    "fileName" : "fox-animated.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 6639,
+    "sha256" : "e9268fc07e1ae6cf2118fdfaa215a169cb12b3b4acaac888ca310e53bb84d9b2",
+    "width" : 130,
+    "height" : 130,
+    "fingerprints" : {
+      "dHash" : "00023274c8a81000",
+      "pHash" : "94952d62cadef8a1",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "Profile Copyright: 1 enUS(Public Domain)" ]
+  }, {
+    "path" : "lantern-project-derivative.glb",
+    "fileName" : "lantern-project-derivative.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 9564448,
+    "sha256" : "82c28632e61ce14a173515e69b6f1c22b77092be817feee5548e530b30393515",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "lantern-source.glb",
+    "fileName" : "lantern-source.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 9564264,
+    "sha256" : "a79458c4b02d695187a952f23a63b8bf278e7bc3d316a3c2a314f2d6974181f1",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "lantern-source.jpg",
+    "fileName" : "lantern-source.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 2615,
+    "sha256" : "ea33be71206d79b71f311caa1cc0ada5d8de4f04aaab65831728cee6c882d8fe",
+    "width" : 130,
+    "height" : 130,
+    "fingerprints" : {
+      "dHash" : "101a101210101010",
+      "pHash" : "b16c8696ce91cf31",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "morph-stress-test.glb",
+    "fileName" : "morph-stress-test.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 575900,
+    "sha256" : "005f1d9dd938c553a506d6bf3d21830fc3f2ec3a199d9332e9a625baf7342bef",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "morph-stress-test.png",
+    "fileName" : "morph-stress-test.png",
+    "fileType" : "png",
+    "sizeBytes" : 93149,
+    "sha256" : "118021782774e101b005dde99d453181ea8e9a6f11b898de2870382a0a793799",
+    "width" : 640,
+    "height" : 360,
+    "fingerprints" : {
+      "dHash" : "0001010286188108",
+      "pHash" : "d20b6cb433c2396f",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "mosquito-in-amber.glb",
+    "fileName" : "mosquito-in-amber.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 24229904,
+    "sha256" : "1c0b49000650e8a8c00d69bc8d64e46d33527871a47d74e4f2278887325cc35f",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "mosquito-in-amber.jpg",
+    "fileName" : "mosquito-in-amber.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 90191,
+    "sha256" : "b781a63a6035920adb5335692dd4bdacff3b6bcb6c5480961e7e34413b4a149e",
+    "width" : 1280,
+    "height" : 714,
+    "fingerprints" : {
+      "dHash" : "080008aaaaa4a4c0",
+      "pHash" : "d8d3878ed3318b91",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "node-performance-test.glb",
+    "fileName" : "node-performance-test.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 37986536,
+    "sha256" : "81eec3b14b8ed25068448ffdc824528d03f1e844b20e017f5c3aab3f076b1fb8",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "node-performance-test.jpg",
+    "fileName" : "node-performance-test.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 251187,
+    "sha256" : "750fe5cb13a7b065a9a75058861344f3d62e453346ee45275890087169735f09",
+    "width" : 1917,
+    "height" : 1077,
+    "fingerprints" : {
+      "dHash" : "00002822220a0000",
+      "pHash" : "fc88c3a59e9a31c5",
+      "audio" : null
+    },
+    "verification" : "SIMILAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ {
+      "matchedAssetId" : 6,
+      "matchedFileName" : "barramundi-source.jpg",
+      "layer" : "dhash",
+      "distance" : 10,
+      "note" : "Visually similar to “barramundi-source.jpg” (distance 10/64 — likely a resized or re-encoded copy)"
+    } ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "waterbottle-project-derivative.glb",
+    "fileName" : "waterbottle-project-derivative.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 8966868,
+    "sha256" : "c56c3cc4960e746e59b7e2e5900ae168308b263c5a0eb384365f4bce3fcc1480",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "waterbottle-source.glb",
+    "fileName" : "waterbottle-source.glb",
+    "fileType" : "glb",
+    "sizeBytes" : 8966700,
+    "sha256" : "b337e526fd6a162013c2984aeec163f5fbb4f717252724dfc3f3458bd51df94b",
+    "width" : 0,
+    "height" : 0,
+    "fingerprints" : {
+      "dHash" : null,
+      "pHash" : null,
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No readable embedded metadata for this file type." ]
+  }, {
+    "path" : "waterbottle-source.jpg",
+    "fileName" : "waterbottle-source.jpg",
+    "fileType" : "jpg",
+    "sizeBytes" : 3557,
+    "sha256" : "1b4da2987e099de32c273bcce35bb8468d5b46693c7d1b1af790fd5333ff92a9",
+    "width" : 130,
+    "height" : 130,
+    "fingerprints" : {
+      "dHash" : "ffefd3dfd7d7cfff",
+      "pHash" : "a29b8666cd9c99cc",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  } ]
+}

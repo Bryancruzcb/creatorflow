@@ -1,0 +1,700 @@
+.stress-clarity {
+  --stress-surface: oklch(18% 0.012 235);
+  --stress-well: oklch(14.5% 0.012 235);
+  --stress-rule: oklch(35% 0.014 235 / 0.58);
+  display: grid;
+  gap: 1rem;
+}
+
+.stress-clarity > * {
+  min-width: 0;
+}
+
+.stress-clarity .stress-lab-header {
+  align-items: center;
+  min-height: 0;
+  padding: 1.5rem;
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--stress-blue) 9%, transparent), transparent 44%),
+    var(--stress-surface);
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .stress-lab-header > div {
+  max-width: 66rem;
+}
+
+.stress-clarity .stress-lab-header span {
+  color: var(--stress-blue);
+  font-size: 0.75rem;
+}
+
+.stress-clarity .stress-lab-header h1 {
+  margin: 0.35rem 0 0.45rem;
+  font-size: 1.9rem;
+  font-weight: 500;
+  letter-spacing: -0.03em;
+  text-wrap: balance;
+}
+
+.stress-clarity .stress-lab-header p {
+  max-width: 72ch;
+  color: var(--ink-muted);
+  font-size: 0.88rem;
+  line-height: 1.55;
+  text-wrap: pretty;
+}
+
+.stress-clarity .stress-lab-header > button {
+  min-height: 2.75rem;
+}
+
+.stress-verdict-scope {
+  display: grid;
+  grid-template-columns: minmax(19rem, 0.78fr) minmax(27rem, 1.22fr) minmax(16rem, 0.7fr);
+  background: var(--stress-rule);
+  border: 1px solid var(--stress-rule);
+  gap: 1px;
+}
+
+.stress-verdict-primary,
+.stress-boundary-copy,
+.stress-run-facts {
+  min-width: 0;
+  background: var(--stress-surface);
+}
+
+.stress-verdict-primary {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.85rem;
+  padding: 1rem 1.1rem;
+}
+
+.stress-verdict-primary > span {
+  display: grid;
+  width: 2.65rem;
+  height: 2.65rem;
+  place-items: center;
+  color: var(--ink-dim);
+  background: var(--stress-well);
+  border: 1px solid var(--stress-rule);
+}
+
+.stress-verdict-scope[data-state='passed'] .stress-verdict-primary > span {
+  color: var(--clear);
+}
+
+.stress-verdict-scope[data-state='warning'] .stress-verdict-primary > span {
+  color: var(--review);
+}
+
+.stress-verdict-scope[data-state='failed'] .stress-verdict-primary > span {
+  color: var(--blocked);
+}
+
+.stress-verdict-scope[data-state='running'] .stress-verdict-primary > span {
+  color: var(--stress-blue);
+}
+
+.stress-verdict-primary small,
+.stress-verdict-primary strong,
+.stress-verdict-primary p {
+  display: block;
+}
+
+.stress-verdict-primary small {
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.stress-verdict-primary strong {
+  margin-top: 0.22rem;
+  color: var(--ink);
+  font-size: 1rem;
+  font-weight: 500;
+}
+
+.stress-verdict-primary p {
+  margin: 0.2rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.75rem;
+  line-height: 1.45;
+}
+
+.stress-boundary-copy {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 0.8rem;
+  padding: 1rem 1.1rem;
+  color: var(--review);
+}
+
+.stress-boundary-copy strong {
+  display: block;
+  color: var(--ink);
+  font-size: 0.84rem;
+  font-weight: 500;
+}
+
+.stress-boundary-copy p {
+  max-width: 72ch;
+  margin: 0.24rem 0 0;
+  color: var(--ink-muted);
+  font-size: 0.77rem;
+  line-height: 1.5;
+}
+
+.stress-run-facts {
+  display: grid;
+  align-content: center;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0.85rem 1rem;
+}
+
+.stress-run-facts > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.8rem;
+}
+
+.stress-run-facts dt,
+.stress-run-facts dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.stress-run-facts dt {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--ink-dim);
+}
+
+.stress-run-facts dd {
+  color: var(--ink);
+  text-align: right;
+}
+
+.stress-clarity .stress-matrix {
+  overflow: hidden;
+  background: var(--stress-surface);
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .stress-matrix > header {
+  grid-template-columns: minmax(14rem, 0.55fr) minmax(20rem, 0.95fr) minmax(24rem, 1.2fr);
+  min-height: 5.2rem;
+  padding: 1rem 1.25rem;
+  background: var(--stress-surface);
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .stress-matrix > header span,
+.stress-clarity .stress-matrix > header small {
+  font-size: 0.7rem;
+}
+
+.stress-clarity .stress-matrix > header span {
+  color: var(--stress-blue);
+}
+
+.stress-clarity .stress-matrix > header strong {
+  font-size: 0.92rem;
+}
+
+.stress-clarity .stress-matrix > button {
+  grid-template-columns: 2.75rem minmax(16rem, 0.85fr) minmax(17rem, 1.15fr) minmax(11rem, 0.62fr);
+  gap: 1rem;
+  min-height: 6rem;
+  padding: 0.85rem 1.25rem;
+  background: var(--stress-surface);
+  border-color: var(--stress-rule);
+  transition: background 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.stress-clarity .stress-matrix > button:hover {
+  background: color-mix(in srgb, var(--stress-blue) 6%, var(--stress-surface));
+}
+
+.stress-clarity .stress-matrix > button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.stress-clarity .stress-matrix > button > span {
+  color: var(--ink-dim);
+  font-size: 0.7rem;
+}
+
+.stress-check-copy strong,
+.stress-check-copy small,
+.stress-check-status small,
+.stress-check-status em {
+  display: block;
+}
+
+.stress-check-copy strong {
+  color: var(--ink);
+  font-size: 0.86rem;
+  font-weight: 500;
+}
+
+.stress-check-copy small {
+  margin-top: 0.3rem;
+  color: var(--ink-muted);
+  font-size: 0.76rem;
+  line-height: 1.45;
+}
+
+.stress-clarity .stress-matrix > button > p {
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: 0.74rem;
+  line-height: 1.45;
+}
+
+.stress-check-status {
+  justify-self: stretch;
+}
+
+.stress-check-status > small {
+  margin-bottom: 0.32rem;
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.65rem;
+}
+
+.stress-clarity .stress-state {
+  font-size: 0.69rem;
+  line-height: 1.35;
+  text-transform: none;
+}
+
+.stress-clarity .system-check-report-entry {
+  margin-top: 0;
+  padding: 0.9rem 1.25rem;
+  color: var(--stress-blue);
+  background: var(--stress-surface);
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .system-check-report-entry > div strong {
+  font-size: 0.82rem;
+}
+
+.stress-clarity .system-check-report-entry > div small {
+  font-size: 0.74rem;
+}
+
+.system-check-guide,
+.stress-detail-navigation {
+  background: var(--stress-surface);
+  border: 1px solid var(--stress-rule);
+}
+
+.system-check-guide > summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  min-height: 3.9rem;
+  padding: 0.75rem 1rem;
+  color: var(--ink-muted);
+  cursor: pointer;
+  list-style: none;
+}
+
+.system-check-guide > summary::-webkit-details-marker {
+  display: none;
+}
+
+.system-check-guide > summary > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.system-check-guide > summary > span:first-child {
+  color: var(--stress-blue);
+}
+
+.system-check-guide > summary strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.system-check-guide > summary > span:last-child {
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+}
+
+.system-check-guide > summary svg:last-child {
+  transition: transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.system-check-guide[open] > summary {
+  border-bottom: 1px solid var(--stress-rule);
+}
+
+.system-check-guide[open] > summary svg:last-child {
+  transform: rotate(180deg);
+}
+
+.stress-clarity .system-check-purpose {
+  margin: 0;
+  background: var(--stress-rule);
+  border: 0;
+}
+
+.stress-clarity .system-check-purpose > div {
+  padding: 1rem;
+  background: var(--stress-well);
+}
+
+.stress-clarity .system-check-purpose > div > span {
+  font-size: 0.68rem;
+}
+
+.stress-clarity .system-check-purpose strong {
+  font-size: 0.8rem;
+}
+
+.stress-clarity .system-check-purpose small {
+  font-size: 0.72rem;
+}
+
+.stress-detail-navigation > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.9rem 1rem 0;
+}
+
+.stress-detail-navigation > header strong,
+.stress-detail-navigation > header small {
+  display: block;
+}
+
+.stress-detail-navigation > header strong {
+  color: var(--ink);
+  font-size: 0.8rem;
+  font-weight: 500;
+}
+
+.stress-detail-navigation > header small {
+  max-width: 68ch;
+  color: var(--ink-muted);
+  font-size: 0.72rem;
+  text-align: right;
+}
+
+.stress-clarity .stress-tabs {
+  margin: 0;
+  padding-inline: 0.5rem;
+  border-color: var(--stress-rule);
+}
+
+.stress-detail-navigation .stress-tabs {
+  margin-top: 0.35rem;
+}
+
+.stress-clarity > .stress-tabs {
+  background: var(--stress-surface);
+  border: 1px solid var(--stress-rule);
+}
+
+.stress-clarity .stress-tabs button {
+  min-height: 3rem;
+  padding-inline: 0.9rem;
+  font-size: 0.72rem;
+}
+
+.stress-clarity .stress-tabs button:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: -3px;
+}
+
+.stress-clarity .compression-lab,
+.stress-clarity .failure-lab,
+.stress-clarity .package-lab,
+.stress-clarity .format-lab,
+.stress-clarity .telemetry-lab,
+.stress-clarity .stress-motion-layout {
+  background: var(--stress-surface);
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .compression-lab > header,
+.stress-clarity .failure-lab > header,
+.stress-clarity .package-lab > header,
+.stress-clarity .format-lab > header,
+.stress-clarity .telemetry-lab > header {
+  padding: 1.25rem;
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .compression-lab header span,
+.stress-clarity .failure-lab header span,
+.stress-clarity .package-lab header span,
+.stress-clarity .format-lab header span,
+.stress-clarity .telemetry-lab header span {
+  font-size: 0.72rem;
+}
+
+.stress-clarity .compression-lab h2,
+.stress-clarity .failure-lab h2,
+.stress-clarity .package-lab h2,
+.stress-clarity .format-lab h2,
+.stress-clarity .telemetry-lab h2 {
+  margin: 0.35rem 0;
+  font-size: 1.35rem;
+  font-weight: 500;
+}
+
+.stress-clarity .compression-lab header p,
+.stress-clarity .failure-lab header p,
+.stress-clarity .package-lab header p,
+.stress-clarity .format-lab header p,
+.stress-clarity .telemetry-lab header p {
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.stress-clarity .failure-meaning {
+  padding: 0.9rem 1.25rem;
+  background: color-mix(in srgb, var(--clear) 5%, var(--stress-well));
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .failure-meaning strong {
+  font-size: 0.8rem;
+}
+
+.stress-clarity .failure-meaning small {
+  font-size: 0.73rem;
+  line-height: 1.45;
+}
+
+.stress-clarity .failure-lab > div > article {
+  grid-template-columns: 2.5rem minmax(16rem, 0.78fr) minmax(19rem, 1.1fr) minmax(15rem, 0.8fr);
+  min-height: 7rem;
+  padding: 0.9rem 1.25rem;
+  border-color: var(--stress-rule);
+}
+
+.stress-clarity .failure-lab article > span,
+.stress-clarity .failure-lab article code,
+.stress-clarity .failure-lab article > div > small,
+.stress-clarity .failure-lab article p > span,
+.stress-clarity .failure-lab article em {
+  font-size: 0.68rem;
+}
+
+.stress-clarity .failure-lab article strong {
+  font-size: 0.84rem;
+}
+
+.stress-clarity .failure-lab article p {
+  font-size: 0.76rem;
+}
+
+.stress-clarity .dependency-file-tree button strong,
+.stress-clarity .dependency-file-inspector > header strong,
+.stress-clarity .stress-motion-layout aside strong,
+.stress-clarity .format-executable article > strong,
+.stress-clarity .capacity-table strong,
+.stress-clarity .telemetry-table strong {
+  font-size: 0.8rem;
+}
+
+.stress-clarity .dependency-file-tree button small,
+.stress-clarity .dependency-file-tree button em,
+.stress-clarity .dependency-file-inspector dt,
+.stress-clarity .dependency-file-inspector dd,
+.stress-clarity .stress-motion-layout aside small,
+.stress-clarity .stress-motion-layout aside em,
+.stress-clarity .format-executable article > span,
+.stress-clarity .format-executable article > p,
+.stress-clarity .capacity-table span,
+.stress-clarity .capacity-table small,
+.stress-clarity .capacity-table em,
+.stress-clarity .telemetry-table code,
+.stress-clarity .telemetry-table p,
+.stress-clarity .telemetry-table .telemetry-head {
+  font-size: 0.7rem;
+}
+
+.stress-clarity .motion-transport label,
+.stress-clarity .motion-transport output,
+.stress-clarity .motion-clips button,
+.stress-clarity .motion-runtime-readout,
+.stress-clarity .motion-state {
+  font-size: 0.7rem;
+}
+
+@media (max-width: 76rem) {
+  .stress-verdict-scope {
+    grid-template-columns: minmax(18rem, 0.75fr) minmax(24rem, 1.25fr);
+  }
+
+  .stress-run-facts {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .stress-run-facts > div {
+    padding-inline: 0.5rem;
+  }
+
+  .stress-clarity .stress-matrix > header {
+    grid-template-columns: minmax(13rem, 0.6fr) minmax(18rem, 1fr);
+  }
+
+  .stress-clarity .stress-matrix > header small {
+    grid-column: 1 / -1;
+    margin-top: 0.35rem;
+  }
+
+  .stress-clarity .stress-matrix > button {
+    grid-template-columns: 2.5rem minmax(15rem, 0.85fr) minmax(16rem, 1fr) minmax(10rem, 0.7fr);
+  }
+
+  .stress-clarity .failure-lab > div > article {
+    grid-template-columns: 2rem minmax(14rem, 0.8fr) minmax(17rem, 1.2fr);
+  }
+
+  .stress-clarity .failure-lab article em {
+    grid-column: 2 / -1;
+  }
+}
+
+@media (max-width: 58rem) {
+  .stress-clarity .stress-lab-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stress-verdict-scope {
+    grid-template-columns: 1fr;
+  }
+
+  .stress-run-facts {
+    grid-column: auto;
+  }
+
+  .stress-clarity .stress-matrix > button {
+    grid-template-columns: 2rem minmax(0, 1fr) minmax(10rem, 0.6fr);
+  }
+
+  .stress-clarity .stress-matrix > button > p {
+    grid-column: 2 / -1;
+  }
+
+  .stress-check-status {
+    grid-column: 3;
+    grid-row: 1;
+  }
+
+  .stress-detail-navigation > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stress-detail-navigation > header small {
+    text-align: left;
+  }
+}
+
+@media (max-width: 42rem) {
+  .stress-clarity .stress-lab-header {
+    padding: 1.1rem;
+  }
+
+  .stress-clarity .stress-lab-header h1 {
+    font-size: 1.55rem;
+  }
+
+  .stress-verdict-primary,
+  .stress-boundary-copy {
+    align-items: start;
+    padding: 0.9rem;
+  }
+
+  .stress-run-facts {
+    grid-template-columns: 1fr;
+  }
+
+  .stress-clarity .stress-matrix > header {
+    display: block;
+  }
+
+  .stress-clarity .stress-matrix > header > * {
+    display: block;
+    margin-bottom: 0.35rem;
+  }
+
+  .stress-clarity .stress-matrix > button {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    gap: 0.65rem;
+    padding: 0.85rem;
+  }
+
+  .stress-check-status,
+  .stress-clarity .stress-matrix > button > p {
+    grid-column: 2;
+    grid-row: auto;
+  }
+
+  .stress-clarity .system-check-report-entry {
+    grid-template-columns: auto minmax(0, 1fr);
+    padding: 0.9rem;
+  }
+
+  .stress-clarity .system-check-report-entry > .stress-state,
+  .stress-clarity .system-check-report-entry > button {
+    grid-column: 2;
+    justify-self: start;
+  }
+
+  .system-check-guide > summary {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stress-clarity .failure-lab > div > article {
+    grid-template-columns: 1.75rem minmax(0, 1fr);
+    padding: 0.85rem;
+  }
+
+  .stress-clarity .failure-lab article p,
+  .stress-clarity .failure-lab article em {
+    grid-column: 2;
+  }
+}
+
+@media (pointer: coarse) {
+  .stress-clarity button,
+  .stress-clarity summary {
+    min-height: 2.75rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .stress-clarity *,
+  .stress-clarity *::before,
+  .stress-clarity *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

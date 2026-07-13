@@ -1,0 +1,41 @@
+{
+  "asset": {
+    "version": "2.0"
+  },
+  "buffers": [
+    {
+      "byteLength": 4,
+      "uri": "data:application/octet-stream;base64,AAAAAA=="
+    }
+  ],
+  "bufferViews": [
+    {
+      "buffer": 0,
+      "byteLength": 4
+    }
+  ],
+  "accessors": [],
+  "meshes": [
+    {
+      "primitives": [
+        {
+          "attributes": {},
+          "material": 99
+        }
+      ]
+    }
+  ],
+  "nodes": [
+    {
+      "mesh": 0
+    }
+  ],
+  "scenes": [
+    {
+      "nodes": [
+        0
+      ]
+    }
+  ],
+  "scene": 0
+}

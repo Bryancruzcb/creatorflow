@@ -1,0 +1,832 @@
+.cf-proof-wrap {
+  --proof-shell: oklch(16.8% 0.006 118);
+  --proof-panel: oklch(20.2% 0.008 118);
+  --proof-panel-high: oklch(23.7% 0.01 118);
+  --proof-line: oklch(35.5% 0.012 116);
+  --proof-ink: oklch(95.5% 0.008 99);
+  --proof-muted: oklch(72.5% 0.012 101);
+  --proof-dim: oklch(58% 0.011 102);
+  --proof-blue: oklch(67% 0.096 243);
+  --proof-amber: oklch(76% 0.135 81);
+  --proof-mint: oklch(77% 0.095 153);
+  --proof-red: oklch(67% 0.15 34);
+  width: calc(100% + clamp(1rem, 3vw, 3.5rem));
+  min-height: 35rem;
+  margin-top: clamp(2.5rem, 7vw, 5.5rem);
+  isolation: isolate;
+}
+
+.cf-proof-machine {
+  position: relative;
+  z-index: 2;
+  overflow: hidden;
+  color: var(--proof-ink);
+  background: var(--proof-shell);
+  border: 1px solid var(--proof-line);
+  border-radius: 3px;
+  box-shadow: 0 2.2rem 6rem oklch(0% 0 0 / 0.48), 0 0 0 1px oklch(100% 0 0 / 0.025) inset;
+  transform-origin: 50% 20%;
+}
+
+.cf-proof-machine::before,
+.cf-proof-machine::after {
+  position: absolute;
+  z-index: 4;
+  width: 3px;
+  height: 3px;
+  background: var(--proof-dim);
+  border-radius: 50%;
+  content: '';
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.cf-proof-machine::before { inset: 7px auto auto 7px; }
+.cf-proof-machine::after { inset: auto 7px 7px auto; }
+
+.cf-proof-commandbar {
+  display: grid;
+  grid-template-columns: minmax(10rem, 0.75fr) minmax(12rem, 1fr) auto;
+  align-items: center;
+  min-height: 3.1rem;
+  padding-inline: 0.85rem 0.55rem;
+  background: oklch(14.6% 0.005 118);
+  border-bottom: 1px solid var(--proof-line);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+
+.cf-proof-link-state,
+.cf-proof-project,
+.cf-proof-pause,
+.cf-proof-step header,
+.cf-proof-rights,
+.cf-proof-local-boundary,
+.cf-proof-actions,
+.cf-proof-progress {
+  display: flex;
+  align-items: center;
+}
+
+.cf-proof-link-state {
+  min-width: 0;
+  gap: 0.48rem;
+}
+
+.cf-proof-link-state i {
+  width: 6px;
+  height: 6px;
+  flex: 0 0 6px;
+  background: var(--proof-mint);
+  border-radius: 50%;
+  box-shadow: 0 0 0 3px oklch(77% 0.095 153 / 0.1);
+}
+
+.is-paused .cf-proof-link-state i {
+  background: var(--proof-amber);
+  box-shadow: 0 0 0 3px oklch(76% 0.135 81 / 0.1);
+}
+
+.cf-proof-link-state span,
+.cf-proof-project span,
+.cf-proof-project b {
+  color: var(--proof-dim);
+  font-weight: 400;
+}
+
+.cf-proof-link-state strong,
+.cf-proof-project strong {
+  overflow: hidden;
+  color: var(--proof-muted);
+  font-weight: 400;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-proof-project {
+  min-width: 0;
+  justify-content: center;
+  gap: 0.48rem;
+  padding-inline: 0.75rem;
+  border-inline: 1px solid var(--proof-line);
+}
+
+.cf-proof-pause {
+  justify-content: center;
+  gap: 0.38rem;
+  min-width: 4.75rem;
+  min-height: 2rem;
+  margin-left: 0.55rem;
+  padding-inline: 0.55rem;
+  color: var(--proof-muted);
+  background: var(--proof-panel);
+  border: 1px solid var(--proof-line);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.57rem;
+  cursor: pointer;
+  transition: color 180ms var(--ease-state), background-color 180ms var(--ease-state), border-color 180ms var(--ease-state);
+}
+
+.cf-proof-pause:hover {
+  color: var(--proof-ink);
+  background: var(--proof-panel-high);
+  border-color: var(--proof-dim);
+}
+
+.cf-proof-pause:active { background: var(--proof-shell); }
+
+.cf-proof-titlebar {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 1.5rem;
+  padding: clamp(1.1rem, 2.5vw, 1.75rem);
+  background: var(--proof-panel);
+  border-bottom: 1px solid var(--proof-line);
+}
+
+.cf-proof-register {
+  display: block;
+  margin-bottom: 0.4rem;
+  color: var(--proof-blue);
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+}
+
+.cf-proof-titlebar h2 {
+  max-width: 22ch;
+  margin: 0;
+  color: var(--proof-ink);
+  font-size: clamp(1.05rem, 2vw, 1.42rem);
+  font-weight: 450;
+  line-height: 1.2;
+  letter-spacing: -0.025em;
+}
+
+.cf-proof-progress {
+  flex: 0 0 min(14rem, 32%);
+  gap: 0.7rem;
+  color: var(--proof-muted);
+  font-family: var(--font-mono);
+  font-size: 0.58rem;
+}
+
+.cf-proof-progress > span {
+  display: block;
+  width: 100%;
+  height: 2px;
+  overflow: hidden;
+  background: var(--proof-line);
+}
+
+.cf-proof-progress b {
+  display: block;
+  height: 100%;
+  background: var(--proof-blue);
+  transition: width 420ms var(--ease-artifact);
+}
+
+.cf-proof-progress strong {
+  min-width: 2.4rem;
+  font-weight: 400;
+}
+
+.cf-proof-ribbon {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(10rem, 1.28fr) minmax(8.5rem, 0.9fr) minmax(9rem, 1fr) minmax(9rem, 1fr) minmax(8rem, 0.86fr);
+  min-height: 19.5rem;
+  padding: 0;
+  margin: 0;
+  list-style: none;
+  background: var(--proof-shell);
+}
+
+.cf-proof-ribbon::before {
+  position: absolute;
+  z-index: 2;
+  top: 2.92rem;
+  right: 1.4rem;
+  left: 1.4rem;
+  height: 1px;
+  background: var(--proof-blue);
+  box-shadow: 0 0 0 3px oklch(67% 0.096 243 / 0.06);
+  content: '';
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.cf-proof-step {
+  position: relative;
+  min-width: 0;
+  border-right: 1px solid var(--proof-line);
+}
+
+.cf-proof-step:last-child { border-right: 0; }
+
+.cf-proof-step > header {
+  position: relative;
+  z-index: 3;
+  min-height: 5.9rem;
+  padding: 1.05rem 0.72rem 1.85rem;
+  gap: 0.42rem;
+  background: var(--proof-panel);
+  border-bottom: 1px solid var(--proof-line);
+  font-family: var(--font-mono);
+}
+
+.cf-proof-step > header span:not(.cf-proof-step-mark) {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--proof-muted);
+  font-size: 0.57rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.cf-proof-step > header small {
+  margin-left: auto;
+  color: var(--proof-dim);
+  font-size: 0.5rem;
+  white-space: nowrap;
+}
+
+.cf-proof-step-mark {
+  display: grid;
+  width: 1.08rem;
+  height: 1.08rem;
+  flex: 0 0 1.08rem;
+  place-items: center;
+  color: var(--proof-shell);
+  background: var(--proof-line);
+  border: 1px solid var(--proof-dim);
+  border-radius: 50%;
+}
+
+.cf-proof-step-mark.is-done {
+  background: var(--proof-mint);
+  border-color: var(--proof-mint);
+}
+
+.cf-proof-step-mark.is-active {
+  background: var(--proof-blue);
+  border-color: var(--proof-blue);
+  box-shadow: 0 0 0 4px oklch(67% 0.096 243 / 0.12);
+  animation: cf-proof-read 1.65s ease-in-out infinite;
+}
+
+.cf-proof-step-mark.is-review {
+  background: var(--proof-shell);
+  border-color: var(--proof-amber);
+  box-shadow: inset 0 0 0 3px var(--proof-shell);
+}
+
+@keyframes cf-proof-read {
+  0%, 100% { box-shadow: 0 0 0 3px oklch(67% 0.096 243 / 0.1); }
+  50% { box-shadow: 0 0 0 7px oklch(67% 0.096 243 / 0); }
+}
+
+.cf-proof-source-stack {
+  display: grid;
+  padding: 0.7rem;
+}
+
+.cf-proof-source-stack > div {
+  display: grid;
+  grid-template-columns: minmax(3.6rem, 0.9fr) minmax(4.5rem, 1fr);
+  align-items: center;
+  min-height: 5.5rem;
+  border-bottom: 1px solid var(--proof-line);
+}
+
+.cf-proof-source-stack > div:last-child { border-bottom: 0; }
+
+.cf-proof-source-stack span,
+.cf-proof-source-stack b,
+.cf-proof-source-stack code {
+  display: block;
+  min-width: 0;
+}
+
+.cf-proof-source-stack b {
+  margin-bottom: 0.22rem;
+  color: var(--proof-dim);
+  font-family: var(--font-mono);
+  font-size: 0.48rem;
+  font-weight: 400;
+}
+
+.cf-proof-source-stack code {
+  overflow: hidden;
+  color: var(--proof-muted);
+  font-size: 0.55rem;
+  text-overflow: ellipsis;
+}
+
+.cf-proof-rig {
+  width: 100%;
+  max-width: 4.9rem;
+  height: auto;
+  overflow: visible;
+}
+
+.cf-proof-rig-axis {
+  fill: none;
+  stroke: var(--proof-line);
+  stroke-width: 0.7;
+}
+
+.cf-proof-rig-ghost {
+  fill: none;
+  stroke: var(--proof-amber);
+  stroke-dasharray: 2 3;
+  stroke-width: 0.75;
+  opacity: 0.45;
+}
+
+.cf-proof-rig-line {
+  fill: none;
+  stroke: var(--proof-blue);
+  stroke-width: 1.1;
+}
+
+.cf-proof-rig-joint {
+  fill: var(--proof-shell);
+  stroke: var(--proof-blue);
+  stroke-width: 0.8;
+}
+
+.cf-proof-measure,
+.cf-proof-fingerprint,
+.cf-proof-decision {
+  display: flex;
+  min-height: 13.5rem;
+  padding: 1.15rem 0.85rem;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.cf-proof-measure > svg,
+.cf-proof-fingerprint > svg,
+.cf-proof-decision > svg {
+  color: var(--proof-blue);
+}
+
+.cf-proof-measure > strong {
+  margin: auto 0 0.8rem;
+  color: var(--proof-ink);
+  font-size: 0.68rem;
+  font-weight: 500;
+}
+
+.cf-proof-measure dl {
+  width: 100%;
+  margin: 0;
+}
+
+.cf-proof-measure dl div {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding-block: 0.33rem;
+  border-top: 1px solid var(--proof-line);
+}
+
+.cf-proof-measure dt,
+.cf-proof-measure dd {
+  margin: 0;
+  color: var(--proof-dim);
+  font-family: var(--font-mono);
+  font-size: 0.48rem;
+}
+
+.cf-proof-measure dd { color: var(--proof-muted); }
+
+.cf-proof-fingerprint code {
+  margin: auto 0 0.3rem;
+  color: var(--proof-ink);
+  font-size: 0.6rem;
+}
+
+.cf-proof-fingerprint > span {
+  color: var(--proof-dim);
+  font-size: 0.57rem;
+  line-height: 1.45;
+}
+
+.cf-proof-fingerprint > span strong {
+  color: var(--proof-amber);
+  font-family: var(--font-mono);
+  font-weight: 500;
+}
+
+.cf-proof-fingerprint > i {
+  display: grid;
+  width: 100%;
+  grid-template-columns: repeat(10, 1fr);
+  gap: 2px;
+  margin-top: 0.72rem;
+}
+
+.cf-proof-fingerprint > i b {
+  height: 0.82rem;
+  background: var(--proof-blue);
+  opacity: 0.18;
+}
+
+.cf-proof-fingerprint > i b:nth-child(-n + 9) { opacity: 0.68; }
+.cf-proof-fingerprint > i b:nth-child(3n) { opacity: 0.38; }
+
+.cf-proof-rights {
+  min-height: 13.5rem;
+  padding: 1.15rem 0.8rem;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.cf-proof-rights > svg { color: var(--proof-amber); }
+.is-ready .cf-proof-rights > svg { color: var(--proof-mint); }
+
+.cf-proof-rights > span {
+  margin-top: auto;
+}
+
+.cf-proof-rights strong,
+.cf-proof-rights small {
+  display: block;
+}
+
+.cf-proof-rights strong {
+  color: var(--proof-ink);
+  font-size: 0.65rem;
+  font-weight: 500;
+}
+
+.cf-proof-rights small {
+  margin-top: 0.2rem;
+  color: var(--proof-dim);
+  font-size: 0.51rem;
+  line-height: 1.45;
+}
+
+.cf-proof-rights button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.32rem;
+  width: 100%;
+  min-height: 2rem;
+  margin-top: 0.75rem;
+  padding-inline: 0.55rem;
+  color: var(--proof-shell);
+  background: var(--proof-amber);
+  border: 1px solid var(--proof-amber);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.48rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-state), border-color 180ms var(--ease-state), transform 180ms var(--ease-state);
+}
+
+.cf-proof-rights button:hover { transform: translateY(-1px); }
+.cf-proof-rights button:active { transform: translateY(0); }
+
+.is-ready .cf-proof-rights button {
+  background: var(--proof-mint);
+  border-color: var(--proof-mint);
+}
+
+.cf-proof-decision > svg { color: var(--proof-amber); }
+.is-ready .cf-proof-decision > svg { color: var(--proof-mint); }
+
+.cf-proof-decision > strong {
+  margin-top: auto;
+  color: var(--proof-amber);
+  font-size: clamp(1.05rem, 2vw, 1.42rem);
+  font-weight: 450;
+  letter-spacing: -0.025em;
+}
+
+.is-ready .cf-proof-decision > strong { color: var(--proof-mint); }
+
+.cf-proof-decision > span {
+  margin-top: 0.35rem;
+  color: var(--proof-dim);
+  font-size: 0.53rem;
+  line-height: 1.45;
+}
+
+.cf-proof-footer {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) auto;
+  align-items: center;
+  gap: 1rem;
+  min-height: 4.7rem;
+  padding: 0.8rem 1rem;
+  background: oklch(14.6% 0.005 118);
+  border-top: 1px solid var(--proof-line);
+}
+
+.cf-proof-local-boundary {
+  min-width: 0;
+  gap: 0.75rem;
+}
+
+.cf-proof-local-boundary > span {
+  display: grid;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  place-items: center;
+  border: 1px solid var(--proof-line);
+  border-radius: 50%;
+}
+
+.cf-proof-local-boundary > span i {
+  width: 0.46rem;
+  height: 0.46rem;
+  background: var(--proof-blue);
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px oklch(67% 0.096 243 / 0.1);
+}
+
+.cf-proof-local-boundary p {
+  max-width: 62ch;
+  margin: 0;
+  color: var(--proof-dim);
+  font-size: 0.56rem;
+  line-height: 1.55;
+}
+
+.cf-proof-local-boundary p strong {
+  color: var(--proof-muted);
+  font-weight: 500;
+}
+
+.cf-proof-actions {
+  justify-content: flex-end;
+  gap: 0.85rem;
+}
+
+.cf-proof-actions > span {
+  max-width: 9rem;
+  color: var(--proof-dim);
+  font-family: var(--font-mono);
+  font-size: 0.45rem;
+  line-height: 1.45;
+  text-align: right;
+}
+
+.cf-proof-actions a {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  min-height: 2.25rem;
+  padding-inline: 0.8rem;
+  color: var(--proof-ink);
+  background: var(--proof-panel-high);
+  border: 1px solid var(--proof-line);
+  border-radius: 2px;
+  font-family: var(--font-mono);
+  font-size: 0.53rem;
+  transition: background-color 180ms var(--ease-state), border-color 180ms var(--ease-state);
+}
+
+.cf-proof-actions a:hover {
+  background: var(--proof-panel);
+  border-color: var(--proof-blue);
+}
+
+.cf-proof-actions a:active { background: var(--proof-shell); }
+
+@media (min-width: 64rem) {
+  .cf-proof-wrap {
+    margin-top: 0;
+  }
+}
+
+@media (max-width: 72rem) {
+  .hero-workspace-wrap.cf-proof-wrap {
+    width: 100%;
+  }
+
+  .cf-proof-ribbon {
+    grid-template-columns: minmax(9rem, 1.2fr) repeat(3, minmax(8rem, 1fr));
+  }
+
+  .cf-proof-step-decision {
+    grid-column: 1 / -1;
+    display: grid;
+    grid-template-columns: minmax(8rem, 0.8fr) minmax(0, 3.2fr);
+    border-top: 1px solid var(--proof-line);
+  }
+
+  .cf-proof-step-decision > header {
+    min-height: 6rem;
+    border-bottom: 0;
+    border-right: 1px solid var(--proof-line);
+  }
+
+  .cf-proof-step-decision .cf-proof-decision {
+    min-height: 6rem;
+    flex-direction: row;
+    align-items: center;
+    gap: 0.8rem;
+  }
+
+  .cf-proof-step-decision .cf-proof-decision > strong { margin: 0; }
+  .cf-proof-step-decision .cf-proof-decision > span { max-width: 28rem; margin: 0 0 0 auto; }
+}
+
+@media (min-width: 64rem) and (max-width: 72rem) {
+  .hero-section:has(.cf-proof-wrap) {
+    grid-template-columns: minmax(20rem, 0.76fr) minmax(0, 1.45fr);
+    gap: 2rem;
+  }
+}
+
+@media (max-width: 47.99rem) {
+  .cf-proof-wrap {
+    width: 100%;
+    min-height: 0;
+  }
+
+  .cf-proof-commandbar {
+    grid-template-columns: minmax(0, 1fr) auto;
+    min-height: 3.4rem;
+  }
+
+  .cf-proof-project { display: none; }
+
+  .cf-proof-titlebar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .cf-proof-progress {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .cf-proof-ribbon {
+    display: block;
+    min-height: 0;
+    padding-left: 1.25rem;
+  }
+
+  .cf-proof-ribbon::before {
+    top: 1.4rem;
+    right: auto;
+    bottom: 1.4rem;
+    left: 1.67rem;
+    width: 1px;
+    height: auto;
+  }
+
+  .cf-proof-step,
+  .cf-proof-step:last-child {
+    display: grid;
+    grid-template-columns: minmax(8.5rem, 0.72fr) minmax(0, 1.28fr);
+    border-right: 0;
+    border-bottom: 1px solid var(--proof-line);
+  }
+
+  .cf-proof-step:last-child { border-bottom: 0; }
+
+  .cf-proof-step > header {
+    min-height: 8.5rem;
+    padding: 1rem 0.7rem;
+    align-items: flex-start;
+    flex-wrap: wrap;
+    border-right: 1px solid var(--proof-line);
+    border-bottom: 0;
+  }
+
+  .cf-proof-step > header small {
+    width: 100%;
+    margin-left: 1.5rem;
+  }
+
+  .cf-proof-source-stack,
+  .cf-proof-measure,
+  .cf-proof-fingerprint,
+  .cf-proof-rights,
+  .cf-proof-decision {
+    min-height: 8.5rem;
+  }
+
+  .cf-proof-source-stack > div {
+    min-height: 3.7rem;
+  }
+
+  .cf-proof-measure,
+  .cf-proof-fingerprint,
+  .cf-proof-rights,
+  .cf-proof-decision {
+    padding: 0.85rem;
+  }
+
+  .cf-proof-step-decision .cf-proof-decision {
+    min-height: 8.5rem;
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .cf-proof-step-decision .cf-proof-decision > strong { margin-top: auto; }
+  .cf-proof-step-decision .cf-proof-decision > span { margin: 0.25rem 0 0; }
+
+  .cf-proof-footer {
+    grid-template-columns: 1fr;
+  }
+
+  .cf-proof-actions {
+    justify-content: space-between;
+    border-top: 1px solid var(--proof-line);
+    padding-top: 0.75rem;
+  }
+
+  .cf-proof-actions > span { text-align: left; }
+}
+
+@media (max-width: 34rem) {
+  .cf-proof-step,
+  .cf-proof-step:last-child {
+    grid-template-columns: 1fr;
+  }
+
+  .cf-proof-ribbon { padding-left: 0; }
+
+  .cf-proof-ribbon::before {
+    top: 0;
+    bottom: 0;
+    left: 1.55rem;
+  }
+
+  .cf-proof-step > header {
+    min-height: 4.35rem;
+    padding-left: 0.95rem;
+    border-right: 0;
+    border-bottom: 1px solid var(--proof-line);
+  }
+
+  .cf-proof-step > header small {
+    width: auto;
+    margin-left: auto;
+  }
+
+  .cf-proof-source-stack,
+  .cf-proof-measure,
+  .cf-proof-fingerprint,
+  .cf-proof-rights,
+  .cf-proof-decision,
+  .cf-proof-step-decision .cf-proof-decision {
+    min-height: 10rem;
+  }
+
+  .cf-proof-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .cf-proof-actions > span { max-width: none; }
+  .cf-proof-actions a { width: 100%; }
+}
+
+@media (pointer: coarse) {
+  .cf-proof-pause,
+  .cf-proof-rights button,
+  .cf-proof-actions a {
+    min-height: 44px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-proof-machine,
+  .cf-proof-machine *,
+  .cf-proof-machine *::before,
+  .cf-proof-machine *::after {
+    animation: none !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .cf-proof-machine,
+  .cf-proof-step,
+  .cf-proof-step > header,
+  .cf-proof-pause,
+  .cf-proof-rights button,
+  .cf-proof-actions a {
+    border-color: CanvasText;
+  }
+
+  .cf-proof-step-mark,
+  .cf-proof-link-state i,
+  .cf-proof-local-boundary > span i {
+    forced-color-adjust: none;
+  }
+}
