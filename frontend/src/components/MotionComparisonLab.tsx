@@ -28,6 +28,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { LocalBridgeClient, type LocalMotionComparison, type LocalPluginPairing, type LocalProjectSummary } from '../bridge/localBridge';
+import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
 import {
   analyzeMotionClips,
   type MotionAnalysisMode,
@@ -818,6 +819,13 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
               {bridgeMessage ? <p className="motion-bridge-message" role="status">{bridgeMessage}</p> : null}
               {latestComparison ? <article className="motion-live-result"><header><span><i />Latest Studio evidence</span><time dateTime={latestComparison.createdAt}>{new Date(latestComparison.createdAt).toLocaleString()}</time></header><div><span><small>Animation IDs</small><strong>{latestComparison.sourceAssetId} ↔ {latestComparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{latestComparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{latestComparison.posePercent}%</strong></span><span><small>Timing</small><strong>{latestComparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{latestComparison.coveragePercent}%</strong></span></div><footer><strong>{latestComparison.verdict}</strong><span>{latestComparison.exactCurveData ? 'Exact canonical curves' : 'Similarity signal'} · evidence ID {latestComparison.id.slice(0, 8)}</span></footer></article> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison. This page refreshes the local evidence inbox automatically.</p> : null}
               <section className="motion-authoring-boundary"><AlertTriangle size={17} /><div><strong>Compare here; author and publish in Roblox Studio.</strong><p>Every comparison mode reads the supplied curves without changing them. CreatorFlow does not pose the rig, overwrite an AnimationClip, replace an Animation ID, or upload an animation.</p></div><dl><div><dt>Available now</dt><dd>Read · compare · preview · fingerprint</dd></div><div><dt>Not an editor</dt><dd>Rig controls · curve timeline · Roblox upload</dd></div></dl></section>
+            </section>
+          </details>
+
+          <details className="motion-support-drawer" open={Boolean(bridgeClient && project)}>
+            <summary><span><strong>Animation snapshots</strong><small>Pin last-known-good / last-published references and track drift</small></span><span>{bridgeClient && project ? 'Ready' : 'Desktop required'} <ChevronDown size={15} /></span></summary>
+            <section className="motion-snapshots-intake" aria-label="Animation snapshots">
+              <AnimationSnapshotsPanel bridgeClient={bridgeClient} project={project} latestComparison={latestComparison} />
             </section>
           </details>
 

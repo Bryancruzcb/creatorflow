@@ -6,8 +6,8 @@ import creatorflow.verification.ImageHashes;
 import java.awt.Graphics2D;
 import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import creatorflow.verification.SafeImageIo;
 import java.io.IOException;
-import javax.imageio.ImageIO;
 import org.springframework.stereotype.Service;
 
 /**
@@ -41,8 +41,8 @@ public class DiffService {
         if (!from.isImage() || !to.isImage()) {
             return new Diff(null, null, dHash, pHash, audio);
         }
-        BufferedImage a = ImageIO.read(files.fileFor(from.getSha256()).toFile());
-        BufferedImage b = ImageIO.read(files.fileFor(to.getSha256()).toFile());
+        BufferedImage a = SafeImageIo.read(files.fileFor(from.getSha256()).toFile());
+        BufferedImage b = SafeImageIo.read(files.fileFor(to.getSha256()).toFile());
         if (a == null || b == null) {
             return new Diff(null, null, dHash, pHash, audio);
         }
