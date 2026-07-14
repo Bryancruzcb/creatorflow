@@ -6,6 +6,7 @@ import creatorflow.db.AuditRepository;
 import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
+import creatorflow.db.MotionSnapshotRepository;
 import creatorflow.db.ProjectRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
@@ -41,6 +42,7 @@ public final class AppContext implements AutoCloseable {
     private final AuditRepository audit;
     private final WorkspaceStateRepository workspaceState;
     private final AnimationComparisonRepository animationComparisons;
+    private final MotionSnapshotRepository motionSnapshots;
     private final PluginPairingService pluginPairings;
     private final ReleaseExportService releaseExports;
     private LocalBridgeServer bridge;
@@ -60,6 +62,7 @@ public final class AppContext implements AutoCloseable {
         this.audit = new AuditRepository(database);
         this.workspaceState = new WorkspaceStateRepository(database);
         this.animationComparisons = new AnimationComparisonRepository(database);
+        this.motionSnapshots = new MotionSnapshotRepository(database);
         this.pluginPairings = new PluginPairingService();
         this.releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit);
@@ -104,8 +107,8 @@ public final class AppContext implements AutoCloseable {
                 ? null : Path.of(System.getProperty(LocalBridgeServer.WEB_ROOT_PROPERTY));
         ScanCoordinator coordinator = new ScanCoordinator(scans, localProjects, audit);
         bridge = new LocalBridgeServer(new JavaFxProjectPicker(owner), localProjects, scans,
-                decisions, releases, workspaceState, animationComparisons, pluginPairings,
-                releaseExports, coordinator, webRoot).start();
+                decisions, releases, workspaceState, animationComparisons, motionSnapshots,
+                pluginPairings, releaseExports, coordinator, webRoot).start();
         return bridge;
     }
 

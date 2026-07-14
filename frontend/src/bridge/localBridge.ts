@@ -36,6 +36,24 @@ export interface LocalMotionComparison {
   result: Record<string, unknown>;
 }
 
+export type AnimationSnapshotKind = 'LAST_KNOWN_GOOD' | 'LAST_PUBLISHED';
+export type AnimationSnapshotStatus = 'FIRST_SNAPSHOT' | 'UNCHANGED' | 'CHANGED';
+
+export interface LocalAnimationSnapshot {
+  id: string;
+  projectId: number;
+  assetId: string;
+  kind: AnimationSnapshotKind;
+  sourceComparisonId: string | null;
+  name: string;
+  duration: number;
+  fingerprint: string;
+  algorithmVersion: string;
+  supersedesSnapshotId: string | null;
+  status: AnimationSnapshotStatus;
+  createdAt: string;
+}
+
 export interface LocalProjectSummary {
   projectId: number;
   name: string;
@@ -259,6 +277,31 @@ export class LocalBridgeClient {
 
   getMotionComparison(comparisonId: string) {
     return this.request<LocalMotionComparison>(`/api/v1/motion-comparisons/${encodeURIComponent(comparisonId)}`);
+  }
+
+  /** Promotes one side of a comparison into an immutable last-known-good / last-published snapshot. */
+  captureAnimationSnapshot(projectId: number, request: {
+    comparisonId: string;
+    side: 'source' | 'candidate';
+    kind: AnimationSnapshotKind;
+  }) {
+    return this.request<LocalAnimationSnapshot>(`/api/v1/projects/${projectId}/animation-snapshots`, {
+      method: 'POST',
+      body: request,
+    });
+  }
+
+  /** The live references: the newest snapshot per asset and kind. */
+  listAnimationSnapshots(projectId: number) {
+    return this.request<{ items: LocalAnimationSnapshot[] }>(`/api/v1/projects/${projectId}/animation-snapshots`);
+  }
+
+  listAnimationSnapshotHistory(projectId: number, assetId: string, kind: AnimationSnapshotKind,
+                               limit = 25, offset = 0) {
+    const query = new URLSearchParams({
+      assetId, kind, history: 'true', limit: String(limit), offset: String(offset),
+    });
+    return this.request<{ items: LocalAnimationSnapshot[] }>(`/api/v1/projects/${projectId}/animation-snapshots?${query}`);
   }
 
   saveWorkspaceState(state: SaveWorkspaceStateRequest) {
