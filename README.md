@@ -46,7 +46,7 @@ Requires JDK 21+ and Maven.
 ```bash
 git clone https://github.com/Bryancruzcb/creatorflow.git
 cd creatorflow
-mvn install                                # build everything once (66 tests)
+mvn install                                # build everything once (runs the full Java test suite)
 java -jar server/target/creatorflow-server-1.3.0.jar --creatorflow.demo-seed=true
 ```
 
@@ -172,6 +172,11 @@ mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
   -Dexec.args='/path/to/project MyProject 0.1.0 /path/to/manifest.json'
 ```
 
+Append `--exclude <directory-name>` (repeatable) to keep fixture or vendor trees out of the scan
+on top of the built-in exclusions — e.g. this repository's own dogfood scan needs
+`--exclude stress-fixtures`, whose deliberately duplicated test textures would otherwise
+hard-block the release gate.
+
 The hardened scanner also exposes configurable exclusions, ordered progress events, cancellation with a usable partial manifest, per-file failure isolation, dependency findings, and symlink containment. The desktop module now owns a loopback-only local bridge and migrated workflow store for project selection, immutable scan runs, source evidence, append-only decisions, releases, and workspace restoration.
 
 To run the desktop-owned browser workspace directly from a frontend build:
@@ -272,8 +277,8 @@ flowchart LR
 ```
 
 `core` has no UI, database or Spring dependencies — the platform and the desktop app share it as
-a plain library, so a fingerprint means exactly the same thing on both sides. 66 tests across the
-three modules (`mvn verify`): engine algorithms, persistence, importer + registry escalation, the
+a plain library, so a fingerprint means exactly the same thing on both sides. The Java test suites
+across the three modules (`mvn verify`) cover: engine algorithms, persistence, importer + registry escalation, the
 REST API, the full web flow (signup → upload → duplicate blocked → similar flagged → files served
 hardened), and the review layer (version lineage vs foreign similarity, stack-only compare,
 pinned comments, feedback filtering).

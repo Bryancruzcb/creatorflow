@@ -16,6 +16,16 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Require the manifest to exist
+        shell: bash
+        env:
+          MANIFEST_PATH: ${{ inputs.manifest }}
+        run: |
+          if [ ! -f "$MANIFEST_PATH" ]; then
+            echo "::error::No manifest at '$MANIFEST_PATH'. Export one from the desktop release workflow and commit it, or generate one with ManifestCli (repeat --exclude for fixture/vendor directories, e.g. --exclude stress-fixtures) and pass its path as the 'manifest' input."
+            exit 1
+          fi
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
