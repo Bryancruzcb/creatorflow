@@ -13,6 +13,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { AssetRecord, EvidenceStatus, SourceMatch } from '../data';
 import { initialAssets } from '../data';
+import { buildReleaseManifest } from '../manifest/releaseManifest';
 import { AssetArtwork } from './AssetArtwork';
 import { MatchWorkbench } from './MatchWorkbench';
 import { StatusMark } from './StatusMark';
@@ -144,47 +145,11 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
 
   function exportManifest() {
     if (!releaseReady) return;
-    const decisionValue = (decision: AssetRecord['decision']) => decision.replace('-', '_').toUpperCase();
-    const verificationValue = (status: AssetRecord['status']) => status === 'review' ? 'SIMILAR' : 'CLEAR';
-    const sizeBytes = (size: string) => Math.round(Number.parseFloat(size) * 1024 * 1024);
-    const manifest = {
-      $schema: 'creatorflow.manifest/v0.1',
-      project: { name: 'Northwind', release: '1.2.0' },
+    const manifest = buildReleaseManifest(assets, {
+      projectName: 'Northwind',
+      release: '1.2.0',
       generatedAt: new Date().toISOString(),
-      summary: {
-        total: assets.length,
-        clear: assets.filter((asset) => asset.status === 'clear').length,
-        similar: assets.filter((asset) => asset.status === 'review').length,
-        duplicate: 0,
-        unresolvedSources: assets.filter((asset) => asset.origin.includes('Unknown') || asset.license.startsWith('No license')).length,
-        pendingDecisions: unresolved.length,
-      },
-      assets: assets.map((asset) => ({
-        path: `${asset.path}/${asset.name}`,
-        fileName: asset.name,
-        fileType: asset.format.toLowerCase(),
-        sizeBytes: sizeBytes(asset.size),
-        sha256: asset.hash.toLowerCase(),
-        width: 0,
-        height: 0,
-        fingerprints: { dHash: null, pHash: null, audio: null },
-        verification: verificationValue(asset.status),
-        source: {
-          source: asset.origin,
-          license: asset.license,
-          evidenceUrl: asset.matches?.[0]?.sourceUrl ?? null,
-        },
-        decision: decisionValue(asset.decision),
-        matches: asset.matches?.map((match, index) => ({
-          matchedAssetId: index + 1,
-          matchedFileName: match.title,
-          layer: match.method,
-          distance: 100 - match.similarity,
-          note: match.relationship,
-        })) ?? [],
-        findings: [asset.evidence],
-      })),
-    };
+    });
     const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
