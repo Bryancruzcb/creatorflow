@@ -11,7 +11,7 @@ For each accessible `KeyframeSequence`, the plugin records:
 - animation asset ID, clip name, duration, loop setting, and priority;
 - keyframe times, ordered by time;
 - each pose's stable hierarchy path, such as `HumanoidRootPart/LowerTorso/LeftUpperArm`;
-- the pose's 12 rounded `CFrame` components, mask weight, easing style, and easing direction.
+- the pose's 12 rounded `CFrame` components, blend weight (`Pose.Weight`), easing style, and easing direction.
 
 Floating-point values are checked for finiteness and rounded to six decimal places. Pose paths and keyframes are sorted before the JSON is created. The desktop app computes and stores the fingerprints and comparison; the plugin does not claim that similar motion proves copying.
 
@@ -135,7 +135,7 @@ Run these before handing the plugin to another developer:
 
 - Only `KeyframeSequence` is normalized. `CurveAnimation` uses a different channel representation and is deliberately rejected until CreatorFlow has a curve-aware canonical format.
 - Roblox decides which animation assets the Studio session may read. Ownership, group ownership, transfer, moderation, or experience permission problems cannot be bypassed by the plugin.
-- The normalized evidence includes joint transforms, hierarchy, mask weight, and easing. It does not yet include keyframe markers, authored rig geometry, facial animation channels, or an avatar preview model.
+- The normalized evidence includes joint transforms, hierarchy, blend weight, and easing. It does not yet include keyframe markers, authored rig geometry, facial animation channels, or an avatar preview model.
 - Duplicate joint paths or duplicate keyframes at the same six-decimal timestamp are rejected because v0.1 cannot order those cases unambiguously.
 - A client-side safety limit stops sequences above 20,000 pose samples or requests above 2 MiB.
 - The pairing token is stored locally in Studio plugin settings for this friend-test build. Treat it as short-lived and do not reuse it as an account credential.

@@ -575,7 +575,9 @@ local function appendPose(pose, parentPath, output, seenPaths, counters)
 	table.insert(output, {
 		jointPath = jointPath,
 		transform = components,
-		weight = roundNumber(pose.MaskWeight, jointPath .. " weight"),
+		-- Pose.Weight is the authored blend weight; MaskWeight is deprecated and
+		-- always default, which would blind the engine's weight comparison.
+		weight = roundNumber(pose.Weight, jointPath .. " weight"),
 		easingStyle = pose.EasingStyle.Name,
 		easingDirection = pose.EasingDirection.Name,
 	})
