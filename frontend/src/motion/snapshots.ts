@@ -17,6 +17,24 @@ export function snapshotStatusLabel(status: AnimationSnapshotStatus): string {
   }
 }
 
+/** Shortens a 64-hex fingerprint to a scannable prefix for display. */
+export function formatSnapshotFingerprint(fingerprint: string): string {
+  const hex = fingerprint.trim();
+  return hex.length <= 12 ? hex : `${hex.slice(0, 12)}…`;
+}
+
+const KIND_ORDER: Record<AnimationSnapshotKind, number> = { LAST_KNOWN_GOOD: 0, LAST_PUBLISHED: 1 };
+
+/** Orders snapshots for a stable panel: by animation name, then asset id, then kind. */
+export function sortSnapshotsForDisplay<T extends { name: string; assetId: string; kind: AnimationSnapshotKind }>(
+  items: readonly T[],
+): T[] {
+  return [...items].sort((a, b) =>
+    a.name.localeCompare(b.name)
+    || a.assetId.localeCompare(b.assetId)
+    || KIND_ORDER[a.kind] - KIND_ORDER[b.kind]);
+}
+
 export type SnapshotTone = 'neutral' | 'positive' | 'warning';
 
 /**

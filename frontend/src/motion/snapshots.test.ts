@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { snapshotKindLabel, snapshotStatusLabel, snapshotStatusTone } from './snapshots';
+import type { AnimationSnapshotKind } from '../bridge/localBridge';
+import {
+  formatSnapshotFingerprint,
+  snapshotKindLabel,
+  snapshotStatusLabel,
+  snapshotStatusTone,
+  sortSnapshotsForDisplay,
+} from './snapshots';
 
 describe('animation snapshot presentation', () => {
   it('labels the two snapshot kinds', () => {
@@ -17,5 +24,22 @@ describe('animation snapshot presentation', () => {
     expect(snapshotStatusTone('FIRST_SNAPSHOT')).toBe('neutral');
     expect(snapshotStatusTone('UNCHANGED')).toBe('positive');
     expect(snapshotStatusTone('CHANGED')).toBe('warning');
+  });
+
+  it('shortens a long fingerprint but leaves a short one alone', () => {
+    expect(formatSnapshotFingerprint('a'.repeat(64))).toBe(`${'a'.repeat(12)}…`);
+    expect(formatSnapshotFingerprint('abc123')).toBe('abc123');
+  });
+
+  it('sorts snapshots by name, then asset id, then kind', () => {
+    const lkg: AnimationSnapshotKind = 'LAST_KNOWN_GOOD';
+    const pub: AnimationSnapshotKind = 'LAST_PUBLISHED';
+    const rows = [
+      { name: 'Walk', assetId: '2', kind: pub },
+      { name: 'Run', assetId: '9', kind: lkg },
+      { name: 'Walk', assetId: '2', kind: lkg },
+    ];
+    expect(sortSnapshotsForDisplay(rows).map((r) => `${r.name}:${r.kind}`))
+      .toEqual(['Run:LAST_KNOWN_GOOD', 'Walk:LAST_KNOWN_GOOD', 'Walk:LAST_PUBLISHED']);
   });
 });
