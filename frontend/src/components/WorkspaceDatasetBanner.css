@@ -1,0 +1,60 @@
+.workspace-dataset-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.7rem 0.9rem;
+  margin-bottom: var(--space-4, 1rem);
+  border: 1px solid var(--hairline);
+  border-left: 3px solid var(--hairline-strong);
+  border-radius: 11px;
+  background: var(--graphite);
+}
+.workspace-dataset-banner.mode-sample { border-left-color: var(--review); }
+.workspace-dataset-banner.mode-local { border-left-color: var(--clear); }
+.workspace-dataset-banner.mode-imported { border-left-color: var(--blue); }
+
+.workspace-dataset-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex: none;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.35rem 0.6rem;
+  border-radius: 999px;
+  border: 1px solid var(--hairline-strong);
+  color: var(--ink-muted);
+  background: var(--raised);
+}
+.mode-sample .workspace-dataset-badge { color: var(--review); border-color: oklch(71.3% 0.1172 80.74 / 0.4); background: oklch(71.3% 0.1172 80.74 / 0.1); }
+.mode-local .workspace-dataset-badge { color: var(--clear); border-color: oklch(70% 0.058 151.39 / 0.4); background: oklch(70% 0.058 151.39 / 0.1); }
+.mode-imported .workspace-dataset-badge { color: var(--blue-hover); border-color: oklch(58.5% 0.0627 249.71 / 0.45); background: oklch(58.5% 0.0627 249.71 / 0.1); }
+
+.workspace-dataset-copy { min-width: 0; flex: 1 1 auto; }
+.workspace-dataset-copy strong { display: block; font-size: 0.9rem; }
+.workspace-dataset-copy small { display: block; margin-top: 0.1rem; color: var(--ink-dim); font-size: 0.8rem; }
+
+.workspace-dataset-switch {
+  flex: none;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--ink);
+  background: var(--raised);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 8px;
+  padding: 0.4rem 0.7rem;
+  cursor: pointer;
+  transition: border-color var(--motion-control, 190ms) var(--ease-state, ease);
+}
+.workspace-dataset-switch:hover { border-color: var(--blue); }
+.workspace-dataset-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (max-width: 640px) {
+  .workspace-dataset-banner { flex-wrap: wrap; }
+  .workspace-dataset-copy { flex-basis: 100%; order: 3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .workspace-dataset-switch { transition: none; }
+}
