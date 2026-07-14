@@ -10116,12 +10116,12 @@ code {
 .roblox-project-child-table button > em[data-evidence] { color: var(--evidence-color, var(--ink-dim)); }
 
 .roblox-project-preview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; padding: 1px; background: var(--hairline); }
-.roblox-project-preview article { position: relative; min-height: 9rem; overflow: hidden; background: var(--desk); }
-.roblox-project-preview img { width: 100%; height: 100%; object-fit: cover; opacity: 0.8; }
+.roblox-project-preview article { position: relative; min-height: 9rem; overflow: hidden; background: radial-gradient(120% 120% at 50% 40%, var(--graphite), var(--desk)); }
+.roblox-project-preview img { width: 100%; height: 100%; object-fit: contain; object-position: center; padding: var(--space-3); opacity: 0.94; }
 .roblox-project-preview span { position: absolute; right: var(--space-3); bottom: var(--space-3); left: var(--space-3); padding: var(--space-2) var(--space-3); color: var(--ink); background: color-mix(in srgb, var(--desk) 88%, transparent); border: 1px solid var(--hairline); font-size: 0.56rem; }
 
-.roblox-selection-preview { position: relative; min-height: 16rem; overflow: hidden; background: var(--desk); border-bottom: 1px solid var(--hairline); }
-.roblox-selection-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+.roblox-selection-preview { position: relative; min-height: 16rem; overflow: hidden; background: radial-gradient(130% 130% at 50% 35%, var(--graphite), var(--desk)); border-bottom: 1px solid var(--hairline); }
+.roblox-selection-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; padding: var(--space-6); }
 .roblox-selection-preview span { position: absolute; bottom: var(--space-3); left: var(--space-3); display: inline-flex; align-items: center; gap: var(--space-2); padding: var(--space-2) var(--space-3); color: var(--ink); background: color-mix(in srgb, var(--desk) 88%, transparent); border: 1px solid var(--hairline); font-size: 0.52rem; }
 
 .roblox-animation-selection { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-4) var(--space-6); background: color-mix(in srgb, var(--motion-candidate) 5%, var(--desk)); border-bottom: 1px solid var(--hairline); }
