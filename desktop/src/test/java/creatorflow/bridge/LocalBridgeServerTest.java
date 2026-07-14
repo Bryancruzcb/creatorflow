@@ -11,6 +11,7 @@ import creatorflow.db.AnimationComparisonRepository;
 import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
+import creatorflow.db.MotionSnapshotRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
@@ -68,14 +69,15 @@ class LocalBridgeServerTest {
         releases = new ReleaseRepository(database);
         workspaceState = new WorkspaceStateRepository(database);
         var animationComparisons = new AnimationComparisonRepository(database);
+        var motionSnapshots = new MotionSnapshotRepository(database);
         var pluginPairings = new PluginPairingService();
         var audit = new AuditRepository(database);
         var coordinator = new ScanCoordinator(scans, localProjects, audit);
         var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit);
         server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
-                decisions, releases, workspaceState, animationComparisons, pluginPairings,
-                releaseExports, coordinator, webRoot).start();
+                decisions, releases, workspaceState, animationComparisons, motionSnapshots,
+                pluginPairings, releaseExports, coordinator, webRoot).start();
     }
 
     private void authenticate() throws Exception {
@@ -318,6 +320,64 @@ class LocalBridgeServerTest {
                 .GET()
                 .build();
         assertEquals(200, client.send(viaLocalhost, HttpResponse.BodyHandlers.ofString()).statusCode());
+    }
+
+    @Test
+    void promotesAComparisonSideIntoAnImmutableAnimationSnapshot() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        String animation = """
+                {
+                  "assetId":"%s","name":"%s","duration":1.0,"looped":true,
+                  "priority":"Movement","keyframes":[
+                    {"time":0.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                    {"time":1.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                  ]
+                }
+                """;
+        String body = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("1001", "Walk A") + ",\"candidate\":"
+                + animation.formatted("1002", "Walk B") + "}";
+        String comparisonId = json.readTree(
+                        pluginRequest("POST", "/plugin/v1/motion-comparisons", token, body).body())
+                .get("id").asText();
+
+        // Snapshot creation is a mutation: it needs session + CSRF like every other one.
+        assertEquals(403, postJson("/api/v1/projects/" + projectId + "/animation-snapshots",
+                cookie, origin.toString(), null,
+                "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"candidate\",\"kind\":\"LAST_PUBLISHED\"}")
+                .statusCode());
+
+        HttpResponse<String> promoted = postJson("/api/v1/projects/" + projectId + "/animation-snapshots",
+                cookie, origin.toString(), csrf,
+                "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"candidate\",\"kind\":\"last_published\"}");
+        assertEquals(201, promoted.statusCode(), promoted.body());
+        assertEquals("1002", json.readTree(promoted.body()).get("assetId").asText());
+        assertEquals("FIRST_SNAPSHOT", json.readTree(promoted.body()).get("status").asText());
+        assertEquals(comparisonId, json.readTree(promoted.body()).get("sourceComparisonId").asText());
+
+        // Re-promoting the same, unchanged candidate supersedes and reports UNCHANGED.
+        HttpResponse<String> again = postJson("/api/v1/projects/" + projectId + "/animation-snapshots",
+                cookie, origin.toString(), csrf,
+                "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"candidate\",\"kind\":\"LAST_PUBLISHED\"}");
+        assertEquals(201, again.statusCode());
+        assertEquals("UNCHANGED", json.readTree(again.body()).get("status").asText());
+
+        // The current-snapshots view keeps one row per asset+kind, and reading needs a session.
+        HttpResponse<String> list = get("/api/v1/projects/" + projectId + "/animation-snapshots", cookie);
+        assertEquals(200, list.statusCode());
+        assertEquals(1, json.readTree(list.body()).get("items").size());
+        assertEquals(401, get("/api/v1/projects/" + projectId + "/animation-snapshots", null).statusCode());
+
+        // An unknown kind is rejected as a bad request, not a server error.
+        assertEquals(400, postJson("/api/v1/projects/" + projectId + "/animation-snapshots",
+                cookie, origin.toString(), csrf,
+                "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"candidate\",\"kind\":\"whenever\"}")
+                .statusCode());
     }
 
     private HttpResponse<String> get(String path, String requestCookie) throws Exception {

@@ -11,6 +11,7 @@ import com.sun.net.httpserver.HttpServer;
 import creatorflow.db.AnimationComparisonRepository;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
+import creatorflow.db.MotionSnapshotRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
@@ -18,8 +19,10 @@ import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.manifest.ScanOptions;
 import creatorflow.motion.MotionComparisonEngine;
 import creatorflow.motion.MotionComparisonRequest;
+import creatorflow.motion.MotionSnapshotKind;
 import creatorflow.motion.NormalizedAnimation;
 import creatorflow.workflow.AnimationComparisonRecord;
+import creatorflow.workflow.MotionSnapshotRecord;
 import creatorflow.workflow.DecisionType;
 import creatorflow.workflow.LocalProject;
 import creatorflow.workflow.ReleaseBundle;
@@ -74,6 +77,7 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern PROJECT_RELEASES = Pattern.compile("^/api/v1/projects/(\\d+)/releases$");
     private static final Pattern PROJECT_PLUGIN_PAIRING = Pattern.compile("^/api/v1/projects/(\\d+)/plugin-pairings$");
     private static final Pattern PROJECT_MOTION_COMPARISONS = Pattern.compile("^/api/v1/projects/(\\d+)/motion-comparisons$");
+    private static final Pattern PROJECT_ANIMATION_SNAPSHOTS = Pattern.compile("^/api/v1/projects/(\\d+)/animation-snapshots$");
     private static final Pattern SCAN = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)$");
     private static final Pattern SCAN_EVENTS = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/events$");
     private static final Pattern SCAN_CANCEL = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/cancel$");
@@ -93,6 +97,7 @@ public final class LocalBridgeServer implements AutoCloseable {
     private final ReleaseRepository releases;
     private final WorkspaceStateRepository workspaceState;
     private final AnimationComparisonRepository animationComparisons;
+    private final MotionSnapshotRepository motionSnapshots;
     private final PluginPairingService pluginPairings;
     private final ReleaseExportService releaseExports;
     private final ScanCoordinator coordinator;
@@ -113,6 +118,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                              ScanRepository scans, DecisionRepository decisions,
                              ReleaseRepository releases, WorkspaceStateRepository workspaceState,
                              AnimationComparisonRepository animationComparisons,
+                             MotionSnapshotRepository motionSnapshots,
                              PluginPairingService pluginPairings,
                              ReleaseExportService releaseExports, ScanCoordinator coordinator,
                              Path staticRoot) {
@@ -123,6 +129,7 @@ public final class LocalBridgeServer implements AutoCloseable {
         this.releases = java.util.Objects.requireNonNull(releases, "releases");
         this.workspaceState = java.util.Objects.requireNonNull(workspaceState, "workspaceState");
         this.animationComparisons = java.util.Objects.requireNonNull(animationComparisons, "animationComparisons");
+        this.motionSnapshots = java.util.Objects.requireNonNull(motionSnapshots, "motionSnapshots");
         this.pluginPairings = java.util.Objects.requireNonNull(pluginPairings, "pluginPairings");
         this.releaseExports = java.util.Objects.requireNonNull(releaseExports, "releaseExports");
         this.coordinator = java.util.Objects.requireNonNull(coordinator, "coordinator");
@@ -369,6 +376,48 @@ public final class LocalBridgeServer implements AutoCloseable {
             AnimationComparisonRecord record = animationComparisons.findById(matcher.group(1))
                     .orElseThrow(() -> new HttpError(404, "Animation comparison not found"));
             sendJson(exchange, 200, animationComparisonView(record));
+            return;
+        }
+
+        matcher = PROJECT_ANIMATION_SNAPSHOTS.matcher(path);
+        if (matcher.matches()) {
+            long projectId = Long.parseLong(matcher.group(1));
+            localProjects.findByProjectId(projectId)
+                    .orElseThrow(() -> new HttpError(404, "Local project not found"));
+            if ("GET".equals(exchange.getRequestMethod())) {
+                Map<String, String> query = query(exchange.getRequestURI().getRawQuery());
+                String assetId = query.get("assetId");
+                String kindParam = query.get("kind");
+                List<MotionSnapshotRecord> items;
+                if (Boolean.parseBoolean(query.get("history")) && assetId != null && kindParam != null) {
+                    int limit = Math.max(1, Math.min(integer(query.get("limit"), 25), 100));
+                    int offset = Math.max(0, integer(query.get("offset"), 0));
+                    items = motionSnapshots.history(projectId, assetId,
+                            MotionSnapshotKind.fromWire(kindParam), limit, offset);
+                } else {
+                    items = motionSnapshots.currentForProject(projectId);
+                }
+                sendJson(exchange, 200, Map.of("items", items.stream().map(this::snapshotView).toList()));
+            } else {
+                requireMutation(exchange);
+                JsonNode body = readJson(exchange);
+                String comparisonId = requiredText(body, "comparisonId");
+                String side = requiredText(body, "side");
+                MotionSnapshotKind kind = MotionSnapshotKind.fromWire(text(body, "kind", null));
+                AnimationComparisonRecord comparison = animationComparisons.findById(comparisonId)
+                        .filter(record -> record.projectId() == projectId)
+                        .orElseThrow(() -> new HttpError(404, "Animation comparison not found"));
+                MotionSnapshotRecord snapshot = switch (side.toLowerCase(java.util.Locale.ROOT)) {
+                    case "source" -> motionSnapshots.capture(projectId, comparison.sourceAssetId(), kind,
+                            comparisonId, comparison.sourceName(), comparison.sourceDuration(),
+                            comparison.sourceFingerprint(), comparison.algorithmVersion());
+                    case "candidate" -> motionSnapshots.capture(projectId, comparison.candidateAssetId(), kind,
+                            comparisonId, comparison.candidateName(), comparison.candidateDuration(),
+                            comparison.candidateFingerprint(), comparison.algorithmVersion());
+                    default -> throw new IllegalArgumentException("side must be \"source\" or \"candidate\"");
+                };
+                sendJson(exchange, 201, snapshotView(snapshot));
+            }
             return;
         }
 
@@ -795,6 +844,23 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("createdAt", record.createdAt());
         view.put("result", result);
         view.put("creatorFlowUrl", origin + "/#workspace?view=motion");
+        return view;
+    }
+
+    private Map<String, Object> snapshotView(MotionSnapshotRecord record) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", record.id());
+        view.put("projectId", record.projectId());
+        view.put("assetId", record.assetId());
+        view.put("kind", record.kind().wire());
+        view.put("sourceComparisonId", record.sourceComparisonId());
+        view.put("name", record.name());
+        view.put("duration", record.duration());
+        view.put("fingerprint", record.fingerprint());
+        view.put("algorithmVersion", record.algorithmVersion());
+        view.put("supersedesSnapshotId", record.supersedesSnapshotId());
+        view.put("status", record.status().name());
+        view.put("createdAt", record.createdAt());
         return view;
     }
 
