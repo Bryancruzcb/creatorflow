@@ -350,24 +350,28 @@ export class LocalBridgeClient {
     onError: (error: Error) => void;
   }) {
     let stopped = false;
-    let polling = false;
-    const closeEvents = this.subscribeToScanEvents(runId, callbacks.onEvent, () => { polling = true; });
+    // Poll faster once the SSE stream drops (proxy buffering, connection loss).
+    // The delay is re-read on every reschedule, so raising the flag actually
+    // takes effect on the next tick.
+    let fastPoll = false;
+    let timer = 0;
+    const closeEvents = this.subscribeToScanEvents(runId, callbacks.onEvent, () => { fastPoll = true; });
+    const stop = () => {
+      if (stopped) return;
+      stopped = true;
+      closeEvents();
+      window.clearTimeout(timer);
+    };
     const poll = async () => {
       try {
         const run = await this.getScanRun(runId);
         if (stopped) return;
         callbacks.onRun(run);
-        if (terminal(run.state)) stop();
+        if (terminal(run.state)) { stop(); return; }
       } catch (error) {
         if (!stopped) callbacks.onError(error instanceof Error ? error : new Error('Could not refresh scan state'));
       }
-    };
-    const interval = window.setInterval(() => { void poll(); }, polling ? 600 : 900);
-    const stop = () => {
-      if (stopped) return;
-      stopped = true;
-      closeEvents();
-      window.clearInterval(interval);
+      if (!stopped) timer = window.setTimeout(() => { void poll(); }, fastPoll ? 600 : 900);
     };
     await poll();
     return stop;
