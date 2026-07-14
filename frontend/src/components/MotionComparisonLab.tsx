@@ -29,6 +29,8 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { LocalBridgeClient, type LocalMotionComparison, type LocalPluginPairing, type LocalProjectSummary } from '../bridge/localBridge';
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
+import { MotionScenarioPicker } from './MotionScenarioPicker';
+import { motionScenarios } from '../motion/motionScenarios';
 import {
   analyzeMotionClips,
   type MotionAnalysisMode,
@@ -589,6 +591,33 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
     reviewThreshold: preferences.reviewThreshold,
   }) : null, [analysisMode, candidateClip, effectiveJointScope, preferences.reviewThreshold, preferences.sampleCount, sourceClip]);
   const latestComparison = comparisons[0];
+  const scenarioScores = useMemo(() => {
+    const scores: Record<string, { exactCurveData: boolean; primaryValue: number | null } | null> = {};
+    for (const scenario of motionScenarios) {
+      const scenarioSource = clips.find((clip) => clip.name === scenario.source);
+      const scenarioCandidate = clips.find((clip) => clip.name === scenario.candidate);
+      if (!scenarioSource || !scenarioCandidate) {
+        scores[scenario.id] = null;
+        continue;
+      }
+      const scored = compareClips(scenarioSource, scenarioCandidate, {
+        mode: 'shape',
+        jointScope: 'full',
+        sampleCount: preferences.sampleCount,
+        reviewThreshold: preferences.reviewThreshold,
+      });
+      scores[scenario.id] = { exactCurveData: scored.exactCurveData, primaryValue: scored.primaryValue };
+    }
+    return scores;
+  }, [clips, preferences.sampleCount, preferences.reviewThreshold]);
+
+  // The pair selectors keep source and candidate distinct; a re-upload scenario is exactly the
+  // same curves under two IDs, so scenarios set both sides directly instead of going through them.
+  function loadScenario(source: string, candidate: string) {
+    setSourceName(source);
+    setCandidateName(candidate);
+    resetPlayback();
+  }
 
   useEffect(() => {
     if (!bridgeClient || !project) {
@@ -720,6 +749,13 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
       </header>
 
       {workspaceMode === 'pair' ? <>
+        <MotionScenarioPicker
+          sourceName={sourceName}
+          candidateName={candidateName}
+          onSelect={loadScenario}
+          scenarioScores={scenarioScores}
+          result={result}
+        />
         <section className="motion-investigation" ref={investigationRef} aria-label="Animation comparison workbench">
           <div className="motion-view-column">
             <header className="motion-workbench-toolbar">
