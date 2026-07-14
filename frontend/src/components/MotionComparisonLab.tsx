@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch, ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ACESFilmicToneMapping,
@@ -17,7 +17,9 @@ import {
   LineSegments,
   LoopOnce,
   Mesh,
+  Object3D,
   PerspectiveCamera,
+  PropertyBinding,
   Scene,
   SRGBColorSpace,
   Texture,
@@ -29,6 +31,9 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { LocalBridgeClient, type LocalMotionComparison, type LocalPluginPairing, type LocalProjectSummary } from '../bridge/localBridge';
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
+import { MotionScenarioPicker } from './MotionScenarioPicker';
+import { clipInRig, rigById, rigFixtures } from '../motion/rigFixtures';
+import { formatRegisteredAt, registryRecordFor, type RegistryRecord } from '../motion/motionRegistry';
 import {
   analyzeMotionClips,
   type MotionAnalysisMode,
@@ -45,29 +50,6 @@ import './MotionComparisonLab.premium.css';
 
 type MotionCategory = 'Locomotion' | 'States' | 'Actions' | 'Gestures';
 type PreviewLayout = 'side' | 'overlay';
-
-interface MotionClipOption {
-  name: string;
-  category: MotionCategory;
-  description: string;
-}
-
-const clipCatalog: MotionClipOption[] = [
-  { name: 'Idle', category: 'Locomotion', description: 'Looping neutral motion' },
-  { name: 'Walking', category: 'Locomotion', description: 'Reference walk cycle' },
-  { name: 'Running', category: 'Locomotion', description: 'Faster locomotion cycle' },
-  { name: 'WalkJump', category: 'Locomotion', description: 'Walk-to-jump transition' },
-  { name: 'Jump', category: 'Locomotion', description: 'Authored jump action' },
-  { name: 'Sitting', category: 'States', description: 'Sitting pose transition' },
-  { name: 'Standing', category: 'States', description: 'Standing pose transition' },
-  { name: 'Death', category: 'States', description: 'Fall and rest state' },
-  { name: 'Dance', category: 'Actions', description: 'Full-body dance action' },
-  { name: 'Punch', category: 'Actions', description: 'Upper-body strike' },
-  { name: 'Wave', category: 'Gestures', description: 'One-arm greeting' },
-  { name: 'Yes', category: 'Gestures', description: 'Affirmative head motion' },
-  { name: 'No', category: 'Gestures', description: 'Negative head motion' },
-  { name: 'ThumbsUp', category: 'Gestures', description: 'Positive hand gesture' },
-];
 
 const analysisModes: Array<{ id: MotionAnalysisMode; label: string; detail: string }> = [
   { id: 'shape', label: 'Motion shape', detail: 'Normalize each duration to compare the sequence of poses independently of playback speed.' },
@@ -168,10 +150,23 @@ function makeScopeSkeleton(model: Group, tint: Color): ScopeSkeleton {
   return { line, position, segments, start: new Vector3(), end: new Vector3() };
 }
 
-function updateScopeSkeleton(skeleton: ScopeSkeleton, scope: MotionJointScope) {
+/** The uuids of the bones this clip actually animates, so the overlay can skip dead joints. */
+function animatedBoneUuids(model: Object3D, clip: AnimationClip): Set<string> {
+  const uuids = new Set<string>();
+  for (const track of clip.tracks) {
+    const node = PropertyBinding.findNode(model, PropertyBinding.parseTrackName(track.name).nodeName) as Object3D | null;
+    if (node) uuids.add(node.uuid);
+  }
+  return uuids;
+}
+
+function updateScopeSkeleton(skeleton: ScopeSkeleton, scope: MotionJointScope, animatedBones: Set<string>) {
   const values = skeleton.position.array as Float32Array;
   let offset = 0;
   for (const segment of skeleton.segments) {
+    // Only draw joints this clip drives; a bone with no track sits in bind pose and its
+    // static line reads as broken.
+    if (!animatedBones.has(segment.child.uuid)) continue;
     if (!trackMatchesJointScope(segment.child.name, scope)) continue;
     segment.parent.getWorldPosition(skeleton.start);
     segment.child.getWorldPosition(skeleton.end);
@@ -200,7 +195,8 @@ function setGroupOpacity(group: Group, opacity: number) {
   });
 }
 
-function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, previewLayout, showOnion, previewQuality, onReady, progress, playing, onProgress }: {
+function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewFocus, previewLayout, showOnion, previewQuality, onReady, progress, playing, onProgress }: {
+  glbUrl: string;
   sourceName: string;
   candidateName: string;
   analysisMode: MotionAnalysisMode;
@@ -234,6 +230,8 @@ function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, pr
     previewQuality: 'battery' | 'balanced' | 'sharp';
     sourceScope: ScopeSkeleton;
     candidateScope: ScopeSkeleton;
+    sourceAnimatedBones: Set<string>;
+    candidateAnimatedBones: Set<string>;
   } | null>(null);
   const gltfAnimationsRef = useRef<AnimationClip[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -280,7 +278,7 @@ function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, pr
     controls.minDistance = 3.5;
     controls.maxDistance = 10;
 
-    new GLTFLoader().load('/assets/robot-expressive.glb', (gltf) => {
+    new GLTFLoader().load(glbUrl, (gltf) => {
       if (stopped) return;
       const source = gltf.scene;
       const candidate = cloneSkeleton(gltf.scene) as Group;
@@ -352,6 +350,8 @@ function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, pr
         previewQuality: initial.previewQuality,
         sourceScope,
         candidateScope,
+        sourceAnimatedBones: animatedBoneUuids(source, sourceClip),
+        candidateAnimatedBones: animatedBoneUuids(candidate, candidateClip),
       };
       gltfAnimationsRef.current = gltf.animations;
       onReady(gltf.animations);
@@ -389,6 +389,8 @@ function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, pr
           runtime.candidateGhost.stopAllAction();
           runtime.sourceClip = desiredSource;
           runtime.candidateClip = desiredCandidate;
+          runtime.sourceAnimatedBones = animatedBoneUuids(runtime.sourceModel, desiredSource);
+          runtime.candidateAnimatedBones = animatedBoneUuids(runtime.candidateModel, desiredCandidate);
           runtime.selectionKey = selectionKey;
           for (const [mixer, clip] of [
             [runtime.source, desiredSource],
@@ -431,8 +433,8 @@ function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, pr
         runtime.candidate.setTime(candidateTime);
         runtime.sourceModel.updateMatrixWorld(true);
         runtime.candidateModel.updateMatrixWorld(true);
-        updateScopeSkeleton(runtime.sourceScope, selection.previewFocus);
-        updateScopeSkeleton(runtime.candidateScope, selection.previewFocus);
+        updateScopeSkeleton(runtime.sourceScope, selection.previewFocus, runtime.sourceAnimatedBones);
+        updateScopeSkeleton(runtime.candidateScope, selection.previewFocus, runtime.candidateAnimatedBones);
         const ghostProgress = trailProgress(selection.analysisMode, progressRef.current);
         runtime.sourceGhost.setTime(ghostProgress * runtime.sourceClip.duration);
         runtime.candidateGhost.setTime(ghostProgress * runtime.candidateClip.duration);
@@ -486,7 +488,7 @@ function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, pr
       dispose(holder);
       renderer.dispose();
     };
-  }, [onProgress, onReady]);
+  }, [glbUrl, onProgress, onReady]);
 
   return (
     <div className="motion-compare-stage">
@@ -496,7 +498,7 @@ function MotionStage({ sourceName, candidateName, analysisMode, previewFocus, pr
       <div className="motion-stage-focus"><span>Skeleton focus</span><strong>{jointScopes.find((item) => item.id === previewFocus)?.label}</strong></div>
       <div className="motion-stage-axis" aria-hidden="true" />
       <div className="motion-stage-calibration" aria-hidden="true"><span>{analysisMode === 'timing' ? 'Shared authored clock' : analysisMode === 'loop' ? 'End pose + start outline' : analysisMode === 'root' ? 'Measured channel · root translation' : 'Normalized joint space'}</span><span>{previewLayout === 'overlay' ? 'Reference + candidate overlay' : 'Reference + candidate side by side'} · {showOnion ? analysisMode === 'loop' ? 'solid = end · wireframe = start' : 'solid = current · wireframe = previous' : 'pose outline hidden'}</span></div>
-      {status === 'loading' ? <div className="motion-stage-state"><span />Loading licensed 14-clip rig and animation curves…</div> : null}
+      {status === 'loading' ? <div className="motion-stage-state"><span />Loading licensed rig and animation curves…</div> : null}
       {status === 'error' ? <div className="motion-stage-state motion-stage-state-error">The motion fixture could not be decoded.</div> : null}
     </div>
   );
@@ -555,11 +557,56 @@ function clipJointCount(clip: AnimationClip | undefined) {
   return new Set(clip.tracks.map((track) => track.name.replace(/\.(?:position|quaternion|scale|morphTargetInfluences).*$/, ''))).size;
 }
 
+/**
+ * The registry hit — the payoff that turns a bare similarity number into a lead. When the reference
+ * is a registered asset, this shows the owner's record: who registered it, when, under what license,
+ * and the Animation ID it maps to — i.e. exactly what you'd attach as provenance or reject against.
+ */
+function RegistryMatchCard({ record, candidateName, pose, exact }: {
+  record: RegistryRecord;
+  candidateName: string;
+  pose: number | null;
+  exact: boolean;
+}) {
+  const restricted = record.license === 'All rights reserved';
+  // Flag the card when the candidate both resembles a registered asset AND can't be freely reused;
+  // that combination is the one a human must not ship past without a decision.
+  const flagged = exact || (restricted && (pose ?? 0) >= 55);
+  const matchLine = exact
+    ? `an exact curve match to a registered asset`
+    : pose !== null
+      ? `a ${pose}% motion match to a registered asset`
+      : `a match to a registered asset`;
+  return (
+    <section className="motion-registry-match" data-flagged={flagged ? 'true' : 'false'} aria-label="Registry match">
+      <header>
+        <span>{flagged ? <ShieldAlert size={16} /> : <BadgeCheck size={16} />}</span>
+        <div>
+          <small>Registry match · sample</small>
+          <strong>{record.assetName}</strong>
+        </div>
+      </header>
+      <p><strong>{candidateName}</strong> is {matchLine}, registered by <strong>{record.owner}</strong>.</p>
+      <dl>
+        <div><dt>Owner</dt><dd>{record.owner}</dd></div>
+        <div><dt>Registered</dt><dd><time dateTime={record.registeredAt}>{formatRegisteredAt(record.registeredAt)}</time></dd></div>
+        <div><dt>Animation ID</dt><dd className="mono">{record.animationId}</dd></div>
+        <div><dt>License</dt><dd>{record.license}</dd></div>
+        <div><dt>Registry ID</dt><dd className="mono">{record.registryId}</dd></div>
+      </dl>
+      <p className="motion-registry-usage" data-restricted={restricted ? 'true' : 'false'}>{record.usageNote}</p>
+      <small className="motion-registry-disclaimer">Sample registry — illustrative records, not a live lookup. A real check searches by fingerprint and returns the owner's record to attach as provenance or reject against.</small>
+    </section>
+  );
+}
+
 export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: LocalBridgeClient | null; project: LocalProjectSummary | null }) {
   const { preferences } = useWorkspacePreferences();
   const [workspaceMode, setWorkspaceMode] = useState<'pair' | 'project'>('pair');
-  const [sourceName, setSourceName] = useState('Walking');
-  const [candidateName, setCandidateName] = useState('Running');
+  const [selectedRigId, setSelectedRigId] = useState('robot');
+  const rig = rigById(selectedRigId);
+  const [sourceName, setSourceName] = useState(rig.defaultPair[0]);
+  const [candidateName, setCandidateName] = useState(rig.defaultPair[1]);
   const [analysisMode, setAnalysisMode] = useState<MotionAnalysisMode>(preferences.analysisMode);
   const [jointScope, setJointScope] = useState<MotionJointScope>(preferences.jointScope);
   const [previewFocus, setPreviewFocus] = useState<MotionJointScope>(preferences.jointScope);
@@ -575,11 +622,11 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
   const [comparisons, setComparisons] = useState<LocalMotionComparison[]>([]);
   const [bridgeMessage, setBridgeMessage] = useState<string | null>(null);
   const investigationRef = useRef<HTMLElement>(null);
-  const selectedSourceCatalogClip = clipCatalog.find((item) => item.name === sourceName) ?? clipCatalog[1];
-  const selectedCatalogClip = clipCatalog.find((item) => item.name === candidateName) ?? clipCatalog[2];
+  const selectedSourceCatalogClip = clipInRig(rig, sourceName) ?? rig.clips[0];
+  const selectedCatalogClip = clipInRig(rig, candidateName) ?? rig.clips[0];
   const selectedAnalysisMode = analysisModes.find((item) => item.id === analysisMode) ?? analysisModes[0];
   const effectiveJointScope: MotionJointScope = analysisMode === 'root' ? 'root' : jointScope;
-  const visibleCatalog = category === 'All' ? clipCatalog : clipCatalog.filter((item) => item.category === category);
+  const visibleCatalog = category === 'All' ? rig.clips : rig.clips.filter((item) => item.category === category);
   const sourceClip = clips.find((clip) => clip.name === sourceName);
   const candidateClip = clips.find((clip) => clip.name === candidateName);
   const result = useMemo(() => sourceClip && candidateClip ? compareClips(sourceClip, candidateClip, {
@@ -589,6 +636,35 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
     reviewThreshold: preferences.reviewThreshold,
   }) : null, [analysisMode, candidateClip, effectiveJointScope, preferences.reviewThreshold, preferences.sampleCount, sourceClip]);
   const latestComparison = comparisons[0];
+  // The reference is the "known" side; if it's a registered asset, the score becomes a lead.
+  const registryMatch = registryRecordFor(selectedRigId, sourceName);
+  const scenarioScores = useMemo(() => {
+    const scores: Record<string, { exactCurveData: boolean; primaryValue: number | null } | null> = {};
+    for (const scenario of rig.scenarios) {
+      const scenarioSource = clips.find((clip) => clip.name === scenario.source);
+      const scenarioCandidate = clips.find((clip) => clip.name === scenario.candidate);
+      if (!scenarioSource || !scenarioCandidate) {
+        scores[scenario.id] = null;
+        continue;
+      }
+      const scored = compareClips(scenarioSource, scenarioCandidate, {
+        mode: 'shape',
+        jointScope: 'full',
+        sampleCount: preferences.sampleCount,
+        reviewThreshold: preferences.reviewThreshold,
+      });
+      scores[scenario.id] = { exactCurveData: scored.exactCurveData, primaryValue: scored.primaryValue };
+    }
+    return scores;
+  }, [clips, rig, preferences.sampleCount, preferences.reviewThreshold]);
+
+  // The pair selectors keep source and candidate distinct; a re-upload scenario is exactly the
+  // same curves under two IDs, so scenarios set both sides directly instead of going through them.
+  function loadScenario(source: string, candidate: string) {
+    setSourceName(source);
+    setCandidateName(candidate);
+    resetPlayback();
+  }
 
   useEffect(() => {
     if (!bridgeClient || !project) {
@@ -651,6 +727,15 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
     setPlaying(preferences.autoplay && !window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   }
 
+  function switchRig(rigId: string) {
+    const next = rigById(rigId);
+    setSelectedRigId(rigId);
+    setSourceName(next.defaultPair[0]);
+    setCandidateName(next.defaultPair[1]);
+    setCategory('All');
+    resetPlayback();
+  }
+
   function chooseCandidate(name: string) {
     if (name === sourceName) {
       setSourceName(candidateName);
@@ -696,9 +781,12 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
   }
 
   function openProjectClip(name: string) {
-    const nextCandidate = clipCatalog.some((clip) => clip.name === name) ? name : 'Walking';
+    // The Studio project example uses the robot rig's Guide animations.
+    const robot = rigById('robot');
+    setSelectedRigId('robot');
+    const nextCandidate = clipInRig(robot, name) ? name : robot.defaultPair[1];
     setCandidateName(nextCandidate);
-    if (nextCandidate === sourceName) setSourceName(nextCandidate === 'Walking' ? 'Running' : 'Walking');
+    setSourceName(nextCandidate === robot.defaultPair[0] ? robot.defaultPair[1] : robot.defaultPair[0]);
     setProgress(0);
     setWorkspaceMode('pair');
     window.requestAnimationFrame(() => window.requestAnimationFrame(() => investigationRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })));
@@ -720,13 +808,38 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
       </header>
 
       {workspaceMode === 'pair' ? <>
+        <div className="motion-rig-switch" role="group" aria-label="Choose an animation rig">
+          <span className="motion-rig-switch-label">Rig</span>
+          {rigFixtures.map((option) => (
+            <button
+              key={option.id}
+              type="button"
+              aria-pressed={option.id === selectedRigId}
+              onClick={() => switchRig(option.id)}
+              title={option.attribution}
+            >
+              <strong>{option.name}</strong>
+              <small>{option.note}</small>
+            </button>
+          ))}
+          <span className="motion-rig-license">{rig.license}</span>
+        </div>
+        <MotionScenarioPicker
+          sourceName={sourceName}
+          candidateName={candidateName}
+          onSelect={loadScenario}
+          scenarioScores={scenarioScores}
+          result={result}
+          scenarios={rig.scenarios}
+          clipByName={(name) => clipInRig(rig, name)}
+        />
         <section className="motion-investigation" ref={investigationRef} aria-label="Animation comparison workbench">
           <div className="motion-view-column">
             <header className="motion-workbench-toolbar">
               <div className="motion-pair-controls">
-                <label className="motion-candidate-select motion-reference-select"><span>Reference clip</span><select value={sourceName} onChange={(event) => chooseSource(event.target.value)}>{clipCatalog.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select><small>{selectedSourceCatalogClip.description}</small></label>
+                <label className="motion-candidate-select motion-reference-select"><span>Reference clip</span><select value={sourceName} onChange={(event) => chooseSource(event.target.value)}>{rig.clips.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select><small>{selectedSourceCatalogClip.description}</small></label>
                 <button className="motion-swap-pair" type="button" onClick={swapPair} aria-label={`Swap ${sourceName} and ${candidateName}`} title="Swap reference and candidate"><GitCompare size={15} /></button>
-                <label className="motion-candidate-select"><span>Candidate clip</span><select value={candidateName} onChange={(event) => chooseCandidate(event.target.value)}>{clipCatalog.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select><small>{selectedCatalogClip.description}</small></label>
+                <label className="motion-candidate-select"><span>Candidate clip</span><select value={candidateName} onChange={(event) => chooseCandidate(event.target.value)}>{rig.clips.map((item) => <option key={item.name} value={item.name}>{item.name}</option>)}</select><small>{selectedCatalogClip.description}</small></label>
               </div>
               <div className="motion-analysis-modes" role="group" aria-label="Inspect animation clips by">
                 <span>Inspect by</span>
@@ -739,7 +852,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
               <button className="motion-onion-toggle" type="button" aria-pressed={showOnion} onClick={() => setShowOnion((value) => !value)}><ScanSearch size={15} /><span><strong>{analysisMode === 'loop' ? 'Start-pose outline' : 'Previous-pose outline'}</strong><small>{showOnion ? 'Wireframe visible' : 'Outline hidden'}</small></span></button>
             </header>
 
-            <MotionStage sourceName={sourceName} candidateName={candidateName} analysisMode={analysisMode} previewFocus={previewFocus} previewLayout={previewLayout} showOnion={showOnion} previewQuality={preferences.previewQuality} onReady={setClips} progress={progress} playing={playing} onProgress={setProgress} />
+            <MotionStage glbUrl={rig.glbUrl} sourceName={sourceName} candidateName={candidateName} analysisMode={analysisMode} previewFocus={previewFocus} previewLayout={previewLayout} showOnion={showOnion} previewQuality={preferences.previewQuality} onReady={setClips} progress={progress} playing={playing} onProgress={setProgress} />
 
             <div className="motion-compare-transport">
               <button type="button" onClick={() => setPlaying((value) => !value)} aria-label={playing ? 'Pause synchronized animation comparison' : 'Play synchronized animation comparison'}>{playing ? <Pause size={15} /> : <Play size={15} />}</button>
@@ -774,6 +887,9 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
             <p><strong>{sourceName} ↔ {candidateName}</strong> · {selectedAnalysisMode.detail}</p>
             {analysisMode === 'loop' ? <dl className="motion-signal-list"><div><dt>Candidate pose closure</dt><dd>{result?.loop?.candidate.poseClosure ?? '—'}{result?.loop?.candidate.poseClosure !== null && result?.loop?.candidate.poseClosure !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.poseClosure ?? 0)} /></div><div><dt>Velocity continuity</dt><dd>{result?.loop?.candidate.velocityContinuity ?? '—'}{result?.loop?.candidate.velocityContinuity !== null && result?.loop?.candidate.velocityContinuity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.velocityContinuity ?? 0)} /></div><div><dt>Scoped joints</dt><dd>{result?.loop?.candidate.tracksAnalyzed ?? '—'}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl> : analysisMode === 'root' ? <dl className="motion-signal-list"><div><dt>Root-path match</dt><dd>{result?.root?.similarity ?? '—'}{result?.root?.similarity !== null && result?.root?.similarity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.root?.similarity ?? 0)} /></div><div><dt>Candidate travel</dt><dd>{result?.root?.candidate.available ? result.root.candidate.displacement.toFixed(2) : '—'}</dd><i style={scoreStyle(result?.root?.similarity ?? 0)} /></div><div><dt>Candidate drift</dt><dd>{result?.root?.candidate.available ? result.root.candidate.drift.toFixed(2) : '—'}</dd><i style={scoreStyle(Math.max(0, 100 - (result?.root?.candidate.drift ?? 0) * 100))} /></div></dl> : analysisMode === 'timing' ? <dl className="motion-signal-list"><div><dt>Authored-time match</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Duration delta</dt><dd>{result ? `${result.durationDeltaSeconds >= 0 ? '+' : ''}${result.durationDeltaSeconds.toFixed(2)}s` : '—'}</dd><i style={scoreStyle(result?.durationSimilarity ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl> : <dl className="motion-signal-list"><div><dt>Pose shape</dt><dd>{result?.pose ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.pose ?? 0)} /></div><div><dt>Authored timing</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl>}
             {analysisMode === 'loop' ? <div className="motion-exact-state" data-exact="false"><Check size={14} /><span><strong>Provenance stays outside this quality score</strong><small>{result?.exactCurveData ? 'These clips also have exact curves, but that fact does not change loop continuity.' : 'Loop continuity never raises a similarity or copyright alert.'}</small></span></div> : <div className="motion-exact-state" data-exact={result?.exactCurveData ? 'true' : 'false'}>{result?.exactCurveData ? <AlertTriangle size={14} /> : <Check size={14} />}<span><strong>{result?.exactCurveData ? 'Canonical curves match exactly' : 'No exact curve match'}</strong><small>{result?.exactCurveData ? 'Renaming an export does not change its structural fingerprint.' : 'Pose similarity can still come from common rigs, libraries, or authorized reuse.'}</small></span></div>}
+            {registryMatch
+              ? <RegistryMatchCard record={registryMatch} candidateName={candidateName} pose={result?.pose ?? null} exact={result?.exactCurveData ?? false} />
+              : result ? <p className="motion-registry-miss"><ScanSearch size={13} /><span><strong>Reference not in the sample registry.</strong> No registered owner to attach — a clean result here means "no conflict found," not "proven original."</span></p> : null}
             <button className="motion-jump-difference" type="button" onClick={jumpToLargestDifference} disabled={!result}>{analysisMode === 'loop' ? 'Inspect end seam' : 'Jump to largest difference'}{result && analysisMode !== 'loop' ? <small>{analysisMode === 'timing' ? `${result.largestDifferenceTimeSeconds.toFixed(2)}s` : `${Math.round(result.largestDifferenceProgress * 100)}%`}{result.largestDifferenceJoint ? ` · ${result.largestDifferenceJoint}` : ''}</small> : null}</button>
             <footer className="motion-review-next"><span>{analysisMode === 'loop' ? 'Quality channel' : 'Human review'}</span><strong>{analysisMode === 'loop' ? 'Loop continuity stays separate from provenance and similarity thresholds.' : 'Attach the source, license, Animation IDs, and a decision before release.'}</strong></footer>
           </aside>
@@ -802,12 +918,12 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
 
         <div className="motion-support-stack">
           <details className="motion-support-drawer">
-            <summary><span><strong>Browse the licensed motion set</strong><small>14 authored clips · either side can be the reference</small></span><span>{clips.length ? `${clips.length} loaded` : 'Loading…'} <ChevronDown size={15} /></span></summary>
+            <summary><span><strong>Browse the licensed motion set</strong><small>{rig.clips.length} authored clips · either side can be the reference</small></span><span>{clips.length ? `${clips.length} loaded` : 'Loading…'} <ChevronDown size={15} /></span></summary>
             <section className="motion-corpus-picker" aria-labelledby="motion-corpus-title">
-              <header><div><span>Animation test set</span><h2 id="motion-corpus-title">Choose from 14 authored motions.</h2><p>Every candidate is a real clip in the licensed source file—not a renamed score preset.</p></div><strong>{clips.length ? `${clips.length} clips loaded` : 'Loading clips…'}</strong></header>
+              <header><div><span>Animation test set</span><h2 id="motion-corpus-title">Choose from {rig.clips.length} authored motions.</h2><p>Every candidate is a real clip in the licensed source file—not a renamed score preset.</p></div><strong>{clips.length ? `${clips.length} clips loaded` : 'Loading clips…'}</strong></header>
               <div className="motion-category-filter" role="group" aria-label="Filter animation clips by category">{(['All', 'Locomotion', 'States', 'Actions', 'Gestures'] as const).map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</div>
               <div className="motion-clip-catalog">{visibleCatalog.map((item) => { const loadedClip = clips.find((clip) => clip.name === item.name); return <button key={item.name} type="button" aria-pressed={candidateName === item.name} onClick={() => chooseCandidate(item.name)}><span><strong>{item.name}</strong><small>{item.description}</small></span><em>{loadedClip ? `${loadedClip.duration.toFixed(2)}s` : '—'}</em></button>; })}</div>
-              <footer><span>RobotExpressive · CC0 1.0</span><small>Model by Tomás Laulhé / Quaternius · glTF modifications by Don McCurdy</small></footer>
+              <footer><span>{rig.name} · {rig.license}</span><small>{rig.attribution}</small></footer>
             </section>
           </details>
 
