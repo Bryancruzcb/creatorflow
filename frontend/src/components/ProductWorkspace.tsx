@@ -55,6 +55,8 @@ import { SceneTreePanel } from './SceneTreePanel';
 import { MetadataInspector } from './MetadataInspector';
 import { WorkspaceDatasetBanner } from './WorkspaceDatasetBanner';
 import { WorkspaceSettingsView } from './WorkspaceSettingsView';
+import { WorkspaceWelcome } from './WorkspaceWelcome';
+import './WorkspaceWelcome.css';
 import type { ComparisonViewMode, DifferenceViewMode, SceneTreeNode } from './HeavyAssetViewer';
 import './ProductWorkspace.premium.css';
 
@@ -818,6 +820,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
 
   return (
     <div className="product-workspace">
+      <WorkspaceWelcome onNavigate={changeView} />
       <aside className="product-sidebar">
         <button className="product-sidebar-brand" type="button" onClick={onExit} aria-label="Return to CreatorFlow landing page"><BrandMark /></button>
         <div className="project-switcher-wrap" ref={projectMenuRef}>

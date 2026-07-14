@@ -1,0 +1,114 @@
+.workspace-welcome-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 1.5rem;
+  background: oklch(12% 0.004 128 / 0.62);
+  backdrop-filter: blur(3px);
+}
+
+.workspace-welcome {
+  position: relative;
+  width: min(560px, 100%);
+  max-height: calc(100vh - 3rem);
+  overflow-y: auto;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 16px;
+  background:
+    radial-gradient(120% 90% at 85% -10%, oklch(25% 0.02 250 / 0.4), transparent 60%),
+    var(--graphite);
+  box-shadow: var(--depth-focus, 0 28px 80px oklch(0% 0 0 / 0.42));
+  padding: 1.6rem 1.6rem 1.4rem;
+}
+
+.workspace-welcome-close {
+  position: absolute;
+  top: 0.9rem;
+  right: 0.9rem;
+  display: inline-flex;
+  padding: 0.35rem;
+  border-radius: 8px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+.workspace-welcome-close:hover { color: var(--ink); border-color: var(--hairline); }
+.workspace-welcome-close:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.workspace-welcome-kicker {
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--review);
+}
+.workspace-welcome h2 {
+  margin: 0.5rem 0 0.5rem;
+  font-size: 1.5rem;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  text-wrap: balance;
+}
+.workspace-welcome > p {
+  margin: 0 0 1.15rem;
+  color: var(--ink-muted);
+  font-size: 0.9rem;
+  max-width: 52ch;
+}
+
+.workspace-welcome-cards { display: grid; gap: 0.6rem; }
+.workspace-welcome-cards button {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-rows: auto auto;
+  column-gap: 0.75rem;
+  row-gap: 0.15rem;
+  text-align: left;
+  padding: 0.85rem 1rem;
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--desk);
+  color: var(--ink);
+  cursor: pointer;
+  transition: border-color var(--motion-control, 190ms) var(--ease-state, ease),
+              transform var(--motion-control, 190ms) var(--ease-state, ease);
+}
+.workspace-welcome-cards button:hover { border-color: var(--blue); transform: translateY(-1px); }
+.workspace-welcome-cards button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.workspace-welcome-card-icon {
+  grid-row: span 2;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  color: var(--blue-hover);
+  background: oklch(58.5% 0.0627 249.71 / 0.12);
+  border: 1px solid oklch(58.5% 0.0627 249.71 / 0.3);
+}
+.workspace-welcome-cards button strong { font-size: 0.95rem; }
+.workspace-welcome-cards button small { color: var(--ink-dim); font-size: 0.8rem; }
+
+.workspace-welcome-skip {
+  margin-top: 1.1rem;
+  width: 100%;
+  padding: 0.6rem;
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-muted);
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.workspace-welcome-skip:hover { color: var(--ink); border-color: var(--hairline-strong); }
+.workspace-welcome-skip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .workspace-welcome-cards button { transition: none; }
+  .workspace-welcome-cards button:hover { transform: none; }
+}
