@@ -302,6 +302,24 @@ class LocalBridgeServerTest {
                 .get("items").size());
     }
 
+    @Test
+    void pluginMayConnectThroughLocalhostAsWellAsLoopbackIp() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        // The plugin and its README advertise http://localhost:<port> as valid,
+        // so the server must accept that Host spelling too.
+        HttpRequest viaLocalhost = HttpRequest.newBuilder(
+                        URI.create("http://localhost:" + origin.getPort() + "/plugin/v1/health"))
+                .header("Authorization", "Bearer " + token)
+                .GET()
+                .build();
+        assertEquals(200, client.send(viaLocalhost, HttpResponse.BodyHandlers.ofString()).statusCode());
+    }
+
     private HttpResponse<String> get(String path, String requestCookie) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(origin.resolve(path)).GET();
         if (requestCookie != null) request.header("Cookie", requestCookie);

@@ -106,6 +106,7 @@ public final class LocalBridgeServer implements AutoCloseable {
 
     private HttpServer server;
     private String expectedHost;
+    private java.util.Set<String> allowedHosts;
     private URI origin;
 
     public LocalBridgeServer(ProjectPicker picker, LocalProjectRepository localProjects,
@@ -133,6 +134,10 @@ public final class LocalBridgeServer implements AutoCloseable {
         try {
             server = HttpServer.create(new InetSocketAddress(InetAddress.getByName("127.0.0.1"), 0), 0);
             expectedHost = "127.0.0.1:" + server.getAddress().getPort();
+            // Both names the Studio plugin advertises as valid; a foreign origin can
+            // never present either Host value, so the DNS-rebinding defense holds.
+            allowedHosts = java.util.Set.of(expectedHost,
+                    "localhost:" + server.getAddress().getPort());
             origin = URI.create("http://" + expectedHost);
             server.createContext("/", this::handle);
             server.setExecutor(httpExecutor);
@@ -158,7 +163,8 @@ public final class LocalBridgeServer implements AutoCloseable {
     private void handle(HttpExchange exchange) throws IOException {
         addSecurityHeaders(exchange.getResponseHeaders());
         try {
-            if (!expectedHost.equalsIgnoreCase(exchange.getRequestHeaders().getFirst("Host"))) {
+            String host = exchange.getRequestHeaders().getFirst("Host");
+            if (host == null || !allowedHosts.contains(host.toLowerCase(java.util.Locale.ROOT))) {
                 throw new HttpError(403, "Invalid Host header");
             }
             String path = decodedPath(exchange);
