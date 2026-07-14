@@ -22,9 +22,9 @@ Use one or two, not all of them.
 - Reframed a community-gallery prototype into a focused game-development workflow after analyzing SJHacks winners and identifying release-time asset provenance as the strongest use of the existing fingerprint engine.
 - Built a portfolio-grade product narrative using Canvas 2D rendering, pointer-responsive depth, viewport-aware animation, and a production-tested responsive design system without compromising the task UI.
 
-Only use this stronger bullet after the React surface is connected to the Java engine and real registry data:
+This stronger bullet is now accurate — the React workspace talks to the Java engine through a loopback desktop bridge (project scans, animation comparison, and release manifests all round-trip):
 
-- Built an end-to-end Java 21 and React creative-asset preflight system that scans real project directories, performs exact and perceptual matching, resolves evidence exceptions, and emits versioned release manifests.
+- Built an end-to-end Java 21 + React creative-asset preflight system that scans real project directories, performs exact and perceptual matching, resolves evidence exceptions, and emits versioned release manifests — including a Roblox animation-comparison workflow that fingerprints two Studio animations locally, scores motion/timing/coverage, and captures immutable last-known-good / last-published snapshots.
 
 ## What you personally built
 
@@ -50,7 +50,7 @@ Be precise about the layers:
 - Accessibility and reduced-motion behavior.
 - Canvas-rendered evidence relationship map that pauses outside the viewport.
 
-The current React experience uses deterministic evidence records around ten real local GLB binaries: five CC0 Khronos source models and five reproducibly generated project derivatives with controlled, documented material deltas. The Java core now scans arbitrary directories and emits the same versioned manifest boundary; the next engineering milestone is calling that scanner from the desktop UI and persisting source/decision records.
+The React experience is backed by real local GLB binaries: a browsable gallery of 24 CC0 low-poly models (mesh/triangle/material counts read live from each file), animated rigs for the Roblox motion lab (a robot and a fox, each selectable), and reproducibly-generated derivative chains for the evidence viewer. The Java core scans arbitrary directories, and the desktop bridge already calls that scanner from the UI — persisting immutable scan runs, source evidence, and append-only decisions in SQLite. The immutable animation snapshots and the server-side per-IP rate limiting build on that same foundation. In short: the "next milestone is to connect it" framing is out of date; it is connected.
 
 ## Two-minute architecture explanation
 
