@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import javax.imageio.ImageIO;
+import creatorflow.verification.SafeImageIo;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -52,7 +53,7 @@ public class FileStore {
      */
     public void writeThumbnail(Path original, String sha256) {
         try {
-            BufferedImage image = ImageIO.read(original.toFile());
+            BufferedImage image = SafeImageIo.read(original.toFile());
             if (image == null) {
                 return;
             }
