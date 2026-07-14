@@ -11,7 +11,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Set;
-import javax.imageio.ImageIO;
 
 /**
  * Runs every applicable verification layer against a candidate file and
@@ -65,7 +64,7 @@ public final class OriginalityEngine {
         int width = 0;
         int height = 0;
         if (IMAGE_TYPES.contains(fileType)) {
-            BufferedImage image = ImageIO.read(file.toFile());
+            BufferedImage image = SafeImageIo.read(file.toFile());
             if (image != null) {
                 width = image.getWidth();
                 height = image.getHeight();
