@@ -130,6 +130,51 @@ rotation surface); repositories sort `Instant.toString()` lexicographically (mis
 fractional-digit widths); `followScan`'s adaptive polling is dead code; SSE reconnect replays
 up to 4,000 events (no `?after=` resume).
 
+## July 13–14 skills-execution pass (branch `claude/skills-execution`)
+
+Ran the plan in `docs/SKILLS_EXECUTION_PLAN.md`. Phases 1–2 done; 3–5 open.
+
+**Phase 1 — security audit (Semgrep + manual).** Semgrep 1.169.0 (OSS, no Pro) over
+`server/`, `core/`, `desktop/`, `frontend/src/` in important-only mode with Trail of Bits /
+elttam / Atlassian third-party rules. All 22 Java findings triaged to false positives or
+flag-gated demo code (SQL findsecbugs hits are `LIMIT + int` and bundled migration DDL; the
+SSRF hit is the hardcoded `127.0.0.1` bind; `PREDICTABLE_RANDOM`/`HARD_CODE_KEY` are the
+`@ConditionalOnProperty("creatorflow.demo-seed")` seeder and a password-confirm check).
+Frontend fully clean. `p/spring` could not run (registry pack 404s — retired upstream);
+`findsecbugs` covered that surface. **One real, undocumented bug fixed:** an image
+decompression-bomb DoS — `ImageIO.read()` ran on user uploads with no decoded-pixel bound in
+`OriginalityEngine.verify`, `FileStore.writeThumbnail`, and `DiffService.compare`, and account
+creation is open, so a few-hundred-KB PNG could decode to a multi-GB raster and OOM the JVM.
+Fixed with `core` `SafeImageIo.read()` (reads header dimensions before allocating the raster;
+40 MP default cap), wired into all three call sites. TDD, `SafeImageIoTest`.
+
+**Phase 2 — frontend review.** Reviewed `frontend/src` + recent motion/bridge code. Fixed two
+confirmed bugs. (1) The exported release manifest failed CreatorFlow's *own* validator on the
+"Apply prepared sample resolutions" path: an excluded blocked asset was labelled
+`verification: CLEAR` but not counted in `summary.clear`, and `summary.unresolvedSources` used
+string heuristics the validator doesn't share. Extracted a pure, tested `buildReleaseManifest`
+(`frontend/src/manifest/releaseManifest.ts`) that derives the summary from the emitted records
+with the validator's own rules; also fixed `sizeBytes`, which assumed MB and turned "684 KB"
+into ~717 MB. (2) `localBridge.ts` `followScan` never sped up polling after the SSE stream
+dropped (`setInterval(..., polling ? 600 : 900)` read `polling` once when it was always false);
+converted to a self-rescheduling `setTimeout`. Baseline stayed green: 24 frontend tests (was
+22), typecheck, build; core 13 / server 25 / desktop 24; full reactor compiles.
+
+**Still open from Phase 2 (lower priority, not fixed):** `MotionComparisonLab.tsx` `MotionStage`
+runs a permanent `requestAnimationFrame` loop even when paused/static instead of using
+`motion/renderLoop.ts`'s demand-aware scheduler; exported `matches[].matchedAssetId` uses the
+match's own array index rather than a referenced asset ordinal (passes the validator's range
+check only because match arrays are short — no unambiguous correct value since matches point at
+external registry records); `ProductWorkspace.tsx:650` sets state after an `await` without
+re-checking `controller.signal.aborted`. The four previously-known majors (dual scoring
+algorithms, `localBridge.ts` still under-tested beyond `followScan`, the `styles.css` monolith,
+and stale `frontend/*.md` docs) remain.
+
+**Not yet started:** Phase 3 (immutable animation snapshots, build-order #3 — a core model +
+desktop V006 migration + bridge endpoint + UI feature), Phase 4 (superdesign Release Flow
+checklist + dataviz Stress Lab matrix — design drafts needing Bryan's approval before
+implementation), Phase 5 (branch finalization).
+
 ## Known gaps before the friend test
 
 1. Install the desktop-bridge plugin in Roblox Studio and run the manual checklist in
