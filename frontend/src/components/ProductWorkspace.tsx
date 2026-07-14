@@ -53,16 +53,20 @@ import { ReleasePathLab } from './ReleasePathLab';
 import { RobloxAssetStressSet } from './RobloxAssetStressSet';
 import { SceneTreePanel } from './SceneTreePanel';
 import { MetadataInspector } from './MetadataInspector';
+import { WorkspaceDatasetBanner } from './WorkspaceDatasetBanner';
 import { WorkspaceSettingsView } from './WorkspaceSettingsView';
+import { WorkspaceWelcome } from './WorkspaceWelcome';
+import './WorkspaceWelcome.css';
 import type { ComparisonViewMode, DifferenceViewMode, SceneTreeNode } from './HeavyAssetViewer';
 import './ProductWorkspace.premium.css';
 
 const HeavyAssetViewer = lazy(() => import('./HeavyAssetViewer').then((module) => ({ default: module.HeavyAssetViewer })));
 const MotionComparisonLab = lazy(() => import('./MotionComparisonLab').then((module) => ({ default: module.MotionComparisonLab })));
+const ModelGallery = lazy(() => import('./ModelGallery').then((module) => ({ default: module.ModelGallery })));
 const StressLab = lazy(() => import('./StressLab').then((module) => ({ default: module.StressLab })));
 const heavyPayloadMb = (heavyAssets.reduce((total, asset) => total + asset.bytes, 0) / 1_000_000).toFixed(1);
 
-export type WorkspaceView = 'overview' | 'project' | 'assets' | 'motion' | 'stress' | 'evidence' | 'sources' | 'releases' | 'settings';
+export type WorkspaceView = 'overview' | 'project' | 'assets' | 'gallery' | 'motion' | 'stress' | 'evidence' | 'sources' | 'releases' | 'settings';
 
 interface AssetDeepLink {
   assetId: string;
@@ -136,6 +140,7 @@ const navigation: Array<{ id: WorkspaceView; label: string; icon: typeof LayoutD
   { id: 'overview', label: 'Overview', icon: LayoutDashboard, phase: 'snapshot' },
   { id: 'evidence', label: 'Evidence', icon: Fingerprint, phase: 'fingerprint', count: '12' },
   { id: 'assets', label: 'Assets', icon: Boxes, phase: 'fingerprint', count: 'sample' },
+  { id: 'gallery', label: 'Model gallery', icon: Boxes, phase: 'fingerprint', count: '24' },
   { id: 'motion', label: 'Animation compare', icon: Activity, phase: 'fingerprint', count: 'Roblox beta' },
   { id: 'stress', label: 'System check', icon: FlaskConical, phase: 'fingerprint', count: '6' },
   { id: 'sources', label: 'Sources', icon: Library, phase: 'source', count: '20' },
@@ -157,10 +162,10 @@ function OverviewView({ onOpenAsset, onOpenEvidence, onOpenMotion }: { onOpenAss
       </section>
 
       <section className="product-metrics" aria-label="Project metrics">
-        <Metric label="Indexed files" value="12,844" note="39 creative formats" />
-        <Metric label="Project footprint" value="18.4 GB" note="Demo profile, not downloaded" />
-        <Metric label="Local proof pack" value="446 MB" note="32 files scanned on disk" />
-        <Metric label="Bytes uploaded" value="0" note="Fingerprints leave the machine" />
+        <Metric label="Indexed files" value="12,844" note="Sample profile · 39 creative formats" />
+        <Metric label="Project footprint" value="18.4 GB" note="Sample profile, nothing downloaded" />
+        <Metric label="Capability asset set" value="446 MB" note="32-file curated demo of real complex assets" />
+        <Metric label="Bytes uploaded" value="0" note="Fingerprints leave the machine; files never do" />
       </section>
 
       <section className="overview-motion-entry">
@@ -815,6 +820,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
 
   return (
     <div className="product-workspace">
+      <WorkspaceWelcome onNavigate={changeView} />
       <aside className="product-sidebar">
         <button className="product-sidebar-brand" type="button" onClick={onExit} aria-label="Return to CreatorFlow landing page"><BrandMark /></button>
         <div className="project-switcher-wrap" ref={projectMenuRef}>
@@ -897,6 +903,14 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
         {importing ? <div className="manifest-import-progress" role="status" aria-live="polite">Validating manifest schema and record totals…</div> : null}
 
         <main className={`product-view product-view-${view}`}>
+          {view !== 'settings' ? (
+            <WorkspaceDatasetBanner
+              mode={activeLocal ? 'local' : activeManifest ? 'imported' : 'sample'}
+              projectName={projectName}
+              release={activeManifest?.project.release}
+              onSwitch={() => setProjectMenuOpen(true)}
+            />
+          ) : null}
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               className="product-view-frame"
@@ -909,6 +923,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
               {view === 'overview' ? activeLocal ? <LocalProjectOverview project={activeLocal} run={localRun} onOpenRun={() => changeView('project')} onOpenEvidence={() => changeView('evidence')} /> : activeManifest && activeImport ? <ImportedProjectOverview manifest={activeManifest} fileBytes={activeImport.fileBytes} onOpenEvidence={() => changeView('evidence')} /> : <OverviewView onOpenAsset={openAsset} onOpenEvidence={() => changeView('evidence')} onOpenMotion={() => changeView('motion')} /> : null}
               {view === 'project' ? activeLocal && bridgeClient ? <LocalScanView client={bridgeClient} project={activeLocal} onRunChange={handleLocalRunChange} onOpenEvidence={() => changeView('evidence')} /> : activeManifest ? <ImportedProjectRun manifest={activeManifest} onOpenEvidence={() => changeView('evidence')} /> : <ReleasePathLab onNavigate={changeView} /> : null}
               {view === 'assets' ? <>{activeLocal ? <CapabilityDemoNotice projectName={activeLocal.name} kind="assets" dataset="local" /> : activeManifest ? <CapabilityDemoNotice projectName={activeManifest.project.name} kind="assets" /> : null}<AssetsView /></> : null}
+              {view === 'gallery' ? <Suspense fallback={<div className="workspace-view-loading">Opening model gallery…</div>}><ModelGallery /></Suspense> : null}
               {view === 'motion' ? <Suspense fallback={<div className="workspace-view-loading">Opening animation comparison…</div>}><MotionComparisonLab bridgeClient={bridgeClient} project={localProject} /></Suspense> : null}
               {view === 'stress' ? <Suspense fallback={<div className="workspace-view-loading">Opening system check…</div>}><StressLab /></Suspense> : null}
               {view === 'evidence' ? activeLocal && bridgeClient ? <LocalEvidenceView client={bridgeClient} project={activeLocal} initialSelectedAssetId={localSelectedAssetId} onSelectAsset={setLocalSelectedAssetId} /> : activeManifest ? <ImportedEvidenceView manifest={activeManifest} /> : <div className="workspace-evidence-view"><PreflightWorkspace startSignal={0} /></div> : null}
