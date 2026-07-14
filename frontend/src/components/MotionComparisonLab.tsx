@@ -1,4 +1,4 @@
-import { AlertTriangle, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch, ShieldAlert } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ACESFilmicToneMapping,
@@ -33,6 +33,7 @@ import { LocalBridgeClient, type LocalMotionComparison, type LocalPluginPairing,
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
 import { MotionScenarioPicker } from './MotionScenarioPicker';
 import { clipInRig, rigById, rigFixtures } from '../motion/rigFixtures';
+import { formatRegisteredAt, registryRecordFor, type RegistryRecord } from '../motion/motionRegistry';
 import {
   analyzeMotionClips,
   type MotionAnalysisMode,
@@ -556,6 +557,49 @@ function clipJointCount(clip: AnimationClip | undefined) {
   return new Set(clip.tracks.map((track) => track.name.replace(/\.(?:position|quaternion|scale|morphTargetInfluences).*$/, ''))).size;
 }
 
+/**
+ * The registry hit — the payoff that turns a bare similarity number into a lead. When the reference
+ * is a registered asset, this shows the owner's record: who registered it, when, under what license,
+ * and the Animation ID it maps to — i.e. exactly what you'd attach as provenance or reject against.
+ */
+function RegistryMatchCard({ record, candidateName, pose, exact }: {
+  record: RegistryRecord;
+  candidateName: string;
+  pose: number | null;
+  exact: boolean;
+}) {
+  const restricted = record.license === 'All rights reserved';
+  // Flag the card when the candidate both resembles a registered asset AND can't be freely reused;
+  // that combination is the one a human must not ship past without a decision.
+  const flagged = exact || (restricted && (pose ?? 0) >= 55);
+  const matchLine = exact
+    ? `an exact curve match to a registered asset`
+    : pose !== null
+      ? `a ${pose}% motion match to a registered asset`
+      : `a match to a registered asset`;
+  return (
+    <section className="motion-registry-match" data-flagged={flagged ? 'true' : 'false'} aria-label="Registry match">
+      <header>
+        <span>{flagged ? <ShieldAlert size={16} /> : <BadgeCheck size={16} />}</span>
+        <div>
+          <small>Registry match · sample</small>
+          <strong>{record.assetName}</strong>
+        </div>
+      </header>
+      <p><strong>{candidateName}</strong> is {matchLine}, registered by <strong>{record.owner}</strong>.</p>
+      <dl>
+        <div><dt>Owner</dt><dd>{record.owner}</dd></div>
+        <div><dt>Registered</dt><dd><time dateTime={record.registeredAt}>{formatRegisteredAt(record.registeredAt)}</time></dd></div>
+        <div><dt>Animation ID</dt><dd className="mono">{record.animationId}</dd></div>
+        <div><dt>License</dt><dd>{record.license}</dd></div>
+        <div><dt>Registry ID</dt><dd className="mono">{record.registryId}</dd></div>
+      </dl>
+      <p className="motion-registry-usage" data-restricted={restricted ? 'true' : 'false'}>{record.usageNote}</p>
+      <small className="motion-registry-disclaimer">Sample registry — illustrative records, not a live lookup. A real check searches by fingerprint and returns the owner's record to attach as provenance or reject against.</small>
+    </section>
+  );
+}
+
 export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: LocalBridgeClient | null; project: LocalProjectSummary | null }) {
   const { preferences } = useWorkspacePreferences();
   const [workspaceMode, setWorkspaceMode] = useState<'pair' | 'project'>('pair');
@@ -592,6 +636,8 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
     reviewThreshold: preferences.reviewThreshold,
   }) : null, [analysisMode, candidateClip, effectiveJointScope, preferences.reviewThreshold, preferences.sampleCount, sourceClip]);
   const latestComparison = comparisons[0];
+  // The reference is the "known" side; if it's a registered asset, the score becomes a lead.
+  const registryMatch = registryRecordFor(selectedRigId, sourceName);
   const scenarioScores = useMemo(() => {
     const scores: Record<string, { exactCurveData: boolean; primaryValue: number | null } | null> = {};
     for (const scenario of rig.scenarios) {
@@ -841,6 +887,9 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
             <p><strong>{sourceName} ↔ {candidateName}</strong> · {selectedAnalysisMode.detail}</p>
             {analysisMode === 'loop' ? <dl className="motion-signal-list"><div><dt>Candidate pose closure</dt><dd>{result?.loop?.candidate.poseClosure ?? '—'}{result?.loop?.candidate.poseClosure !== null && result?.loop?.candidate.poseClosure !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.poseClosure ?? 0)} /></div><div><dt>Velocity continuity</dt><dd>{result?.loop?.candidate.velocityContinuity ?? '—'}{result?.loop?.candidate.velocityContinuity !== null && result?.loop?.candidate.velocityContinuity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.velocityContinuity ?? 0)} /></div><div><dt>Scoped joints</dt><dd>{result?.loop?.candidate.tracksAnalyzed ?? '—'}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl> : analysisMode === 'root' ? <dl className="motion-signal-list"><div><dt>Root-path match</dt><dd>{result?.root?.similarity ?? '—'}{result?.root?.similarity !== null && result?.root?.similarity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.root?.similarity ?? 0)} /></div><div><dt>Candidate travel</dt><dd>{result?.root?.candidate.available ? result.root.candidate.displacement.toFixed(2) : '—'}</dd><i style={scoreStyle(result?.root?.similarity ?? 0)} /></div><div><dt>Candidate drift</dt><dd>{result?.root?.candidate.available ? result.root.candidate.drift.toFixed(2) : '—'}</dd><i style={scoreStyle(Math.max(0, 100 - (result?.root?.candidate.drift ?? 0) * 100))} /></div></dl> : analysisMode === 'timing' ? <dl className="motion-signal-list"><div><dt>Authored-time match</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Duration delta</dt><dd>{result ? `${result.durationDeltaSeconds >= 0 ? '+' : ''}${result.durationDeltaSeconds.toFixed(2)}s` : '—'}</dd><i style={scoreStyle(result?.durationSimilarity ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl> : <dl className="motion-signal-list"><div><dt>Pose shape</dt><dd>{result?.pose ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.pose ?? 0)} /></div><div><dt>Authored timing</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl>}
             {analysisMode === 'loop' ? <div className="motion-exact-state" data-exact="false"><Check size={14} /><span><strong>Provenance stays outside this quality score</strong><small>{result?.exactCurveData ? 'These clips also have exact curves, but that fact does not change loop continuity.' : 'Loop continuity never raises a similarity or copyright alert.'}</small></span></div> : <div className="motion-exact-state" data-exact={result?.exactCurveData ? 'true' : 'false'}>{result?.exactCurveData ? <AlertTriangle size={14} /> : <Check size={14} />}<span><strong>{result?.exactCurveData ? 'Canonical curves match exactly' : 'No exact curve match'}</strong><small>{result?.exactCurveData ? 'Renaming an export does not change its structural fingerprint.' : 'Pose similarity can still come from common rigs, libraries, or authorized reuse.'}</small></span></div>}
+            {registryMatch
+              ? <RegistryMatchCard record={registryMatch} candidateName={candidateName} pose={result?.pose ?? null} exact={result?.exactCurveData ?? false} />
+              : result ? <p className="motion-registry-miss"><ScanSearch size={13} /><span><strong>Reference not in the sample registry.</strong> No registered owner to attach — a clean result here means "no conflict found," not "proven original."</span></p> : null}
             <button className="motion-jump-difference" type="button" onClick={jumpToLargestDifference} disabled={!result}>{analysisMode === 'loop' ? 'Inspect end seam' : 'Jump to largest difference'}{result && analysisMode !== 'loop' ? <small>{analysisMode === 'timing' ? `${result.largestDifferenceTimeSeconds.toFixed(2)}s` : `${Math.round(result.largestDifferenceProgress * 100)}%`}{result.largestDifferenceJoint ? ` · ${result.largestDifferenceJoint}` : ''}</small> : null}</button>
             <footer className="motion-review-next"><span>{analysisMode === 'loop' ? 'Quality channel' : 'Human review'}</span><strong>{analysisMode === 'loop' ? 'Loop continuity stays separate from provenance and similarity thresholds.' : 'Attach the source, license, Animation IDs, and a decision before release.'}</strong></footer>
           </aside>
