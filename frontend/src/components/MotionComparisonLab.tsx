@@ -17,7 +17,9 @@ import {
   LineSegments,
   LoopOnce,
   Mesh,
+  Object3D,
   PerspectiveCamera,
+  PropertyBinding,
   Scene,
   SRGBColorSpace,
   Texture,
@@ -147,10 +149,23 @@ function makeScopeSkeleton(model: Group, tint: Color): ScopeSkeleton {
   return { line, position, segments, start: new Vector3(), end: new Vector3() };
 }
 
-function updateScopeSkeleton(skeleton: ScopeSkeleton, scope: MotionJointScope) {
+/** The uuids of the bones this clip actually animates, so the overlay can skip dead joints. */
+function animatedBoneUuids(model: Object3D, clip: AnimationClip): Set<string> {
+  const uuids = new Set<string>();
+  for (const track of clip.tracks) {
+    const node = PropertyBinding.findNode(model, PropertyBinding.parseTrackName(track.name).nodeName) as Object3D | null;
+    if (node) uuids.add(node.uuid);
+  }
+  return uuids;
+}
+
+function updateScopeSkeleton(skeleton: ScopeSkeleton, scope: MotionJointScope, animatedBones: Set<string>) {
   const values = skeleton.position.array as Float32Array;
   let offset = 0;
   for (const segment of skeleton.segments) {
+    // Only draw joints this clip drives; a bone with no track sits in bind pose and its
+    // static line reads as broken.
+    if (!animatedBones.has(segment.child.uuid)) continue;
     if (!trackMatchesJointScope(segment.child.name, scope)) continue;
     segment.parent.getWorldPosition(skeleton.start);
     segment.child.getWorldPosition(skeleton.end);
@@ -214,6 +229,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
     previewQuality: 'battery' | 'balanced' | 'sharp';
     sourceScope: ScopeSkeleton;
     candidateScope: ScopeSkeleton;
+    sourceAnimatedBones: Set<string>;
+    candidateAnimatedBones: Set<string>;
   } | null>(null);
   const gltfAnimationsRef = useRef<AnimationClip[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
@@ -332,6 +349,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
         previewQuality: initial.previewQuality,
         sourceScope,
         candidateScope,
+        sourceAnimatedBones: animatedBoneUuids(source, sourceClip),
+        candidateAnimatedBones: animatedBoneUuids(candidate, candidateClip),
       };
       gltfAnimationsRef.current = gltf.animations;
       onReady(gltf.animations);
@@ -369,6 +388,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           runtime.candidateGhost.stopAllAction();
           runtime.sourceClip = desiredSource;
           runtime.candidateClip = desiredCandidate;
+          runtime.sourceAnimatedBones = animatedBoneUuids(runtime.sourceModel, desiredSource);
+          runtime.candidateAnimatedBones = animatedBoneUuids(runtime.candidateModel, desiredCandidate);
           runtime.selectionKey = selectionKey;
           for (const [mixer, clip] of [
             [runtime.source, desiredSource],
@@ -411,8 +432,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
         runtime.candidate.setTime(candidateTime);
         runtime.sourceModel.updateMatrixWorld(true);
         runtime.candidateModel.updateMatrixWorld(true);
-        updateScopeSkeleton(runtime.sourceScope, selection.previewFocus);
-        updateScopeSkeleton(runtime.candidateScope, selection.previewFocus);
+        updateScopeSkeleton(runtime.sourceScope, selection.previewFocus, runtime.sourceAnimatedBones);
+        updateScopeSkeleton(runtime.candidateScope, selection.previewFocus, runtime.candidateAnimatedBones);
         const ghostProgress = trailProgress(selection.analysisMode, progressRef.current);
         runtime.sourceGhost.setTime(ghostProgress * runtime.sourceClip.duration);
         runtime.candidateGhost.setTime(ghostProgress * runtime.candidateClip.duration);
