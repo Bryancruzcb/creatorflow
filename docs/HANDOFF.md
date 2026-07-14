@@ -1,0 +1,191 @@
+# CreatorFlow handoff — Roblox direction
+
+Consolidated July 13, 2026 from the former `FABLE_HANDOFF.md` (GPT's preflight handoff) and
+`CLAUDE_HANDOFF.md` (end of the July 13 session). Where the two disagreed, the newer session's
+facts win. Read `ROBLOX_WORKFLOW_RESEARCH.md` for the landscape research behind the direction.
+
+## Where things stand
+
+`main` is green (both CI jobs) and contains, newest first:
+
+- Frontend CI job + friend-test runbook (`docs/FRIEND-TEST.md`) + session handoff.
+- **Three review fixes** (`1f138d1`, `8339462`, `00cfd40`): bridge accepts `localhost` Host;
+  desktop-bridge plugin sends `Pose.Weight` not deprecated `MaskWeight`; `ManifestCli` gained
+  repeatable `--exclude` (this repo's dogfood scan needs `--exclude stress-fixtures`).
+- **GPT's preflight commit** (`cd4ff3a`): `creatorflow.motion` Java engine, bridge pairing
+  tokens, SQLite V005 evidence store, the `frontend/` React workspace (Motion/Stress/Release
+  labs), and a second Studio plugin `roblox-plugin/desktop-bridge/` (single Lua file, loopback
+  pairing).
+- **Claude's registry work** (`81cc724`, `4dad46e`): per-context Roblox asset-id mappings
+  (`POST/GET /api/v1/assets/{id}/mappings`, context = `group:12345` / `user:98765`, upsert per
+  context) and the Rojo-based registry plugin `roblox-plugin/src/` (canonical KeyframeSequence
+  serialization → pure-Luau SHA-256 → `/api/v1/verify` with `X-Api-Key`).
+
+## Repository map
+
+- React/Vite product UI: `frontend/` (mirrored into git from the old non-git output dir —
+  do all future UI work here)
+- Java motion engine: `core/src/main/java/creatorflow/motion/`
+- Desktop loopback bridge: `desktop/src/main/java/creatorflow/bridge/`
+- Desktop animation evidence persistence: `desktop/src/main/java/creatorflow/db/AnimationComparisonRepository.java`
+- Registry Studio plugin (Rojo): `roblox-plugin/src/`
+- Desktop-pairing Studio plugin (friend test): `roblox-plugin/desktop-bridge/`
+- Roblox workflow research: `docs/ROBLOX_WORKFLOW_RESEARCH.md`
+
+## Build, test, verify (Windows quirks included)
+
+```bash
+npm --prefix frontend ci
+npm --prefix frontend run dev        # http://127.0.0.1:5173
+npm --prefix frontend test
+npm --prefix frontend run typecheck
+npm --prefix frontend run build
+```
+
+- Full Java suite: `mvn -B verify` — passes in CI. Locally on Bryan's Windows box, core's
+  `followedSymlinkCannotEscapeTheSelectedRoot` fails (symlink creation needs Developer Mode);
+  build core with `-DskipTests`, then test `desktop`/`server` normally. 91 Java tests as of
+  this writing; frontend suite (22 tests), typecheck, and build are enforced by the `frontend`
+  CI job.
+- Desktop shell against the built frontend:
+
+  ```bash
+  npm --prefix frontend run build
+  mvn -pl desktop javafx:run \
+    -Djavafx.options="-Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true"
+  ```
+
+- Luau/Rojo aren't installed globally; grab `luau-compile` and `rojo` from their GitHub
+  releases to syntax-check plugins / build the registry plugin
+  (`rojo build roblox-plugin --plugin CreatorFlow.rbxm`).
+- Commits must use `209073313+Bryancruzcb@users.noreply.github.com` (GH007 push protection).
+  Repo-local git config already set.
+
+## What the product does today
+
+- The Motion Lab compares motion shape, authored timing, loop seams, and root translation
+  across fourteen licensed fixture clips.
+- Full/Upper/Lower/Root changes both the analytical scope and a visible skeleton focus. In
+  Root Path, the score remains correctly locked to root translation while all four buttons
+  remain available as preview focus.
+- Pose comparison is a bright, depth-visible wireframe. A one-shot previous pose clamps at the
+  clip start instead of wrapping to the clip end. Loop mode explicitly labels solid as
+  end/current and wireframe as start.
+- The Java core recanonicalizes bounded normalized animation input and computes exact curve
+  fingerprints plus pose/timing/coverage evidence.
+- The desktop bridge creates short-lived project-scoped pairings and persists comparison
+  records without retaining raw joint curves.
+- The source-first Studio desktop bridge reads two permitted Animation IDs and rejects
+  non-loopback endpoints.
+
+## Important product semantics
+
+- **Pair side / Pair overlay** means reference clip versus candidate clip. It does not mean
+  start pose versus end pose.
+- **Previous-pose outline** shows the earlier pose for ordinary comparison modes.
+- **Start-pose outline** pins the wireframe to time zero in Loop Seam while the solid rig is
+  inspected at the end.
+- **Root Path** measures only a root/body translation channel. Upper-body or lower-body
+  root-path scores are not meaningful, so those buttons are visual focus only in this mode.
+- Similarity is a review lead, never an authorship, copying, or copyright verdict — this
+  honesty won the SJ Hacks judge question and it's all over the docs; keep it.
+- "Publish" in CreatorFlow currently means prepare and record a Roblox Studio handoff. It is
+  not a direct Roblox upload.
+
+## Two Studio-plugin paths (hard rule)
+
+1. `roblox-plugin/src/` is the Rojo-based registry plugin. It fingerprints a selected
+   `KeyframeSequence`, talks to the CreatorFlow registry, and manages ownership-context
+   Animation IDs.
+2. `roblox-plugin/desktop-bridge/` is the source-first friend-test plugin for the local
+   desktop evidence workflow. It reads two Animation IDs and posts normalized data to a
+   short-lived `127.0.0.1` pairing.
+
+The two are deliberately contract-separate (different auth, settings keys, endpoints). Do not
+merge their network/auth contracts silently. A later unified plugin should present "Local
+preflight" and "Team registry" as explicit destinations with separate capability receipts.
+
+## Open findings from the 24-agent review (all adversarially verified)
+
+Confirmed-major, still open:
+
+1. **Dual scoring algorithms**: `frontend/src/motion/motionAnalysis.ts` and the Java
+   `MotionComparisonEngine` compute materially different scores shown under identical
+   "Pose/Timing/Coverage/Overall" labels. Either port one to match the other or label them
+   distinctly; add a cross-implementation test.
+2. **`localBridge.ts` has zero tests** — it's the only integration contract with the Java
+   bridge.
+3. **`styles.css`** is a 12,360-line monolith fighting six `*.premium.css` override files;
+   contains verified-dead selectors (`.motion-variant-control`, `.dependency-tree`,
+   `.hero-artifact`, …).
+4. **`frontend/NEXT-IMPROVEMENTS.md`** (and parts of `RESUME-AND-INTERVIEW.md`,
+   `STRATEGY.md`, `ROBLOX_BUILD_ORDER.md`) describe shipped features as future work or cite
+   stale numbers/APIs. Fix before Bryan uses them for interviews.
+
+Notable verified minors (full list in the July 13 session's workflow output): posePercent
+averages over common joints only, so a 1-of-3-joint copy scores HIGH_SIMILARITY;
+`Looped`/`priority` are validated but ignored by fingerprints (flipping Looped still reports
+EXACT_CURVE_DATA); `PluginPairingService.revoke` has no production caller (tokens live 8h, no
+rotation surface); repositories sort `Instant.toString()` lexicographically (mis-orders across
+fractional-digit widths); `followScan`'s adaptive polling is dead code; SSE reconnect replays
+up to 4,000 events (no `?after=` resume).
+
+## Known gaps before the friend test
+
+1. Install the desktop-bridge plugin in Roblox Studio and run the manual checklist in
+   `roblox-plugin/desktop-bridge/README.md` with two Animation IDs your friend can actually
+   access.
+2. Verify the `AnimationClipProvider:GetAnimationClipAsync()` behavior against the current
+   Studio client and record the exact error copy for private, deleted, moderated, and
+   wrong-owner assets.
+3. Confirm the local bridge survives desktop restart, token rotation, Studio HTTP denial, and
+   a request near the 2 MiB boundary.
+4. Add `CurveAnimation` only after defining a deterministic curve-channel canonical format.
+   The current friend-test plugin intentionally accepts `KeyframeSequence` only.
+5. Add a published-ID runtime probe on R6/R15 before claiming that an animation will play
+   correctly in the target experience.
+6. Add an experience permission graph before claiming that an Animation ID is ready for both
+   test and production.
+
+## What to build next, in order
+
+1. **Friend test** — `docs/FRIEND-TEST.md` is the runbook. Everything automatable is done; a
+   human session in Studio is the blocker. Fix only what it surfaces.
+2. **Join the two halves**: motion-comparison evidence should be able to cite a registry asset
+   ("94% similar to WalkCycle V3, registered by mira, mapped to ID 222 under your group"). The
+   fingerprint is the join key. This is the feature no first-party Roblox tool can replicate —
+   Roblox doesn't know two asset IDs are the same creative work; CreatorFlow does.
+3. **Team registries**: the server API is per-account; a shared account works for demos, real
+   teams need memberships.
+4. From GPT's original build order: creator/group/experience ownership and permission context
+   per Animation ID; last-known-good and last-published immutable animation snapshots; a
+   runtime probe for intended rig, priority, loop, markers, duration, and load errors; Release
+   Flow as a Roblox checklist (version note, audience/eligibility, asset permission diff,
+   rollback target, Studio publish confirmation, rollout, smoke test); Stress Lab as a device
+   evidence matrix that clearly distinguishes modeled results from Studio and physical-device
+   measurements.
+
+## Product context in one paragraph
+
+Competitive scan (July 13, 30 sources) found: plugin↔localhost-server is commodity (Rojo,
+Argon, Lync, AssetReuploader) — never pitch the architecture. Unclaimed territory CreatorFlow
+owns: team animation-ID lifecycle (documented, painful, only crude one-shot fixes exist),
+perceptual/motion originality checking for Roblox assets (zero third-party tools), web-based
+asset review/diff (Package Diffs is Studio-only), and release preflight (nothing in the
+ecosystem). Main strategic risk: Roblox's first-party Expanded Sharing — anchor on
+evidence/originality/review, which Roblox shows no sign of building.
+
+## Large fixture policy
+
+`frontend/` includes the lightweight licensed fixtures required by the Motion Lab and ordinary
+tests. The optional showcase GLBs and large audio/video/FBX stress files remain local because
+several are 10–102 MB each. Their metadata can render without the payload. Use Git LFS or
+release artifacts before distributing the complete asset pack; do not push the 100 MB+ files
+directly to GitHub.
+
+## Working-tree caution
+
+Several local files named `* 2.java` were present beside canonical Java files. They are
+byte-for-byte copies of the tracked originals and are intentionally ignored rather than
+committed. Do not delete them without confirming with the user, and do not add compiler
+exclusions merely to accommodate them in Git.
