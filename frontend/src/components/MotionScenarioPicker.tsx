@@ -1,10 +1,6 @@
-import { Layers, Repeat } from 'lucide-react';
-import {
-  motionScenarios,
-  robloxFactsFor,
-  similarityBand,
-  type SimilarityTone,
-} from '../motion/motionScenarios';
+import { Layers } from 'lucide-react';
+import { similarityBand, type SimilarityTone } from '../motion/motionScenarios';
+import type { RigClip, RigScenario } from '../motion/rigFixtures';
 import './MotionScenarioPicker.css';
 
 export interface ScenarioScore {
@@ -22,8 +18,6 @@ interface FactsResult {
   commonTracks: number;
   coverage: number;
   verdict: string;
-  exactCurveData: boolean;
-  primaryValue: number | null;
 }
 
 const TONE_ORDER: Record<SimilarityTone, number> = { exact: 0, high: 1, moderate: 2, low: 3, none: 4 };
@@ -35,42 +29,42 @@ function BandBadge({ score }: { score: ScenarioScore | null }) {
   return <span className={`scenario-band tone-${band.tone}`}>{band.label}{pct ? <b>{pct}</b> : null}</span>;
 }
 
-function FactColumn({ label, clipName, duration, keys, tracks }: {
-  label: string; clipName: string; duration: number; keys: number; tracks: number;
+function FactColumn({ label, clipName, facts, duration, keys, tracks }: {
+  label: string; clipName: string; facts: RigClip | undefined; duration: number; keys: number; tracks: number;
 }) {
-  const facts = robloxFactsFor(clipName);
   return (
     <div className="motion-scenario-facts-col">
       <header><span>{label}</span><strong>{clipName}</strong></header>
       <dl>
-        <div><dt>Animation ID</dt><dd className="mono">{facts.animationId}</dd></div>
-        <div><dt>Priority</dt><dd>{facts.priority}</dd></div>
-        <div><dt>Looped</dt><dd>{facts.looped ? 'Yes' : 'No'}</dd></div>
-        <div><dt>Rig</dt><dd>R15</dd></div>
+        <div><dt>Animation ID</dt><dd className="mono">{facts?.animationId ?? '—'}</dd></div>
+        <div><dt>Priority</dt><dd>{facts?.priority ?? '—'}</dd></div>
+        <div><dt>Looped</dt><dd>{facts ? (facts.looped ? 'Yes' : 'No') : '—'}</dd></div>
         <div><dt>Duration</dt><dd>{duration.toFixed(2)}s</dd></div>
         <div><dt>Keyframes</dt><dd>{keys.toLocaleString()}</dd></div>
         <div><dt>Tracks</dt><dd>{tracks}</dd></div>
-        <div><dt>Typical use</dt><dd>{facts.use}</dd></div>
+        <div><dt>Typical use</dt><dd>{facts?.use ?? '—'}</dd></div>
       </dl>
     </div>
   );
 }
 
 /**
- * Presents the licensed fixture clips as the comparison relationships a Roblox creator actually
- * meets — a re-upload, an edited variant, a same-family cycle, an unrelated clip — with the band
- * computed live for each, and a Studio-facts table for the loaded pair.
+ * Presents a rig's clips as the comparison relationships a Roblox creator meets — a re-upload, an
+ * edited variant, a same-family cycle, an unrelated clip — with the band computed live for each,
+ * and a Studio-facts table for the loaded pair. Scenarios and facts are supplied by the active rig.
  */
-export function MotionScenarioPicker({ sourceName, candidateName, onSelect, scenarioScores, result }: {
+export function MotionScenarioPicker({ sourceName, candidateName, onSelect, scenarioScores, result, scenarios, clipByName }: {
   sourceName: string;
   candidateName: string;
   onSelect: (source: string, candidate: string) => void;
   scenarioScores: Record<string, ScenarioScore | null>;
   result: FactsResult | null;
+  scenarios: RigScenario[];
+  clipByName: (name: string) => RigClip | undefined;
 }) {
-  const activeId = motionScenarios.find((s) => s.source === sourceName && s.candidate === candidateName)?.id;
-  const active = motionScenarios.find((s) => s.id === activeId);
-  const ordered = [...motionScenarios].sort((a, b) => {
+  const activeId = scenarios.find((s) => s.source === sourceName && s.candidate === candidateName)?.id;
+  const active = scenarios.find((s) => s.id === activeId);
+  const ordered = [...scenarios].sort((a, b) => {
     const sa = scenarioScores[a.id];
     const sb = scenarioScores[b.id];
     const ta = sa ? TONE_ORDER[similarityBand(sa.exactCurveData, sa.primaryValue).tone] : 99;
@@ -84,9 +78,8 @@ export function MotionScenarioPicker({ sourceName, candidateName, onSelect, scen
         <div>
           <span className="motion-scenario-kicker"><Layers size={14} /> Similarity scenarios</span>
           <h2>See the whole range, not one score.</h2>
-          <p>Real fixture motions framed as the relationships a Roblox creator meets. The band on each is computed live by the engine — click one to load it into the comparison below.</p>
+          <p>This rig's clips, framed as the relationships a Roblox creator meets. The band on each is computed live by the engine — click one to load it into the comparison below.</p>
         </div>
-        <p className="motion-scenario-note"><Repeat size={13} /> One licensed rig, many motions. Different rigs need their own licensed assets — the evidence and workflow are identical.</p>
       </header>
 
       <div className="motion-scenario-grid">
@@ -115,8 +108,8 @@ export function MotionScenarioPicker({ sourceName, candidateName, onSelect, scen
 
       {result ? (
         <div className="motion-scenario-facts">
-          <FactColumn label="Reference" clipName={sourceName} duration={result.sourceDuration} keys={result.sourceKeys} tracks={result.sourceTracks} />
-          <FactColumn label="Candidate" clipName={candidateName} duration={result.candidateDuration} keys={result.candidateKeys} tracks={result.candidateTracks} />
+          <FactColumn label="Reference" clipName={sourceName} facts={clipByName(sourceName)} duration={result.sourceDuration} keys={result.sourceKeys} tracks={result.sourceTracks} />
+          <FactColumn label="Candidate" clipName={candidateName} facts={clipByName(candidateName)} duration={result.candidateDuration} keys={result.candidateKeys} tracks={result.candidateTracks} />
           <div className="motion-scenario-facts-shared">
             <div><span>Shared joints</span><strong>{result.commonTracks}</strong></div>
             <div><span>Coverage</span><strong>{result.coverage}%</strong></div>
