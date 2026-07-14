@@ -53,6 +53,7 @@ import { ReleasePathLab } from './ReleasePathLab';
 import { RobloxAssetStressSet } from './RobloxAssetStressSet';
 import { SceneTreePanel } from './SceneTreePanel';
 import { MetadataInspector } from './MetadataInspector';
+import { WorkspaceDatasetBanner } from './WorkspaceDatasetBanner';
 import { WorkspaceSettingsView } from './WorkspaceSettingsView';
 import type { ComparisonViewMode, DifferenceViewMode, SceneTreeNode } from './HeavyAssetViewer';
 import './ProductWorkspace.premium.css';
@@ -157,10 +158,10 @@ function OverviewView({ onOpenAsset, onOpenEvidence, onOpenMotion }: { onOpenAss
       </section>
 
       <section className="product-metrics" aria-label="Project metrics">
-        <Metric label="Indexed files" value="12,844" note="39 creative formats" />
-        <Metric label="Project footprint" value="18.4 GB" note="Demo profile, not downloaded" />
-        <Metric label="Local proof pack" value="446 MB" note="32 files scanned on disk" />
-        <Metric label="Bytes uploaded" value="0" note="Fingerprints leave the machine" />
+        <Metric label="Indexed files" value="12,844" note="Sample profile · 39 creative formats" />
+        <Metric label="Project footprint" value="18.4 GB" note="Sample profile, nothing downloaded" />
+        <Metric label="Capability asset set" value="446 MB" note="32-file curated demo of real complex assets" />
+        <Metric label="Bytes uploaded" value="0" note="Fingerprints leave the machine; files never do" />
       </section>
 
       <section className="overview-motion-entry">
@@ -897,6 +898,14 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
         {importing ? <div className="manifest-import-progress" role="status" aria-live="polite">Validating manifest schema and record totals…</div> : null}
 
         <main className={`product-view product-view-${view}`}>
+          {view !== 'settings' ? (
+            <WorkspaceDatasetBanner
+              mode={activeLocal ? 'local' : activeManifest ? 'imported' : 'sample'}
+              projectName={projectName}
+              release={activeManifest?.project.release}
+              onSwitch={() => setProjectMenuOpen(true)}
+            />
+          ) : null}
           <AnimatePresence mode="wait" initial={false}>
             <motion.div
               className="product-view-frame"

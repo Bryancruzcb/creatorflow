@@ -4,6 +4,61 @@
   gap: var(--space-4, 1rem);
 }
 
+.animation-snapshots-explainer {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--graphite);
+  padding: 0.85rem 1rem;
+}
+.animation-snapshots-explainer p { margin: 0; color: var(--ink-muted); font-size: 0.86rem; }
+.animation-snapshots-explainer em { color: var(--ink); font-style: normal; font-weight: 600; }
+.animation-snapshots-explainer dl {
+  margin: 0.7rem 0 0;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem 0.9rem;
+}
+.animation-snapshots-explainer dl div {
+  border-left: 2px solid var(--hairline-strong);
+  padding-left: 0.6rem;
+}
+.animation-snapshots-explainer dl div:first-child { border-left-color: var(--clear); }
+.animation-snapshots-explainer dl div:last-child { border-left-color: var(--blue); }
+.animation-snapshots-explainer dt { font-size: 0.78rem; font-weight: 600; color: var(--ink); }
+.animation-snapshots-explainer dd { margin: 0.1rem 0 0; font-size: 0.78rem; color: var(--ink-dim); }
+
+.animation-snapshots-sample {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--graphite);
+  padding: 0.85rem 1rem 0.95rem;
+}
+.animation-snapshots-sample-head {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem 0.9rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.7rem;
+}
+.animation-snapshots-sample-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.55rem;
+  border-radius: 999px;
+  color: var(--review);
+  border: 1px solid oklch(71.3% 0.1172 80.74 / 0.4);
+  background: oklch(71.3% 0.1172 80.74 / 0.1);
+}
+.animation-snapshots-sample-head small { color: var(--ink-dim); font-size: 0.78rem; }
+.animation-snapshots-sample-read { margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--ink-muted); }
+.animation-snapshots-sample-read strong { color: var(--ink); }
+.animation-snapshots-sample-read em { color: var(--review); font-style: normal; font-weight: 600; }
+
 .animation-snapshots-disconnected {
   display: flex;
   gap: 0.7rem;
