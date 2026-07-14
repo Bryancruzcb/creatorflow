@@ -170,10 +170,30 @@ re-checking `controller.signal.aborted`. The four previously-known majors (dual 
 algorithms, `localBridge.ts` still under-tested beyond `followScan`, the `styles.css` monolith,
 and stale `frontend/*.md` docs) remain.
 
-**Not yet started:** Phase 3 (immutable animation snapshots, build-order #3 — a core model +
-desktop V006 migration + bridge endpoint + UI feature), Phase 4 (superdesign Release Flow
-checklist + dataviz Stress Lab matrix — design drafts needing Bryan's approval before
-implementation), Phase 5 (branch finalization).
+**Phase 3 — immutable animation snapshots (build-order #3), shipped TDD-first.** A snapshot
+captures one animation's canonical fingerprint at a moment, tagged `LAST_KNOWN_GOOD` /
+`LAST_PUBLISHED`, scoped to (project, assetId); insert-only, and a re-capture is classified vs
+the prior current one as FIRST/UNCHANGED/CHANGED by fingerprint. Layers: core
+(`MotionSnapshotKind`, `MotionSnapshotStatus`, pure `MotionSnapshots.classify`), desktop
+(`MotionSnapshotRecord`, `V006` migration that cascades with its project, and
+`MotionSnapshotRepository` with atomic capture), bridge (`POST`/`GET`
+`/api/v1/projects/{id}/animation-snapshots`, which promotes a chosen side of an existing motion
+comparison — no Studio plugin contract change, no live Studio needed), and frontend
+(`localBridge` client methods + `motion/snapshots.ts` presentation helpers). The visual React
+panel was intentionally deferred to the design pass. NOTE: one wrap-up fix — the
+`currentForProject` dedup key was accidentally built with a raw NUL char literal (compiled, but
+made the file binary to Git); now `"::"`.
+
+**Phase 4 — design drafts (build-order #5 and #6), drafts only.** Self-contained HTML mockups in
+`docs/design/` matching the product's dark tokens, **not wired into the app** pending Bryan's
+approval: `release-checklist-draft.html` (a go/no-go release checklist whose rollback row pins
+the Phase 3 snapshots) and `stress-lab-matrix-draft.html` (a device-evidence matrix keeping
+modeled/browser results visually separate from measured/Studio ones). See `docs/design/README.md`.
+
+**Phase 5 — wrap-up done.** Full verification green: frontend 27 tests + typecheck + build; core
+48 (excl. the env-only symlink test), desktop 27, server 25 — 100 Java tests, full reactor
+compiles. Branch `claude/skills-execution` holds the whole run; not yet pushed/PR'd (awaiting
+Bryan's call on integration).
 
 ## Known gaps before the friend test
 
