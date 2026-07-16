@@ -8,7 +8,9 @@
  */
 import type { AnimationClip } from 'three';
 import { compareClips } from '../../components/MotionComparisonLab';
+import { clipToNormalized } from '../clipToNormalized';
 import { deserializeClip } from '../motionCurves';
+import { compareNormalized } from '../motionEngineCore';
 import type { CaseClass, CaseKind, CopyDetectionCase } from './copyDetectionCases';
 
 export interface EngineOutcome { score: number | null; flagged: boolean; exact: boolean }
@@ -59,6 +61,32 @@ export function currentEngineAdapter(): EngineAdapter {
   return (source, candidate) => {
     const result = compareClips(source, candidate, { mode: 'shape', jointScope: 'full', sampleCount: 48, reviewThreshold: 85 });
     return { score: result.primaryValue, flagged: result.tone !== 'neutral', exact: result.exactCurveData };
+  };
+}
+
+/**
+ * Phase 1a ported engine: the faithful Java-algorithm port behind the lossy
+ * clip adapter. Flag semantics use the ported engine's OWN verdict bands
+ * (>=90 HIGH or exact), NOT the current engine's 85 threshold — the two
+ * scorecards are reported side by side, not on a shared threshold.
+ */
+export function portedEngineAdapter(): EngineAdapter {
+  return (source, candidate) => {
+    const normalizedSource = clipToNormalized(source);
+    const normalizedCandidate = clipToNormalized(candidate);
+    // Java's NormalizedAnimation REJECTS empty keyframes, so the parity-proven core
+    // never defined behavior for them — and a clip whose tracks were all dropped by
+    // the adapter (e.g. morph-only) carries no motion evidence. Two empty clips must
+    // never read as an exact 100% match: no evidence -> no flag, ever.
+    if (normalizedSource.keyframes.length === 0 || normalizedCandidate.keyframes.length === 0) {
+      return { score: null, flagged: false, exact: false };
+    }
+    const result = compareNormalized(normalizedSource, normalizedCandidate);
+    return {
+      score: result.overallPercent,
+      flagged: result.verdict === 'EXACT_CURVE_DATA' || result.verdict === 'HIGH_SIMILARITY',
+      exact: result.exactCurveData,
+    };
   };
 }
 

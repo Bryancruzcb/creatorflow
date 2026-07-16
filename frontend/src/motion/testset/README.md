@@ -44,3 +44,15 @@ threshold fails CI until the baseline is regenerated on purpose:
 
 Fixtures are committed; regenerate only when the GLBs or three's loader change, and
 expect the baseline to need a rerun afterwards.
+
+## Ported engine (Phase 1a)
+
+`portedScorecard.test.ts` grades the Java-parity engine (`clipToNormalized` →
+`compareNormalized`) on the same case list and pins `scorecard.ported.baseline.json`
+(regenerate deliberately: `UPDATE_MOTION_PORTED_BASELINE=1 npm test`; PowerShell:
+`$env:UPDATE_MOTION_PORTED_BASELINE = '1'; npm test; Remove-Item Env:UPDATE_MOTION_PORTED_BASELINE`).
+The two engines use different flag thresholds by design (current: score ≥ 85;
+ported: its own ≥ 90 HIGH band), so compare the two scorecards side by side, not
+row-by-row against a shared bar. The live app still runs the current engine —
+the cutover decision belongs to the Phase 1b boundary, with both scorecards on
+the table. Parity proof for the ported core: `../parity/motionParity.test.ts`.
