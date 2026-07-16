@@ -1499,7 +1499,16 @@ git commit -m "Motion engine: lossy clip-to-normalized adapter for the web path"
  */
 export function portedEngineAdapter(): EngineAdapter {
   return (source, candidate) => {
-    const result = compareNormalized(clipToNormalized(source), clipToNormalized(candidate));
+    const normalizedSource = clipToNormalized(source);
+    const normalizedCandidate = clipToNormalized(candidate);
+    // Java's NormalizedAnimation REJECTS empty keyframes, so the parity-proven core
+    // never defined behavior for them — and a clip whose tracks were all dropped by
+    // the adapter (e.g. morph-only) carries no motion evidence. Two empty clips must
+    // never read as an exact 100% match: no evidence -> no flag, ever.
+    if (normalizedSource.keyframes.length === 0 || normalizedCandidate.keyframes.length === 0) {
+      return { score: null, flagged: false, exact: false };
+    }
+    const result = compareNormalized(normalizedSource, normalizedCandidate);
     return {
       score: result.overallPercent,
       flagged: result.verdict === 'EXACT_CURVE_DATA' || result.verdict === 'HIGH_SIMILARITY',
@@ -1529,6 +1538,7 @@ import { compareNormalized } from '../motionEngineCore';
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { AnimationClip, NumberKeyframeTrack } from 'three';
 import { afterAll, describe, expect, it } from 'vitest';
 import { buildCases } from './copyDetectionCases';
 import { loadRigFixture } from './fixtureLoader';
@@ -1558,6 +1568,18 @@ describe('ported-engine copy-detection scorecard', () => {
     }
   });
 
+  it('treats clips with no surviving joint tracks as no-evidence, never exact', () => {
+    // Guard from the Task 4 review: morph-only clips normalize to zero keyframes;
+    // without this, any two of them would compare EXACT at 100% — a false accusation.
+    const morphOnly = () => new AnimationClip('Face', 1, [
+      new NumberKeyframeTrack('Head.morphTargetInfluences', [0, 1], [0, 1]),
+    ]);
+    const outcome = portedEngineAdapter()(morphOnly(), morphOnly());
+    expect(outcome.exact).toBe(false);
+    expect(outcome.flagged).toBe(false);
+    expect(outcome.score).toBeNull();
+  });
+
   it('matches the committed ported baseline (UPDATE_MOTION_PORTED_BASELINE=1 npm test to regenerate deliberately)', () => {
     const snapshot = {
       engine: ENGINE_TITLE,
@@ -1582,7 +1604,7 @@ describe('ported-engine copy-detection scorecard', () => {
 ```bash
 cd frontend && npx vitest run src/motion/testset/portedScorecard.test.ts   # baseline test fails: missing file; scorecard prints
 UPDATE_MOTION_PORTED_BASELINE=1 npx vitest run src/motion/testset/portedScorecard.test.ts
-npx vitest run src/motion/testset/portedScorecard.test.ts                 # now 3/3
+npx vitest run src/motion/testset/portedScorecard.test.ts                 # now 4/4
 git diff --stat -- src/motion/testset/scorecard.baseline.json             # MUST be empty
 ```
 
