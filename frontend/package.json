@@ -8,6 +8,7 @@
     "assets:derive": "node scripts/derive-glb-assets.mjs",
     "assets:ships": "node scripts/fetch-polyhaven-ships.mjs",
     "assets:stress": "node scripts/generate-stress-fixtures.mjs",
+    "fixtures:motion": "node scripts/extract-motion-fixtures.mjs",
     "schema:check": "node scripts/check-manifest-schema.mjs",
     "build": "npm run schema:check && tsc -b && vite build",
     "preview": "vite preview --host 127.0.0.1",
