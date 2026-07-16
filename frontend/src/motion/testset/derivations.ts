@@ -107,6 +107,11 @@ export function buildMirrorNameSwapper(nodes: string[]): (trackName: string) => 
       if (matches.length === 1) map.set(node, matches[0]);
     }
   }
+  for (const [from, to] of map) {
+    if (map.get(to) !== from) {
+      throw new Error(`mirror map is not an involution: ${from} -> ${to} -> ${map.get(to) ?? '(unmapped)'}`);
+    }
+  }
   return (trackName: string) => {
     const dot = trackName.lastIndexOf('.');
     return (map.get(trackName.slice(0, dot)) ?? trackName.slice(0, dot)) + trackName.slice(dot);
