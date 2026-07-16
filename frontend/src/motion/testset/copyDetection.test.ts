@@ -8,7 +8,7 @@
  */
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it } from 'vitest';
 import { buildCases } from './copyDetectionCases';
 import { loadRigFixture } from './fixtureLoader';
 import { currentEngineAdapter, formatScorecard, runScorecard } from './scorecard';
@@ -19,7 +19,13 @@ const baselinePath = fileURLToPath(new URL('./scorecard.baseline.json', import.m
 describe('copy-detection scorecard', () => {
   const cases = buildCases([loadRigFixture('robot'), loadRigFixture('fox')]);
   const scorecard = runScorecard(cases, currentEngineAdapter());
-  console.log(`\n${formatScorecard(scorecard, ENGINE_TITLE)}\n`);
+
+  // vitest 4.1.10's default reporter drops console output emitted during the
+  // collection phase (i.e. directly in the describe body) on passing runs.
+  // A raw stdout write from afterAll bypasses that capture and always prints.
+  afterAll(() => {
+    process.stdout.write(`\n${formatScorecard(scorecard, ENGINE_TITLE)}\n\n`);
+  });
 
   it('covers the full labeled set', () => {
     expect(scorecard.recall.overall.total).toBe(119);
