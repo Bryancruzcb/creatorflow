@@ -2656,7 +2656,7 @@
     }
   }, {
     "id" : "slerp-shortest-arc",
-    "description" : "yaw 170 vs yaw -170 keys force dot<0 negation",
+    "description" : "yaw 100 vs yaw -100 keys force dot<0 negation",
     "source" : {
       "assetId" : "100",
       "name" : "case-100",
@@ -2667,7 +2667,7 @@
         "time" : 0.0,
         "poses" : [ {
           "jointPath" : "Root/Hip",
-          "transform" : [ 0.0, 0.0, 0.0, -0.984807753012208, 0.0, 0.17364817766693028, 0.0, 1.0, 0.0, -0.17364817766693028, 0.0, -0.984807753012208 ],
+          "transform" : [ 0.0, 0.0, 0.0, -0.1736481776669303, 0.0, 0.984807753012208, 0.0, 1.0, 0.0, -0.984807753012208, 0.0, -0.1736481776669303 ],
           "weight" : 1.0,
           "easingStyle" : "Linear",
           "easingDirection" : "InOut"
@@ -2676,7 +2676,7 @@
         "time" : 1.0,
         "poses" : [ {
           "jointPath" : "Root/Hip",
-          "transform" : [ 0.0, 0.0, 0.0, -0.984807753012208, 0.0, -0.17364817766693028, 0.0, 1.0, 0.0, 0.17364817766693028, 0.0, -0.984807753012208 ],
+          "transform" : [ 0.0, 0.0, 0.0, -0.1736481776669303, 0.0, -0.984807753012208, 0.0, 1.0, 0.0, 0.984807753012208, 0.0, -0.1736481776669303 ],
           "weight" : 1.0,
           "easingStyle" : "Linear",
           "easingDirection" : "InOut"
@@ -2693,7 +2693,7 @@
         "time" : 0.0,
         "poses" : [ {
           "jointPath" : "Root/Hip",
-          "transform" : [ 0.0, 0.0, 0.0, -0.984807753012208, 0.0, 0.17364817766693028, 0.0, 1.0, 0.0, -0.17364817766693028, 0.0, -0.984807753012208 ],
+          "transform" : [ 0.0, 0.0, 0.0, -0.1736481776669303, 0.0, 0.984807753012208, 0.0, 1.0, 0.0, -0.984807753012208, 0.0, -0.1736481776669303 ],
           "weight" : 1.0,
           "easingStyle" : "Linear",
           "easingDirection" : "InOut"
@@ -2702,7 +2702,7 @@
         "time" : 1.0,
         "poses" : [ {
           "jointPath" : "Root/Hip",
-          "transform" : [ 0.0, 0.0, 0.0, -0.984807753012208, 0.0, 0.17364817766693028, 0.0, 1.0, 0.0, -0.17364817766693028, 0.0, -0.984807753012208 ],
+          "transform" : [ 0.0, 0.0, 0.0, -0.1736481776669303, 0.0, 0.984807753012208, 0.0, 1.0, 0.0, -0.984807753012208, 0.0, -0.1736481776669303 ],
           "weight" : 1.0,
           "easingStyle" : "Linear",
           "easingDirection" : "InOut"
@@ -2713,23 +2713,23 @@
       "algorithmVersion" : "creatorflow.motion-comparison/v1",
       "sourceAssetId" : "100",
       "candidateAssetId" : "200",
-      "sourceFingerprint" : "cbfd69a892132562e1dab046c47fa44b906636c801f85521ed2cd1545bd536f3",
-      "candidateFingerprint" : "ee68ff7b9af0d37707f904da7c92cd3d00ad1e08ca685557311d70c324ad108c",
-      "overallPercent" : 91.98,
-      "posePercent" : 87.66,
+      "sourceFingerprint" : "2c9b9626c3a592d6da5903b3c1286bd4f9f01acde1aec5d250abf8e947116631",
+      "candidateFingerprint" : "2e17d0c1298449b05d74a90a104a3c6f9178f8fb2fa3d897bd1030e7dee9a3f7",
+      "overallPercent" : 75.17,
+      "posePercent" : 61.79,
       "timingPercent" : 100.0,
       "coveragePercent" : 100.0,
       "exactCurveData" : false,
-      "verdict" : "HIGH_SIMILARITY",
+      "verdict" : "MODERATE_SIMILARITY",
       "jointScores" : [ {
         "jointPath" : "Root/Hip",
         "presentInSource" : true,
         "presentInCandidate" : true,
-        "posePercent" : 87.66,
+        "posePercent" : 61.79,
         "meanPositionDelta" : 0.0,
         "maxPositionDelta" : 0.0,
-        "meanRotationDeltaDegrees" : 10.0,
-        "maxRotationDeltaDegrees" : 20.0
+        "meanRotationDeltaDegrees" : 80.0,
+        "maxRotationDeltaDegrees" : 160.0
       } ],
       "frameScores" : [ {
         "sampleIndex" : 0,
@@ -2743,336 +2743,336 @@
         "normalizedTime" : 0.020833,
         "sourceTime" : 0.020833,
         "candidateTime" : 0.020833,
-        "posePercent" : 99.35,
+        "posePercent" : 95.03,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 2,
         "normalizedTime" : 0.041667,
         "sourceTime" : 0.041667,
         "candidateTime" : 0.041667,
-        "posePercent" : 98.71,
+        "posePercent" : 90.55,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 3,
         "normalizedTime" : 0.0625,
         "sourceTime" : 0.0625,
         "candidateTime" : 0.0625,
-        "posePercent" : 98.07,
+        "posePercent" : 86.52,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 4,
         "normalizedTime" : 0.083333,
         "sourceTime" : 0.083333,
         "candidateTime" : 0.083333,
-        "posePercent" : 97.45,
+        "posePercent" : 82.89,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 5,
         "normalizedTime" : 0.104167,
         "sourceTime" : 0.104167,
         "candidateTime" : 0.104167,
-        "posePercent" : 96.83,
+        "posePercent" : 79.62,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 6,
         "normalizedTime" : 0.125,
         "sourceTime" : 0.125,
         "candidateTime" : 0.125,
-        "posePercent" : 96.22,
+        "posePercent" : 76.67,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 7,
         "normalizedTime" : 0.145833,
         "sourceTime" : 0.145833,
         "candidateTime" : 0.145833,
-        "posePercent" : 95.62,
+        "posePercent" : 74.02,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 8,
         "normalizedTime" : 0.166667,
         "sourceTime" : 0.166667,
         "candidateTime" : 0.166667,
-        "posePercent" : 95.03,
+        "posePercent" : 71.63,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 9,
         "normalizedTime" : 0.1875,
         "sourceTime" : 0.1875,
         "candidateTime" : 0.1875,
-        "posePercent" : 94.44,
+        "posePercent" : 69.48,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 10,
         "normalizedTime" : 0.208333,
         "sourceTime" : 0.208333,
         "candidateTime" : 0.208333,
-        "posePercent" : 93.87,
+        "posePercent" : 67.55,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 11,
         "normalizedTime" : 0.229167,
         "sourceTime" : 0.229167,
         "candidateTime" : 0.229167,
-        "posePercent" : 93.29,
+        "posePercent" : 65.8,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 12,
         "normalizedTime" : 0.25,
         "sourceTime" : 0.25,
         "candidateTime" : 0.25,
-        "posePercent" : 92.73,
+        "posePercent" : 64.23,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 13,
         "normalizedTime" : 0.270833,
         "sourceTime" : 0.270833,
         "candidateTime" : 0.270833,
-        "posePercent" : 92.18,
+        "posePercent" : 62.82,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 14,
         "normalizedTime" : 0.291667,
         "sourceTime" : 0.291667,
         "candidateTime" : 0.291667,
-        "posePercent" : 91.63,
+        "posePercent" : 61.54,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 15,
         "normalizedTime" : 0.3125,
         "sourceTime" : 0.3125,
         "candidateTime" : 0.3125,
-        "posePercent" : 91.09,
+        "posePercent" : 60.39,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 16,
         "normalizedTime" : 0.333333,
         "sourceTime" : 0.333333,
         "candidateTime" : 0.333333,
-        "posePercent" : 90.55,
+        "posePercent" : 59.36,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 17,
         "normalizedTime" : 0.354167,
         "sourceTime" : 0.354167,
         "candidateTime" : 0.354167,
-        "posePercent" : 90.02,
+        "posePercent" : 58.43,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 18,
         "normalizedTime" : 0.375,
         "sourceTime" : 0.375,
         "candidateTime" : 0.375,
-        "posePercent" : 89.5,
+        "posePercent" : 57.59,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 19,
         "normalizedTime" : 0.395833,
         "sourceTime" : 0.395833,
         "candidateTime" : 0.395833,
-        "posePercent" : 88.99,
+        "posePercent" : 56.84,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 20,
         "normalizedTime" : 0.416667,
         "sourceTime" : 0.416667,
         "candidateTime" : 0.416667,
-        "posePercent" : 88.48,
+        "posePercent" : 56.16,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 21,
         "normalizedTime" : 0.4375,
         "sourceTime" : 0.4375,
         "candidateTime" : 0.4375,
-        "posePercent" : 87.98,
+        "posePercent" : 55.55,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 22,
         "normalizedTime" : 0.458333,
         "sourceTime" : 0.458333,
         "candidateTime" : 0.458333,
-        "posePercent" : 87.49,
+        "posePercent" : 54.99,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 23,
         "normalizedTime" : 0.479167,
         "sourceTime" : 0.479167,
         "candidateTime" : 0.479167,
-        "posePercent" : 87.0,
+        "posePercent" : 54.5,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 24,
         "normalizedTime" : 0.5,
         "sourceTime" : 0.5,
         "candidateTime" : 0.5,
-        "posePercent" : 86.52,
+        "posePercent" : 54.05,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 25,
         "normalizedTime" : 0.520833,
         "sourceTime" : 0.520833,
         "candidateTime" : 0.520833,
-        "posePercent" : 86.05,
+        "posePercent" : 53.65,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 26,
         "normalizedTime" : 0.541667,
         "sourceTime" : 0.541667,
         "candidateTime" : 0.541667,
-        "posePercent" : 85.58,
+        "posePercent" : 53.28,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 27,
         "normalizedTime" : 0.5625,
         "sourceTime" : 0.5625,
         "candidateTime" : 0.5625,
-        "posePercent" : 85.11,
+        "posePercent" : 52.96,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 28,
         "normalizedTime" : 0.583333,
         "sourceTime" : 0.583333,
         "candidateTime" : 0.583333,
-        "posePercent" : 84.66,
+        "posePercent" : 52.66,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 29,
         "normalizedTime" : 0.604167,
         "sourceTime" : 0.604167,
         "candidateTime" : 0.604167,
-        "posePercent" : 84.21,
+        "posePercent" : 52.4,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 30,
         "normalizedTime" : 0.625,
         "sourceTime" : 0.625,
         "candidateTime" : 0.625,
-        "posePercent" : 83.76,
+        "posePercent" : 52.16,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 31,
         "normalizedTime" : 0.645833,
         "sourceTime" : 0.645833,
         "candidateTime" : 0.645833,
-        "posePercent" : 83.32,
+        "posePercent" : 51.95,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 32,
         "normalizedTime" : 0.666667,
         "sourceTime" : 0.666667,
         "candidateTime" : 0.666667,
-        "posePercent" : 82.89,
+        "posePercent" : 51.75,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 33,
         "normalizedTime" : 0.6875,
         "sourceTime" : 0.6875,
         "candidateTime" : 0.6875,
-        "posePercent" : 82.46,
+        "posePercent" : 51.58,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 34,
         "normalizedTime" : 0.708333,
         "sourceTime" : 0.708333,
         "candidateTime" : 0.708333,
-        "posePercent" : 82.04,
+        "posePercent" : 51.42,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 35,
         "normalizedTime" : 0.729167,
         "sourceTime" : 0.729167,
         "candidateTime" : 0.729167,
-        "posePercent" : 81.62,
+        "posePercent" : 51.28,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 36,
         "normalizedTime" : 0.75,
         "sourceTime" : 0.75,
         "candidateTime" : 0.75,
-        "posePercent" : 81.21,
+        "posePercent" : 51.15,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 37,
         "normalizedTime" : 0.770833,
         "sourceTime" : 0.770833,
         "candidateTime" : 0.770833,
-        "posePercent" : 80.81,
+        "posePercent" : 51.04,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 38,
         "normalizedTime" : 0.791667,
         "sourceTime" : 0.791667,
         "candidateTime" : 0.791667,
-        "posePercent" : 80.4,
+        "posePercent" : 50.93,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 39,
         "normalizedTime" : 0.8125,
         "sourceTime" : 0.8125,
         "candidateTime" : 0.8125,
-        "posePercent" : 80.01,
+        "posePercent" : 50.84,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 40,
         "normalizedTime" : 0.833333,
         "sourceTime" : 0.833333,
         "candidateTime" : 0.833333,
-        "posePercent" : 79.62,
+        "posePercent" : 50.76,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 41,
         "normalizedTime" : 0.854167,
         "sourceTime" : 0.854167,
         "candidateTime" : 0.854167,
-        "posePercent" : 79.23,
+        "posePercent" : 50.68,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 42,
         "normalizedTime" : 0.875,
         "sourceTime" : 0.875,
         "candidateTime" : 0.875,
-        "posePercent" : 78.85,
+        "posePercent" : 50.61,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 43,
         "normalizedTime" : 0.895833,
         "sourceTime" : 0.895833,
         "candidateTime" : 0.895833,
-        "posePercent" : 78.48,
+        "posePercent" : 50.55,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 44,
         "normalizedTime" : 0.916667,
         "sourceTime" : 0.916667,
         "candidateTime" : 0.916667,
-        "posePercent" : 78.11,
+        "posePercent" : 50.5,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 45,
         "normalizedTime" : 0.9375,
         "sourceTime" : 0.9375,
         "candidateTime" : 0.9375,
-        "posePercent" : 77.74,
+        "posePercent" : 50.45,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 46,
         "normalizedTime" : 0.958333,
         "sourceTime" : 0.958333,
         "candidateTime" : 0.958333,
-        "posePercent" : 77.38,
+        "posePercent" : 50.4,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 47,
         "normalizedTime" : 0.979167,
         "sourceTime" : 0.979167,
         "candidateTime" : 0.979167,
-        "posePercent" : 77.03,
+        "posePercent" : 50.36,
         "comparedJointCount" : 1
       }, {
         "sampleIndex" : 48,
         "normalizedTime" : 1.0,
         "sourceTime" : 1.0,
         "candidateTime" : 1.0,
-        "posePercent" : 76.67,
+        "posePercent" : 50.33,
         "comparedJointCount" : 1
       } ],
       "limitations" : [ "Similarity is evidence, not a determination of ownership or infringement.", "Transforms are compared in local joint space; rig retargeting is not inferred.", "Easing metadata is fingerprinted and lightly scored; interpolation uses linear position and quaternion slerp." ]

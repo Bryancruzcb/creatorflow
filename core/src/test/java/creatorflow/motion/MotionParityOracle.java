@@ -35,11 +35,15 @@ final class MotionParityOracle {
                 twoJoint("100", "Root/Hip", "Root/Hip/Arm"), twoJoint("200", "Root/Hip", "Root/Leg")));
         cases.add(new OracleCase("single-keyframe-track", "source track has one key (early-return sampling)",
                 singleKey("100"), walk("200")));
-        // NOTE: matrix-derived quaternions canonicalize to w>0 in the trace branch, so a
-        // 10-vs-350 sweep yields dot = cos(10) > 0 and never negates. 170 vs -170 gives
-        // dot = cos(170) < 0 and forces the shortest-arc negation during interpolation.
-        cases.add(new OracleCase("slerp-shortest-arc", "yaw 170 vs yaw -170 keys force dot<0 negation",
-                yawSweep("100", 170.0, -170.0), yawSweep("200", 170.0, 170.0)));
+        // NOTE: fromRotationMatrix canonicalizes a sign in EVERY branch (trace: w>0;
+        // m11-dominant: y>0; ...), so symmetric pairs like 10/350 or 170/-170 both
+        // come back with a positive canonical component and dot > 0 — the negation
+        // never fires. To force dot<0 both endpoints must stay in the trace branch
+        // (|yaw| < 120 keeps trace = 1+2cos(yaw) > 0) while the half-angle exceeds 45
+        // degrees with opposite signs: yaw 100 vs -100 gives dot = cos^2(50)-sin^2(50)
+        // = cos(100) = -0.17 < 0. Verified by replaying the engine's own math.
+        cases.add(new OracleCase("slerp-shortest-arc", "yaw 100 vs yaw -100 keys force dot<0 negation",
+                yawSweep("100", 100.0, -100.0), yawSweep("200", 100.0, 100.0)));
         cases.add(new OracleCase("slerp-nlerp-fallback", "yaw 0 vs yaw 1 keys force dot>0.9995 fallback",
                 yawSweep("100", 0.0, 1.0), yawSweep("200", 0.5, 0.5)));
         cases.add(new OracleCase("matrix-branch-trace", "small yaw rotation (trace>0)",
