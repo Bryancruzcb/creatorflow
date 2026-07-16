@@ -119,4 +119,9 @@ describe('mirror', () => {
     expect(twice.tracks.map(({ name, type, times, values }) => ({ name, type, times, values })))
       .toEqual(baseClip().tracks);
   });
+
+  it('throws when the node list yields a non-involutive swap map (never silently corrupt a fixture)', () => {
+    expect(() => buildMirrorNameSwapper(['b_LeftHair_010', 'b_LeftHair_011', 'b_RightHair_012']))
+      .toThrow(/involution/);
+  });
 });
