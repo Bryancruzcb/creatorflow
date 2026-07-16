@@ -26,7 +26,12 @@ threshold fails CI until the baseline is regenerated on purpose:
 
 - Mirrored fixtures swap left/right joints and reflect curves across the YZ plane.
   That is a faithful mirror only insofar as the rigs are left/right symmetric (both
-  are, near enough). Expect ~0% mirror recall until Phase 3's mirror canonicalization.
+  are, near enough). At baseline the engine already flags 10/17 mirrored fixtures
+  (58.8%): every hit is on the robot rig's symmetric holds and gross-motion clips
+  (Dance, Death, Idle, Jump, No, Sitting, Standing, Walking, WalkJump, Yes), while it
+  misses all 3 fox rig mirrors (Run, Survey, Walk) and 4 more robot clips (Punch,
+  Running, ThumbsUp, Wave). Dedicated mirror canonicalization — to close that gap on
+  purpose rather than by accident — is still Phase 3's job.
 - A scorecard number is a measurement, not a verdict. Precision (not flagging the
   innocent) outranks recall — a change that raises recall by raising the family/unrelated
   false-positive rate is a regression.
