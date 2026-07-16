@@ -9,6 +9,8 @@ threshold fails CI until the baseline is regenerated on purpose:
 
     UPDATE_MOTION_BASELINE=1 npm test    # then commit the diff and report before/after
 
+    # PowerShell:  $env:UPDATE_MOTION_BASELINE = '1'; npm test; Remove-Item Env:UPDATE_MOTION_BASELINE
+
 ## Labels
 
 - **Positives** (should match): programmatic derivations of each clip — `reupload`
