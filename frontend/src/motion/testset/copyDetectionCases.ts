@@ -19,7 +19,7 @@ import type { RigMotionFixture } from './fixtureLoader';
 export type CaseKind = 'positive' | 'negative' | 'variant';
 export type CaseClass =
   | 'reupload' | 'retime-fast' | 'retime-slow' | 'hold' | 'rescale' | 'relocate' | 'mirror'
-  | 'unrelated' | 'family' | 'variant';
+  | 'unrelated' | 'family' | 'variant' | 'partial-coverage';
 
 export interface CopyDetectionCase {
   id: string;
@@ -46,6 +46,22 @@ const pairKey = (rigId: string, a: string, b: string) => {
   const [first, second] = [a, b].sort();
   return `${rigId}:${first}-vs-${second}`;
 };
+
+// Partial-coverage negatives (Phase 1b): a candidate that shares only SOME tracks
+// with the source — the rest renamed to unshared joints. Identical curve data on
+// the shared slice makes these maximally hard: any engine whose composition
+// under-penalizes low coverage will flag them, and flagging a clip that shares
+// one limb's motion with 20 unrelated tracks is a false accusation.
+const PARTIAL_SOURCE: Record<string, string> = { robot: 'Walking', fox: 'Walk' };
+
+function partialCoverageCandidate(clip: MotionCurves, sharedCount: number): MotionCurves {
+  const tracks = clip.tracks.map((track, index) => (
+    index < sharedCount
+      ? { ...track, times: track.times.slice(), values: track.values.slice() }
+      : { ...track, name: `Unshared${index}.${track.name.slice(track.name.lastIndexOf('.') + 1)}`, times: track.times.slice(), values: track.values.slice() }
+  ));
+  return { ...clip, name: `${clip.name} (partial ${sharedCount})`, tracks };
+}
 
 export function buildCases(fixtures: RigMotionFixture[]): CopyDetectionCase[] {
   const cases: CopyDetectionCase[] = [];
@@ -94,6 +110,21 @@ export function buildCases(fixtures: RigMotionFixture[]): CopyDetectionCase[] {
           candidate: sorted[j],
         });
       }
+    }
+
+    const partialSource = fixture.clips.find((clip) => clip.name === PARTIAL_SOURCE[fixture.rigId]);
+    if (!partialSource) throw new Error(`partial-coverage source clip missing for rig ${fixture.rigId}`);
+    for (const [label, sharedCount] of [['low', 2], ['half', Math.floor(partialSource.tracks.length / 2)]] as const) {
+      cases.push({
+        id: `${fixture.rigId}:neg-partial:${label}:${partialSource.name}`,
+        rigId: fixture.rigId,
+        kind: 'negative',
+        caseClass: 'partial-coverage',
+        sourceName: partialSource.name,
+        candidateName: `${partialSource.name} (partial ${sharedCount})`,
+        source: partialSource,
+        candidate: partialCoverageCandidate(partialSource, sharedCount),
+      });
     }
   }
   return cases;
