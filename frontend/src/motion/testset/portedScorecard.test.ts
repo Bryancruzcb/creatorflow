@@ -16,7 +16,7 @@ import { buildCases } from './copyDetectionCases';
 import { loadRigFixture } from './fixtureLoader';
 import { formatScorecard, portedEngineAdapter, runScorecard } from './scorecard';
 
-const ENGINE_TITLE = 'ported Java-parity engine (49 samples / verdict bands 90-70)';
+const ENGINE_TITLE = 'ported Java-parity engine (49 samples / flags at >=90 or exact)';
 const baselinePath = fileURLToPath(new URL('./scorecard.ported.baseline.json', import.meta.url));
 
 describe('ported-engine copy-detection scorecard', () => {
@@ -62,7 +62,7 @@ describe('ported-engine copy-detection scorecard', () => {
       recall: { hit: scorecard.recall.overall.hit, total: scorecard.recall.overall.total },
       falsePositives: { hit: scorecard.falsePositives.overall.hit, total: scorecard.falsePositives.overall.total },
     };
-    if (process.env.UPDATE_MOTION_PORTED_BASELINE) {
+    if (process.env.UPDATE_MOTION_PORTED_BASELINE === '1') {
       const reuploadRows = scorecard.rows.filter((row) => row.caseClass === 'reupload');
       const anchorHolds = reuploadRows.length === 17 && reuploadRows.every((row) => row.flagged && row.exact);
       if (!anchorHolds) throw new Error('refusing to write ported baseline: reupload anchor failing');

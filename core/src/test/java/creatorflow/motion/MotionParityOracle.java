@@ -74,6 +74,8 @@ final class MotionParityOracle {
                 realistic("100", 0.0), realistic("200", 7.0)));
         cases.add(new OracleCase("realistic-close-pair", "same as realistic but 2 degrees apart (HIGH band)",
                 realistic("100", 0.0), realistic("200", 2.0)));
+        cases.add(new OracleCase("fixture-scale-sparse", "20 joints x 30 irregular keys, one sparse joint",
+                fixtureScale("100", 0.0), fixtureScale("200", 3.0)));
 
         return List.of(cases.toArray(OracleCase[]::new));
     }
@@ -242,6 +244,26 @@ final class MotionParityOracle {
                 poses[j] = new NormalizedPose(joints[j], cframe(x, 0.02 * j, -0.05 * j, rotation), 1.0, "Linear", "InOut");
             }
             frames[k] = new NormalizedKeyframe(time, List.of(poses));
+        }
+        return anim(id, 1.0, frames);
+    }
+
+    private static NormalizedAnimation fixtureScale(String id, double offsetDegrees) {
+        int jointCount = 20;
+        int keyCount = 30;
+        NormalizedKeyframe[] frames = new NormalizedKeyframe[keyCount];
+        for (int k = 0; k < keyCount; k++) {
+            double time = Math.pow((double) k / (keyCount - 1), 1.35); // irregular spacing, strictly increasing
+            java.util.List<NormalizedPose> poses = new java.util.ArrayList<>();
+            for (int j = 0; j < jointCount; j++) {
+                if (j == 7 && k % 3 != 0) continue; // joint 7 is sparse: keys only every 3rd frame
+                double yaw = Math.sin(2.0 * Math.PI * time + 0.7 * j) * 55.0 + offsetDegrees;
+                double pitch = Math.cos(2.0 * Math.PI * time + 0.3 * j) * 30.0;
+                double x = 0.15 * Math.sin(2.0 * Math.PI * time + 0.2 * j);
+                double[] rotation = multiply(yawMatrix(yaw), pitchMatrix(pitch));
+                poses.add(new NormalizedPose("Rig/J" + j, cframe(x, 0.01 * j, -0.02 * j, rotation), 1.0, "Linear", "InOut"));
+            }
+            frames[k] = new NormalizedKeyframe(time, java.util.List.copyOf(poses));
         }
         return anim(id, 1.0, frames);
     }

@@ -64,7 +64,7 @@ describe('v2-engine copy-detection scorecard', () => {
       recall: { hit: scorecard.recall.overall.hit, total: scorecard.recall.overall.total },
       falsePositives: { hit: scorecard.falsePositives.overall.hit, total: scorecard.falsePositives.overall.total },
     };
-    if (process.env.UPDATE_MOTION_TUNED_BASELINE) {
+    if (process.env.UPDATE_MOTION_TUNED_BASELINE === '1') {
       const reuploadRows = scorecard.rows.filter((row) => row.caseClass === 'reupload');
       const anchorHolds = reuploadRows.length === 17 && reuploadRows.every((row) => row.flagged && row.exact);
       if (!anchorHolds) throw new Error('refusing to write tuned baseline: reupload anchor failing');
