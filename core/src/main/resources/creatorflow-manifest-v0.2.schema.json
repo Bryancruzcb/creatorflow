@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://creatorflow.dev/schemas/creatorflow-manifest-v0.2.schema.json",
+  "title": "CreatorFlow Creative Manifest v0.2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["$schema", "project", "generatedAt", "summary", "gate", "assets"],
+  "properties": {
+    "$schema": { "const": "creatorflow.manifest/v0.2" },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "release"],
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "release": { "type": "string", "minLength": 1 }
+      }
+    },
+    "experience": {
+      "type": ["object", "null"],
+      "additionalProperties": false,
+      "required": ["universeId", "placeId", "experienceName"],
+      "properties": {
+        "universeId": { "type": "integer", "minimum": 1 },
+        "placeId": { "type": "integer", "minimum": 1 },
+        "experienceName": { "type": "string", "minLength": 1 }
+      }
+    },
+    "generatedAt": { "type": "string", "format": "date-time" },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["total", "clear", "similar", "duplicate", "unresolvedSources", "pendingDecisions"],
+      "properties": {
+        "total": { "type": "integer", "minimum": 0 },
+        "clear": { "type": "integer", "minimum": 0 },
+        "similar": { "type": "integer", "minimum": 0 },
+        "duplicate": { "type": "integer", "minimum": 0 },
+        "unresolvedSources": { "type": "integer", "minimum": 0 },
+        "pendingDecisions": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "gate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["result", "reasons"],
+      "properties": {
+        "result": { "enum": ["PASS", "BLOCKED"] },
+        "reasons": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["code", "assetPath", "verification", "decision", "message"],
+            "properties": {
+              "code": { "type": "string", "minLength": 1 },
+              "assetPath": { "type": "string", "minLength": 1 },
+              "verification": { "type": "string", "minLength": 1 },
+              "decision": { "type": "string", "minLength": 1 },
+              "message": { "type": "string", "minLength": 1 }
+            }
+          }
+        }
+      }
+    },
+    "assets": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/asset" }
+    }
+  },
+  "$defs": {
+    "nullableHex": { "type": ["string", "null"], "pattern": "^[0-9a-f]{16}$" },
+    "nullableString": { "type": ["string", "null"] },
+    "asset": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "fileName", "fileType", "sizeBytes", "sha256", "width", "height", "fingerprints", "verification", "source", "decision", "matches", "findings"],
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "pattern": "^(?!/)(?![A-Za-z]:/)(?!.*(?:^|/)\\.\\.(?:/|$)).+$" },
+        "fileName": { "type": "string", "minLength": 1 },
+        "fileType": { "type": "string" },
+        "sizeBytes": { "type": "integer", "minimum": 0 },
+        "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+        "width": { "type": "integer", "minimum": 0 },
+        "height": { "type": "integer", "minimum": 0 },
+        "fingerprints": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dHash", "pHash", "audio"],
+          "properties": {
+            "dHash": { "$ref": "#/$defs/nullableHex" },
+            "pHash": { "$ref": "#/$defs/nullableHex" },
+            "audio": { "$ref": "#/$defs/nullableHex" }
+          }
+        },
+        "verification": { "enum": ["CLEAR", "SIMILAR", "DUPLICATE"] },
+        "source": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["source", "license", "evidenceUrl"],
+          "properties": {
+            "source": { "$ref": "#/$defs/nullableString" },
+            "license": { "$ref": "#/$defs/nullableString" },
+            "evidenceUrl": {
+              "oneOf": [
+                { "type": "null" },
+                { "type": "string", "format": "uri", "pattern": "^https?://" }
+              ]
+            }
+          }
+        },
+        "decision": { "enum": ["PENDING", "APPROVED", "NEEDS_REVIEW", "BLOCKED", "EXCLUDED"] },
+        "matches": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["matchedAssetId", "matchedFileName", "layer", "distance", "note"],
+            "properties": {
+              "matchedAssetId": { "type": "integer", "minimum": 1 },
+              "matchedFileName": { "type": "string", "minLength": 1 },
+              "layer": { "type": "string", "minLength": 1 },
+              "distance": { "type": "integer", "minimum": 0 },
+              "note": { "type": "string", "minLength": 1 }
+            }
+          }
+        },
+        "findings": { "type": "array", "items": { "type": "string" } }
+      }
+    }
+  }
+}

@@ -29,7 +29,12 @@ public final class ReleaseGateCli {
         System.exit(run(args, System.out, System.err));
     }
 
-    /** Testable entry point: 0 passes, 2 is policy-blocked, and 3 is invalid input/execution failure. */
+    /**
+     * Testable entry point. Exit codes: 0 passes, 2 is policy-blocked, 4 is an embedded-gate
+     * integrity mismatch (a v0.2 manifest's own {@code gate.result} disagrees with a fresh
+     * evaluation — tampered or stale, must not silently pass), and 3 is invalid input/execution
+     * failure.
+     */
     public static int run(String[] args, PrintStream out, PrintStream err) {
         if (args.length != 1 && !(args.length == 3 && "--output".equals(args[1]))) {
             writeJson(out, new ErrorReport("creatorflow.gate-error/v0.1", 3,
@@ -40,6 +45,15 @@ public final class ReleaseGateCli {
         try {
             CreativeManifest manifest = new ManifestJson().read(Path.of(args[0]));
             ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+            String recomputedResult = report.passed() ? "PASS" : "BLOCKED";
+            if (manifest.gate() != null && !manifest.gate().result().equals(recomputedResult)) {
+                writeJson(out, new ErrorReport("creatorflow.gate-error/v0.1", 4,
+                        "Embedded gate result (" + manifest.gate().result() + ") does not match the "
+                                + "recomputed result (" + recomputedResult + "); the manifest's embedded "
+                                + "gate is tampered or stale"));
+                err.println("CreatorFlow release gate: embedded gate result does not match recomputed result.");
+                return 4;
+            }
             String json = JSON.writeValueAsString(report) + "\n";
             out.print(json);
             if (args.length == 3) writeOutput(Path.of(args[2]), json);
