@@ -104,6 +104,9 @@ export function compareMotion(
   // drift out (it costs strictly more than the trivial per-cell saving accumulates to) while
   // staying far below the large, sustained per-cell savings a genuine inserted hold produces
   // (see motionEngine.test.ts's 'reports zero warp' vs 'aligns an inserted hold' cases).
+  // Measured window (Task 5 review): nearCopy needs >= ~0.05; the synthetic held-sweep
+  // gate erodes above ~0.15; real hold fixtures hold to ~0.5. Re-derive if sampleCount,
+  // pose weights, or the cost-cell scale change — the constant is coupled to all three.
   const STEP_PENALTY = 0.1;
   const INF = Number.POSITIVE_INFINITY;
   const cost: number[][] = Array.from({ length: sampleCount }, () => Array(sampleCount).fill(INF));
