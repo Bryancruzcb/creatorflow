@@ -106,7 +106,7 @@ public final class ReleaseExportService {
 
         CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA,
                 new CreativeManifest.Project(project.name(), releaseName), Instant.now(),
-                summarize(entries), entries);
+                summarize(entries), entries, intendedExperienceOf(project));
         ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
         ReleaseRecord previous = releases.latestForProject(projectId).orElse(null);
         ReleaseComparison comparison = compare(previous, manifest);
@@ -114,11 +114,24 @@ public final class ReleaseExportService {
         String reportJson = write(report);
         String comparisonJson = write(comparison);
         ReleaseRecord release = releases.insert(scanRunId, releaseName, manifestJson,
-                report.passed() ? "PASS" : "BLOCKED", reportJson, comparisonJson);
+                report.passed() ? "PASS" : "BLOCKED", reportJson, comparisonJson,
+                project.universeId(), project.placeId(), project.experienceName());
         audit.append(scanRunId, "RELEASE_CREATED", write(Map.of(
                 "releaseId", release.id(), "passed", report.passed(),
                 "violations", report.violations().size())));
         return new ReleaseBundle(release, manifest, report, comparison);
+    }
+
+    /**
+     * The project's declared intended experience, if fully bound; null when the project
+     * has no (or only a partial, which should never happen via the bridge) declaration.
+     */
+    private static CreativeManifest.IntendedExperience intendedExperienceOf(LocalProject project) {
+        if (project.universeId() == null || project.placeId() == null || project.experienceName() == null) {
+            return null;
+        }
+        return new CreativeManifest.IntendedExperience(
+                project.universeId(), project.placeId(), project.experienceName());
     }
 
     private static Match toMatch(ScanFinding finding, Map<Integer, ScanAsset> byOrdinal) {

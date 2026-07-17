@@ -20,7 +20,8 @@ final class SchemaMigrator {
             new Migration(3, "workspace_state", "/creatorflow/db/migrations/V003__workspace_state.sql"),
             new Migration(4, "release_artifacts", "/creatorflow/db/migrations/V004__release_artifacts.sql"),
             new Migration(5, "animation_comparisons", "/creatorflow/db/migrations/V005__animation_comparisons.sql"),
-            new Migration(6, "motion_snapshots", "/creatorflow/db/migrations/V006__motion_snapshots.sql"));
+            new Migration(6, "motion_snapshots", "/creatorflow/db/migrations/V006__motion_snapshots.sql"),
+            new Migration(7, "intended_experience", "/creatorflow/db/migrations/V007__intended_experience.sql"));
 
     private final Connection connection;
 
