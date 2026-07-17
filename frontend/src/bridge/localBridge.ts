@@ -119,6 +119,8 @@ export interface LocalRelease {
   comparison: LocalReleaseComparison;
   report?: unknown;
   experience?: LocalIntendedExperience | null;
+  /** The Roblox place version a team reports having published this release as — self-reported, not verified. */
+  publishedPlaceVersion?: number | null;
 }
 
 export interface StartScanRequest {
@@ -336,6 +338,14 @@ export class LocalBridgeClient {
 
   releaseManifestUrl(releaseId: string) {
     return `/api/v1/releases/${encodeURIComponent(releaseId)}/manifest`;
+  }
+
+  /** Records (self-reported, not verified against Roblox) the place version a team published a release as. */
+  recordPublishedVersion(releaseId: string, publishedPlaceVersion: number) {
+    return this.request<LocalRelease>(`/api/v1/releases/${encodeURIComponent(releaseId)}/published-version`, {
+      method: 'POST',
+      body: { publishedPlaceVersion },
+    });
   }
 
   releaseReportUrl(releaseId: string) {
