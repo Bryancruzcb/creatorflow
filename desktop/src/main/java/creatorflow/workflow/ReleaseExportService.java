@@ -21,7 +21,6 @@ import creatorflow.manifest.ManifestJson;
 import creatorflow.manifest.ReleaseGate;
 import creatorflow.model.VerificationStatus;
 import java.io.IOException;
-import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -104,10 +103,25 @@ public final class ReleaseExportService {
                     asset.verification(), source, releaseDecision, matches, asset.findings()));
         }
 
+        // generatedAt is derived from the immutable scan snapshot's completedAt (never wall-clock)
+        // so re-creating a release from the same completed ScanRun is byte-identical.
+        CreativeManifest.Summary summary = summarize(entries);
+        CreativeManifest.IntendedExperience experience = intendedExperienceOf(project);
+
+        // Chicken/egg: ReleaseGate.evaluate() needs a CreativeManifest, but a v0.2 manifest requires
+        // a non-null gate. ReleaseGate.evaluate() only reads $schema/project/summary/assets — never
+        // the gate field itself — so a placeholder gate is safe here; it is discarded below in favor
+        // of the real, computed one. Every other field is identical between the draft and the final
+        // manifest, so evaluating against the draft is equivalent to evaluating against the final one.
+        CreativeManifest.Gate placeholderGate = new CreativeManifest.Gate("PASS", List.of());
+        CreativeManifest draft = new CreativeManifest(CreativeManifest.SCHEMA,
+                new CreativeManifest.Project(project.name(), releaseName), run.completedAt(),
+                summary, entries, experience, placeholderGate);
+        ReleaseGate.Report report = new ReleaseGate().evaluate(draft);
+        CreativeManifest.Gate gate = toGate(report);
         CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA,
-                new CreativeManifest.Project(project.name(), releaseName), Instant.now(),
-                summarize(entries), entries, intendedExperienceOf(project));
-        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+                new CreativeManifest.Project(project.name(), releaseName), run.completedAt(),
+                summary, entries, experience, gate);
         ReleaseRecord previous = releases.latestForProject(projectId).orElse(null);
         ReleaseComparison comparison = compare(previous, manifest);
         String manifestJson = writeManifest(manifest);
@@ -132,6 +146,19 @@ public final class ReleaseExportService {
         }
         return new CreativeManifest.IntendedExperience(
                 project.universeId(), project.placeId(), project.experienceName());
+    }
+
+    /**
+     * Maps a {@link ReleaseGate.Report} onto the manifest's embedded gate block. {@code result}
+     * reflects process/evidence completeness (decisions resolved, sources present, flags approved) —
+     * not a copyright or originality verdict; a PASS must never be read as "original" or "cleared".
+     */
+    private static CreativeManifest.Gate toGate(ReleaseGate.Report report) {
+        List<CreativeManifest.Gate.Reason> reasons = report.violations().stream()
+                .map(violation -> new CreativeManifest.Gate.Reason(violation.code().name(), violation.path(),
+                        violation.verification().name(), violation.decision().name(), violation.message()))
+                .toList();
+        return new CreativeManifest.Gate(report.passed() ? "PASS" : "BLOCKED", reasons);
     }
 
     private static Match toMatch(ScanFinding finding, Map<Integer, ScanAsset> byOrdinal) {
@@ -172,7 +199,9 @@ public final class ReleaseExportService {
     }
 
     private static CreativeManifest emptyPrevious(CreativeManifest current) {
-        return new CreativeManifest(CreativeManifest.SCHEMA, current.project(), current.generatedAt(),
+        // Scaffolding only, never persisted or serialized — the schema version is irrelevant here,
+        // so the simplest (gate-free) v0.1 shape is used to build it.
+        return new CreativeManifest(CreativeManifest.SCHEMA_V1, current.project(), current.generatedAt(),
                 new CreativeManifest.Summary(0, 0, 0, 0, 0, 0), List.of());
     }
 

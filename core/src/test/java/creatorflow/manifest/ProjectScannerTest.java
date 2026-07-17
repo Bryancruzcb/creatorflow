@@ -40,7 +40,7 @@ class ProjectScannerTest {
         ProjectScanner scanner = new ProjectScanner(new OriginalityEngine(), clock);
         CreativeManifest manifest = scanner.scan(dir, "Northwind", "1.2.0");
 
-        assertEquals(CreativeManifest.SCHEMA, manifest.schema());
+        assertEquals(CreativeManifest.SCHEMA_V1, manifest.schema());
         assertEquals(4, manifest.assets().size());
         assertEquals(manifest.assets().stream().map(CreativeManifest.AssetEntry::path).sorted().toList(),
                 manifest.assets().stream().map(CreativeManifest.AssetEntry::path).toList());

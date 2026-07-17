@@ -1,8 +1,10 @@
 import Ajv2020, { type ErrorObject } from 'ajv/dist/2020';
 import addFormats from 'ajv-formats';
-import manifestSchema from './creatorflow-manifest-v0.1.schema.json';
+import manifestSchemaV1 from './creatorflow-manifest-v0.1.schema.json';
+import manifestSchemaV2 from './creatorflow-manifest-v0.2.schema.json';
 
 export const CREATORFLOW_MANIFEST_SCHEMA = 'creatorflow.manifest/v0.1' as const;
+export const CREATORFLOW_MANIFEST_SCHEMA_V2 = 'creatorflow.manifest/v0.2' as const;
 export const MAX_MANIFEST_BYTES = 25 * 1024 * 1024;
 export const MANIFEST_PAGE_SIZE = 100;
 
@@ -51,8 +53,26 @@ export interface ManifestIntendedExperience {
   experienceName: string;
 }
 
+export interface ManifestGateReason {
+  code: string;
+  assetPath: string;
+  verification: string;
+  decision: string;
+  message: string;
+}
+
+/**
+ * The embedded release-gate outcome on a v0.2 manifest. `result` reflects process/evidence
+ * completeness (decisions resolved, sources present, flags approved) — it is not a copyright
+ * or originality verdict. A PASS must never be presented as "original" or "cleared for copyright".
+ */
+export interface ManifestGate {
+  result: 'PASS' | 'BLOCKED';
+  reasons: ManifestGateReason[];
+}
+
 export interface CreatorFlowManifest {
-  $schema: typeof CREATORFLOW_MANIFEST_SCHEMA;
+  $schema: typeof CREATORFLOW_MANIFEST_SCHEMA | typeof CREATORFLOW_MANIFEST_SCHEMA_V2;
   project: {
     name: string;
     release: string;
@@ -68,6 +88,8 @@ export interface CreatorFlowManifest {
     unresolvedSources: number;
     pendingDecisions: number;
   };
+  /** Present on v0.2 manifests only; absent on v0.1 (pre-gate) manifests. */
+  gate?: ManifestGate;
   assets: ManifestAsset[];
 }
 
@@ -82,7 +104,8 @@ export type ManifestValidationResult =
 
 const ajv = new Ajv2020({ allErrors: true, strict: true });
 addFormats(ajv);
-const validateSchema = ajv.compile<CreatorFlowManifest>(manifestSchema);
+const validateSchemaV1 = ajv.compile<CreatorFlowManifest>(manifestSchemaV1);
+const validateSchemaV2 = ajv.compile<CreatorFlowManifest>(manifestSchemaV2);
 
 function schemaIssue(error: ErrorObject): ManifestValidationIssue {
   const missingProperty = typeof error.params.missingProperty === 'string' ? `/${error.params.missingProperty}` : '';
@@ -181,6 +204,22 @@ export function validateManifestText(text: string, byteLength = new TextEncoder(
     return {
       ok: false,
       issues: [{ path: '/', message: error instanceof Error ? `is not valid JSON: ${error.message}` : 'is not valid JSON' }],
+    };
+  }
+
+  const schemaValue = value !== null && typeof value === 'object'
+    ? (value as Record<string, unknown>).$schema
+    : undefined;
+  const validateSchema = schemaValue === CREATORFLOW_MANIFEST_SCHEMA_V2 ? validateSchemaV2
+    : schemaValue === CREATORFLOW_MANIFEST_SCHEMA ? validateSchemaV1
+    : undefined;
+  if (!validateSchema) {
+    return {
+      ok: false,
+      issues: [{
+        path: '/$schema',
+        message: `is ${JSON.stringify(schemaValue)}; expected '${CREATORFLOW_MANIFEST_SCHEMA}' or '${CREATORFLOW_MANIFEST_SCHEMA_V2}'`,
+      }],
     };
   }
 

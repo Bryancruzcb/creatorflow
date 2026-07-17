@@ -299,8 +299,10 @@ public final class ProjectScanner {
         int duplicate = count(entries, VerificationStatus.DUPLICATE);
         int unresolved = (int) entries.stream().filter(entry -> !entry.source().resolved()).count();
         int pending = (int) entries.stream().filter(entry -> entry.decision() == ReleaseDecision.PENDING).count();
+        // A bare scan never evaluates the release gate (that's ReleaseGate/ReleaseGateCli's job), so it
+        // cannot self-certify a v0.2 gate block; it stays on the still-supported v0.1 schema.
         return new CreativeManifest(
-                CreativeManifest.SCHEMA,
+                CreativeManifest.SCHEMA_V1,
                 new CreativeManifest.Project(projectName, release),
                 generatedAt,
                 new CreativeManifest.Summary(entries.size(), clear, similar, duplicate, unresolved, pending),

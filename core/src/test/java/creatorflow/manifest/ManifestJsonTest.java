@@ -58,6 +58,16 @@ class ManifestJsonTest {
     }
 
     @Test
+    void v2SchemaAlsoShipsInsideTheCoreJar() throws Exception {
+        try (var stream = ManifestJsonTest.class.getResourceAsStream("/creatorflow-manifest-v0.2.schema.json")) {
+            assertTrue(stream != null);
+            String contents = new String(stream.readAllBytes());
+            assertTrue(contents.contains("creatorflow.manifest/v0.2"));
+            assertTrue(contents.contains("\"gate\""));
+        }
+    }
+
+    @Test
     void rejectsSemanticallyIncorrectSummaryAndUnsafeEvidenceUrl() {
         String wrongSummary = """
                 {
@@ -94,7 +104,7 @@ class ManifestJsonTest {
         CreativeManifest.Summary emptySummary = new CreativeManifest.Summary(0, 0, 0, 0, 0, 0);
         IntendedExperience experience = new IntendedExperience(1234567890L, 9876543210L, "Obby Tower");
 
-        CreativeManifest withExperience = new CreativeManifest(CreativeManifest.SCHEMA,
+        CreativeManifest withExperience = new CreativeManifest(CreativeManifest.SCHEMA_V1,
                 new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
                 emptySummary, List.of(), experience);
         String written = json.write(withExperience);
@@ -103,7 +113,7 @@ class ManifestJsonTest {
         assertEquals(withExperience, json.read(written));
         assertEquals(experience, json.read(written).experience());
 
-        CreativeManifest withoutExperience = new CreativeManifest(CreativeManifest.SCHEMA,
+        CreativeManifest withoutExperience = new CreativeManifest(CreativeManifest.SCHEMA_V1,
                 new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
                 emptySummary, List.of());
         String writtenWithout = json.write(withoutExperience);
@@ -122,5 +132,87 @@ class ManifestJsonTest {
                 () -> new IntendedExperience(1, 1, "  "));
         assertThrows(IllegalArgumentException.class,
                 () -> new IntendedExperience(1, 1, null));
+    }
+
+    @Test
+    void v2ManifestEmbedsAPassOrBlockedGateAndRoundTrips() throws Exception {
+        ManifestJson json = new ManifestJson();
+        CreativeManifest.Summary emptySummary = new CreativeManifest.Summary(0, 0, 0, 0, 0, 0);
+        CreativeManifest.Gate pass = new CreativeManifest.Gate("PASS", List.of());
+
+        CreativeManifest passing = new CreativeManifest(CreativeManifest.SCHEMA_V2,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                emptySummary, List.of(), null, pass);
+        String written = json.write(passing);
+        assertTrue(written.contains("\"gate\""));
+        assertTrue(written.contains("\"result\" : \"PASS\""));
+        assertTrue(written.contains("\"reasons\" : [ ]"));
+        assertTrue(written.contains("\"$schema\" : \"creatorflow.manifest/v0.2\""));
+        assertEquals(passing, json.read(written));
+        assertEquals(pass, json.read(written).gate());
+
+        CreativeManifest.Gate blocked = new CreativeManifest.Gate("BLOCKED", List.of(
+                new CreativeManifest.Gate.Reason("BLOCKED_DECISION", "art/hero.png", "CLEAR", "BLOCKED",
+                        "A BLOCKED decision always prevents release")));
+        CreativeManifest failing = new CreativeManifest(CreativeManifest.SCHEMA_V2,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                emptySummary, List.of(), null, blocked);
+        String writtenBlocked = json.write(failing);
+        assertTrue(writtenBlocked.contains("\"result\" : \"BLOCKED\""));
+        assertTrue(writtenBlocked.contains("\"assetPath\" : \"art/hero.png\""));
+        assertEquals(failing, json.read(writtenBlocked));
+        assertEquals(1, json.read(writtenBlocked).gate().reasons().size());
+    }
+
+    @Test
+    void v1ManifestsStillValidateAndCarryNoGate() throws Exception {
+        ManifestJson json = new ManifestJson();
+        CreativeManifest.Summary emptySummary = new CreativeManifest.Summary(0, 0, 0, 0, 0, 0);
+        CreativeManifest v1 = new CreativeManifest(CreativeManifest.SCHEMA_V1,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                emptySummary, List.of());
+        String written = json.write(v1);
+        assertFalse(written.contains("\"gate\""));
+        assertEquals(v1, json.read(written));
+        assertEquals(null, json.read(written).gate());
+    }
+
+    @Test
+    void rejectsAV2ManifestMissingItsGateBlock() {
+        String noGate = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 0, "clear": 0, "similar": 0, "duplicate": 0, "unresolvedSources": 0, "pendingDecisions": 0},
+                  "assets": []
+                }
+                """;
+        assertThrows(Exception.class, () -> new ManifestJson().read(noGate));
+    }
+
+    @Test
+    void rejectsAV1ManifestThatCarriesAGateBlock() {
+        String v1WithGate = """
+                {
+                  "$schema": "creatorflow.manifest/v0.1",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 0, "clear": 0, "similar": 0, "duplicate": 0, "unresolvedSources": 0, "pendingDecisions": 0},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": []
+                }
+                """;
+        assertThrows(Exception.class, () -> new ManifestJson().read(v1WithGate));
+    }
+
+    @Test
+    void rejectsAnInvalidGateResultOrBlankReasonField() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new CreativeManifest.Gate("MAYBE", List.of()));
+        assertThrows(IllegalArgumentException.class,
+                () -> new CreativeManifest.Gate.Reason("", "path", "CLEAR", "PENDING", "message"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new CreativeManifest.Gate.Reason("CODE", " ", "CLEAR", "PENDING", "message"));
     }
 }

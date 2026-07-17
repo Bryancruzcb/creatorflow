@@ -95,6 +95,57 @@ class ReleaseGateTest {
         assertTrue(output.toString(StandardCharsets.UTF_8).contains("\"exitCode\" : 3"));
     }
 
+    @Test
+    void cliAcceptsAV2ManifestWhoseEmbeddedGateMatchesTheRecomputedResult() throws Exception {
+        CreativeManifest.Gate correctGate = new CreativeManifest.Gate("PASS", List.of());
+        Path pass = dir.resolve("v2-pass.json");
+        new ManifestJson().write(pass, manifestV2(List.of(
+                asset("asset.png", VerificationStatus.CLEAR, ReleaseDecision.PENDING, true)), correctGate));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream errors = new ByteArrayOutputStream();
+
+        int code = ReleaseGateCli.run(new String[]{pass.toString()},
+                new PrintStream(output, true, StandardCharsets.UTF_8),
+                new PrintStream(errors, true, StandardCharsets.UTF_8));
+
+        assertEquals(0, code);
+        assertTrue(output.toString(StandardCharsets.UTF_8).contains("\"passed\" : true"));
+    }
+
+    @Test
+    void cliExitsWithADistinctCodeWhenTheEmbeddedGateIsTamperedOrStale() throws Exception {
+        // The asset is BLOCKED (must recompute to BLOCKED), but the embedded gate falsely claims PASS.
+        CreativeManifest.Gate tamperedGate = new CreativeManifest.Gate("PASS", List.of());
+        Path tampered = dir.resolve("v2-tampered.json");
+        new ManifestJson().write(tampered, manifestV2(List.of(
+                asset("asset.png", VerificationStatus.CLEAR, ReleaseDecision.BLOCKED, true)), tamperedGate));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream errors = new ByteArrayOutputStream();
+
+        int code = ReleaseGateCli.run(new String[]{tampered.toString()},
+                new PrintStream(output, true, StandardCharsets.UTF_8),
+                new PrintStream(errors, true, StandardCharsets.UTF_8));
+
+        assertEquals(4, code);
+        String out = output.toString(StandardCharsets.UTF_8);
+        assertTrue(out.contains("\"exitCode\" : 4"));
+        assertTrue(out.contains("does not match"));
+        assertTrue(errors.toString(StandardCharsets.UTF_8).contains("embedded gate"));
+    }
+
+    private static CreativeManifest manifestV2(List<AssetEntry> assets, CreativeManifest.Gate gate) {
+        int clear = (int) assets.stream().filter(a -> a.verification() == VerificationStatus.CLEAR).count();
+        int similar = (int) assets.stream().filter(a -> a.verification() == VerificationStatus.SIMILAR).count();
+        int duplicate = (int) assets.stream().filter(a -> a.verification() == VerificationStatus.DUPLICATE).count();
+        int unresolved = (int) assets.stream().filter(a -> !a.source().resolved()).count();
+        int pending = (int) assets.stream().filter(a -> a.decision() == ReleaseDecision.PENDING).count();
+        return new CreativeManifest(CreativeManifest.SCHEMA_V2,
+                new CreativeManifest.Project("Gate test", "1.0"),
+                Instant.parse("2026-07-12T20:00:00Z"),
+                new CreativeManifest.Summary(assets.size(), clear, similar, duplicate, unresolved, pending),
+                assets, null, gate);
+    }
+
     private static AssetEntry asset(String path, VerificationStatus verification,
                                     ReleaseDecision decision, boolean sourceResolved) {
         SourceEvidence source = sourceResolved
@@ -111,7 +162,7 @@ class ReleaseGateTest {
         int duplicate = (int) assets.stream().filter(a -> a.verification() == VerificationStatus.DUPLICATE).count();
         int unresolved = (int) assets.stream().filter(a -> !a.source().resolved()).count();
         int pending = (int) assets.stream().filter(a -> a.decision() == ReleaseDecision.PENDING).count();
-        return new CreativeManifest(CreativeManifest.SCHEMA,
+        return new CreativeManifest(CreativeManifest.SCHEMA_V1,
                 new CreativeManifest.Project("Gate test", "1.0"),
                 Instant.parse("2026-07-12T20:00:00Z"),
                 new CreativeManifest.Summary(assets.size(), clear, similar, duplicate, unresolved, pending),
