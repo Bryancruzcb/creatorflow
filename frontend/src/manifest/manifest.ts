@@ -11,6 +11,26 @@ export const MANIFEST_PAGE_SIZE = 100;
 export type ManifestVerification = 'CLEAR' | 'SIMILAR' | 'DUPLICATE';
 export type ManifestDecision = 'PENDING' | 'APPROVED' | 'NEEDS_REVIEW' | 'BLOCKED' | 'EXCLUDED';
 
+/**
+ * The provenance basis for one piece of manifest evidence. Honesty constraint: `VERIFIED` means
+ * CreatorFlow computed the value itself (e.g. a fingerprint match) — never "original", "owned", or
+ * "non-infringing". `DECLARED` means a human typed it. `NOT_VERIFIED` means the tool did not/cannot
+ * check it — an honest "unknown", never a negative verdict.
+ */
+export type ManifestEvidenceBasis = 'VERIFIED' | 'DECLARED' | 'NOT_VERIFIED';
+
+/**
+ * Per-facet evidence provenance for one asset. `decision` is omitted until a human records a
+ * decision. `ownership` is always `NOT_VERIFIED` — nothing in CreatorFlow calls a Roblox ownership
+ * or permission API.
+ */
+export interface ManifestEvidenceBases {
+  verification: ManifestEvidenceBasis;
+  source: ManifestEvidenceBasis;
+  ownership: ManifestEvidenceBasis;
+  decision?: ManifestEvidenceBasis;
+}
+
 export interface ManifestFingerprints {
   dHash: string | null;
   pHash: string | null;
@@ -43,6 +63,8 @@ export interface ManifestAsset {
   verification: ManifestVerification;
   source: ManifestSourceEvidence;
   decision: ManifestDecision;
+  /** OPTIONAL (v0.2, no schema bump): present when the export path has computed it. */
+  evidenceBases?: ManifestEvidenceBases;
   matches: ManifestMatch[];
   findings: string[];
 }

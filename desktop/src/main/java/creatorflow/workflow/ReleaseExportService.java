@@ -17,6 +17,7 @@ import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.Match;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.manifest.EvidenceBases;
 import creatorflow.manifest.ManifestJson;
 import creatorflow.manifest.ReleaseGate;
 import creatorflow.model.VerificationStatus;
@@ -97,10 +98,14 @@ public final class ReleaseExportService {
                     .sorted(Comparator.comparingLong(Match::matchedAssetId)
                             .thenComparing(Match::layer))
                     .toList();
-            entries.add(new AssetEntry(asset.relativePath(), asset.fileName(), asset.fileType(),
+            AssetEntry entry = new AssetEntry(asset.relativePath(), asset.fileName(), asset.fileType(),
                     asset.sizeBytes(), asset.sha256(), asset.width(), asset.height(),
                     new Fingerprints(asset.dHash(), asset.pHash(), asset.audioFingerprint()),
-                    asset.verification(), source, releaseDecision, matches, asset.findings()));
+                    asset.verification(), source, releaseDecision, matches, asset.findings());
+            // The classifier is the single source of truth for evidence provenance (verification is
+            // always tool-computed, source/decision are DECLARED once present, ownership is always
+            // NOT_VERIFIED) — pure, so it does not affect the manifest's byte-determinism.
+            entries.add(entry.withEvidenceBases(EvidenceBases.of(entry)));
         }
 
         // generatedAt is derived from the immutable scan snapshot's completedAt (never wall-clock)

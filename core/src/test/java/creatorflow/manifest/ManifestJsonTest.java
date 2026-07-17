@@ -6,7 +6,12 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import creatorflow.TestMedia;
+import creatorflow.manifest.CreativeManifest.AssetEntry;
+import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.IntendedExperience;
+import creatorflow.manifest.CreativeManifest.ReleaseDecision;
+import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.model.VerificationStatus;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -214,5 +219,82 @@ class ManifestJsonTest {
                 () -> new CreativeManifest.Gate.Reason("", "path", "CLEAR", "PENDING", "message"));
         assertThrows(IllegalArgumentException.class,
                 () -> new CreativeManifest.Gate.Reason("CODE", " ", "CLEAR", "PENDING", "message"));
+    }
+
+    @Test
+    void anAssetWithEvidenceBasesRoundTripsAndAnAssetWithoutOneStillValidates() throws Exception {
+        ManifestJson json = new ManifestJson();
+        EvidenceBases bases = new EvidenceBases(EvidenceBasis.VERIFIED, EvidenceBasis.DECLARED,
+                EvidenceBasis.DECLARED, EvidenceBasis.NOT_VERIFIED);
+        AssetEntry withBases = new AssetEntry("art/hero.png", "hero.png", "png", 10, "a".repeat(64), 0, 0,
+                new Fingerprints(null, null, null), VerificationStatus.CLEAR,
+                new SourceEvidence("Studio", "Owned", "https://example.test/evidence"),
+                ReleaseDecision.APPROVED, List.of(), List.of()).withEvidenceBases(bases);
+        AssetEntry withoutBases = new AssetEntry("art/other.png", "other.png", "png", 10, "b".repeat(64), 0, 0,
+                new Fingerprints(null, null, null), VerificationStatus.CLEAR, SourceEvidence.unresolved(),
+                ReleaseDecision.PENDING, List.of(), List.of());
+        assertEquals(null, withoutBases.evidenceBases());
+
+        CreativeManifest.Summary summary = new CreativeManifest.Summary(2, 2, 0, 0, 1, 1);
+        CreativeManifest.Gate gate = new CreativeManifest.Gate("BLOCKED", List.of());
+        CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V2,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                summary, List.of(withBases, withoutBases), null, gate);
+
+        String written = json.write(manifest);
+        assertTrue(written.contains("\"evidenceBases\""));
+        assertTrue(written.contains("\"verification\" : \"VERIFIED\""));
+        assertTrue(written.contains("\"ownership\" : \"NOT_VERIFIED\""));
+
+        CreativeManifest parsed = json.read(written);
+        assertEquals(manifest, parsed);
+        assertEquals(bases, parsed.assets().get(0).evidenceBases());
+        assertEquals(null, parsed.assets().get(1).evidenceBases());
+    }
+
+    @Test
+    void anOlderV2ManifestWithoutEvidenceBasesOnAnyAssetStillValidates() throws Exception {
+        // Backward compat: evidenceBases is an OPTIONAL v0.2 field. A v0.2 manifest written before
+        // this increment (no evidenceBases anywhere) must still read and validate cleanly.
+        String olderV2 = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 1, "clear": 1, "similar": 0, "duplicate": 0, "unresolvedSources": 1, "pendingDecisions": 1},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": [{
+                    "path": "asset.png", "fileName": "asset.png", "fileType": "png", "sizeBytes": 1,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "width": 1, "height": 1,
+                    "fingerprints": {"dHash": null, "pHash": null, "audio": null}, "verification": "CLEAR",
+                    "source": {"source": null, "license": null, "evidenceUrl": null},
+                    "decision": "PENDING", "matches": [], "findings": []
+                  }]
+                }
+                """;
+        CreativeManifest manifest = new ManifestJson().read(olderV2);
+        assertEquals(null, manifest.assets().getFirst().evidenceBases());
+    }
+
+    @Test
+    void rejectsAnInvalidEvidenceBasisEnumValue() {
+        String invalidBasis = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 1, "clear": 1, "similar": 0, "duplicate": 0, "unresolvedSources": 1, "pendingDecisions": 1},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": [{
+                    "path": "asset.png", "fileName": "asset.png", "fileType": "png", "sizeBytes": 1,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "width": 1, "height": 1,
+                    "fingerprints": {"dHash": null, "pHash": null, "audio": null}, "verification": "CLEAR",
+                    "source": {"source": null, "license": null, "evidenceUrl": null},
+                    "decision": "PENDING", "matches": [], "findings": [],
+                    "evidenceBases": {"verification": "MAYBE", "source": "NOT_VERIFIED", "ownership": "NOT_VERIFIED"}
+                  }]
+                }
+                """;
+        assertThrows(Exception.class, () -> new ManifestJson().read(invalidBasis));
     }
 }
