@@ -42,7 +42,7 @@ class WorkflowRepositoryTest {
             try (var statement = database.connection().createStatement();
                  var result = statement.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(result.next());
-                assertEquals(7, result.getInt(1));
+                assertEquals(8, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }

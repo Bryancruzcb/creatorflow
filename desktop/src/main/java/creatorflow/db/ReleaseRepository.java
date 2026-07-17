@@ -39,7 +39,7 @@ public final class ReleaseRepository {
                 requireText(scanRunId, "scan run"), requireText(releaseName, "release name"),
                 requireText(manifestJson, "manifest"), requireText(policyResult, "policy result"),
                 requireText(reportJson, "policy report"), requireText(comparisonJson, "comparison"),
-                Instant.now(), universeId, placeId, experienceName);
+                Instant.now(), universeId, placeId, experienceName, null);
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO releases(id, scan_run_id, release_name, manifest_json, policy_result,
@@ -109,7 +109,8 @@ public final class ReleaseRepository {
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     SELECT r.id, r.scan_run_id, r.release_name, r.policy_result,
-                           r.comparison_json, r.created_at, r.universe_id, r.place_id, r.experience_name
+                           r.comparison_json, r.created_at, r.universe_id, r.place_id, r.experience_name,
+                           r.published_place_version
                     FROM releases r JOIN scan_runs s ON s.id = r.scan_run_id
                     WHERE s.project_id = ? ORDER BY r.created_at DESC, r.rowid DESC""")) {
                 statement.setLong(1, projectId);
@@ -121,12 +122,32 @@ public final class ReleaseRepository {
                                 result.getString("policy_result"), result.getString("comparison_json"),
                                 Instant.parse(result.getString("created_at")),
                                 getNullableLong(result, "universe_id"), getNullableLong(result, "place_id"),
-                                result.getString("experience_name")));
+                                result.getString("experience_name"),
+                                getNullableLong(result, "published_place_version")));
                     }
                     return summaries;
                 }
             } catch (SQLException e) {
                 throw new IllegalStateException("Could not list project release summaries", e);
+            }
+        }
+    }
+
+    /**
+     * Records the Roblox place version a team reports having published this release as. This is a
+     * human declaration only, entered after publish — CreatorFlow does not verify it against Roblox.
+     */
+    public void recordPublishedVersion(String releaseId, long publishedPlaceVersion) {
+        synchronized (connection) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE releases SET published_place_version = ? WHERE id = ?")) {
+                statement.setLong(1, publishedPlaceVersion);
+                statement.setString(2, releaseId);
+                if (statement.executeUpdate() != 1) {
+                    throw new IllegalArgumentException("Unknown release " + releaseId);
+                }
+            } catch (SQLException e) {
+                throw new IllegalStateException("Could not record published place version", e);
             }
         }
     }
@@ -161,7 +182,7 @@ public final class ReleaseRepository {
                 result.getString("policy_result"), result.getString("report_json"),
                 result.getString("comparison_json"), Instant.parse(result.getString("created_at")),
                 getNullableLong(result, "universe_id"), getNullableLong(result, "place_id"),
-                result.getString("experience_name"));
+                result.getString("experience_name"), getNullableLong(result, "published_place_version"));
     }
 
     private static void setNullableLong(PreparedStatement statement, int index, Long value) throws SQLException {

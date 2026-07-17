@@ -87,6 +87,7 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern ASSET_EVIDENCE = Pattern.compile("^/api/v1/assets/(\\d+)/source-evidence$");
     private static final Pattern RELEASE_MANIFEST = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/manifest$");
     private static final Pattern RELEASE_REPORT = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/report$");
+    private static final Pattern RELEASE_PUBLISHED_VERSION = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/published-version$");
     private static final Pattern RELEASE = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)$");
     private static final Pattern MOTION_COMPARISON = Pattern.compile("^/api/v1/motion-comparisons/([a-f0-9-]+)$");
     private static final SecureRandom RANDOM = new SecureRandom();
@@ -589,6 +590,21 @@ public final class LocalBridgeServer implements AutoCloseable {
                     artifactName(release.releaseName(), "gate-report"));
             return;
         }
+        matcher = RELEASE_PUBLISHED_VERSION.matcher(path);
+        if (matcher.matches()) {
+            requireMutation(exchange);
+            String releaseId = matcher.group(1);
+            releases.findById(releaseId).orElseThrow(() -> new HttpError(404, "Release not found"));
+            JsonNode body = readJson(exchange);
+            Long publishedPlaceVersion = nullableLong(body, "publishedPlaceVersion");
+            if (publishedPlaceVersion == null) {
+                throw new IllegalArgumentException("publishedPlaceVersion is required");
+            }
+            releases.recordPublishedVersion(releaseId, publishedPlaceVersion);
+            ReleaseRecord updated = releases.findById(releaseId).orElseThrow();
+            sendJson(exchange, 200, releaseView(updated));
+            return;
+        }
         matcher = RELEASE.matcher(path);
         if (matcher.matches()) {
             requireMethod(exchange, "GET");
@@ -749,6 +765,7 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("reportUrl", "/api/v1/releases/" + release.id() + "/report");
         view.put("comparison", readStoredJson(release.comparisonJson()));
         view.put("experience", experienceView(release.universeId(), release.placeId(), release.experienceName()));
+        view.put("publishedPlaceVersion", release.publishedPlaceVersion());
         return view;
     }
 
@@ -763,6 +780,7 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("reportUrl", "/api/v1/releases/" + release.id() + "/report");
         view.put("comparison", readStoredJson(release.comparisonJson()));
         view.put("experience", experienceView(release.universeId(), release.placeId(), release.experienceName()));
+        view.put("publishedPlaceVersion", release.publishedPlaceVersion());
         return view;
     }
 
