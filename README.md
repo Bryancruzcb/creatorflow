@@ -1,43 +1,52 @@
 # CreatorFlow
 
-**A community gallery for creative assets — where every upload is originality-checked against the
-whole registry before it publishes.**
+**A local-first release-preflight tool for small Roblox teams — can these exact assets safely
+ship to the intended experience, what changed, what permission or provenance evidence is missing,
+and what can the team roll back to?**
 
 [![CI](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml)
 ![Java 21](https://img.shields.io/badge/Java-21-5d86b4)
 ![Spring Boot 3.3](https://img.shields.io/badge/Spring%20Boot-3.3-5d86b4)
 ![JavaFX 21](https://img.shields.io/badge/JavaFX-21-5d86b4)
 
-Think of the shape of 21st.dev, Cosmos or Pinterest — browse, preview and download sprites,
-textures and sounds that members publish — except here the platform itself runs a **layered
-fingerprint pipeline** on every upload: exact hashing, perceptual image hashes, a volume-invariant
-audio fingerprint and metadata inspection, matched against **every asset ever registered by any
-member**. Byte-identical re-uploads never publish. Perceptually similar uploads publish visibly
-flagged, with the evidence attached. Every asset carries its license, its uploader's ownership
-declaration, and its originality report — and anyone can file a dispute.
+> **Direction (2026-07-17 strategic redirect).** CreatorFlow narrowed from a general
+> originality-checked creative-asset gallery to a **local-first release-preflight tool for small
+> Roblox teams**. The focused workflow: choose a project and intended Roblox experience → read
+> permitted KeyframeSequence Animation IDs through the Studio plugin → compare changed assets
+> against immutable last-known-good snapshots → resolve provenance findings → produce a
+> deterministic **PASS / BLOCKED** release record with a rollback target → hand publishing back
+> to Roblox Studio. Similarity and motion comparison are **supporting evidence only, never a
+> copied/not-copied verdict.** See [`docs/STRATEGIC-REDIRECT.md`](docs/STRATEGIC-REDIRECT.md),
+> the [consolidation report](docs/CONSOLIDATION-REPORT.md) that mapped it against the code, and
+> the milestone tracker in the issues. The gallery/marketplace product described further down is
+> **frozen legacy** (kept green, no new work) — see [Legacy: the community gallery](#legacy-the-community-gallery).
 
-On top of that sits a **review workflow in the frame.io tradition**: assets grow in
-**fingerprint-verified version stacks**, any two versions can be compared with a **pixel-diff
-heatmap**, and feedback lands as **comments pinned to a point on the artwork itself**.
+The preflight product runs locally: a hardened `127.0.0.1` desktop bridge pairs with a Roblox
+Studio plugin, reads only normalized KeyframeSequence data (never raw asset files), stores
+insert-only motion/animation snapshots in SQLite, records human provenance decisions with
+required reasons, and emits a deterministic release manifest evaluated to PASS or BLOCKED. Motion
+comparison uses a parity-proven engine (a TypeScript port of the Java reference algorithm plus a
+graded v2 with banded DTW and a coverage guard) to surface *what changed* between an asset and its
+last-known-good baseline — as a review lead, never a verdict.
 
-![Community gallery](docs/screenshots/web-gallery.png)
-
-Three Maven modules share one engine:
+Three Maven modules plus a React frontend and two Studio plugins:
 
 | Module | What it is | Stack |
 | --- | --- | --- |
-| `core` | Verification engine, project scanner, and versioned manifest model | plain Java — no UI, DB or Spring deps |
-| `server` | **The platform**: gallery, accounts, uploads, registry API, disputes | Spring Boot 3.3, Thymeleaf, JPA/H2, Spring Security |
-| `desktop` | Companion app: local library, projects, offline checks, registry sync | JavaFX 21, SQLite |
+| `core` | Verification/motion engine, project scanner, versioned manifest model, release-gate CLI | plain Java — no UI, DB or Spring deps |
+| `desktop` | **The preflight app**: local loopback bridge, SQLite store, plugin pairing, project picker | JavaFX 21, SQLite |
+| `frontend` | The release-preflight workspace UI (motion lab, snapshots, evidence, releases) | React 19 + Vite + TypeScript |
+| `server` | **Frozen legacy**: community gallery, accounts, uploads, registry API, disputes | Spring Boot 3.3, Thymeleaf, JPA/H2 |
 
 ## The story
 
 This started as an April 2026 hackathon project (SJ Hacks) — a dashboard mockup for a creator
-asset platform. The hardest judge question: *"How would you make sure something being uploaded
-isn't already someone else's copyrighted work?"* This rebuild answers it the way real platforms
-do — **detection layers plus a declaration-and-dispute process**, with honest limits
-(see [What it can and can't prove](#what-it-can-and-cant-prove)) — and then puts that answer at
-the front door of an actual community gallery.
+asset platform whose hardest judge question was *"How would you make sure something being uploaded
+isn't already someone else's copyrighted work?"* The answer — **detection layers plus a
+declaration-and-dispute process, with honest limits** — became a community gallery (now frozen
+legacy, documented below). The 2026-07-17 redirect refocused that engineering on the one workflow
+with a real, unserved user: **release preflight for small Roblox teams**, where the same honesty
+constraint (similarity is a review lead, never a verdict) is exactly right.
 
 ## Quickstart
 
@@ -57,7 +66,13 @@ a couple of feedback requests. Demo accounts (`mira_pixels`, `ada_shaders`, `tom
 the password `creatorflow-demo`, or sign up fresh and upload something yourself. Drop the flag
 for an empty registry; `mvn -pl server spring-boot:run` works too.
 
-## The platform
+## Legacy: the community gallery
+
+> **Frozen (2026-07-17).** Everything from here down describes the pre-redirect community-gallery
+> product. The code is real, tested, and still builds (`server/` + the desktop "Community registry"
+> settings card), but it is **not** the current product and receives no new work. It is kept green
+> as a candidate to later repurpose as a shared cross-team provenance registry. The release-preflight
+> workflow described at the top of this file does not use the Spring server at all.
 
 - **Gallery** — a dark, media-first grid ("screening room") with search, image/audio filters and
   a *feedback wanted* view; version badges and flags are labeled right on the tile

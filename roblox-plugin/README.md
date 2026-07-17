@@ -1,5 +1,15 @@
 # CreatorFlow for Roblox Studio
 
+> **`src/` (the Rojo registry plugin) is FROZEN LEGACY as of the 2026-07-17 strategic redirect.**
+> This plugin fingerprints a `KeyframeSequence` and talks to the frozen cloud **registry** server
+> (`../server/`), returning DUPLICATE / SIMILAR / CLEAR verdicts — the pre-redirect "copied /
+> not-copied" product now deferred. The current product (local-first Roblox release preflight,
+> similarity as a review lead only, never a verdict) uses the **other** plugin in this repo:
+> [`desktop-bridge/`](desktop-bridge/README.md), which pairs with the local `127.0.0.1` desktop
+> app and reads permitted Animation IDs for last-known-good comparison. Kept green for a possible
+> future team-registry repurpose; no new work against the redirect. The two plugins are
+> deliberately contract-separate — see `docs/HANDOFF.md` §"Two Studio-plugin paths".
+
 A Studio plugin that connects an animation team to a CreatorFlow registry over
 HTTP. Select a `KeyframeSequence`, and the plugin:
 
