@@ -14,26 +14,48 @@ import java.util.Objects;
 import java.util.Set;
 
 /** Portable, versioned evidence inventory for one creative-project release. */
-@JsonPropertyOrder({"$schema", "project", "experience", "generatedAt", "summary", "assets"})
+@JsonPropertyOrder({"$schema", "project", "experience", "generatedAt", "summary", "gate", "assets"})
 public record CreativeManifest(
         @JsonProperty("$schema") String schema,
         Project project,
         Instant generatedAt,
         Summary summary,
         List<AssetEntry> assets,
-        @JsonInclude(JsonInclude.Include.NON_NULL) IntendedExperience experience) {
+        @JsonInclude(JsonInclude.Include.NON_NULL) IntendedExperience experience,
+        @JsonInclude(JsonInclude.Include.NON_NULL) Gate gate) {
 
-    public static final String SCHEMA = "creatorflow.manifest/v0.1";
+    /** The prior manifest schema. Still readable/validatable; carries no {@code gate}. */
+    public static final String SCHEMA_V1 = "creatorflow.manifest/v0.1";
 
-    /** Convenience constructor for the common case of a manifest with no declared experience. */
+    /** The current manifest schema: a release manifest is now self-contained with its gate result. */
+    public static final String SCHEMA_V2 = "creatorflow.manifest/v0.2";
+
+    /** Schema used by newly produced manifests. */
+    public static final String SCHEMA = SCHEMA_V2;
+
+    private static final Set<String> SUPPORTED_SCHEMAS = Set.of(SCHEMA_V1, SCHEMA_V2);
+
+    /** Convenience constructor for the common case of a manifest with no declared experience or gate. */
     public CreativeManifest(String schema, Project project, Instant generatedAt, Summary summary,
                             List<AssetEntry> assets) {
-        this(schema, project, generatedAt, summary, assets, null);
+        this(schema, project, generatedAt, summary, assets, null, null);
+    }
+
+    /** Convenience constructor for a manifest with a declared experience but no embedded gate. */
+    public CreativeManifest(String schema, Project project, Instant generatedAt, Summary summary,
+                            List<AssetEntry> assets, IntendedExperience experience) {
+        this(schema, project, generatedAt, summary, assets, experience, null);
     }
 
     public CreativeManifest {
-        if (!SCHEMA.equals(schema)) {
+        if (!SUPPORTED_SCHEMAS.contains(schema)) {
             throw new IllegalArgumentException("Unsupported manifest schema: " + schema);
+        }
+        if (SCHEMA_V2.equals(schema) && gate == null) {
+            throw new IllegalArgumentException("A " + SCHEMA_V2 + " manifest must carry a gate block");
+        }
+        if (SCHEMA_V1.equals(schema) && gate != null) {
+            throw new IllegalArgumentException("A " + SCHEMA_V1 + " manifest must not carry a gate block");
         }
         project = Objects.requireNonNull(project, "project");
         generatedAt = Objects.requireNonNull(generatedAt, "generatedAt");
@@ -63,6 +85,38 @@ public record CreativeManifest(
         public Project {
             name = requireText(name, "project name");
             release = requireText(release, "release");
+        }
+    }
+
+    /**
+     * The release gate's outcome, embedded directly in a v0.2 manifest so it is self-contained.
+     *
+     * <p><strong>Honesty constraint:</strong> {@code result} reflects process/evidence completeness
+     * (decisions resolved, sources present, flags approved) — it is not a copyright or originality
+     * verdict. A {@code PASS} must never be presented as "original", "clean", or "cleared for
+     * copyright"; it means the release checklist is complete, nothing more.
+     */
+    @JsonPropertyOrder({"result", "reasons"})
+    public record Gate(String result, List<Reason> reasons) {
+        private static final Set<String> RESULTS = Set.of("PASS", "BLOCKED");
+
+        public Gate {
+            if (!RESULTS.contains(result)) {
+                throw new IllegalArgumentException("Gate result must be PASS or BLOCKED: " + result);
+            }
+            reasons = List.copyOf(Objects.requireNonNull(reasons, "reasons"));
+        }
+
+        /** One asset-level blocking reason, mirroring {@link ReleaseGate.Violation}'s evidence pointer. */
+        @JsonPropertyOrder({"code", "assetPath", "verification", "decision", "message"})
+        public record Reason(String code, String assetPath, String verification, String decision, String message) {
+            public Reason {
+                code = requireText(code, "gate reason code");
+                assetPath = requireText(assetPath, "gate reason asset path");
+                verification = requireText(verification, "gate reason verification");
+                decision = requireText(decision, "gate reason decision");
+                message = requireText(message, "gate reason message");
+            }
         }
     }
 

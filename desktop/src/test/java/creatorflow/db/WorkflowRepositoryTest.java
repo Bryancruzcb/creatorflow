@@ -68,7 +68,7 @@ class WorkflowRepositoryTest {
                     VerificationStatus.SIMILAR,
                     new SourceEvidence("Studio archive", "CC-BY-4.0", "https://example.test/evidence"),
                     ReleaseDecision.PENDING, List.of(), List.of("Perceptual match"));
-            CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA,
+            CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V1,
                     new CreativeManifest.Project(project.name(), "1.0.0"), Instant.now(),
                     new CreativeManifest.Summary(1, 0, 1, 0, 0, 1), List.of(asset));
             scans.complete(run.id(), manifest, new ScanAccounting(1, 2, 3, 4, 5, 6, 128),
