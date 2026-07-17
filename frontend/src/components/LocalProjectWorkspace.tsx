@@ -64,6 +64,34 @@ function experienceSummary(experience: LocalIntendedExperience) {
   return `${experience.experienceName} · universe ${experience.universeId} / place ${experience.placeId}`;
 }
 
+export type ParsedPublishedPlaceVersion =
+  | { ok: true; value: number }
+  | { ok: false; error: string };
+
+/**
+ * Pure validation for the "record published place version" form: a positive integer.
+ * Extracted so it is unit-testable without a DOM/render harness (mirrors {@link parseExperienceFormInput}).
+ */
+export function parsePublishedPlaceVersionInput(input: string): ParsedPublishedPlaceVersion {
+  const value = Number(input.trim());
+  if (!Number.isInteger(value) || value < 1) {
+    return { ok: false, error: 'Place version must be a positive whole number.' };
+  }
+  return { ok: true, value };
+}
+
+/**
+ * Resolves a display label for a release's rollback target: the prior release's name plus a
+ * short id tag, looked up client-side from the already-fetched project release list (no new
+ * fetch). Falls back to the raw id when the prior release isn't in that list.
+ */
+export function resolveRollbackTargetLabel(previousReleaseId: string, releases: LocalRelease[]): string {
+  const prior = releases.find((release) => release.id === previousReleaseId);
+  if (!prior) return previousReleaseId;
+  const name = prior.release ?? prior.releaseName ?? prior.id;
+  return `${name} (v${prior.id.slice(0, 8)})`;
+}
+
 const defaultExclusions = ['.git', '.gradle', '.idea', '.mvn', '.next', '.nuxt', '.turbo', 'build', 'coverage', 'dist', 'node_modules', 'out', 'target'];
 const formatGroups = [
   { id: 'images', label: 'Images & design', formats: ['png', 'jpg', 'jpeg', 'gif', 'bmp', 'svg', 'exr', 'psd', 'sketch'] },
@@ -395,6 +423,9 @@ export function LocalReleasesView({ client, project, run }: { client: LocalBridg
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState('');
+  const [publishedVersionInputs, setPublishedVersionInputs] = useState<Record<string, string>>({});
+  const [publishingReleaseId, setPublishingReleaseId] = useState<string | null>(null);
+  const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
 
   useEffect(() => {
     setReleaseName(run?.release ?? 'Working');
@@ -426,9 +457,31 @@ export function LocalReleasesView({ client, project, run }: { client: LocalBridg
     }
   }
 
+  async function recordPublishedVersion(release: LocalRelease, event: FormEvent) {
+    event.preventDefault();
+    const parsed = parsePublishedPlaceVersionInput(publishedVersionInputs[release.id] ?? '');
+    if (!parsed.ok) {
+      setPublishErrors((current) => ({ ...current, [release.id]: parsed.error }));
+      return;
+    }
+    setPublishingReleaseId(release.id);
+    setPublishErrors((current) => ({ ...current, [release.id]: '' }));
+    try {
+      const updated = await client.recordPublishedVersion(release.id, parsed.value);
+      setReleases((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (reason) {
+      setPublishErrors((current) => ({
+        ...current,
+        [release.id]: reason instanceof Error ? reason.message : 'Could not record the published place version',
+      }));
+    } finally {
+      setPublishingReleaseId(null);
+    }
+  }
+
   const canCreate = run?.state === 'COMPLETED';
 
-  return <section className="local-releases-workspace" aria-labelledby="local-releases-title"><header className="local-scan-heading"><div><span>Persisted releases</span><h2 id="local-releases-title">Export the evidence that actually passed—or failed—the gate.</h2><p>Each release is rebuilt from the immutable scan, latest source evidence, and latest append-only decisions. Manifest and policy-report downloads come from the desktop bridge.</p></div><div className="local-bridge-badge"><FileJson size={16} /><span><strong>{project.name}</strong><small>{releases.length} persisted release{releases.length === 1 ? '' : 's'}</small></span></div></header><form className="local-release-create" onSubmit={createRelease}><label><span>Release name</span><input value={releaseName} onChange={(event) => setReleaseName(event.target.value)} maxLength={120} /></label><div><span>Source run</span><strong>{run ? `${run.release} · ${stateLabel(run.state)}` : 'No active persisted run'}</strong></div><button className="button button-primary" type="submit" disabled={!canCreate || creating}>{creating ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Build release record</button></form>{error ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>Release operation failed</strong><small>{error}</small></span></div> : null}<div className="local-release-list">{loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Loading releases…</strong></div> : releases.length ? releases.map((release) => <article key={release.id}><header><span className="local-run-state" data-state={release.policyResult === 'PASS' ? 'completed' : 'failed'}>{release.policyResult === 'PASS' ? <Check size={13} /> : <AlertTriangle size={13} />}{release.policyResult}</span><div><strong>{release.release ?? release.releaseName ?? 'Release'}</strong><small>{new Date(release.createdAt).toLocaleString()} · run {release.scanRunId.slice(0, 10)}…</small></div></header><dl><div><dt>Added</dt><dd>{release.comparison.added}</dd></div><div><dt>Changed</dt><dd>{release.comparison.changed}</dd></div><div><dt>Removed</dt><dd>{release.comparison.removed}</dd></div><div><dt>Unresolved</dt><dd>{release.comparison.unresolved}</dd></div><div><dt>Approved</dt><dd>{release.comparison.approved}</dd></div><div><dt>Blocked</dt><dd>{release.comparison.blocked}</dd></div></dl>{release.experience ? <p className="local-release-experience">Declared experience (not verified): {experienceSummary(release.experience)}</p> : null}<div className="local-release-downloads"><a href={release.manifestUrl} download><FileJson size={13} /> Manifest JSON</a><a href={release.reportUrl} download><ShieldCheck size={13} /> Gate report</a></div>{release.comparison.addedPaths.length || release.comparison.changedPaths.length || release.comparison.removedPaths.length ? <details><summary>Path-level comparison</summary><div>{release.comparison.addedPaths.map((path) => <span key={`a-${path}`}>Added · {path}</span>)}{release.comparison.changedPaths.map((path) => <span key={`c-${path}`}>Changed · {path}</span>)}{release.comparison.removedPaths.map((path) => <span key={`r-${path}`}>Removed · {path}</span>)}</div></details> : null}</article>) : <div className="local-monitor-empty"><FileJson size={20} /><strong>No releases exported yet</strong><p>{canCreate ? 'Build the first immutable release record from the completed scan.' : 'Complete or reopen a completed local scan before creating a release.'}</p></div>}</div></section>;
+  return <section className="local-releases-workspace" aria-labelledby="local-releases-title"><header className="local-scan-heading"><div><span>Persisted releases</span><h2 id="local-releases-title">Export the evidence that actually passed—or failed—the gate.</h2><p>Each release is rebuilt from the immutable scan, latest source evidence, and latest append-only decisions. Manifest and policy-report downloads come from the desktop bridge.</p></div><div className="local-bridge-badge"><FileJson size={16} /><span><strong>{project.name}</strong><small>{releases.length} persisted release{releases.length === 1 ? '' : 's'}</small></span></div></header><form className="local-release-create" onSubmit={createRelease}><label><span>Release name</span><input value={releaseName} onChange={(event) => setReleaseName(event.target.value)} maxLength={120} /></label><div><span>Source run</span><strong>{run ? `${run.release} · ${stateLabel(run.state)}` : 'No active persisted run'}</strong></div><button className="button button-primary" type="submit" disabled={!canCreate || creating}>{creating ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Build release record</button></form>{error ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>Release operation failed</strong><small>{error}</small></span></div> : null}<div className="local-release-list">{loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Loading releases…</strong></div> : releases.length ? releases.map((release) => <article key={release.id}><header><span className="local-run-state" data-state={release.policyResult === 'PASS' ? 'completed' : 'failed'}>{release.policyResult === 'PASS' ? <Check size={13} /> : <AlertTriangle size={13} />}{release.policyResult}</span><div><strong>{release.release ?? release.releaseName ?? 'Release'}</strong><small>{new Date(release.createdAt).toLocaleString()} · run {release.scanRunId.slice(0, 10)}…</small></div></header><dl><div><dt>Added</dt><dd>{release.comparison.added}</dd></div><div><dt>Changed</dt><dd>{release.comparison.changed}</dd></div><div><dt>Removed</dt><dd>{release.comparison.removed}</dd></div><div><dt>Unresolved</dt><dd>{release.comparison.unresolved}</dd></div><div><dt>Approved</dt><dd>{release.comparison.approved}</dd></div><div><dt>Blocked</dt><dd>{release.comparison.blocked}</dd></div></dl>{release.experience ? <p className="local-release-experience">Declared experience (not verified): {experienceSummary(release.experience)}</p> : null}{release.comparison.previousReleaseId ? <p className="local-release-rollback">Rollback target: {resolveRollbackTargetLabel(release.comparison.previousReleaseId, releases)} — <a href={client.releaseManifestUrl(release.comparison.previousReleaseId)} download>manifest</a>. Roll back to this release in Roblox Studio if this one must be reverted — CreatorFlow does not perform the rollback.</p> : null}{release.publishedPlaceVersion != null ? <p className="local-release-published">Published as place version {release.publishedPlaceVersion} <EvidenceBasisMark basis="DECLARED" compact /> <small>(self-reported — not verified against Roblox)</small></p> : <form className="local-decision-form local-release-publish-form" onSubmit={(event) => recordPublishedVersion(release, event)}><label><span>Record the Roblox place version you published</span><input inputMode="numeric" value={publishedVersionInputs[release.id] ?? ''} onChange={(event) => setPublishedVersionInputs((current) => ({ ...current, [release.id]: event.target.value }))} placeholder="e.g. 42" /></label>{publishErrors[release.id] ? <small role="alert">{publishErrors[release.id]}</small> : null}<button className="button button-secondary" type="submit" disabled={publishingReleaseId === release.id}>{publishingReleaseId === release.id ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Record published version</button></form>}<div className="local-release-downloads"><a href={release.manifestUrl} download><FileJson size={13} /> Manifest JSON</a><a href={release.reportUrl} download><ShieldCheck size={13} /> Gate report</a></div>{release.comparison.addedPaths.length || release.comparison.changedPaths.length || release.comparison.removedPaths.length ? <details><summary>Path-level comparison</summary><div>{release.comparison.addedPaths.map((path) => <span key={`a-${path}`}>Added · {path}</span>)}{release.comparison.changedPaths.map((path) => <span key={`c-${path}`}>Changed · {path}</span>)}{release.comparison.removedPaths.map((path) => <span key={`r-${path}`}>Removed · {path}</span>)}</div></details> : null}</article>) : <div className="local-monitor-empty"><FileJson size={20} /><strong>No releases exported yet</strong><p>{canCreate ? 'Build the first immutable release record from the completed scan.' : 'Complete or reopen a completed local scan before creating a release.'}</p></div>}</div></section>;
 }
 
 export function LocalSourcesBoundary({ onOpenEvidence }: { onOpenEvidence: () => void }) {

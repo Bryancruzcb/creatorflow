@@ -2,6 +2,7 @@ package creatorflow.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import creatorflow.db.AuditRepository;
@@ -94,6 +95,29 @@ class ReleaseExportServiceTest {
             assertEquals(9876543210L, bound.release().placeId());
             assertEquals("Obby Tower", bound.release().experienceName());
             assertEquals(bound.release(), fixture.releases.findById(bound.release().id()).orElseThrow());
+        }
+    }
+
+    @Test
+    void recordsASelfReportedPublishedPlaceVersionOnTheReleaseRowAndRejectsAnUnknownRelease() throws Exception {
+        try (Database database = new Database(directory.resolve("published-version.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "scan-1", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.CLEAR, resolved())));
+
+            ReleaseBundle bundle = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+            assertEquals(null, bundle.release().publishedPlaceVersion());
+            assertEquals(null, fixture.releases.findById(bundle.release().id()).orElseThrow()
+                    .publishedPlaceVersion());
+
+            fixture.releases.recordPublishedVersion(bundle.release().id(), 42);
+
+            ReleaseRecord reloaded = fixture.releases.findById(bundle.release().id()).orElseThrow();
+            assertEquals(42L, reloaded.publishedPlaceVersion());
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> fixture.releases.recordPublishedVersion("not-a-real-release-id", 1));
         }
     }
 
