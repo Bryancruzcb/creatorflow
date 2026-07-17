@@ -1,0 +1,222 @@
+{
+  "identical-curves": {
+    "overallPercent": 100,
+    "posePercent": 100,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": true,
+    "verdict": "EXACT_CURVE_DATA"
+  },
+  "uniform-retime": {
+    "overallPercent": 98,
+    "posePercent": 100,
+    "timingPercent": 90,
+    "coveragePercent": 100,
+    "durationPercent": 80,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  },
+  "edited-pose": {
+    "overallPercent": 64.77,
+    "posePercent": 58.91,
+    "timingPercent": 57.42,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 14.85,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "zero-coverage": {
+    "overallPercent": 0,
+    "posePercent": 0,
+    "timingPercent": 100,
+    "coveragePercent": 0,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "partial-coverage": {
+    "overallPercent": 30,
+    "posePercent": 100,
+    "timingPercent": 100,
+    "coveragePercent": 33.33,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "single-keyframe-track": {
+    "overallPercent": 78.98,
+    "posePercent": 67.65,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "MODERATE_SIMILARITY"
+  },
+  "slerp-shortest-arc": {
+    "overallPercent": 67.72,
+    "posePercent": 50.33,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "slerp-nlerp-fallback": {
+    "overallPercent": 99.68,
+    "posePercent": 99.5,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  },
+  "matrix-branch-trace": {
+    "overallPercent": 75.24,
+    "posePercent": 61.91,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "MODERATE_SIMILARITY"
+  },
+  "matrix-branch-m00": {
+    "overallPercent": 59.58,
+    "posePercent": 37.82,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "matrix-branch-m11": {
+    "overallPercent": 59.58,
+    "posePercent": 37.82,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "matrix-branch-else": {
+    "overallPercent": 59.58,
+    "posePercent": 37.82,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "weight-difference": {
+    "overallPercent": 96.26,
+    "posePercent": 94.24,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  },
+  "easing-mismatch": {
+    "overallPercent": 97.92,
+    "posePercent": 96.8,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  },
+  "easing-case-insensitive": {
+    "overallPercent": 100,
+    "posePercent": 100,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  },
+  "keyframe-count-mismatch": {
+    "overallPercent": 74.76,
+    "posePercent": 74.17,
+    "timingPercent": 57.73,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 15.45,
+    "exactCurveData": false,
+    "verdict": "MODERATE_SIMILARITY"
+  },
+  "duration-zero-both": {
+    "overallPercent": 72.28,
+    "posePercent": 57.35,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "MODERATE_SIMILARITY"
+  },
+  "duration-zero-one": {
+    "overallPercent": 62.03,
+    "posePercent": 56.96,
+    "timingPercent": 50,
+    "coveragePercent": 100,
+    "durationPercent": 0,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "LOW_SIMILARITY"
+  },
+  "duration-gap": {
+    "overallPercent": 92.5,
+    "posePercent": 100,
+    "timingPercent": 62.5,
+    "coveragePercent": 100,
+    "durationPercent": 25,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  },
+  "uneven-key-spacing": {
+    "overallPercent": 87.73,
+    "posePercent": 93.48,
+    "timingPercent": 59.85,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 19.7,
+    "exactCurveData": false,
+    "verdict": "MODERATE_SIMILARITY"
+  },
+  "realistic-multi-joint": {
+    "overallPercent": 91.99,
+    "posePercent": 87.68,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  },
+  "realistic-close-pair": {
+    "overallPercent": 97.53,
+    "posePercent": 96.2,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
+  }
+}
