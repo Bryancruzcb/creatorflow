@@ -42,7 +42,7 @@ class WorkflowRepositoryTest {
             try (var statement = database.connection().createStatement();
                  var result = statement.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(result.next());
-                assertEquals(6, result.getInt(1));
+                assertEquals(7, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }
@@ -94,6 +94,27 @@ class WorkflowRepositoryTest {
             workspace.save(new WorkspaceState(project.projectId(), run.id(), savedAsset.id(), null,
                     "{\"status\":\"SIMILAR\"}", "[]", Instant.now()));
             assertEquals(savedAsset.id(), workspace.load().orElseThrow().selectedAssetId());
+        }
+    }
+
+    @Test
+    void bindsAndPersistsAnIntendedExperienceDeclarationOnALocalProject() {
+        try (Database database = new Database(directory.resolve("experience.db"))) {
+            var localProjects = new LocalProjectRepository(database);
+            var project = localProjects.adopt(directory);
+            assertEquals(null, project.universeId());
+            assertEquals(null, project.placeId());
+            assertEquals(null, project.experienceName());
+
+            localProjects.bindExperience(project.projectId(), 1234567890L, 9876543210L, "Obby Tower");
+
+            var reloaded = localProjects.findByProjectId(project.projectId()).orElseThrow();
+            assertEquals(1234567890L, reloaded.universeId());
+            assertEquals(9876543210L, reloaded.placeId());
+            assertEquals("Obby Tower", reloaded.experienceName());
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> localProjects.bindExperience(project.projectId() + 999, 1L, 2L, "Nope"));
         }
     }
 

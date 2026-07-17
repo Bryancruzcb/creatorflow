@@ -24,6 +24,8 @@ import {
   type LocalAssetDetail,
   type LocalDecision,
   type LocalDecisionType,
+  type LocalIntendedExperience,
+  type LocalProjectRecord,
   type LocalProjectSummary,
   type LocalRelease,
   type LocalScanAsset,
@@ -31,6 +33,34 @@ import {
   type LocalScanRun,
 } from '../bridge/localBridge';
 import { formatBytes, titleCaseManifestValue } from '../manifest/manifest';
+
+export type ParsedExperienceForm =
+  | { ok: true; value: { universeId: number; placeId: number; experienceName: string } }
+  | { ok: false; error: string };
+
+/**
+ * Pure validation for the intended-experience bind form: positive-integer universe/place IDs
+ * and a non-blank experience name. Extracted so it is unit-testable without a DOM/render harness.
+ */
+export function parseExperienceFormInput(input: { universeId: string; placeId: string; experienceName: string }): ParsedExperienceForm {
+  const universeId = Number(input.universeId.trim());
+  const placeId = Number(input.placeId.trim());
+  const experienceName = input.experienceName.trim();
+  if (!Number.isInteger(universeId) || universeId < 1) {
+    return { ok: false, error: 'Universe ID must be a positive whole number.' };
+  }
+  if (!Number.isInteger(placeId) || placeId < 1) {
+    return { ok: false, error: 'Place ID must be a positive whole number.' };
+  }
+  if (!experienceName) {
+    return { ok: false, error: 'Experience name is required.' };
+  }
+  return { ok: true, value: { universeId, placeId, experienceName } };
+}
+
+function experienceSummary(experience: LocalIntendedExperience) {
+  return `${experience.experienceName} · universe ${experience.universeId} / place ${experience.placeId}`;
+}
 
 const defaultExclusions = ['.git', '.gradle', '.idea', '.mvn', '.next', '.nuxt', '.turbo', 'build', 'coverage', 'dist', 'node_modules', 'out', 'target'];
 const formatGroups = [
@@ -53,7 +83,38 @@ function Metric({ label, value, note }: { label: string; value: string; note: st
   return <div className="product-metric"><span>{label}</span><strong>{value}</strong><small>{note}</small></div>;
 }
 
-export function LocalProjectOverview({ project, run, onOpenRun, onOpenEvidence }: { project: LocalProjectSummary; run: LocalScanRun | null; onOpenRun: () => void; onOpenEvidence: () => void }) {
+export function LocalProjectOverview({ client, project, run, onOpenRun, onOpenEvidence, onExperienceBound }: { client: LocalBridgeClient; project: LocalProjectSummary; run: LocalScanRun | null; onOpenRun: () => void; onOpenEvidence: () => void; onExperienceBound: (record: LocalProjectRecord) => void }) {
+  const experience = project.experience ?? null;
+  const [editing, setEditing] = useState(false);
+  const [universeId, setUniverseId] = useState(experience ? String(experience.universeId) : '');
+  const [placeId, setPlaceId] = useState(experience ? String(experience.placeId) : '');
+  const [experienceName, setExperienceName] = useState(experience?.experienceName ?? '');
+  const [error, setError] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    setUniverseId(experience ? String(experience.universeId) : '');
+    setPlaceId(experience ? String(experience.placeId) : '');
+    setExperienceName(experience?.experienceName ?? '');
+  }, [experience?.universeId, experience?.placeId, experience?.experienceName]);
+
+  async function saveExperience(event: FormEvent) {
+    event.preventDefault();
+    const parsed = parseExperienceFormInput({ universeId, placeId, experienceName });
+    if (!parsed.ok) { setError(parsed.error); return; }
+    setSaving(true);
+    setError('');
+    try {
+      const updated = await client.bindExperience(project.projectId, parsed.value);
+      onExperienceBound(updated);
+      setEditing(false);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not save the intended experience');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="product-overview local-project-overview">
       <section className="project-status-strip">
@@ -71,6 +132,23 @@ export function LocalProjectOverview({ project, run, onOpenRun, onOpenEvidence }
         <Workflow size={19} />
         <div><strong>{run ? 'Persisted run available' : 'Choose the scan boundary'}</strong><p>{run ? 'The Evidence workspace reloads immutable asset records and append-only decisions from SQLite.' : 'Set release, format groups, directory exclusions, hidden-file policy, and symbolic-link policy before Java traverses the selected root.'}</p></div>
         <button className="button button-secondary" type="button" onClick={onOpenRun}>{run ? 'Review run' : 'Set scan scope'}</button>
+      </section>
+      <section className="local-overview-boundary local-experience-declaration" aria-labelledby="local-experience-title">
+        <FileCheck2 size={19} />
+        <div>
+          <strong id="local-experience-title">Intended Roblox experience</strong>
+          <p>{experience ? `Declared by you: ${experienceSummary(experience)}. CreatorFlow has not verified ownership of or access to this experience.` : 'Not yet declared. This is a human declaration only — CreatorFlow does not verify ownership of or access to any experience you bind here — but it is stamped onto every release you export from this project.'}</p>
+        </div>
+        <button className="button button-secondary" type="button" onClick={() => setEditing((current) => !current)} aria-expanded={editing}>{experience ? 'Edit declaration' : 'Declare experience'}</button>
+        {editing ? (
+          <form className="local-decision-form local-experience-form" onSubmit={saveExperience}>
+            <label><span>Universe ID</span><input inputMode="numeric" value={universeId} onChange={(event) => setUniverseId(event.target.value)} placeholder="e.g. 1234567890" /></label>
+            <label><span>Place ID</span><input inputMode="numeric" value={placeId} onChange={(event) => setPlaceId(event.target.value)} placeholder="e.g. 9876543210" /></label>
+            <label><span>Experience name</span><input value={experienceName} onChange={(event) => setExperienceName(event.target.value)} placeholder="As it appears in Roblox…" maxLength={120} /></label>
+            {error ? <small role="alert">{error}</small> : null}
+            <button className="button button-primary" type="submit" disabled={saving}>{saving ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Save declaration</button>
+          </form>
+        ) : null}
       </section>
     </div>
   );
@@ -348,7 +426,7 @@ export function LocalReleasesView({ client, project, run }: { client: LocalBridg
 
   const canCreate = run?.state === 'COMPLETED';
 
-  return <section className="local-releases-workspace" aria-labelledby="local-releases-title"><header className="local-scan-heading"><div><span>Persisted releases</span><h2 id="local-releases-title">Export the evidence that actually passed—or failed—the gate.</h2><p>Each release is rebuilt from the immutable scan, latest source evidence, and latest append-only decisions. Manifest and policy-report downloads come from the desktop bridge.</p></div><div className="local-bridge-badge"><FileJson size={16} /><span><strong>{project.name}</strong><small>{releases.length} persisted release{releases.length === 1 ? '' : 's'}</small></span></div></header><form className="local-release-create" onSubmit={createRelease}><label><span>Release name</span><input value={releaseName} onChange={(event) => setReleaseName(event.target.value)} maxLength={120} /></label><div><span>Source run</span><strong>{run ? `${run.release} · ${stateLabel(run.state)}` : 'No active persisted run'}</strong></div><button className="button button-primary" type="submit" disabled={!canCreate || creating}>{creating ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Build release record</button></form>{error ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>Release operation failed</strong><small>{error}</small></span></div> : null}<div className="local-release-list">{loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Loading releases…</strong></div> : releases.length ? releases.map((release) => <article key={release.id}><header><span className="local-run-state" data-state={release.policyResult === 'PASS' ? 'completed' : 'failed'}>{release.policyResult === 'PASS' ? <Check size={13} /> : <AlertTriangle size={13} />}{release.policyResult}</span><div><strong>{release.release ?? release.releaseName ?? 'Release'}</strong><small>{new Date(release.createdAt).toLocaleString()} · run {release.scanRunId.slice(0, 10)}…</small></div></header><dl><div><dt>Added</dt><dd>{release.comparison.added}</dd></div><div><dt>Changed</dt><dd>{release.comparison.changed}</dd></div><div><dt>Removed</dt><dd>{release.comparison.removed}</dd></div><div><dt>Unresolved</dt><dd>{release.comparison.unresolved}</dd></div><div><dt>Approved</dt><dd>{release.comparison.approved}</dd></div><div><dt>Blocked</dt><dd>{release.comparison.blocked}</dd></div></dl><div className="local-release-downloads"><a href={release.manifestUrl} download><FileJson size={13} /> Manifest JSON</a><a href={release.reportUrl} download><ShieldCheck size={13} /> Gate report</a></div>{release.comparison.addedPaths.length || release.comparison.changedPaths.length || release.comparison.removedPaths.length ? <details><summary>Path-level comparison</summary><div>{release.comparison.addedPaths.map((path) => <span key={`a-${path}`}>Added · {path}</span>)}{release.comparison.changedPaths.map((path) => <span key={`c-${path}`}>Changed · {path}</span>)}{release.comparison.removedPaths.map((path) => <span key={`r-${path}`}>Removed · {path}</span>)}</div></details> : null}</article>) : <div className="local-monitor-empty"><FileJson size={20} /><strong>No releases exported yet</strong><p>{canCreate ? 'Build the first immutable release record from the completed scan.' : 'Complete or reopen a completed local scan before creating a release.'}</p></div>}</div></section>;
+  return <section className="local-releases-workspace" aria-labelledby="local-releases-title"><header className="local-scan-heading"><div><span>Persisted releases</span><h2 id="local-releases-title">Export the evidence that actually passed—or failed—the gate.</h2><p>Each release is rebuilt from the immutable scan, latest source evidence, and latest append-only decisions. Manifest and policy-report downloads come from the desktop bridge.</p></div><div className="local-bridge-badge"><FileJson size={16} /><span><strong>{project.name}</strong><small>{releases.length} persisted release{releases.length === 1 ? '' : 's'}</small></span></div></header><form className="local-release-create" onSubmit={createRelease}><label><span>Release name</span><input value={releaseName} onChange={(event) => setReleaseName(event.target.value)} maxLength={120} /></label><div><span>Source run</span><strong>{run ? `${run.release} · ${stateLabel(run.state)}` : 'No active persisted run'}</strong></div><button className="button button-primary" type="submit" disabled={!canCreate || creating}>{creating ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Build release record</button></form>{error ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>Release operation failed</strong><small>{error}</small></span></div> : null}<div className="local-release-list">{loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Loading releases…</strong></div> : releases.length ? releases.map((release) => <article key={release.id}><header><span className="local-run-state" data-state={release.policyResult === 'PASS' ? 'completed' : 'failed'}>{release.policyResult === 'PASS' ? <Check size={13} /> : <AlertTriangle size={13} />}{release.policyResult}</span><div><strong>{release.release ?? release.releaseName ?? 'Release'}</strong><small>{new Date(release.createdAt).toLocaleString()} · run {release.scanRunId.slice(0, 10)}…</small></div></header><dl><div><dt>Added</dt><dd>{release.comparison.added}</dd></div><div><dt>Changed</dt><dd>{release.comparison.changed}</dd></div><div><dt>Removed</dt><dd>{release.comparison.removed}</dd></div><div><dt>Unresolved</dt><dd>{release.comparison.unresolved}</dd></div><div><dt>Approved</dt><dd>{release.comparison.approved}</dd></div><div><dt>Blocked</dt><dd>{release.comparison.blocked}</dd></div></dl>{release.experience ? <p className="local-release-experience">Declared experience (not verified): {experienceSummary(release.experience)}</p> : null}<div className="local-release-downloads"><a href={release.manifestUrl} download><FileJson size={13} /> Manifest JSON</a><a href={release.reportUrl} download><ShieldCheck size={13} /> Gate report</a></div>{release.comparison.addedPaths.length || release.comparison.changedPaths.length || release.comparison.removedPaths.length ? <details><summary>Path-level comparison</summary><div>{release.comparison.addedPaths.map((path) => <span key={`a-${path}`}>Added · {path}</span>)}{release.comparison.changedPaths.map((path) => <span key={`c-${path}`}>Changed · {path}</span>)}{release.comparison.removedPaths.map((path) => <span key={`r-${path}`}>Removed · {path}</span>)}</div></details> : null}</article>) : <div className="local-monitor-empty"><FileJson size={20} /><strong>No releases exported yet</strong><p>{canCreate ? 'Build the first immutable release record from the completed scan.' : 'Complete or reopen a completed local scan before creating a release.'}</p></div>}</div></section>;
 }
 
 export function LocalSourcesBoundary({ onOpenEvidence }: { onOpenEvidence: () => void }) {

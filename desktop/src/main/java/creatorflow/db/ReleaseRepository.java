@@ -23,16 +23,29 @@ public final class ReleaseRepository {
 
     public ReleaseRecord insert(String scanRunId, String releaseName, String manifestJson,
                                 String policyResult, String reportJson, String comparisonJson) {
+        return insert(scanRunId, releaseName, manifestJson, policyResult, reportJson, comparisonJson,
+                null, null, null);
+    }
+
+    /**
+     * Persists a release, stamping the project's declared intended experience (if any) onto
+     * the row. {@code universeId}/{@code placeId}/{@code experienceName} are null when the
+     * project is unbound.
+     */
+    public ReleaseRecord insert(String scanRunId, String releaseName, String manifestJson,
+                                String policyResult, String reportJson, String comparisonJson,
+                                Long universeId, Long placeId, String experienceName) {
         ReleaseRecord release = new ReleaseRecord(UUID.randomUUID().toString(),
                 requireText(scanRunId, "scan run"), requireText(releaseName, "release name"),
                 requireText(manifestJson, "manifest"), requireText(policyResult, "policy result"),
                 requireText(reportJson, "policy report"), requireText(comparisonJson, "comparison"),
-                Instant.now());
+                Instant.now(), universeId, placeId, experienceName);
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO releases(id, scan_run_id, release_name, manifest_json, policy_result,
-                                         report_json, comparison_json, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)""")) {
+                                         report_json, comparison_json, created_at,
+                                         universe_id, place_id, experience_name)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
                 statement.setString(1, release.id());
                 statement.setString(2, release.scanRunId());
                 statement.setString(3, release.releaseName());
@@ -41,6 +54,9 @@ public final class ReleaseRepository {
                 statement.setString(6, release.reportJson());
                 statement.setString(7, release.comparisonJson());
                 statement.setString(8, release.createdAt().toString());
+                setNullableLong(statement, 9, release.universeId());
+                setNullableLong(statement, 10, release.placeId());
+                statement.setString(11, release.experienceName());
                 statement.executeUpdate();
                 return release;
             } catch (SQLException e) {
@@ -93,7 +109,7 @@ public final class ReleaseRepository {
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     SELECT r.id, r.scan_run_id, r.release_name, r.policy_result,
-                           r.comparison_json, r.created_at
+                           r.comparison_json, r.created_at, r.universe_id, r.place_id, r.experience_name
                     FROM releases r JOIN scan_runs s ON s.id = r.scan_run_id
                     WHERE s.project_id = ? ORDER BY r.created_at DESC, r.rowid DESC""")) {
                 statement.setLong(1, projectId);
@@ -103,7 +119,9 @@ public final class ReleaseRepository {
                         summaries.add(new ReleaseSummary(result.getString("id"),
                                 result.getString("scan_run_id"), result.getString("release_name"),
                                 result.getString("policy_result"), result.getString("comparison_json"),
-                                Instant.parse(result.getString("created_at"))));
+                                Instant.parse(result.getString("created_at")),
+                                getNullableLong(result, "universe_id"), getNullableLong(result, "place_id"),
+                                result.getString("experience_name")));
                     }
                     return summaries;
                 }
@@ -141,7 +159,19 @@ public final class ReleaseRepository {
         return new ReleaseRecord(result.getString("id"), result.getString("scan_run_id"),
                 result.getString("release_name"), result.getString("manifest_json"),
                 result.getString("policy_result"), result.getString("report_json"),
-                result.getString("comparison_json"), Instant.parse(result.getString("created_at")));
+                result.getString("comparison_json"), Instant.parse(result.getString("created_at")),
+                getNullableLong(result, "universe_id"), getNullableLong(result, "place_id"),
+                result.getString("experience_name"));
+    }
+
+    private static void setNullableLong(PreparedStatement statement, int index, Long value) throws SQLException {
+        if (value == null) statement.setNull(index, java.sql.Types.BIGINT);
+        else statement.setLong(index, value);
+    }
+
+    private static Long getNullableLong(ResultSet result, String column) throws SQLException {
+        long value = result.getLong(column);
+        return result.wasNull() ? null : value;
     }
 
     private static String requireText(String value, String label) {

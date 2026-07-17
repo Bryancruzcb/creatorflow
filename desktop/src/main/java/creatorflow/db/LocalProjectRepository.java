@@ -59,7 +59,7 @@ public final class LocalProjectRepository {
                 }
                 connection.commit();
                 connection.setAutoCommit(previousAutoCommit);
-                return new LocalProject(projectId, name, root, now, null, "{}");
+                return new LocalProject(projectId, name, root, now, null, "{}", null, null, null);
             } catch (SQLException e) {
                 rollbackQuietly();
                 autoCommitQuietly();
@@ -137,6 +137,27 @@ public final class LocalProjectRepository {
         }
     }
 
+    /**
+     * Records the user's declared intended Roblox experience for this project. This is a
+     * human declaration only; CreatorFlow does not verify ownership of or access to it.
+     */
+    public void bindExperience(long projectId, Long universeId, Long placeId, String experienceName) {
+        synchronized (connection) {
+            try (PreparedStatement statement = connection.prepareStatement(
+                    "UPDATE local_projects SET universe_id = ?, place_id = ?, experience_name = ? WHERE project_id = ?")) {
+                setNullableLong(statement, 1, universeId);
+                setNullableLong(statement, 2, placeId);
+                statement.setString(3, experienceName);
+                statement.setLong(4, projectId);
+                if (statement.executeUpdate() != 1) {
+                    throw new IllegalArgumentException("Unknown local project " + projectId);
+                }
+            } catch (SQLException e) {
+                throw new IllegalStateException("Could not bind intended experience", e);
+            }
+        }
+    }
+
     private Optional<LocalProject> findByRootInternal(Path root) {
         try (PreparedStatement statement = connection.prepareStatement("""
                 SELECT lp.*, p.name FROM local_projects lp
@@ -175,7 +196,20 @@ public final class LocalProjectRepository {
                 Path.of(result.getString("root_path")),
                 Instant.parse(result.getString("adopted_at")),
                 result.getString("active_scan_run_id"),
-                result.getString("ui_state_json"));
+                result.getString("ui_state_json"),
+                getNullableLong(result, "universe_id"),
+                getNullableLong(result, "place_id"),
+                result.getString("experience_name"));
+    }
+
+    private static void setNullableLong(PreparedStatement statement, int index, Long value) throws SQLException {
+        if (value == null) statement.setNull(index, java.sql.Types.BIGINT);
+        else statement.setLong(index, value);
+    }
+
+    private static Long getNullableLong(ResultSet result, String column) throws SQLException {
+        long value = result.getLong(column);
+        return result.wasNull() ? null : value;
     }
 
     private static Path canonicalDirectory(Path path) {

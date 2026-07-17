@@ -1,11 +1,15 @@
 package creatorflow.manifest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import creatorflow.TestMedia;
+import creatorflow.manifest.CreativeManifest.IntendedExperience;
 import java.nio.file.Path;
+import java.time.Instant;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -82,5 +86,41 @@ class ManifestJsonTest {
                 }
                 """;
         assertThrows(Exception.class, () -> new ManifestJson().read(unsafeUrl));
+    }
+
+    @Test
+    void manifestWithADeclaredExperienceRoundTripsAndStillValidatesWithoutOne() throws Exception {
+        ManifestJson json = new ManifestJson();
+        CreativeManifest.Summary emptySummary = new CreativeManifest.Summary(0, 0, 0, 0, 0, 0);
+        IntendedExperience experience = new IntendedExperience(1234567890L, 9876543210L, "Obby Tower");
+
+        CreativeManifest withExperience = new CreativeManifest(CreativeManifest.SCHEMA,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                emptySummary, List.of(), experience);
+        String written = json.write(withExperience);
+        assertTrue(written.contains("\"experience\""));
+        assertTrue(written.contains("Obby Tower"));
+        assertEquals(withExperience, json.read(written));
+        assertEquals(experience, json.read(written).experience());
+
+        CreativeManifest withoutExperience = new CreativeManifest(CreativeManifest.SCHEMA,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                emptySummary, List.of());
+        String writtenWithout = json.write(withoutExperience);
+        assertFalse(writtenWithout.contains("\"experience\""));
+        assertEquals(withoutExperience, json.read(writtenWithout));
+        assertEquals(null, json.read(writtenWithout).experience());
+    }
+
+    @Test
+    void rejectsAnIntendedExperienceWithABlankNameOrNonPositiveId() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new IntendedExperience(0, 1, "X"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new IntendedExperience(1, 0, "X"));
+        assertThrows(IllegalArgumentException.class,
+                () -> new IntendedExperience(1, 1, "  "));
+        assertThrows(IllegalArgumentException.class,
+                () -> new IntendedExperience(1, 1, null));
     }
 }
