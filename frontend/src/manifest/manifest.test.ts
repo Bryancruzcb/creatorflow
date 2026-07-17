@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   CREATORFLOW_MANIFEST_SCHEMA,
+  CREATORFLOW_MANIFEST_SCHEMA_V2,
   MAX_MANIFEST_BYTES,
   validateManifestText,
   type CreatorFlowManifest,
@@ -27,6 +28,14 @@ function validManifest(): CreatorFlowManifest {
       matches: [],
       findings: [],
     }],
+  };
+}
+
+function validManifestV2(): CreatorFlowManifest {
+  return {
+    ...validManifest(),
+    $schema: CREATORFLOW_MANIFEST_SCHEMA_V2,
+    gate: { result: 'PASS', reasons: [] },
   };
 }
 
@@ -121,6 +130,68 @@ describe('CreatorFlow manifest validation', () => {
   it('rejects a declared experience missing a required inner field', () => {
     const manifest = validManifest() as unknown as Record<string, unknown>;
     manifest.experience = { universeId: 1234567890, placeId: 9876543210 };
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+  });
+
+  it('accepts both v0.1 and v0.2 as valid $schema values', () => {
+    expect(validate(validManifest())).toMatchObject({ ok: true });
+    expect(validate(validManifestV2())).toMatchObject({ ok: true });
+  });
+
+  it('accepts a v0.2 manifest with an embedded PASS gate and empty reasons', () => {
+    const manifest = validManifestV2();
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('accepts a v0.2 manifest with an embedded BLOCKED gate and blocking reasons', () => {
+    const manifest = validManifestV2();
+    manifest.gate = {
+      result: 'BLOCKED',
+      reasons: [{
+        code: 'UNRESOLVED_SOURCE',
+        assetPath: 'Art/hero.png',
+        verification: 'CLEAR',
+        decision: 'PENDING',
+        message: 'Source and license evidence must be resolved or the asset excluded',
+      }],
+    };
+    const result = validate(manifest);
+    expect(result).toMatchObject({ ok: true });
+    if (result.ok) expect(result.manifest.gate?.reasons).toHaveLength(1);
+  });
+
+  it('rejects a v0.2 manifest missing its gate block', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    delete manifest.gate;
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+    if (!result.ok) expect(result.issues.some((issue) => issue.path.includes('gate'))).toBe(true);
+  });
+
+  it('rejects a gate block with an invalid result value', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    manifest.gate = { result: 'MAYBE', reasons: [] };
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects a gate reason missing a required field', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    manifest.gate = { result: 'BLOCKED', reasons: [{ code: 'UNRESOLVED_SOURCE', assetPath: 'a.png' }] };
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+  });
+
+  it('still accepts a v0.1 manifest that omits the gate block entirely', () => {
+    const manifest = validManifest();
+    expect('gate' in manifest).toBe(false);
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('rejects a v0.1 manifest that carries a gate block', () => {
+    const manifest = validManifest() as unknown as Record<string, unknown>;
+    manifest.gate = { result: 'PASS', reasons: [] };
     const result = validate(manifest);
     expect(result.ok).toBe(false);
   });

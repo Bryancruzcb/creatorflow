@@ -4,6 +4,13 @@ import path from 'node:path';
 const realManifest = path.resolve('public/assets/creatorflow-real-assets-manifest.json');
 
 async function openProjectMenu(page: Page) {
+  // A first-visit welcome dialog covers the page in a fresh browser context and intercepts
+  // pointer events until dismissed; it only ever shows once per (real) visitor.
+  const dismissWelcome = page.getByRole('button', { name: 'Dismiss welcome' });
+  if (await dismissWelcome.isVisible().catch(() => false)) {
+    await dismissWelcome.click();
+  }
+
   const switcher = page.getByRole('button', { name: /Switch project\. Current dataset:/ });
   await switcher.focus();
   await page.keyboard.press('Enter');
@@ -48,7 +55,7 @@ test('imports a real scanner manifest, isolates sample data, and preserves it af
 
   await openProjectMenu(page);
   await page.getByRole('menuitem', { name: /Northwind/ }).click();
-  await expect(page.getByLabel('Active dataset: sample scenario')).toBeVisible();
+  await expect(page.getByLabel('Active dataset: sample scenario', { exact: true })).toBeVisible();
   expect(mutationRequests).toEqual([]);
 });
 
@@ -97,4 +104,68 @@ test('paginates imported evidence at 100 records and filters without rendering t
   await page.getByRole('textbox', { name: 'Search imported records' }).fill('item-100');
   await expect(page.getByText('1 of 101 records')).toBeVisible();
   await expect(page.getByText('Page 1 of 1 · 100 records per page')).toBeVisible();
+});
+
+test('imports a v0.2 manifest with an embedded BLOCKED gate', async ({ page }) => {
+  const assets = [
+    {
+      path: 'assets/approved.png',
+      fileName: 'approved.png',
+      fileType: 'png',
+      sizeBytes: 10,
+      sha256: '0'.repeat(64),
+      width: 16,
+      height: 16,
+      fingerprints: { dHash: null, pHash: null, audio: null },
+      verification: 'CLEAR',
+      source: { source: 'Studio archive', license: 'Owned', evidenceUrl: 'https://example.test/evidence/approved' },
+      decision: 'APPROVED',
+      matches: [],
+      findings: [],
+    },
+    {
+      path: 'assets/blocked.png',
+      fileName: 'blocked.png',
+      fileType: 'png',
+      sizeBytes: 10,
+      sha256: '1'.repeat(64),
+      width: 16,
+      height: 16,
+      fingerprints: { dHash: null, pHash: null, audio: null },
+      verification: 'CLEAR',
+      source: { source: 'Studio archive', license: 'Owned', evidenceUrl: 'https://example.test/evidence/blocked' },
+      decision: 'BLOCKED',
+      matches: [],
+      findings: [],
+    },
+  ];
+  const manifest = {
+    $schema: 'creatorflow.manifest/v0.2',
+    project: { name: 'Gate fixture', release: '1.0.0' },
+    generatedAt: '2026-07-17T21:00:00Z',
+    summary: { total: 2, clear: 2, similar: 0, duplicate: 0, unresolvedSources: 0, pendingDecisions: 0 },
+    gate: {
+      result: 'BLOCKED',
+      reasons: [{
+        code: 'BLOCKED_DECISION',
+        assetPath: 'assets/blocked.png',
+        verification: 'CLEAR',
+        decision: 'BLOCKED',
+        message: 'A BLOCKED decision always prevents release',
+      }],
+    },
+    assets,
+  };
+
+  await page.goto('/#workspace?view=overview');
+  await openProjectMenu(page);
+  await chooseManifest(page, {
+    name: 'gate-blocked.json',
+    mimeType: 'application/json',
+    buffer: Buffer.from(JSON.stringify(manifest)),
+  });
+
+  await expect(page.getByRole('status')).toContainText('Gate fixture imported');
+  await expect(page.getByLabel('Active dataset: imported scanner snapshot', { exact: true })).toBeVisible();
+  await expect(page.getByText('Gate fixture · Release 1.0.0', { exact: true })).toBeVisible();
 });

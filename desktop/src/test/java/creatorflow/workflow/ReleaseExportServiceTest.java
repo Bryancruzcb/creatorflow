@@ -97,6 +97,58 @@ class ReleaseExportServiceTest {
     }
 
     @Test
+    void embedsAGateBlockThatStaysConsistentWithTheSeparateReportAsEvidenceIsResolved() throws Exception {
+        try (Database database = new Database(directory.resolve("gate-embed.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "scan-1", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.SIMILAR, SourceEvidence.unresolved())));
+
+            ReleaseBundle blocked = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+
+            assertFalse(blocked.report().passed());
+            assertEquals("BLOCKED", blocked.manifest().gate().result());
+            assertEquals(blocked.report().violations().size(), blocked.manifest().gate().reasons().size());
+            assertTrue(blocked.manifest().gate().reasons().stream()
+                    .anyMatch(reason -> reason.assetPath().equals("art/hero.png")));
+            assertTrue(blocked.release().manifestJson().contains("\"gate\""));
+            assertTrue(blocked.release().manifestJson().contains("\"result\" : \"BLOCKED\""));
+
+            ScanAsset hero = fixture.scans.listAllAssets(run.id()).getFirst();
+            fixture.scans.appendEvidence(hero.id(),
+                    new SourceEvidence("Studio archive", "Owned", "https://example.test/hero"));
+            fixture.decisions.append(hero.id(), DecisionType.APPROVED, "Reviewed and cleared for release");
+
+            ReleaseBundle passing = fixture.service.create(project.projectId(), run.id(), "1.0.1");
+
+            assertTrue(passing.report().passed());
+            assertEquals("PASS", passing.manifest().gate().result());
+            assertTrue(passing.manifest().gate().reasons().isEmpty());
+            assertTrue(passing.release().manifestJson().contains("\"reasons\" : [ ]"));
+        }
+    }
+
+    @Test
+    void recreatingAReleaseFromTheSameCompletedScanRunIsByteIdentical() throws Exception {
+        try (Database database = new Database(directory.resolve("determinism.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "scan-1", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.CLEAR, resolved()),
+                    asset("audio/theme.wav", "b", VerificationStatus.CLEAR, resolved())));
+            ScanRun completed = fixture.scans.findById(run.id()).orElseThrow();
+
+            ReleaseBundle first = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+            ReleaseBundle second = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+
+            assertEquals(completed.completedAt(), first.manifest().generatedAt());
+            assertEquals(first.manifest().generatedAt(), second.manifest().generatedAt());
+            assertEquals(first.manifest(), second.manifest());
+            assertEquals(first.release().manifestJson(), second.release().manifestJson());
+        }
+    }
+
+    @Test
     void comparisonUsesPreviousProjectReleaseAcrossImmutableScans() {
         try (Database database = new Database(directory.resolve("diff.db"))) {
             Fixture fixture = new Fixture(database);
@@ -135,7 +187,7 @@ class ReleaseExportServiceTest {
         int similar = (int) assets.stream().filter(a -> a.verification() == VerificationStatus.SIMILAR).count();
         int duplicate = (int) assets.stream().filter(a -> a.verification() == VerificationStatus.DUPLICATE).count();
         int unresolved = (int) assets.stream().filter(a -> !a.source().resolved()).count();
-        return new CreativeManifest(CreativeManifest.SCHEMA,
+        return new CreativeManifest(CreativeManifest.SCHEMA_V1,
                 new CreativeManifest.Project(project.name(), release), Instant.now(),
                 new CreativeManifest.Summary(assets.size(), clear, similar, duplicate, unresolved, assets.size()),
                 assets);
