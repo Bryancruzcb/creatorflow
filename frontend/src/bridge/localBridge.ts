@@ -8,10 +8,21 @@ export interface LocalBridgeSession {
 }
 
 export interface LocalPluginPairing {
+  id: string;
   projectId: number;
   endpoint: string;
   token: string;
   expiresAt: string;
+}
+
+export type PluginPairingStatus = 'ACTIVE' | 'EXPIRED' | 'REVOKED';
+
+/** A previously issued pairing's metadata — never the token or its hash. */
+export interface LocalPluginPairingSummary {
+  id: string;
+  issuedAt: string;
+  expiresAt: string;
+  status: PluginPairingStatus;
 }
 
 export interface LocalMotionComparison {
@@ -279,6 +290,19 @@ export class LocalBridgeClient {
 
   createPluginPairing(projectId: number) {
     return this.request<LocalPluginPairing>(`/api/v1/projects/${projectId}/plugin-pairings`, { method: 'POST' });
+  }
+
+  /** Every pairing issued for the project, newest first — never the token or its hash. */
+  listPluginPairings(projectId: number) {
+    return this.request<{ items: LocalPluginPairingSummary[] }>(`/api/v1/projects/${projectId}/plugin-pairings`);
+  }
+
+  /** Soft-deletes a pairing by id; an already-paired plugin's next request is rejected (401). */
+  revokePluginPairing(projectId: number, pairingId: string) {
+    return this.request<{ items: LocalPluginPairingSummary[] }>(
+      `/api/v1/projects/${projectId}/plugin-pairings/${encodeURIComponent(pairingId)}/revoke`,
+      { method: 'POST' },
+    );
   }
 
   /** Declares (or edits) the intended Roblox experience for a project. A human declaration only — not verified. */
