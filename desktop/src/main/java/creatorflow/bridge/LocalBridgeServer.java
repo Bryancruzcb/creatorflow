@@ -76,6 +76,8 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern PROJECT_ASSETS = Pattern.compile("^/api/v1/projects/(\\d+)/assets$");
     private static final Pattern PROJECT_RELEASES = Pattern.compile("^/api/v1/projects/(\\d+)/releases$");
     private static final Pattern PROJECT_PLUGIN_PAIRING = Pattern.compile("^/api/v1/projects/(\\d+)/plugin-pairings$");
+    private static final Pattern PROJECT_PLUGIN_PAIRING_REVOKE =
+            Pattern.compile("^/api/v1/projects/(\\d+)/plugin-pairings/([a-f0-9-]+)/revoke$");
     private static final Pattern PROJECT_EXPERIENCE = Pattern.compile("^/api/v1/projects/(\\d+)/experience$");
     private static final Pattern PROJECT_MOTION_COMPARISONS = Pattern.compile("^/api/v1/projects/(\\d+)/motion-comparisons$");
     private static final Pattern PROJECT_ANIMATION_SNAPSHOTS = Pattern.compile("^/api/v1/projects/(\\d+)/animation-snapshots$");
@@ -336,16 +338,40 @@ public final class LocalBridgeServer implements AutoCloseable {
 
         Matcher matcher = PROJECT_PLUGIN_PAIRING.matcher(path);
         if (matcher.matches()) {
-            requireMutation(exchange);
             long projectId = Long.parseLong(matcher.group(1));
             localProjects.findByProjectId(projectId)
                     .orElseThrow(() -> new HttpError(404, "Local project not found"));
+            if ("GET".equals(exchange.getRequestMethod())) {
+                sendJson(exchange, 200, Map.of("items", pluginPairings.list(projectId).stream()
+                        .map(LocalBridgeServer::pluginPairingView).toList()));
+                return;
+            }
+            requireMutation(exchange);
             PluginPairingService.IssuedPairing pairing = pluginPairings.issue(projectId);
             sendJson(exchange, 201, Map.of(
+                    "id", pairing.id(),
                     "projectId", pairing.projectId(),
                     "endpoint", origin.toString(),
                     "token", pairing.token(),
                     "expiresAt", pairing.expiresAt()));
+            return;
+        }
+
+        matcher = PROJECT_PLUGIN_PAIRING_REVOKE.matcher(path);
+        if (matcher.matches()) {
+            requireMutation(exchange);
+            long projectId = Long.parseLong(matcher.group(1));
+            String pairingId = matcher.group(2);
+            localProjects.findByProjectId(projectId)
+                    .orElseThrow(() -> new HttpError(404, "Local project not found"));
+            // Scope the revoke to this project: a pairing id that exists but belongs to a
+            // different project must 404, exactly like an unknown id.
+            boolean belongsToProject = pluginPairings.list(projectId).stream()
+                    .anyMatch(view -> view.id().equals(pairingId));
+            if (!belongsToProject) throw new HttpError(404, "Plugin pairing not found");
+            pluginPairings.revoke(pairingId, projectId);
+            sendJson(exchange, 200, Map.of("items", pluginPairings.list(projectId).stream()
+                    .map(LocalBridgeServer::pluginPairingView).toList()));
             return;
         }
 
@@ -912,6 +938,16 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("status", record.status().name());
         view.put("createdAt", record.createdAt());
         return view;
+    }
+
+    /** Never includes the token or its hash — only what the UI needs to list and revoke. */
+    private static Map<String, Object> pluginPairingView(PluginPairingService.PairingView view) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("id", view.id());
+        map.put("issuedAt", view.issuedAt());
+        map.put("expiresAt", view.expiresAt());
+        map.put("status", view.status().name());
+        return map;
     }
 
     private static String verdictLabel(String verdict) {

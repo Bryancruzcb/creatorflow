@@ -13,6 +13,7 @@ import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.MotionSnapshotRepository;
+import creatorflow.db.PluginPairingRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
@@ -71,7 +72,7 @@ class LocalBridgeServerTest {
         workspaceState = new WorkspaceStateRepository(database);
         var animationComparisons = new AnimationComparisonRepository(database);
         var motionSnapshots = new MotionSnapshotRepository(database);
-        var pluginPairings = new PluginPairingService();
+        var pluginPairings = new PluginPairingService(new PluginPairingRepository(database));
         var audit = new AuditRepository(database);
         var coordinator = new ScanCoordinator(scans, localProjects, audit);
         var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
@@ -383,6 +384,54 @@ class LocalBridgeServerTest {
         assertEquals(1, json.readTree(get(
                 "/api/v1/projects/" + projectId + "/motion-comparisons", cookie).body())
                 .get("items").size());
+    }
+
+    @Test
+    void listsAndRevokesPluginPairingsWithoutExposingTokenOrHash() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        HttpResponse<String> issued = post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf);
+        assertEquals(201, issued.statusCode());
+        String token = json.readTree(issued.body()).get("token").asText();
+        String pairingId = json.readTree(issued.body()).get("id").asText();
+        assertTrue(pairingId != null && !pairingId.isBlank());
+
+        assertEquals(401, get("/api/v1/projects/" + projectId + "/plugin-pairings", null).statusCode());
+
+        HttpResponse<String> list = get("/api/v1/projects/" + projectId + "/plugin-pairings", cookie);
+        assertEquals(200, list.statusCode());
+        JsonNode items = json.readTree(list.body()).get("items");
+        assertEquals(1, items.size());
+        assertEquals(pairingId, items.get(0).get("id").asText());
+        assertEquals("ACTIVE", items.get(0).get("status").asText());
+        assertFalse(list.body().contains(token));
+        assertFalse(list.body().toLowerCase(java.util.Locale.ROOT).contains("hash"));
+
+        // A pairing id that belongs to a different project (or doesn't exist) must 404, never
+        // silently succeed or leak whether the id exists elsewhere.
+        long otherProjectId = localProjects.adopt(Files.createDirectories(directory.resolve("other-project")))
+                .projectId();
+        assertEquals(404, post("/api/v1/projects/" + otherProjectId + "/plugin-pairings/" + pairingId + "/revoke",
+                cookie, origin.toString(), csrf).statusCode());
+        assertEquals(404, post("/api/v1/projects/" + projectId + "/plugin-pairings/deadbeef-0000-0000-0000-000000000000/revoke",
+                cookie, origin.toString(), csrf).statusCode());
+
+        // Revoke is a mutation like any other: same-origin + CSRF required.
+        assertEquals(403, post("/api/v1/projects/" + projectId + "/plugin-pairings/" + pairingId + "/revoke",
+                cookie, origin.toString(), null).statusCode());
+
+        HttpResponse<String> revoked = post("/api/v1/projects/" + projectId + "/plugin-pairings/" + pairingId + "/revoke",
+                cookie, origin.toString(), csrf);
+        assertEquals(200, revoked.statusCode());
+        JsonNode revokedItems = json.readTree(revoked.body()).get("items");
+        assertEquals(1, revokedItems.size());
+        assertEquals("REVOKED", revokedItems.get(0).get("status").asText());
+        assertFalse(revoked.body().contains(token));
+
+        // The revoked token is now rejected on the pairing-gated plugin route.
+        assertEquals(401, pluginRequest("GET", "/plugin/v1/health", token, null).statusCode());
     }
 
     @Test

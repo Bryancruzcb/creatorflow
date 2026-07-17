@@ -7,6 +7,7 @@ import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.MotionSnapshotRepository;
+import creatorflow.db.PluginPairingRepository;
 import creatorflow.db.ProjectRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
@@ -63,7 +64,7 @@ public final class AppContext implements AutoCloseable {
         this.workspaceState = new WorkspaceStateRepository(database);
         this.animationComparisons = new AnimationComparisonRepository(database);
         this.motionSnapshots = new MotionSnapshotRepository(database);
-        this.pluginPairings = new PluginPairingService();
+        this.pluginPairings = new PluginPairingService(new PluginPairingRepository(database));
         this.releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit);
     }

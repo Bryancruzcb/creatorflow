@@ -1,5 +1,5 @@
 import { AlertTriangle, BadgeCheck, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch, ShieldAlert } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   ACESFilmicToneMapping,
   AnimationClip,
@@ -29,8 +29,9 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
-import { LocalBridgeClient, type LocalMotionComparison, type LocalPluginPairing, type LocalProjectSummary } from '../bridge/localBridge';
+import { LocalBridgeClient, type LocalMotionComparison, type LocalPluginPairing, type LocalPluginPairingSummary, type LocalProjectSummary } from '../bridge/localBridge';
 import { verificationBasis } from '../bridge/evidenceBasis';
+import { formatPairingId, isRevocable, pairingStatusLabel, pairingStatusTone } from '../bridge/pluginPairings';
 import { EvidenceBasisMark } from './EvidenceBasisMark';
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
 import { MotionScenarioPicker } from './MotionScenarioPicker';
@@ -621,6 +622,8 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
   const [pairing, setPairing] = useState<LocalPluginPairing | null>(null);
   const [pairingState, setPairingState] = useState<'idle' | 'creating' | 'error'>('idle');
   const [copiedField, setCopiedField] = useState<'endpoint' | 'token' | null>(null);
+  const [pairingList, setPairingList] = useState<LocalPluginPairingSummary[]>([]);
+  const [revokingPairingId, setRevokingPairingId] = useState<string | null>(null);
   const [comparisons, setComparisons] = useState<LocalMotionComparison[]>([]);
   const [bridgeMessage, setBridgeMessage] = useState<string | null>(null);
   const investigationRef = useRef<HTMLElement>(null);
@@ -699,6 +702,20 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
   }, [preferences.jointScope]);
   useEffect(() => { setShowOnion(preferences.poseTrail); }, [preferences.poseTrail]);
 
+  // The freshly-issued token is the only time it's ever available; this list only ever carries
+  // id/issuedAt/expiresAt/status, never the token itself.
+  const refreshPairingList = useCallback(() => {
+    if (!bridgeClient || !project) {
+      setPairingList([]);
+      return;
+    }
+    bridgeClient.listPluginPairings(project.projectId)
+      .then((page) => setPairingList(page.items))
+      .catch(() => setBridgeMessage('CreatorFlow could not refresh the Studio pairing list.'));
+  }, [bridgeClient, project]);
+
+  useEffect(() => { refreshPairingList(); }, [refreshPairingList]);
+
   async function createPairing() {
     if (!bridgeClient || !project) return;
     setPairingState('creating');
@@ -707,9 +724,24 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
       const nextPairing = await bridgeClient.createPluginPairing(project.projectId);
       setPairing(nextPairing);
       setPairingState('idle');
+      refreshPairingList();
     } catch {
       setPairingState('error');
       setBridgeMessage('The desktop bridge could not create a Studio pairing. Restart CreatorFlow and try again.');
+    }
+  }
+
+  async function revokePairing(pairingId: string) {
+    if (!bridgeClient || !project) return;
+    setRevokingPairingId(pairingId);
+    setBridgeMessage(null);
+    try {
+      const page = await bridgeClient.revokePluginPairing(project.projectId, pairingId);
+      setPairingList(page.items);
+    } catch {
+      setBridgeMessage('The desktop bridge could not revoke that pairing. Try again.');
+    } finally {
+      setRevokingPairingId(null);
     }
   }
 
@@ -933,7 +965,30 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
             <summary><span><strong>Connect Roblox Studio</strong><small>Receive permitted Animation IDs through the local desktop bridge</small></span><span>{bridgeClient && project ? 'Ready' : 'Desktop required'} <ChevronDown size={15} /></span></summary>
             <section className="motion-plugin-intake" aria-labelledby="studio-bridge-title">
               <header><div><span>Studio bridge</span><h2 id="studio-bridge-title">Pair Roblox Studio with this project.</h2><p>The plugin reads two animations you already have permission to access. CreatorFlow revalidates, fingerprints, compares, and stores the evidence on this machine.</p></div><span className={bridgeClient && project ? 'motion-bridge-ready' : 'motion-bridge-demo'}><i />{bridgeClient && project ? `${project.name} ready` : 'Desktop bridge not connected'}</span></header>
-              {bridgeClient && project ? <div className="motion-pairing-panel"><div className="motion-pairing-action"><span><strong>1. Create a temporary pairing</strong><small>Scoped to {project.name}; expires automatically.</small></span><button className="button button-secondary" type="button" onClick={() => { void createPairing(); }} disabled={pairingState === 'creating'}>{pairingState === 'creating' ? 'Creating…' : pairing ? 'Rotate pairing' : 'Create pairing'}</button></div>{pairing ? <div className="motion-pairing-fields"><div className="motion-pairing-field"><span>CreatorFlow endpoint <button type="button" onClick={() => { void copyPairing(pairing.endpoint, 'endpoint'); }}>{copiedField === 'endpoint' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow endpoint" readOnly value={pairing.endpoint} onFocus={(event) => event.currentTarget.select()} /></div><div className="motion-pairing-field"><span>Pairing token <button type="button" onClick={() => { void copyPairing(pairing.token, 'token'); }}>{copiedField === 'token' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow pairing token" readOnly value={pairing.token} onFocus={(event) => event.currentTarget.select()} /></div></div> : <p className="motion-pairing-empty">CreatorFlow will show a loopback address and short-lived token for the Studio plugin. No animation data is sent to a cloud service.</p>}</div> : <div className="motion-desktop-boundary"><AlertTriangle size={16} /><span><strong>The interactive fixture above still works.</strong><small>To receive real Roblox IDs, launch the CreatorFlow desktop app, open a local project, and return here.</small></span></div>}
+              {bridgeClient && project ? <div className="motion-pairing-panel"><div className="motion-pairing-action"><span><strong>1. Create a temporary pairing</strong><small>Scoped to {project.name}; expires automatically.</small></span><button className="button button-secondary" type="button" onClick={() => { void createPairing(); }} disabled={pairingState === 'creating'}>{pairingState === 'creating' ? 'Creating…' : pairing ? 'Rotate pairing' : 'Create pairing'}</button></div>{pairing ? <div className="motion-pairing-fields"><div className="motion-pairing-field"><span>CreatorFlow endpoint <button type="button" onClick={() => { void copyPairing(pairing.endpoint, 'endpoint'); }}>{copiedField === 'endpoint' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow endpoint" readOnly value={pairing.endpoint} onFocus={(event) => event.currentTarget.select()} /></div><div className="motion-pairing-field"><span>Pairing token <button type="button" onClick={() => { void copyPairing(pairing.token, 'token'); }}>{copiedField === 'token' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow pairing token" readOnly value={pairing.token} onFocus={(event) => event.currentTarget.select()} /></div></div> : <p className="motion-pairing-empty">CreatorFlow will show a loopback address and short-lived token for the Studio plugin. No animation data is sent to a cloud service.</p>}
+                <div className="motion-pairing-list">
+                  <div className="motion-pairing-list-head">
+                    <span><strong>2. Manage pairings</strong><small>{pairingList.length} issued for {project.name}</small></span>
+                    <button type="button" className="motion-pairing-refresh" onClick={refreshPairingList}>Refresh</button>
+                  </div>
+                  {pairingList.length === 0 ? <p className="motion-pairing-empty">No pairings yet for this project.</p> : (
+                    <ul className="motion-pairing-rows">
+                      {pairingList.map((item) => (
+                        <li key={item.id} className="motion-pairing-row" data-tone={pairingStatusTone(item.status)}>
+                          <code title={item.id}>…{formatPairingId(item.id)}</code>
+                          <span className={`motion-pairing-status tone-${pairingStatusTone(item.status)}`}>{pairingStatusLabel(item.status)}</span>
+                          <span className="motion-pairing-timestamps"><small>Issued</small><time dateTime={item.issuedAt}>{new Date(item.issuedAt).toLocaleString()}</time><small>Expires</small><time dateTime={item.expiresAt}>{new Date(item.expiresAt).toLocaleString()}</time></span>
+                          {isRevocable(item.status) ? (
+                            <button type="button" className="button button-secondary" onClick={() => { void revokePairing(item.id); }} disabled={revokingPairingId !== null}>
+                              {revokingPairingId === item.id ? 'Revoking…' : 'Revoke'}
+                            </button>
+                          ) : <span className="motion-pairing-inactive">—</span>}
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              </div> : <div className="motion-desktop-boundary"><AlertTriangle size={16} /><span><strong>The interactive fixture above still works.</strong><small>To receive real Roblox IDs, launch the CreatorFlow desktop app, open a local project, and return here.</small></span></div>}
               {bridgeMessage ? <p className="motion-bridge-message" role="status">{bridgeMessage}</p> : null}
               {latestComparison ? <article className="motion-live-result"><header><span><i />Latest Studio evidence</span><time dateTime={latestComparison.createdAt}>{new Date(latestComparison.createdAt).toLocaleString()}</time></header><div><span><small>Animation IDs</small><strong>{latestComparison.sourceAssetId} ↔ {latestComparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{latestComparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{latestComparison.posePercent}%</strong></span><span><small>Timing</small><strong>{latestComparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{latestComparison.coveragePercent}%</strong></span></div><footer><strong>{latestComparison.verdict}</strong><span>{latestComparison.exactCurveData ? 'Exact canonical curves' : 'Similarity signal'} · evidence ID {latestComparison.id.slice(0, 8)}</span></footer></article> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison. This page refreshes the local evidence inbox automatically.</p> : null}
               <section className="motion-authoring-boundary"><AlertTriangle size={17} /><div><strong>Compare here; author and publish in Roblox Studio.</strong><p>Every comparison mode reads the supplied curves without changing them. CreatorFlow does not pose the rig, overwrite an AnimationClip, replace an Animation ID, or upload an animation.</p></div><dl><div><dt>Available now</dt><dd>Read · compare · preview · fingerprint</dd></div><div><dt>Not an editor</dt><dd>Rig controls · curve timeline · Roblox upload</dd></div></dl></section>
