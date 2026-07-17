@@ -1,7 +1,7 @@
 // frontend/src/motion/motionEngine.test.ts
 import { describe, expect, it } from 'vitest';
 import type { NormalizedAnimationJson, NormalizedKeyframeJson, NormalizedPoseJson } from './normalizedMotion';
-import { compareNormalized } from './motionEngineCore';
+import { compareNormalized, JAVA_POSE_WEIGHTS } from './motionEngineCore';
 import { compareMotion, ENGINE_V2_VERSION } from './motionEngine';
 
 function pose(jointPath: string, x: number, yawDegrees: number): NormalizedPoseJson {
@@ -19,13 +19,15 @@ describe('compareMotion (v2) — composition stage', () => {
     keyframe(0, pose('Root/Hip', 0, 0)), keyframe(0.5, pose('Root/Hip', 0.25, 35)), keyframe(1, pose('Root/Hip', 0, 70)));
 
   it('is byte-identical to the parity core at full coverage (composition only bites below 100)', () => {
-    // NOTE: Task 4 updates this test to pass { poseWeights: JAVA_POSE_WEIGHTS } explicitly;
+    // Pinned to JAVA_POSE_WEIGHTS explicitly: this is a Java-weight lockstep equality
+    // check, so it must stay independent of the v2 default (Task 4 de-weights that
+    // default to V2_POSE_WEIGHTS — see the 'de-weight stage' describe block below).
     // Task 5 replaces it with the DTW-era variant (see those tasks) — it is stage-scoped.
     const source = walk('100');
     const candidate = animation('200', 1,
       keyframe(0, pose('Root/Hip', 0, 0)), keyframe(0.5, pose('Root/Hip', 0.9, 120)), keyframe(1, pose('Root/Hip', 0, 70)));
     const v1 = compareNormalized(source, candidate);
-    const v2 = compareMotion(source, candidate);
+    const v2 = compareMotion(source, candidate, { poseWeights: JAVA_POSE_WEIGHTS });
     expect(v2.engineVersion).toBe(ENGINE_V2_VERSION);
     expect(v2.posePercent).toBe(v1.posePercent);            // same kernel, same lockstep in this stage
     expect(v2.timingPercent).toBe(v1.timingPercent);
@@ -61,5 +63,21 @@ describe('compareMotion (v2) — composition stage', () => {
     expect(result.exactCurveData).toBe(true);
     expect(result.verdict).toBe('EXACT_CURVE_DATA');
     expect(result.overallPercent).toBe(100);
+  });
+});
+
+describe('compareMotion (v2) — de-weight stage', () => {
+  it('applies the de-weighted kernel by default (finding 7)', () => {
+    const still = (id: string, x: number, yaw: number) => animation(id, 1,
+      keyframe(0, pose('Root/Hip', x, yaw)), keyframe(1, pose('Root/Hip', x, yaw)));
+    // Pure position offset of 1.0: position kernel now contributes 0.25:
+    // pose = 0.25*10.5399 + 0.65*100 + 0.10*100 = 77.635 -> *0.96 + 4 = 78.53
+    // (under Java weights this is 63.93 — the assertion below fails pre-de-weight, TDD-proving the swap)
+    const positionOnly = compareMotion(still('100', 0, 0), still('200', 1, 0));
+    expect(positionOnly.posePercent).toBeCloseTo(78.53, 1);
+    // Pure 90-degree rotation offset drops further under the heavier rotation weight:
+    // pose = 0.25*100 + 0.65*5.9165 + 0.10*100 = 38.85 -> *0.96 + 4 = 41.29
+    const rotationOnly = compareMotion(still('100', 0, 0), still('200', 0, 90));
+    expect(rotationOnly.posePercent).toBeCloseTo(41.29, 1);
   });
 });
