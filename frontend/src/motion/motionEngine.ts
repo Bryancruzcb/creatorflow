@@ -3,8 +3,8 @@
  * The web's ONE user-facing motion engine (v2): the parity-proven Java kernel
  * (motionEngineCore primitives) with three deliberate, separately-graded
  * divergences, each pinned by the scorecard + golden vectors:
- *   1. overall = (pose*0.8 + timing*0.2) * coverage/100  — guards tiny-overlap
- *      false accusations without the old harmonic mean's full-coverage inflation.
+ *   1. overall = (pose*0.65 + timing*0.20 + coverage*0.15) * coverage/100  — guards
+ *      tiny-overlap false accusations without the old harmonic mean's full-coverage inflation.
  *   2. (Task 4) position de-weighted 0.42 -> 0.25 toward rotation (handoff finding 7).
  *   3. (Task 5) banded DTW replaces lockstep sampling; warp-aware timing composite.
  * compareNormalized in motionEngineCore stays parity-locked to Java — v2 composes
@@ -12,12 +12,15 @@
  */
 import type { NormalizedAnimationJson } from './normalizedMotion';
 import {
-  JAVA_POSE_WEIGHTS, type NormalizedJointScore, type NormalizedVerdict, type PoseBlendWeights,
+  type NormalizedJointScore, type NormalizedVerdict, type PoseBlendWeights,
   canonicalCurvesEqual, poseDelta, round, sample, trackMetadataPercent, tracks,
   timingPercent as javaTimingPercent,
 } from './motionEngineCore';
 
 export const ENGINE_V2_VERSION = 'creatorflow.motion-comparison/v2-web';
+
+/** Finding 7: absolute position partly measures rig identity; de-weight toward rotation. */
+export const V2_POSE_WEIGHTS: PoseBlendWeights = { position: 0.25, rotation: 0.65, weight: 0.1 };
 
 export interface MotionEngineOptions {
   sampleCount?: number;
@@ -59,7 +62,7 @@ export function compareMotion(
   options: MotionEngineOptions = {},
 ): MotionComparisonV2 {
   const sampleCount = Math.max(13, Math.round(options.sampleCount ?? 49));
-  const weights = options.poseWeights ?? JAVA_POSE_WEIGHTS;
+  const weights = options.poseWeights ?? V2_POSE_WEIGHTS;
   const exact = canonicalCurvesEqual(source, candidate);
 
   const sourceTracks = tracks(source);
