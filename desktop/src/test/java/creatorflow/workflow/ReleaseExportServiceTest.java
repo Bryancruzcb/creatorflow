@@ -15,6 +15,7 @@ import creatorflow.manifest.CreativeManifest.AssetEntry;
 import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.manifest.EvidenceBasis;
 import creatorflow.manifest.ManifestJson;
 import creatorflow.model.VerificationStatus;
 import java.nio.file.Path;
@@ -145,6 +146,39 @@ class ReleaseExportServiceTest {
             assertEquals(first.manifest().generatedAt(), second.manifest().generatedAt());
             assertEquals(first.manifest(), second.manifest());
             assertEquals(first.release().manifestJson(), second.release().manifestJson());
+        }
+    }
+
+    @Test
+    void populatesEvidenceBasesConsistentlyWithSourceResolutionAndAlwaysMarksOwnershipUnverified()
+            throws Exception {
+        try (Database database = new Database(directory.resolve("evidence-bases.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "scan-1", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.SIMILAR, SourceEvidence.unresolved()),
+                    asset("audio/theme.wav", "b", VerificationStatus.CLEAR,
+                            new SourceEvidence("Studio", "Owned", "https://example.test/theme"))));
+
+            ReleaseBundle bundle = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+
+            AssetEntry unresolved = bundle.manifest().assets().stream()
+                    .filter(entryAsset -> entryAsset.path().equals("art/hero.png")).findFirst().orElseThrow();
+            AssetEntry resolved = bundle.manifest().assets().stream()
+                    .filter(entryAsset -> entryAsset.path().equals("audio/theme.wav")).findFirst().orElseThrow();
+
+            // BLOCKED/unresolved asset: source is honestly unknown, ownership is never checked.
+            assertEquals(EvidenceBasis.NOT_VERIFIED, unresolved.evidenceBases().source());
+            assertEquals(EvidenceBasis.NOT_VERIFIED, unresolved.evidenceBases().ownership());
+            assertEquals(EvidenceBasis.VERIFIED, unresolved.evidenceBases().verification());
+            assertEquals(null, unresolved.evidenceBases().decision());
+
+            // Resolved asset: a human recorded source/license, so it's DECLARED; ownership still unverified.
+            assertEquals(EvidenceBasis.DECLARED, resolved.evidenceBases().source());
+            assertEquals(EvidenceBasis.NOT_VERIFIED, resolved.evidenceBases().ownership());
+            assertEquals(EvidenceBasis.VERIFIED, resolved.evidenceBases().verification());
+
+            assertTrue(bundle.release().manifestJson().contains("\"evidenceBases\""));
         }
     }
 

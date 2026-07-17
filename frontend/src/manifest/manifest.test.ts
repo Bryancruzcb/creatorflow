@@ -195,4 +195,57 @@ describe('CreatorFlow manifest validation', () => {
     const result = validate(manifest);
     expect(result.ok).toBe(false);
   });
+
+  it('accepts a v0.2 asset with a fully populated optional evidenceBases block', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].evidenceBases = {
+      verification: 'VERIFIED',
+      source: 'DECLARED',
+      ownership: 'NOT_VERIFIED',
+      decision: 'DECLARED',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('accepts a v0.2 asset with evidenceBases omitting the optional decision field', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].evidenceBases = {
+      verification: 'VERIFIED',
+      source: 'NOT_VERIFIED',
+      ownership: 'NOT_VERIFIED',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('still accepts a v0.2 manifest whose assets omit evidenceBases entirely (backward compat)', () => {
+    const manifest = validManifestV2();
+    expect('evidenceBases' in manifest.assets[0]).toBe(false);
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('rejects an evidenceBases block with an invalid basis enum value', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].evidenceBases = { verification: 'MAYBE', source: 'NOT_VERIFIED', ownership: 'NOT_VERIFIED' };
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects an evidenceBases block missing a required facet', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].evidenceBases = { verification: 'VERIFIED', source: 'DECLARED' };
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+  });
+
+  it('rejects an evidenceBases block with an unknown extra property', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].evidenceBases = {
+      verification: 'VERIFIED', source: 'DECLARED', ownership: 'NOT_VERIFIED', extra: 'nope',
+    };
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+  });
 });
