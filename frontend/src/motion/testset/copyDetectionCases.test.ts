@@ -13,12 +13,31 @@ describe('copy-detection case builder', () => {
     expect([...classes].sort()).toEqual(['hold', 'mirror', 'relocate', 'rescale', 'retime-fast', 'retime-slow', 'reupload']);
   });
 
-  it('produces within-rig negatives only: 90 robot + 3 fox, plus the one variant pair', () => {
+  it('produces within-rig negatives only: 92 robot + 5 fox, plus the one variant pair', () => {
     const negatives = cases.filter((entry) => entry.kind === 'negative');
-    expect(negatives.filter((entry) => entry.rigId === 'robot')).toHaveLength(90);
-    expect(negatives.filter((entry) => entry.rigId === 'fox')).toHaveLength(3);
+    expect(negatives.filter((entry) => entry.rigId === 'robot')).toHaveLength(92);
+    expect(negatives.filter((entry) => entry.rigId === 'fox')).toHaveLength(5);
     expect(cases.filter((entry) => entry.kind === 'variant')).toHaveLength(1);
     expect(cases.find((entry) => entry.kind === 'variant')!.id).toBe('robot:variant:WalkJump-vs-Walking');
+  });
+
+  it('builds partial-coverage negatives that genuinely share only a slice of the skeleton', () => {
+    const partial = cases.filter((entry) => entry.caseClass === 'partial-coverage');
+    expect(partial.map((entry) => entry.id).sort()).toEqual([
+      'fox:neg-partial:half:Walk', 'fox:neg-partial:low:Walk',
+      'robot:neg-partial:half:Walking', 'robot:neg-partial:low:Walking',
+    ]);
+    for (const entry of partial) {
+      expect(entry.kind).toBe('negative');
+      const sourceNames = new Set(entry.source.tracks.map((track) => track.name));
+      const candidateNames = entry.candidate.tracks.map((track) => track.name);
+      const shared = candidateNames.filter((name) => sourceNames.has(name));
+      const renamed = candidateNames.filter((name) => !sourceNames.has(name));
+      expect(shared.length).toBeGreaterThan(0);
+      expect(renamed.length).toBeGreaterThan(0);
+      expect(entry.id.includes(':low:') ? shared.length <= 2 : shared.length >= Math.floor(candidateNames.length / 3)).toBe(true);
+      for (const name of renamed) expect(name.startsWith('Unshared')).toBe(true);
+    }
   });
 
   it('labels the known same-family pairs as family negatives', () => {

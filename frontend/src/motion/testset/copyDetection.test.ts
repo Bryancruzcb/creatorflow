@@ -13,7 +13,7 @@ import { buildCases } from './copyDetectionCases';
 import { loadRigFixture } from './fixtureLoader';
 import { currentEngineAdapter, formatScorecard, runScorecard } from './scorecard';
 
-const ENGINE_TITLE = 'current TS engine (shape / full / 48 samples / threshold 85)';
+const ENGINE_TITLE = 'live web engine (v2 via analyzeMotionClips)';
 const baselinePath = fileURLToPath(new URL('./scorecard.baseline.json', import.meta.url));
 
 describe('copy-detection scorecard', () => {
@@ -29,7 +29,7 @@ describe('copy-detection scorecard', () => {
 
   it('covers the full labeled set', () => {
     expect(scorecard.recall.overall.total).toBe(119);
-    expect(scorecard.falsePositives.overall.total).toBe(93);
+    expect(scorecard.falsePositives.overall.total).toBe(97);
     expect(scorecard.variants).toHaveLength(1);
     for (const row of scorecard.rows) {
       expect(row.score === null || Number.isFinite(row.score), `${row.id} produced no score`).toBe(true);
@@ -50,7 +50,7 @@ describe('copy-detection scorecard', () => {
       recall: { hit: scorecard.recall.overall.hit, total: scorecard.recall.overall.total },
       falsePositives: { hit: scorecard.falsePositives.overall.hit, total: scorecard.falsePositives.overall.total },
     };
-    if (process.env.UPDATE_MOTION_BASELINE) {
+    if (process.env.UPDATE_MOTION_BASELINE === '1') {
       const reuploadRows = scorecard.rows.filter((row) => row.caseClass === 'reupload');
       const anchorHolds = reuploadRows.length === 17 && reuploadRows.every((row) => row.flagged && row.exact);
       if (!anchorHolds) throw new Error('refusing to write baseline: reupload anchor failing');

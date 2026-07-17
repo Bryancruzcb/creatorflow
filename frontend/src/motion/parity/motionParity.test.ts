@@ -54,15 +54,15 @@ const ROUND6 = 2e-6;
 const DEGREES = 2e-3;
 
 function check(failures: string[], path: string, actual: number, expected: number, tolerance: number) {
-  if (!Number.isFinite(actual) || Math.abs(actual - expected) > tolerance) {
+  if (!Number.isFinite(actual) || !Number.isFinite(expected) || Math.abs(actual - expected) > tolerance) {
     failures.push(`${path}: TS ${actual} vs Java ${expected} (|d|=${Math.abs(actual - expected)} > ${tolerance})`);
   }
 }
 
 describe('Java parity oracle', () => {
   it('has the expected case inventory', () => {
-    expect(oracle.cases.length).toBe(22);
-    expect(new Set(oracle.cases.map((entry) => entry.id)).size).toBe(22);
+    expect(oracle.cases.length).toBe(23);
+    expect(new Set(oracle.cases.map((entry) => entry.id)).size).toBe(23);
   });
 
   it.each(oracle.cases.map((entry) => [entry.id, entry] as const))('%s', (_id, oracleCase) => {

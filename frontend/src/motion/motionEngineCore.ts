@@ -52,9 +52,9 @@ export interface NormalizedComparisonResult {
   limitations: string[];
 }
 
-interface Vector3 { x: number; y: number; z: number }
-interface Quaternion { w: number; x: number; y: number; z: number }
-interface TrackKey {
+export interface Vector3 { x: number; y: number; z: number }
+export interface Quaternion { w: number; x: number; y: number; z: number }
+export interface TrackKey {
   time: number;
   position: Vector3;
   rotation: Quaternion;
@@ -62,8 +62,12 @@ interface TrackKey {
   easingStyle: string;
   easingDirection: string;
 }
-interface PoseSample { position: Vector3; rotation: Quaternion; weight: number }
-interface PoseDelta { posePercent: number; positionDelta: number; rotationDelta: number }
+export interface PoseSample { position: Vector3; rotation: Quaternion; weight: number }
+export interface PoseDelta { posePercent: number; positionDelta: number; rotationDelta: number }
+
+/** The Java engine's per-pose blend. v2 passes its own de-weighted values. */
+export interface PoseBlendWeights { position: number; rotation: number; weight: number }
+export const JAVA_POSE_WEIGHTS: PoseBlendWeights = { position: 0.42, rotation: 0.5, weight: 0.08 };
 
 const canonicalZero = (value: number) => (value === 0 ? 0 : value);
 
@@ -76,7 +80,7 @@ function sortedPoses(frame: NormalizedKeyframeJson): NormalizedPoseJson[] {
 }
 
 /** Java fingerprint equality without the SHA: same canonicalization, structural compare. */
-function canonicalCurvesEqual(source: NormalizedAnimationJson, candidate: NormalizedAnimationJson): boolean {
+export function canonicalCurvesEqual(source: NormalizedAnimationJson, candidate: NormalizedAnimationJson): boolean {
   if (canonicalZero(source.duration) !== canonicalZero(candidate.duration)) return false;
   const sourceFrames = sortedFrames(source);
   const candidateFrames = sortedFrames(candidate);
@@ -197,7 +201,7 @@ function vectorDistance(a: Vector3, b: Vector3): number {
 }
 
 /** Java tracks(): TreeMap<jointPath, TrackKey[]> built from time-sorted frames. */
-function tracks(animation: NormalizedAnimationJson): Map<string, TrackKey[]> {
+export function tracks(animation: NormalizedAnimationJson): Map<string, TrackKey[]> {
   const byJoint = new Map<string, TrackKey[]>();
   for (const frame of sortedFrames(animation)) {
     for (const pose of frame.poses) {
@@ -222,7 +226,7 @@ function toSample(key: TrackKey): PoseSample {
   return { position: key.position, rotation: key.rotation, weight: key.weight };
 }
 
-function sample(track: TrackKey[], time: number): PoseSample {
+export function sample(track: TrackKey[], time: number): PoseSample {
   if (track.length === 1 || time <= track[0].time) return toSample(track[0]);
   if (time >= track[track.length - 1].time) return toSample(track[track.length - 1]);
   let high = 1;
@@ -238,23 +242,23 @@ function sample(track: TrackKey[], time: number): PoseSample {
   };
 }
 
-function poseDelta(source: PoseSample, candidate: PoseSample): PoseDelta {
+export function poseDelta(source: PoseSample, candidate: PoseSample, weights: PoseBlendWeights = JAVA_POSE_WEIGHTS): PoseDelta {
   const positionDelta = vectorDistance(source.position, candidate.position);
   const rotationDelta = quatAngleTo(source.rotation, candidate.rotation);
   const weightDelta = Math.abs(source.weight - candidate.weight);
   const positionPercent = 100 * Math.exp(-POSITION_DECAY * positionDelta);
   const rotationPercent = 100 * Math.exp(-ROTATION_DECAY * rotationDelta);
   const weightPercent = 100 * Math.max(0, 1 - weightDelta);
-  const posePercent = positionPercent * 0.42 + rotationPercent * 0.5 + weightPercent * 0.08;
+  const posePercent = positionPercent * weights.position + rotationPercent * weights.rotation + weightPercent * weights.weight;
   return { posePercent, positionDelta, rotationDelta };
 }
 
-function quantileIndex(sampleIdx: number, sampleCount: number, valueCount: number): number {
+export function quantileIndex(sampleIdx: number, sampleCount: number, valueCount: number): number {
   if (sampleCount <= 1 || valueCount <= 1) return 0;
   return Math.round((sampleIdx * (valueCount - 1)) / (sampleCount - 1));
 }
 
-function trackMetadataPercent(source: TrackKey[], candidate: TrackKey[]): number {
+export function trackMetadataPercent(source: TrackKey[], candidate: TrackKey[]): number {
   const samples = Math.max(source.length, candidate.length);
   let total = 0;
   for (let i = 0; i < samples; i += 1) {
@@ -273,7 +277,7 @@ function normalizedFrameTimes(animation: NormalizedAnimationJson): number[] {
   return sortedFrames(animation).map((frame) => frame.time / animation.duration);
 }
 
-function timingPercent(source: NormalizedAnimationJson, candidate: NormalizedAnimationJson): number {
+export function timingPercent(source: NormalizedAnimationJson, candidate: NormalizedAnimationJson): number {
   let durationPercent: number;
   if (source.duration === 0 && candidate.duration === 0) durationPercent = 100;
   else if (source.duration === 0 || candidate.duration === 0) durationPercent = 0;
@@ -294,7 +298,7 @@ function timingPercent(source: NormalizedAnimationJson, candidate: NormalizedAni
   return durationPercent * 0.45 + patternPercent * 0.4 + countPercent * 0.15;
 }
 
-function round(value: number, places: number): number {
+export function round(value: number, places: number): number {
   const factor = Math.pow(10, places);
   return Math.round(value * factor) / factor;
 }
