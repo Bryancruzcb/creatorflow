@@ -2,6 +2,7 @@ import { AnimationClip, type KeyframeTrack } from 'three';
 
 import { clipToNormalized } from './clipToNormalized';
 import { compareMotion } from './motionEngine';
+import { poseDelta, type PoseBlendWeights, type PoseSample } from './motionEngineCore';
 
 export type MotionAnalysisMode = 'shape' | 'timing' | 'loop' | 'root';
 export type MotionJointScope = 'full' | 'upper' | 'lower' | 'root';
@@ -135,10 +136,8 @@ function quaternionAngle(left: ArrayLike<number>, right: ArrayLike<number>) {
   return 2 * Math.acos(clamp01(dot));
 }
 
-function quaternionSimilarity(left: ArrayLike<number>, right: ArrayLike<number>) {
-  return clamp01(1 - quaternionAngle(left, right) / Math.PI);
-}
-
+// Velocity continuity has no v2 analog (v2 has no velocity concept) — kept bespoke,
+// intra-clip only. Pose-closure similarity (below) has been ported off this curve.
 function vectorSimilarity(left: ArrayLike<number>, right: ArrayLike<number>, size: number) {
   let magnitude = 0;
   for (let index = 0; index < size; index += 1) {
@@ -147,10 +146,46 @@ function vectorSimilarity(left: ArrayLike<number>, right: ArrayLike<number>, siz
   return Math.exp(-distance(left, right, size) / Math.max(0.2, Math.sqrt(magnitude)));
 }
 
-function valuesSimilarity(name: string, left: ArrayLike<number>, right: ArrayLike<number>, size: number) {
-  return size === 4 && /(?:quaternion|rotation)/i.test(name)
-    ? quaternionSimilarity(left, right)
-    : vectorSimilarity(left, right, size);
+// --- Shared v2 pose-distance kernel, reused (never redefined) -------------------------
+// loop's pose-closure term and root's per-point score both need "how far apart are these
+// two poses," on the SAME fixed-decay scale motionEngineCore.poseDelta/compareMotion use
+// for shape/timing — not the old linear-quaternion / self-normalized-exponential math.
+// Rather than re-deriving POSITION_DECAY/ROTATION_DECAY here (which could silently drift
+// from the v2 kernel over time), this calls poseDelta itself and isolates one channel per
+// call via a one-hot weight vector: poseDelta's weighted blend collapses to exactly that
+// channel's percent when the other two weights are zero. Parity with poseDelta is pinned
+// in motionAnalysis.test.ts.
+const KERNEL_POSITION_ONLY: PoseBlendWeights = { position: 1, rotation: 0, weight: 0 };
+const KERNEL_ROTATION_ONLY: PoseBlendWeights = { position: 0, rotation: 1, weight: 0 };
+const KERNEL_IDENTITY_ROTATION = { w: 1, x: 0, y: 0, z: 0 };
+const KERNEL_ORIGIN_POSITION = { x: 0, y: 0, z: 0 };
+
+function kernelPositionSample(values: ArrayLike<number>): PoseSample {
+  return { position: { x: values[0] ?? 0, y: values[1] ?? 0, z: values[2] ?? 0 }, rotation: KERNEL_IDENTITY_ROTATION, weight: 0 };
+}
+
+function kernelRotationSample(values: ArrayLike<number>): PoseSample {
+  // three.js quaternion component order is (x, y, z, w).
+  return { position: KERNEL_ORIGIN_POSITION, rotation: { w: values[3] ?? 1, x: values[0] ?? 0, y: values[1] ?? 0, z: values[2] ?? 0 }, weight: 0 };
+}
+
+/** Replaces the legacy linear-quaternion / self-normalized-vector pose-closure math for
+ * loopContinuity: same fixed-decay kernel v2 uses, applied to one three.js track's
+ * start/end sample pair. Returns a 0..1 similarity fraction. */
+function kernelTrackSimilarity(name: string, left: ArrayLike<number>, right: ArrayLike<number>, size: number): number {
+  if (size === 4 && /(?:quaternion|rotation)/i.test(name)) {
+    return poseDelta(kernelRotationSample(left), kernelRotationSample(right), KERNEL_ROTATION_ONLY).posePercent / 100;
+  }
+  return poseDelta(kernelPositionSample(left), kernelPositionSample(right), KERNEL_POSITION_ONLY).posePercent / 100;
+}
+
+/** Same kernel, applied to a root-path sample pair (position-only channel). */
+function kernelPointSimilarity(left: Pick<RootPathPoint, 'x' | 'y' | 'z'>, right: Pick<RootPathPoint, 'x' | 'y' | 'z'>): number {
+  return poseDelta(
+    { position: { x: left.x, y: left.y, z: left.z }, rotation: KERNEL_IDENTITY_ROTATION, weight: 0 },
+    { position: { x: right.x, y: right.y, z: right.z }, rotation: KERNEL_IDENTITY_ROTATION, weight: 0 },
+    KERNEL_POSITION_ONLY,
+  ).posePercent / 100;
 }
 
 function prepareTrack(track: KeyframeTrack): PreparedTrack {
@@ -237,7 +272,7 @@ function loopContinuity(clip: AnimationClip, scope: MotionJointScope): LoopConti
     const afterStart = prepared.sample(deltaSeconds);
     const beforeEnd = prepared.sample(Math.max(0, clip.duration - deltaSeconds));
     const end = prepared.sample(clip.duration);
-    const poseSimilarity = valuesSimilarity(track.name, start, end, size);
+    const poseSimilarity = kernelTrackSimilarity(track.name, start, end, size);
     const startVelocity = size === 4 && /(?:quaternion|rotation)/i.test(track.name)
       ? quaternionVelocity(start, afterStart, deltaSeconds)
       : linearVelocity(start, afterStart, size, deltaSeconds);
@@ -347,10 +382,13 @@ function rootPath(clip: AnimationClip, sampleCount: number): RootPathClipResult 
 
 function rootComparison(source: RootPathClipResult, candidate: RootPathClipResult) {
   if (!source.available || !candidate.available) return { available: false, similarity: null, frameScores: [] as number[] };
-  const scale = Math.max(source.pathLength, candidate.pathLength, source.displacement, candidate.displacement, 0.2);
+  // Scored with the same fixed-decay v2 kernel as pose-closure (kernelPointSimilarity),
+  // not the old self-normalized-by-this-pair's-own-path-size decay. The point sampling
+  // itself (rootPath, above) is untouched — it still drives the RootPathPlot visualization
+  // unchanged; only the comparison step's math changed.
   const frameScores = source.points.map((point, index) => {
     const other = candidate.points[index] ?? candidate.points[candidate.points.length - 1];
-    return Math.exp(-pointDistance(point, other) / scale);
+    return kernelPointSimilarity(point, other);
   });
   return { available: true, similarity: Math.round(average(frameScores) * 100), frameScores };
 }
