@@ -1,0 +1,121 @@
+# CreatorFlow Consolidation Report — Strategic Redirect Assessment
+
+Produced 2026-07-17 against working tree `claude/motion-phase1b` (= `main` + open PRs #12/#19), per the "CreatorFlow — Fable Strategic Redirect" prompt. Evidence sources: 4 parallel read-only repo inspections (desktop+plugin, frontend, server, docs/duplication), fresh test runs (frontend vitest 133/133 green; core 50 run / 1 error — the known machine-privilege issue #18, which passes in CI; with that one test excluded, core+desktop build green including desktop 27/27), `git`/`gh` state as of this morning, and a fresh-context verifier pass that independently reproduced the test numbers and spot-checked 10 load-bearing claims. Nothing was merged, pushed, deleted, or rewritten.
+
+## Recommendation
+
+Adopt the redirect. The repo already contains most of the focused milestone's skeleton — built in the Codex-era foundation (merged July 13) and hardened since: a defense-conscious loopback bridge with tested Studio-plugin pairing, KeyframeSequence reading via `AnimationClipProvider`, insert-only motion/animation snapshot tables, human decisions with required reasons, and a transactional desktop `ReleaseExportService` that already computes a deterministic PASS/BLOCKED release with a `previousReleaseId` rollback pointer. The redirect is therefore not a pivot into new construction; it is a **consolidation plus roughly seven narrow increments** (experience binding, gate-in-manifest, evidence tri-state, rollback surfacing, pairing durability, bridge test coverage, one live-Studio validation pass).
+
+Disposition of current agent effort: **finish** the motion-engine branch work by merging PR #12 then PR #19 (it is exactly the "motion-algorithm consistency + test coverage" the redirect's finish class names, and it powers milestone item 5); **defer** Phase 2-as-specced (live cloud registry — it is the copied/not-copied product the redirect demotes), Phase 3 (mirror/height normalization — a copy-detection-class improvement, not needed when preflight compares an asset against its own history), and the Tier-3 roadmap; **checkpoint** the legacy gallery/server product and the legacy cloud-registry Studio plugin as frozen working code pending an archival decision. The smallest next milestone is the increment plan in §Smallest implementation plan.
+
+## Agent checkpoint
+
+| Agent / workstream | Task | Evidence-backed status | Files/artifacts | Tests | Disposition |
+|---|---|---|---|---|---|
+| Codex-era foundation (`codex/roblox-motion-handoff`, merged into main via cd4ff3a, Jul 13) | Roblox animation preflight workflow: local bridge, plugin pairing, manifest v0.1, preflight/release UI | Merged; branch pointer now stale (fully contained in main). Core is real and tested; UI half split real/demo (see §Existing coverage) | `desktop/bridge/*`, `roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua`, `frontend/src/manifest/*`, `frontend/src/components/{PreflightWorkspace,ReleasePathLab,LocalProjectWorkspace}.tsx`, migrations V005 | Desktop 27/27 green (incl. `PluginPairingServiceTest`, `LocalBridgeServerTest`); `manifest.test.ts`; `e2e/manifest-import.spec.ts` (exists but not wired into CI — green status unverified) | Finish (it IS the milestone base); delete stale branch pointer after approval |
+| PR #1 `claude/skills-execution` (merged Jul 14) | Security fix, frontend fixes, animation snapshots, design drafts | Merged; snapshot work (V006, `MotionSnapshotRepository`) verified green today | `desktop/db/migrations/V006__motion_snapshots.sql`, `MotionSnapshotRepository.java`, `AnimationSnapshotsPanel.tsx` | `MotionSnapshotRepositoryTest` 2/2 green | Done — no action |
+| PR #2 `claude/ui-provenance-clarity` (merged Jul 14) | UI, motion-lab depth, model gallery, hardening | Merged; gallery portions now deferred-scope | `MotionComparisonLab.tsx`, gallery components | Frontend suite green | Done; gallery framing → deferred scope |
+| Motion Phases 0+1a — PR #12 (open, `claude/motion-engine-registry`) | Copy-detection test set (119 pos/97 neg) + Java-parity TS port with 24-case oracle | All task+whole-phase reviews READY; parity 24/24; /verify PASS | `frontend/src/motion/{testset/*,motionEngineCore.ts,parity/*}`, `core/.../MotionParityOracle*.java` | In today's 133/133 frontend + 49/50 core runs | **Finish: merge** (awaits approval). Local branch is ahead-1 unpushed (e737a7b, docs-only) — push with approval |
+| Motion Phase 1b — PR #19 (open, stacked on #12; closes #13) | v2 engine (coverage-attenuated blend, de-weight, banded DTW) + live cutover | Reviews READY; live UI FP 14.4%→4.1%, recall 92.4%; golden vectors 23/23 | `frontend/src/motion/{motionEngine.ts,motionAnalysis.ts,motionEngineGolden*}` | In today's 133/133 run (3 scorecards match pinned baselines) | **Finish: merge after #12** |
+| Phase 2 (issue #15, not started) | Live cloud motion registry (server storage, X-Api-Key, live RegistryMatchCard) | Grounding research only; zero code | issue #15 | — | **Defer / re-scope**: as specced it is the deferred copied/not-copied product; supersede with the preflight milestone |
+| Phase 3 (issue #16, not started) | Mirror canonicalization + height/root normalization | Not started; mirror recall 47.1% live is the known gap it would fix | issue #16 | — | **Defer**: copy-detection-class improvement; preflight compares an asset to its own history where mirroring is not the failure mode |
+| Tier-3 roadmap (issue #17, not started) | Web-scale fingerprinting design doc | Not started | issue #17 | — | **Defer** |
+| Legacy cloud-registry Studio plugin (`roblox-plugin/src/*.luau`) | SHA-256 fingerprint + cloud registry, DUPLICATE/SIMILAR/CLEAR verdicts | Unwired to desktop bridge; contradicts "similarity is never a verdict" framing; appears pre-pivot | `roblox-plugin/src/{Main.server.luau,Api.luau,Config.luau,Ui.luau}` | none | **Checkpoint**: freeze; archival decision at approval gate |
+| Legacy gallery/registry Spring server (`server/`) | Community gallery + originality registry (pre-pivot product) | Alive, builds, tested; reachable only via opt-in desktop "Community registry" settings card (`SettingsPage.java:73-135` → `HttpRegistryClient` → `AssetImporter`); frontend never calls it (no CORS, no fetch) | `server/src/**`, `desktop/.../HttpRegistryClient.java` | `RegistryApiTest`, `GalleryWebTest`, `MappingApiTest`, `RateLimiterTest` (passing per surefire reports) | **Checkpoint**: keep green, invest nothing; candidate for later repurpose as cross-team provenance registry |
+| Dependabot (PRs #3–#11, 9 open) | Dependency bumps incl. majors: Spring Boot 3.3.5→4.1.0, JavaFX 21→26, four GH-Actions majors | Unreviewed; majors are risky and touch deferred (server) or working (desktop UI) code | PRs #3–#11 | CI only | **Defer**: hold all until after the milestone; then a dedicated deps pass (patch bumps first) |
+
+Inventory basis: all rows derive from repo/GitHub traces (`git`, PRs #1–#19 incl. closed #14 — the Phase-1a hardening backlog, completed and closed 2026-07-17 — and issues #13–#18); no live or paused agent sessions exist to query — every prior subagent was ephemeral and finished, with its work recorded in the commits, PRs, and the SDD ledger cited above.
+
+## Preserve and finish
+
+- **PRs #12 + #19 (merge)** — parity-proven engine + v2 improvements are the milestone's "understandable motion and version-change evidence" layer (item 5), already live-cut-over, reviewed, and green. Finish class: motion-algorithm consistency, test coverage, correctness.
+- **Desktop bridge + pairing + snapshots + release exporter** — `LocalBridgeServer` (loopback-only, Host-header pinning, one-time launch token, HttpOnly/SameSite=Strict session, CSRF+Origin on mutations, constant-time session/CSRF comparison), `PluginPairingService`, V005/V006 insert-only tables, `ReleaseExportService` (transactional manifest+report+comparison from one immutable ScanRun, `previousReleaseId` rollback pointer — reproducible except for an embedded generation timestamp, see §Risks). This is the milestone's spine; finish class: security, data integrity, release-gate behavior.
+- **Manifest v0.1 contract** — schema kept canonically identical across copies (JSON-canonical check in CI via `check-manifest-schema.mjs`), semantic cross-check tests, plus the existing `ReleaseGateCli`/`ManifestCli` + release-gate Actions workflow. Extended (not rebuilt) in increment 2.
+- **Decision flow with required reasons** — `LocalProjectWorkspace.saveDecision` (reason required, append-only history via `supersedesDecisionId`). Milestone item 8 already exists; needs tests, not rebuilding.
+- **Required documentation updates** — README and `docs/HANDOFF.md` re-framing (see §Risks); finish class: required documentation.
+
+## Safe checkpoints
+
+- **Legacy gallery/server product** (`server/` + desktop Community-registry card): working, tested, unused by the preflight flow. Freeze: keep CI green, no feature work. Severing is one settings-card removal if ever desired.
+- **Legacy cloud-registry Studio plugin** (`roblox-plugin/src/`): freeze untouched; it targets a different backend and a contradicting product framing. Needs an explicit archive/keep decision, not silent deletion.
+- **Frontend demo half** — `PreflightWorkspace.tsx` (fake `setInterval` progress over static fixtures), `ReleasePathLab.tsx` (hardcoded stage strings; self-labeled "Temporary research mode"), `RobloxProjectExample.tsx` (labeled fictional): keep as demo/marketing surfaces; never extend them to fake milestone requirements. The milestone builds only in the bridge-backed half.
+- **Stale branch pointer** `codex/roblox-motion-handoff`: fully merged; delete after approval (harmless either way).
+
+## Deferred scope
+
+- **Live cloud motion registry (Phase 2 / issue #15 as specced)** — public registration + cross-account matching is the copied/not-copied product the redirect demotes; also contradicted by the local-first constraint (frontend has no path to the Spring server at all).
+- **Phase 3 mirror/height normalization (issue #16)** and **Tier-3 web-scale fingerprinting (issue #17)** — copy-detection accuracy and scale work; not on the preflight path. Honest cost of deferral: live mirror-class recall stays at 47.1%, irrelevant to same-asset drift detection.
+- **Gallery/marketplace/social** (README's headline product), **Unity/Godot adapters + public fingerprint registry** (`frontend/STRATEGY.md` Phase 3), **generic heavy-asset workbench roadmap** (`frontend/NEXT-IMPROVEMENTS.md` P0–P3), **direct publishing** (never planned; stays a Studio handoff).
+- **All 9 dependabot PRs** until after the milestone.
+
+## Existing coverage
+
+Milestone requirement → evidence (status):
+
+1. **Select local project + intended experience** — *partial*. Real native-folder project picker + persisted workspace state (`ProductWorkspace.tsx:626-659`, `localBridge.ts:256-263`). **No intended-Roblox-experience concept exists anywhere** (no place/universe ID field in any schema, bridge type, or UI; the only experience-shaped UI is the explicitly fictional `RobloxProjectExample.tsx`).
+2. **Secure pairing with Studio plugin** — *exists*. SecureRandom 24-byte token, 8h TTL, issuance gated by session cookie+CSRF+Origin; Bearer-token auth (`PluginPairingService.java`, `LocalBridgeServer.java:335-347,881-891`; tested). Caveats: pairing-token lookup is a plain map `get` — the bridge's constant-time comparison guards only the session cookie and CSRF token, not pairing Bearers (`PluginPairingService.java:43` vs `LocalBridgeServer.java:893-918`); pairings are in-memory (restart invalidates; not documented to the user); `revoke()`'s only caller is its own test; pairing confirm is manual token copy/paste.
+3. **Read permitted KeyframeSequence Animation IDs** — *exists*. `CreatorFlowAnimationBridge.lua:642-678` uses `AnimationClipProvider:GetAnimationClipAsync`, rejects non-KeyframeSequence, surfaces Roblox permission errors verbatim; sends only normalized transforms (never files); Java side re-validates with caps. No Lua test harness exists.
+4. **Immutable current + last-known-good snapshots** — *partial*. V006 `motion_snapshots` + `AnimationComparisonRepository` are insert-only with supersedes-links; `AnimationSnapshotsPanel` pins `LAST_KNOWN_GOOD`/`LAST_PUBLISHED` with UNCHANGED/CHANGED drift classification. Immutability is app-level convention (no SQLite triggers); "current" is `MAX(created_at)`; LKG-vs-current semantics ride on a caller-supplied kind string.
+5. **Understandable motion/version-change evidence** — *exists (via PRs #12/#19)*. Live v2 engine for shape/timing (parity kernel + graded DTW/de-weight/coverage guard; golden-pinned; FP 4.1%); bridge-backed comparisons and snapshots in `MotionComparisonLab`. Caveat: loop/root modes still use a separate legacy scoring path (see §Risks).
+6. **Owner/group/experience/permission evidence where verifiable** — *missing*. Zero code calls any Roblox ownership/permission API. Closest artifacts: legacy plugin's self-reported `ownershipDeclared` boolean (different backend) and implicit `GetAnimationClipAsync` failures surfaced as text but not captured as structured evidence.
+7. **Explicit "not verified" states** — *partial*. `SourceEvidence.unresolved()` exists for source/license; demo surfaces honestly labeled; but no unified verified/declared/unknown tri-state, and `LocalScanAsset.verification` (CLEAR/SIMILAR/DUPLICATE) is a match enum, not a verification state — nothing for ownership.
+8. **Human provenance decisions with required reasons** — *exists*. Required non-empty reason, bridge-persisted, append-only history (`LocalProjectWorkspace.tsx:261-277`, `LocalDecision.supersedesDecisionId`). Gap: zero component-test coverage.
+9. **Deterministic PASS/BLOCKED release manifest** — *partial*. Desktop `ReleaseExportService` computes `policyResult` PASS/BLOCKED transactionally from one immutable ScanRun (tested, 2/2); frontend displays it. Machine-verifiability tooling already exists and is under-known: `core/.../manifest/ReleaseGateCli.java` + `ManifestCli.java` and the `creatorflow-release-gate.yml` GitHub Actions workflow (dispatchable; evaluates a committed manifest and uploads a machine-readable gate report). Two gaps: the **manifest schema itself has no gate field** — PASS/BLOCKED lives beside, not inside, the exported manifest — and **re-creation is not byte-deterministic** because the manifest embeds `Instant.now()` as `generatedAt` (`ReleaseExportService.java:108`); write-once persistence makes re-*download* stable, but the acceptance criterion "deterministic manifest" fails until `generatedAt` derives from the ScanRun rather than the wall clock. Frontend's `buildReleaseManifest` is demo-only. (Cited `e2e/manifest-import.spec.ts` exists but is not run by `npm test` or CI — its green status is unverified.)
+10. **Visible rollback target** — *partial*. `ReleaseComparison.previousReleaseId` is a real rollback pointer; release history with manifest/report downloads renders in `LocalReleasesView`; per-animation LKG pins are real. No release-level "roll back to this" affordance; `ReleasePathLab`'s rollback stage is hardcoded demo copy.
+11. **Explicit Studio publishing handoff** — *exists (as designed)*. Repeatedly disclosed boundary + links to Roblox's publishing docs; CreatorFlow never calls publishing APIs. Gap: the "record the returned Roblox place version" step described in ReleasePathLab's own copy persists nowhere.
+
+Acceptance-criteria spot-checks: automated tests green today (frontend 133/133; core 49/50 with the sole failure being environment-only issue #18; desktop 27/27). "Results survive restart": all repositories are SQLite-file-backed (restart-durable) except plugin pairings and per-run session tokens (in-memory by design); no automated restart round-trip test exists. "Similarity never presented as proof": bridge verdict labels are "investigate"/"provenance required" (`LocalBridgeServer.java:867-875`), consistent with the constitution.
+
+## Missing capabilities
+
+**Code gaps (buildable now):**
+1. Intended-experience binding: place/universe ID on project/release records (SQLite migration + bridge + UI + manifest field).
+2. Gate-in-manifest: embed `policyResult` + blocking reasons + evidence references into the exported manifest (schema v0.2), with a byte-determinism test; update importer + schema-sync script.
+3. Unified evidence tri-state (verified fact / human declaration / not verified) across asset, ownership, and motion evidence — ownership defaults to "not verified" since no verification exists.
+4. Release-level rollback surfacing: expose `previousReleaseId` as an explicit rollback target in `LocalReleasesView`; add a persisted "returned Roblox place version" field to close the handoff loop.
+5. Pairing durability/lifecycle: persist pairings (or explicitly surface the 8h/restart behavior) and wire the orphaned `revoke()` to a UI control.
+6. Test debt on the real path: `localBridge.ts` client (0 tests), `LocalProjectWorkspace` decision flow (0 tests), restart round-trip integration test, optional SQLite immutability triggers.
+7. Loop/root scoring divergence: either port to the v2 kernel or label the modes as a distinct legacy metric in the UI.
+
+**Live-Roblox / human-validation gaps (not closable from this desk):**
+- True ownership/permission verification needs Roblox APIs (e.g. Open Cloud) with auth, and may be impossible for third-party assets — must ship as explicit "not verified", never inferred.
+- The Lua plugin has no in-repo test harness; end-to-end (pair → read → snapshot → compare → decide → release) needs a live Roblox Studio session — labeled live-Studio validation.
+- The five-minute-flow criterion and product demand itself need real Roblox developers (Bryan's friend's team) — the redirect's own final step.
+
+## Smallest implementation plan
+
+Each increment is independently shippable with its completion test; order is dependency-driven. (Full task-level SDD plans follow approval, per our normal plan→review→execute gates.)
+
+0. **Consolidation landing** — merge #12 then #19; push the ahead-1 docs commit; rewrite README preamble + `docs/HANDOFF.md` to the narrowed direction (including correcting HANDOFF's now-stale "dual scoring" finding to loop/root-only); re-scope/close issues #15–#17 per the gate below. Done when: CI green on main, docs state the preflight product, issues reflect reality.
+1. **Experience binding** — V007 migration + bridge + UI + manifest field. Done when: repository round-trip test passes and a created release's manifest names the intended experience.
+2. **Gate-in-manifest (schema v0.2)** — gate block with result + reasons + evidence refs; make `generatedAt` derive from the ScanRun (not `Instant.now()`) so the determinism test can hold (same ScanRun → byte-identical manifest); importer accepts v0.1 and v0.2; extend `ReleaseGateCli` + the release-gate workflow to the v0.2 gate block; wire the e2e spec into CI. Done when: new unit tests + e2e import pass in CI.
+3. **Evidence tri-state** — model + UI badges + manifest representation; ownership shows "not verified" honestly. Done when: component test asserts all three states render and the exported manifest carries them.
+4. **Rollback + handoff record** — rollback target in `LocalReleasesView` + persisted returned-place-version. Done when: repository + component tests pass.
+5. **Pairing lifecycle** — persistence-or-disclosure decision implemented + revoke wired. Done when: extended `PluginPairingServiceTest` + a UI-level test pass.
+6. **Real-path test debt** — `localBridge.test.ts`, decision-flow component test, restart round-trip test. Done when: suite green with new tests; coverage of the bridge client's error/CSRF/poll-fallback paths.
+7. **Live-Studio validation pass (labeled)** — manual end-to-end drive with captured evidence, following the already-written runbook `docs/FRIEND-TEST.md` (pair → read accessible animations → compare → save evidence), extended to cover release creation + rollback view. Done when: a written verification report with screenshots exists; findings filed as issues.
+
+Then: user validation with a real Roblox team before any roadmap expansion.
+
+## Risks and honest limitations
+
+- **False-verification risk (highest):** `policyResult: PASS` renders authoritatively while ownership evidence is entirely self-declared and the manifest carries no gate/evidence block — a PASS today proves process-completion, not permission. Increments 2–3 exist precisely to make the evidence basis explicit.
+- **Demo-as-real risk:** the landing-page `PreflightWorkspace` runs a fake progress timer over fixtures; `ReleasePathLab` stages are hardcoded strings. Honestly labeled in code, but in a demo or interview they can read as the product. Milestone requirements must only ever be credited against the bridge-backed surfaces.
+- **Four motion-scoring implementations** (Java reference; TS parity port; v2 engine; legacy loop/root heuristics). Shape/timing are golden-locked to the first three; loop/root serve different math under identical UI chrome with no cross-engine test. Mode-switching users silently change algorithms.
+- **Immutability is convention:** no DB-level guard backs the "immutable snapshot" claim; LKG semantics are caller-supplied strings; a mislabeling bug would silently corrupt the release baseline.
+- **Stale docs actively describe the wrong product:** README (worst — gallery/marketplace with publish-blocking originality verdicts), `FABLE5-HANDOFF` Phase 2, `STRATEGY.md`/`PRODUCT.md`/`END-TO-END-PROJECT.md`/`NEXT-IMPROVEMENTS.md`/frontend README (pre-Roblox generic product). Aligned docs: `ROBLOX_WORKFLOW_RESEARCH.md` (reads as the redirect's source) and `docs/FRIEND-TEST.md` (live-Studio validation runbook). `HANDOFF.md` is itself partially stale (dual-scoring claim).
+- **Three independent manifest builders** (core Java canonical, desktop exporter, frontend demo) with only the static schema JSON parity-checked — schema changes fan out by hand.
+- **Unvalidated product assumption:** no Roblox developer has yet confirmed wanting this workflow; the redirect's test-with-real-users step is the only cure.
+- **Environment:** core's symlink test fails only on this machine (missing `SeCreateSymbolicLinkPrivilege`, issue #18) — it errored in today's first full run (50 run / 1 error) and was excluded in the second run to let desktop build; it passes in CI.
+- **Verifier corrections already applied:** an earlier draft overstated two claims — pairing Bearer tokens as constant-time-compared (they are a plain map lookup; only session/CSRF comparisons are constant-time) and the release manifest as deterministic (it embeds a wall-clock `generatedAt`). Both are now stated accurately above; the determinism fix is increment 2, the pairing-lookup hardening folds into increment 5.
+
+## Approval gate
+
+Decisions needed from you, in order — nothing below happens until you say so:
+
+1. **Merge PR #12, then PR #19** (finishes the motion-engine effort; #19 auto-retargets to main and closes #13). Also: push the ahead-1 docs-only commit `e737a7b`, and delete the stale merged branch pointer `codex/roblox-motion-handoff`. Yes/no.
+2. **Adopt the redirect as the roadmap:** supersede issue #15 (live cloud registry) with a new "release-preflight milestone" issue; annotate-and-defer #16 (Phase 3) and #17 (Tier-3) with the re-scoped rationale. Yes/no.
+3. **Approve the Smallest implementation plan (increments 0–7)** as the next build, executed with the usual plan→adversarial-review→SDD-with-Fable-review-gates process, one real PR per increment (or small groups) per your GitHub-activity policy. Yes/no, and whether increment 5's pairing decision should be "persist pairings" (my recommendation) or "document the 8h/restart behavior only".
+4. **Legacy surfaces:** freeze the Spring gallery/registry server and the legacy `roblox-plugin/src` cloud plugin as-is (my recommendation), or archive them into an `archive/` tree now. Choose.
+5. **Dependabot:** hold all 9 PRs until after the milestone (my recommendation), or triage the patch-level bumps now. Choose.
+6. **Commit the redirect + this report** into `docs/` (making the pivot legible in the repo, and giving the milestone issue a citable basis). Yes/no.

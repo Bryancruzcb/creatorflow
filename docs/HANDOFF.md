@@ -1,5 +1,12 @@
 # CreatorFlow handoff — Roblox direction
 
+> **Superseded in part by the 2026-07-17 strategic redirect.** The current product definition and
+> the authoritative work plan now live in [`STRATEGIC-REDIRECT.md`](STRATEGIC-REDIRECT.md) and
+> [`CONSOLIDATION-REPORT.md`](CONSOLIDATION-REPORT.md) (mapped against the code, with a milestone
+> tracker in the issues). This handoff remains accurate as build/verify reference and repository
+> map; where it describes future product scope, defer to the redirect. The redirect confirms this
+> file's Roblox direction and narrows it to local-first release preflight for small teams.
+
 Consolidated July 13, 2026 from the former `FABLE_HANDOFF.md` (GPT's preflight handoff) and
 `CLAUDE_HANDOFF.md` (end of the July 13 session). Where the two disagreed, the newer session's
 facts win. Read `ROBLOX_WORKFLOW_RESEARCH.md` for the landscape research behind the direction.
@@ -109,10 +116,13 @@ preflight" and "Team registry" as explicit destinations with separate capability
 
 Confirmed-major, still open:
 
-1. **Dual scoring algorithms**: `frontend/src/motion/motionAnalysis.ts` and the Java
-   `MotionComparisonEngine` compute materially different scores shown under identical
-   "Pose/Timing/Coverage/Overall" labels. Either port one to match the other or label them
-   distinctly; add a cross-implementation test.
+1. **Dual scoring algorithms** — *partially resolved 2026-07-17 (PRs #12/#19).* The `shape` and
+   `timing` modes now route through the parity-proven v2 engine (`frontend/src/motion/motionEngine.ts`,
+   golden-locked against the Java `MotionComparisonEngine` via `motionEngineGolden.test.ts`). The
+   finding is now **narrowed to the `loop` and `root` modes only**: those still use the independent
+   legacy heuristics in `motionAnalysis.ts` (`loopContinuity`, `rootComparison` — different decay
+   math), untested against Java/v2, shown under the same UI labels. Still to do: port them to the v2
+   kernel or label them as a distinct legacy metric, with a cross-implementation test.
 2. **`localBridge.ts` has zero tests** — it's the only integration contract with the Java
    bridge.
 3. **`styles.css`** is a 12,360-line monolith fighting six `*.premium.css` override files;
