@@ -146,4 +146,96 @@ class WorkflowRepositoryTest {
             assertTrue(repository.findById(comparisonId).isEmpty());
         }
     }
+
+    @Test
+    void fullWorkflowStateSurvivesADesktopRestartAcrossExperienceEvidenceDecisionsAndRelease() throws Exception {
+        Path file = directory.resolve("restart.db");
+        long projectId;
+        long assetId;
+        String runId;
+        String decisionId;
+        String releaseId;
+
+        try (Database database = new Database(file)) {
+            var localProjects = new LocalProjectRepository(database);
+            var scans = new ScanRepository(database);
+            var decisions = new DecisionRepository(database);
+            var releases = new ReleaseRepository(database);
+
+            var adopted = localProjects.adopt(directory);
+            projectId = adopted.projectId();
+            localProjects.bindExperience(projectId, 1234567890L, 9876543210L, "Restart Experience");
+            var boundProject = localProjects.findByProjectId(projectId).orElseThrow();
+
+            var run = scans.create(projectId, directory, "1.0.0", List.of("node_modules"), List.of("png"));
+            runId = run.id();
+            scans.markStarted(runId);
+
+            AssetEntry asset = new AssetEntry("art/hero.png", "hero.png", "png", 128,
+                    "c".repeat(64), 64, 64, new Fingerprints("01", "02", null),
+                    VerificationStatus.CLEAR, new SourceEvidence(null, null, null),
+                    ReleaseDecision.PENDING, List.of(), List.of());
+            CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V1,
+                    new CreativeManifest.Project(boundProject.name(), "1.0.0"), Instant.now(),
+                    new CreativeManifest.Summary(1, 1, 0, 0, 1, 1), List.of(asset));
+            scans.complete(runId, manifest, new ScanAccounting(1, 0, 0, 0, 0, 0, 128), List.of());
+
+            var savedAsset = scans.listAssets(runId, 10, 0).getFirst();
+            assetId = savedAsset.id();
+
+            // evidenceFor() breaks ties on recorded_at alone (no id tiebreak), so give the
+            // human-recorded evidence below a distinct, later timestamp than the scan-time row.
+            Thread.sleep(5);
+
+            // A human-recorded source/license pair, appended after the immutable scan snapshot.
+            scans.appendEvidence(assetId,
+                    new SourceEvidence("Studio archive", "CC-BY-4.0", "https://example.test/evidence"));
+
+            // A human decision with its required reason — the append-only history starts here.
+            var decision = decisions.append(assetId, DecisionType.APPROVED,
+                    "Verified against studio archive license");
+            decisionId = decision.id();
+
+            var release = releases.insert(runId, "1.0.0", "{\"schema\":\"v1\"}", "PASS",
+                    "{\"gate\":\"pass\"}", "{\"added\":1,\"changed\":0,\"removed\":0}",
+                    boundProject.universeId(), boundProject.placeId(), boundProject.experienceName());
+            releaseId = release.id();
+            releases.recordPublishedVersion(releaseId, 42L);
+        }
+
+        // Close the database, then reopen a NEW Database instance over the SAME file — the desktop
+        // app restart this test exists to prove survives without silently losing state.
+        try (Database reopened = new Database(file)) {
+            var localProjects = new LocalProjectRepository(reopened);
+            var scans = new ScanRepository(reopened);
+            var decisions = new DecisionRepository(reopened);
+            var releases = new ReleaseRepository(reopened);
+
+            var reloadedProject = localProjects.findByProjectId(projectId).orElseThrow();
+            assertEquals(1234567890L, reloadedProject.universeId());
+            assertEquals(9876543210L, reloadedProject.placeId());
+            assertEquals("Restart Experience", reloadedProject.experienceName());
+
+            var reloadedRun = scans.findById(runId).orElseThrow();
+            assertEquals(ScanState.COMPLETED, reloadedRun.state());
+            assertEquals(1, scans.listAssets(runId, 10, 0).size());
+
+            var evidence = scans.evidenceFor(assetId).orElseThrow();
+            assertEquals("Studio archive", evidence.source());
+            assertEquals("CC-BY-4.0", evidence.license());
+            assertTrue(evidence.resolved());
+
+            var history = decisions.historyFor(assetId);
+            assertEquals(1, history.size());
+            assertEquals(decisionId, history.getFirst().id());
+            assertEquals("Verified against studio archive license", history.getFirst().reason());
+            assertEquals(DecisionType.APPROVED, decisions.latestFor(assetId).orElseThrow().type());
+
+            var reloadedRelease = releases.findById(releaseId).orElseThrow();
+            assertEquals("PASS", reloadedRelease.policyResult());
+            assertEquals(42L, reloadedRelease.publishedPlaceVersion());
+            assertEquals(1234567890L, reloadedRelease.universeId());
+            assertEquals("Restart Experience", reloadedRelease.experienceName());
+        }
+    }
 }
