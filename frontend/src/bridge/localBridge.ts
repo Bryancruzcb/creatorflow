@@ -54,9 +54,17 @@ export interface LocalAnimationSnapshot {
   createdAt: string;
 }
 
+/** A user-declared intended Roblox experience binding — CreatorFlow does not verify ownership of or access to it. */
+export interface LocalIntendedExperience {
+  universeId: number;
+  placeId: number;
+  experienceName: string;
+}
+
 export interface LocalProjectSummary {
   projectId: number;
   name: string;
+  experience?: LocalIntendedExperience | null;
 }
 
 export interface LocalProjectRecord extends LocalProjectSummary {
@@ -110,6 +118,7 @@ export interface LocalRelease {
   reportUrl: string;
   comparison: LocalReleaseComparison;
   report?: unknown;
+  experience?: LocalIntendedExperience | null;
 }
 
 export interface StartScanRequest {
@@ -268,6 +277,11 @@ export class LocalBridgeClient {
 
   createPluginPairing(projectId: number) {
     return this.request<LocalPluginPairing>(`/api/v1/projects/${projectId}/plugin-pairings`, { method: 'POST' });
+  }
+
+  /** Declares (or edits) the intended Roblox experience for a project. A human declaration only — not verified. */
+  bindExperience(projectId: number, request: { universeId: number; placeId: number; experienceName: string }) {
+    return this.request<LocalProjectRecord>(`/api/v1/projects/${projectId}/experience`, { method: 'POST', body: request });
   }
 
   listMotionComparisons(projectId: number, limit = 25, offset = 0) {

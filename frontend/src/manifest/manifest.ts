@@ -45,12 +45,20 @@ export interface ManifestAsset {
   findings: string[];
 }
 
+export interface ManifestIntendedExperience {
+  universeId: number;
+  placeId: number;
+  experienceName: string;
+}
+
 export interface CreatorFlowManifest {
   $schema: typeof CREATORFLOW_MANIFEST_SCHEMA;
   project: {
     name: string;
     release: string;
   };
+  /** A human declaration only — CreatorFlow does not verify ownership of or access to it. */
+  experience?: ManifestIntendedExperience | null;
   generatedAt: string;
   summary: {
     total: number;
