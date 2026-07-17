@@ -148,7 +148,63 @@ class WorkflowRepositoryTest {
     }
 
     @Test
-    void fullWorkflowStateSurvivesADesktopRestartAcrossExperienceEvidenceDecisionsAndRelease() throws Exception {
+    void evidenceForBreaksTiesOnIdWhenRecordedAtTimestampsMatch() throws Exception {
+        try (Database database = new Database(directory.resolve("evidence-tiebreak.db"))) {
+            var localProjects = new LocalProjectRepository(database);
+            var scans = new ScanRepository(database);
+
+            var project = localProjects.adopt(directory);
+            var run = scans.create(project.projectId(), project.root(), "1.0.0",
+                    List.of("node_modules"), List.of("png"));
+            scans.markStarted(run.id());
+
+            AssetEntry asset = new AssetEntry("art/hero.png", "hero.png", "png", 128,
+                    "d".repeat(64), 64, 64, new Fingerprints("01", "02", null),
+                    VerificationStatus.CLEAR, new SourceEvidence(null, null, null),
+                    ReleaseDecision.PENDING, List.of(), List.of());
+            CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V1,
+                    new CreativeManifest.Project(project.name(), "1.0.0"), Instant.now(),
+                    new CreativeManifest.Summary(1, 1, 0, 0, 1, 1), List.of(asset));
+            scans.complete(run.id(), manifest, new ScanAccounting(1, 0, 0, 0, 0, 0, 128), List.of());
+
+            long assetId = scans.listAssets(run.id(), 10, 0).getFirst().id();
+
+            // Same literal recorded_at string on both rows simulates two evidence rows recorded
+            // within the same clock tick (Instant.toString() has limited resolution). "older" gets
+            // the lower id (inserted first), "newer" gets the higher id (inserted second). Without
+            // an id tiebreak, "ORDER BY recorded_at DESC LIMIT 1" is free to return either row on a
+            // tie; the deterministic correct answer is always the higher-id (latest-inserted) row.
+            // The timestamp is set far in the future so it postdates the scan-time evidence row
+            // that scans.complete() above already inserted (real Instant.now()), keeping these two
+            // tied rows as the only contenders for "latest".
+            String tiedTimestamp = "2099-01-01T00:00:00Z";
+            try (var statement = database.connection().prepareStatement("""
+                    INSERT INTO source_evidence(scan_asset_id, source_name, license_name,
+                                                evidence_url, resolved, recorded_at)
+                    VALUES (?, ?, ?, ?, ?, ?)""")) {
+                statement.setLong(1, assetId);
+                statement.setString(2, "older");
+                statement.setString(3, "CC-BY-4.0");
+                statement.setString(4, "https://example.test/older");
+                statement.setInt(5, 1);
+                statement.setString(6, tiedTimestamp);
+                statement.executeUpdate();
+
+                statement.setLong(1, assetId);
+                statement.setString(2, "newer");
+                statement.setString(3, "CC-BY-4.0");
+                statement.setString(4, "https://example.test/newer");
+                statement.setInt(5, 1);
+                statement.setString(6, tiedTimestamp);
+                statement.executeUpdate();
+            }
+
+            assertEquals("newer", scans.evidenceFor(assetId).orElseThrow().source());
+        }
+    }
+
+    @Test
+    void fullWorkflowStateSurvivesADesktopRestartAcrossExperienceEvidenceDecisionsAndRelease() {
         Path file = directory.resolve("restart.db");
         long projectId;
         long assetId;
@@ -182,10 +238,6 @@ class WorkflowRepositoryTest {
 
             var savedAsset = scans.listAssets(runId, 10, 0).getFirst();
             assetId = savedAsset.id();
-
-            // evidenceFor() breaks ties on recorded_at alone (no id tiebreak), so give the
-            // human-recorded evidence below a distinct, later timestamp than the scan-time row.
-            Thread.sleep(5);
 
             // A human-recorded source/license pair, appended after the immutable scan snapshot.
             scans.appendEvidence(assetId,
