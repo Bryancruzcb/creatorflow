@@ -17,11 +17,11 @@
 - **Cutover preserves the UI contract**: `analyzeMotionClips` keeps its exact signature and `MotionAnalysisResult` shape; loop/root modes byte-untouched; `exactCurveData` stays RAW-clip exactness (morph tracks included) via the existing `exactCurveMatch` — the adapter's morph-dropping must never make two different uploads read "exact" in the UI; clips are never mutated; jointScope filters tracks BEFORE normalization.
 - **Baselines move only deliberately**: adding the 4 new cases and the cutover each require regenerating baselines via the UPDATE env vars, with per-class before/after deltas recorded in the task report. The reupload anchors (17/17 exact) must hold at every regeneration.
 - Branch `claude/motion-engine-registry`; small commits; never push. Suite state at phase start: 17 files / 116 tests green, typecheck clean, `mvn -pl core test` green (modulo the known pre-existing ProjectScannerTest symlink-privilege failure on this machine).
-- v2 constants fixed by this plan (golden-pinned, tunable only in a later graded phase): pose blend weights position 0.25 / rotation 0.65 / weight 0.10; DTW band = duration-aware (floor 12.5% of (N−1), grows to cover the duration-mismatch shift +2, cap 35%, min 2); timing composite = durationPercent·0.5 + warpScore·0.5 with warpScore normalized against the granted band; overall = (poseDtw·0.8 + timingComposite·0.2) · coverage/100; verdict bands ≥90 HIGH / ≥70 MODERATE; N = sampleCount+1 mapping from UI preference (48 → 49, matching the Java-lineage default).
+- v2 constants fixed by this plan (golden-pinned, tunable only in a later graded phase): pose blend weights position 0.25 / rotation 0.65 / weight 0.10; DTW band = duration-aware (floor 12.5% of (N−1), grows to cover the duration-mismatch shift +2, cap 35%, min 2); timing composite = durationPercent·0.5 + warpScore·0.5 with warpScore normalized against the granted band; overall = (poseDtw·0.65 + timingComposite·0.20 + coverage·0.15) · coverage/100 (Java blend, coverage-attenuated); verdict bands ≥90 HIGH / ≥70 MODERATE; N = sampleCount+1 mapping from UI preference (48 → 49, matching the Java-lineage default).
 
 ## Why these exact design choices (context for reviewers)
 
-- **Multiplicative coverage, not harmonic, not Java-linear:** the current UI's harmonic mean `2sc/(s+c)` guards low coverage but INFLATES at full coverage (pose 90 + coverage 100 → 94.7 — one driver of the old 15.1% FP). Java's linear `+0.15·coverage` under-penalizes: pose 100/timing 100 with HALF the skeleton unshared scores 92.5 → flagged. `x·coverage/100` equals `x` at full coverage (no inflation), annihilates tiny-overlap scores (coverage 2.4 → overall ≈ 2), and halves mid-coverage scores. The 4 new negative cases (Task 2) measure exactly this.
+- **Coverage-attenuated Java blend — not harmonic, not bare Java-linear, not a reweighted blend:** the current UI's harmonic mean `2sc/(s+c)` guards low coverage but INFLATES at full coverage (pose 90 + coverage 100 → 94.7 — one driver of the old 15.1% FP). Java's bare linear `+0.15·coverage` under-penalizes: pose 100/timing 100 with HALF the skeleton unshared scores 92.5 → flagged. A reweighted blend like `0.8p+0.2t` is NOT usable either: it strictly undercuts the Java blend at full coverage (0.8p+0.2t < 0.65p+0.2t+15 whenever p<100), silently shaving every borderline true positive. The composition is therefore `overall = (pose·0.65 + timing·0.20 + coverage·0.15) · coverage/100` — Java's exact blend, attenuated by coverage. At coverage 100 it is BYTE-IDENTICAL to the ported engine's overall (Task 3's stage is then perfectly isolated: only partial-coverage cases can move), at coverage 2.4 tiny-overlap scores collapse to ~2, and at coverage 50 a perfect-pose pair scores ~46. The 4 new negative cases (Task 2) measure exactly this.
 - **De-weight 0.42→0.25:** handoff finding 7 — the absolute-position term partly measures rig identity, not motion. First graded cut; weights live in one exported constant.
 - **DTW distance cell, never similarity:** handoff finding 6 — DTW MINIMIZES; the cell cost is `1 − posePercent/100`.
 - **Duration-aware band, not fixed 12.5%:** a hold inserted at 30% of duration shifts the whole post-hold tail by `hold/newDuration ≈ 23%` of the timeline (~11 of 48 samples) — a fixed 6-sample band mathematically cannot align it, and the phase's own hard gate (hold 17/17) would fail by construction. The band therefore floors at 12.5% but grows to cover the shift a pure duration mismatch implies: `band = min(round(0.35·(N−1)), max(2, round(0.125·(N−1)), ceil(|maxDur−minDur|/maxDur·(N−1)) + 2))` (base band when maxDur is 0). Same-duration pairs — including every unrelated/family/partial-coverage negative — keep the tight 12.5% band, so precision is unaffected; only genuinely duration-mismatched pairs get the wider corridor, and the warp they use is still penalized via `warpScore` normalized against the granted band.
@@ -92,7 +92,7 @@ export interface PoseBlendWeights { position: number; rotation: number; weight: 
 export const JAVA_POSE_WEIGHTS: PoseBlendWeights = { position: 0.42, rotation: 0.5, weight: 0.08 };
 ```
 
-2. Add `export` keywords (nothing else) to: `canonicalCurvesEqual`, `tracks`, `sample`, `round`, `quantileIndex`, `trackMetadataPercent`.
+2. Add `export` keywords (nothing else) to: `canonicalCurvesEqual`, `tracks`, `sample`, `round`, `quantileIndex`, `trackMetadataPercent`, `timingPercent`.
 
 3. Generalize `poseDelta` with a defaulted parameter — the parity path's call sites stay argument-free, so behavior is unchanged:
 
@@ -140,7 +140,7 @@ git commit -m "Motion engine: export core primitives for the v2 composition (par
 
 - [ ] **Step 1: Write the failing tests (update copyDetectionCases.test.ts)**
 
-Replace the second and fourth `it` blocks and ADD one:
+Replace ONLY the negatives-totals test (`'produces within-rig negatives only: 90 robot + 3 fox, plus the one variant pair'`) with the first block below, and ADD the second block as a NEW test. Every other existing test (positives count, family labels, id-uniqueness/cross-rig guard, reupload-difference, mirror involution) stays untouched:
 
 ```ts
   it('produces within-rig negatives only: 92 robot + 5 fox, plus the one variant pair', () => {
@@ -270,7 +270,7 @@ git commit -m "Motion test set: partial-coverage negatives (4 cases, baselines r
 **Interfaces:**
 - Consumes: Task 1 exports; `clipToNormalized`; testset infrastructure.
 - Produces (Tasks 4–7 rely on): `compareMotion(source: NormalizedAnimationJson, candidate: NormalizedAnimationJson, options?: MotionEngineOptions): MotionComparisonV2`; `interface MotionEngineOptions { sampleCount?: number; poseWeights?: PoseBlendWeights }`; `interface MotionComparisonV2 { engineVersion: string; overallPercent: number; posePercent: number; timingPercent: number; coveragePercent: number; durationPercent: number; warpScore: number; exactCurveData: boolean; verdict: NormalizedVerdict; jointScores: NormalizedJointScore[]; frameScores: Array<{ sampleIndex: number; posePercent: number }>; commonJointCount: number; allJointCount: number }`; `V2_POSE_WEIGHTS: PoseBlendWeights`; `ENGINE_V2_VERSION = 'creatorflow.motion-comparison/v2-web'`; `tunedEngineAdapter(): EngineAdapter`.
-- **Stage note:** in THIS task v2 uses lockstep sampling (`t_i = i/(N−1)·duration`, pairs (i,i) only), JAVA_POSE_WEIGHTS, Java's timingPercent — the ONLY divergence is the composition `overall = (pose·0.8 + timing·0.2)·coverage/100`. `V2_POSE_WEIGHTS` is introduced in Task 4; `warpScore` is 100 (no warp measured) until Task 5. This isolates the composition's scorecard effect.
+- **Stage note:** in THIS task v2 uses lockstep sampling (`t_i = i/(N−1)·duration`, pairs (i,i) only), JAVA_POSE_WEIGHTS, Java's timingPercent — the ONLY divergence is the composition `overall = (pose·0.65 + timing·0.20 + coverage·0.15)·coverage/100`, which at coverage 100 is IDENTICAL to the ported overall. `V2_POSE_WEIGHTS` is introduced in Task 4; `warpScore` is 100 (no warp measured) until Task 5. This isolates the composition's scorecard effect to sub-100-coverage cases only.
 
 - [ ] **Step 1: Write the failing test**
 
@@ -295,7 +295,9 @@ describe('compareMotion (v2) — composition stage', () => {
   const walk = (id: string) => animation(id, 1,
     keyframe(0, pose('Root/Hip', 0, 0)), keyframe(0.5, pose('Root/Hip', 0.25, 35)), keyframe(1, pose('Root/Hip', 0, 70)));
 
-  it('matches the parity core exactly at full coverage except for the composition', () => {
+  it('is byte-identical to the parity core at full coverage (composition only bites below 100)', () => {
+    // NOTE: Task 4 updates this test to pass { poseWeights: JAVA_POSE_WEIGHTS } explicitly;
+    // Task 5 replaces it with the DTW-era variant (see those tasks) — it is stage-scoped.
     const source = walk('100');
     const candidate = animation('200', 1,
       keyframe(0, pose('Root/Hip', 0, 0)), keyframe(0.5, pose('Root/Hip', 0.9, 120)), keyframe(1, pose('Root/Hip', 0, 70)));
@@ -305,8 +307,8 @@ describe('compareMotion (v2) — composition stage', () => {
     expect(v2.posePercent).toBe(v1.posePercent);            // same kernel, same lockstep in this stage
     expect(v2.timingPercent).toBe(v1.timingPercent);
     expect(v2.coveragePercent).toBe(v1.coveragePercent);
-    const expectedOverall = Math.round(((v1.posePercent * 0.8 + v1.timingPercent * 0.2) * v1.coveragePercent) / 100 * 100) / 100;
-    expect(v2.overallPercent).toBeCloseTo(expectedOverall, 1);
+    expect(v2.coveragePercent).toBe(100);
+    expect(v2.overallPercent).toBe(v1.overallPercent);      // (0.65p+0.2t+0.15c)*c/100 === Java overall at c=100
   });
 
   it('annihilates tiny-overlap scores instead of promoting them (the false-accusation guard)', () => {
@@ -327,8 +329,8 @@ describe('compareMotion (v2) — composition stage', () => {
     const candidate = animation('200', 1,
       keyframe(0, pose('Root/Hip', 0, 15)), keyframe(0.5, pose('Root/Hip', 0.25, 50)), keyframe(1, pose('Root/Hip', 0, 85)));
     const v2 = compareMotion(source, candidate);
-    // overall must never exceed its pose/timing blend when coverage is 100
-    expect(v2.overallPercent).toBeLessThanOrEqual(v2.posePercent * 0.8 + v2.timingPercent * 0.2 + 0.01);
+    // overall must never exceed the Java blend when coverage is 100 (harmonic would)
+    expect(v2.overallPercent).toBeLessThanOrEqual(v2.posePercent * 0.65 + v2.timingPercent * 0.2 + 15 + 0.01);
   });
 
   it('keeps exact-curve recognition and the 100 override', () => {
@@ -467,7 +469,7 @@ export function compareMotion(
   let timing = javaTimingPercent(source, candidate);
   const warpScore = 100; // no warp measured until the DTW stage (Task 5)
 
-  let overallPercent = ((posePercent * 0.8 + timing * 0.2) * coveragePercent) / 100;
+  let overallPercent = ((posePercent * 0.65 + timing * 0.2 + coveragePercent * 0.15) * coveragePercent) / 100;
   if (exact) {
     posePercent = 100;
     timing = 100;
@@ -493,12 +495,11 @@ export function compareMotion(
 }
 ```
 
-Also add to motionEngineCore.ts exports (Task 1 already exported `trackMetadataPercent`; export `timingPercent as javaTimingPercent` is NOT possible without renaming — instead in motionEngine.ts import it directly):
+The `javaTimingPercent` alias comes from a renamed import (Task 1 exports `timingPercent`):
 
 ```ts
 import { timingPercent as javaTimingPercent } from './motionEngineCore';
 ```
-(and add `export` to `timingPercent` in Task 1's list — controller note: Task 1's export list MUST include `timingPercent`.)
 
 - [ ] **Step 4: Adapter + tuned harness**
 
@@ -614,7 +615,7 @@ UPDATE_MOTION_TUNED_BASELINE=1 npx vitest run src/motion/testset/tunedScorecard.
 npx vitest run src/motion/testset/tunedScorecard.test.ts             # 5/5
 npm run typecheck && npm test
 ```
-RECORD in the report: full per-class deltas v2-composition vs ported baseline. Expected direction (verify, don't force): partial-coverage 0 flagged (the composition's whole point); family stays 0; recall classes ~unchanged vs ported (full coverage → composition is near-identity there, modulo pose 0.65→0.8 timing 0.20→0.2 reweight). GATE: no recall class may drop by more than 1 case vs the ported baseline; FP must be ≤ ported's. If violated: STOP, report.
+RECORD in the report: full per-class deltas v2-composition vs ported baseline. GATE (mathematically forced, so any deviation is a bug, not a tuning question): at coverage 100 the composition is IDENTITY with the ported overall, so every pre-existing class's counts must be EXACTLY the ported baseline's — except mirror-class cases (whose coverage < 100 gets attenuated; record any mirror drop honestly) and the 4 partial-coverage negatives, which must be 0 flagged (the composition's whole point). If any full-coverage class moves: STOP, that is an implementation bug.
 
 - [ ] **Step 6: Commit** — `git add src/motion/motionEngine.ts src/motion/motionEngine.test.ts src/motion/testset/scorecard.ts src/motion/testset/tunedScorecard.test.ts src/motion/testset/scorecard.tuned.baseline.json && git commit -m "Motion engine v2: multiplicative-coverage composition (graded)"`
 
@@ -633,18 +634,27 @@ RECORD in the report: full per-class deltas v2-composition vs ported baseline. E
 
 ```ts
 describe('compareMotion (v2) — de-weight stage', () => {
-  it('weights rotation over absolute position (finding 7)', () => {
+  it('applies the de-weighted kernel by default (finding 7)', () => {
     const still = (id: string, x: number, yaw: number) => animation(id, 1,
       keyframe(0, pose('Root/Hip', x, yaw)), keyframe(1, pose('Root/Hip', x, yaw)));
-    // pure position offset of 1.0 vs pure rotation offset of 90 degrees:
+    // Pure position offset of 1.0: position kernel now contributes 0.25:
+    // pose = 0.25*10.5399 + 0.65*100 + 0.10*100 = 77.635 -> *0.96 + 4 = 78.53
+    // (under Java weights this is 63.93 — the assertion below fails pre-de-weight, TDD-proving the swap)
     const positionOnly = compareMotion(still('100', 0, 0), still('200', 1, 0));
-    const rotationOnly = compareMotion(still('100', 0, 0), still('200', 0, 90));
-    // Under Java weights positionOnly pose ~63.9 < rotationOnly ~54.8; de-weighted, the order flips.
-    expect(positionOnly.posePercent).toBeGreaterThan(rotationOnly.posePercent);
-    // position kernel now contributes 0.25: pose = 0.25*10.54 + 0.65*100 + 0.10*100 = 77.63 -> *0.96+4 = 78.53
     expect(positionOnly.posePercent).toBeCloseTo(78.53, 1);
+    // Pure 90-degree rotation offset drops further under the heavier rotation weight:
+    // pose = 0.25*100 + 0.65*5.9165 + 0.10*100 = 38.85 -> *0.96 + 4 = 41.29
+    const rotationOnly = compareMotion(still('100', 0, 0), still('200', 0, 90));
+    expect(rotationOnly.posePercent).toBeCloseTo(41.29, 1);
   });
 });
+```
+
+Also UPDATE the Task 3 composition test so it stays green (it pins the Java-weight lockstep equality): import `JAVA_POSE_WEIGHTS` from './motionEngineCore' in motionEngine.test.ts and change its two compareMotion calls in the FIRST test only to `compareMotion(source, candidate, { poseWeights: JAVA_POSE_WEIGHTS })`. The tiny-overlap, non-inflation, and exact tests use defaults (their assertions are weight-insensitive: identical curves, or bounds that hold under either weighting).
+
+```ts
+// (reference — the updated first-test call)
+const v2 = compareMotion(source, candidate, { poseWeights: JAVA_POSE_WEIGHTS });
 ```
 
 - [ ] **Step 2: Run — new test fails** (position weight still 0.42 → 63.93 not 78.53).
@@ -657,7 +667,7 @@ export const V2_POSE_WEIGHTS: PoseBlendWeights = { position: 0.25, rotation: 0.6
 ```
 and `const weights = options.poseWeights ?? V2_POSE_WEIGHTS;`
 
-- [ ] **Step 4: Grade** — update ENGINE_TITLE, regenerate tuned baseline (same commands), record per-class deltas vs Task 3's baseline. GATE (handoff): FP must not rise (watch robot No-vs-Yes — rotation now counts more, its Head-difference should push it DOWN; record whether the last unrelated FP clears); recall may shave slightly — record exactly which cases move. Full suite + typecheck.
+- [ ] **Step 4: Grade** — update ENGINE_TITLE, regenerate tuned baseline (same commands), record per-class deltas vs Task 3's baseline. GATE (per the handoff, faithfully: "the position de-weight must lower the false-positive rate ... may shave recall slightly; neither may worsen the other metric"): the only FP room is the single No-vs-Yes flag — record whether the heavier rotation weight clears it. If FP does NOT drop, or recall drops by more than a case or two, the de-weight is not earning its keep ON THIS SET: STOP after committing the measurement, present the numbers to Bryan, and let him decide whether V2_POSE_WEIGHTS ships or reverts to JAVA_POSE_WEIGHTS before Task 5 proceeds (the handoff's rationale — position measures rig identity — is about rigs richer in position data than these fixtures, so keep-with-caveat is a legitimate call, but it is HIS call, not a silent gate-weakening). Full suite + typecheck.
 
 - [ ] **Step 5: Commit** — `git commit -m "Motion engine v2: de-weight absolute position toward rotation (graded)"` (with the four files).
 
@@ -707,6 +717,23 @@ describe('compareMotion (v2) — banded DTW stage', () => {
     expect(second).toEqual(first);
   });
 });
+```
+
+IMPLEMENTATION NOTES for this stage (do not skip):
+- ADD `PoseSample` and `PoseDelta` to the type import from './motionEngineCore' (the DTW block uses both; without them typecheck fails).
+- If the 'zero warp' test does not come out at exactly 100/100: the diagonal path is STRICTLY optimal for the nearCopy fixture (cellwise-minimal at j=i and shortest), so a non-zero warp means a DP/backtrack bug — fix the implementation, never the assertion.
+- REPLACE the Task 3 composition-equality test (now stage-obsolete: DTW pose ≥ lockstep pose by construction) with this DTW-era variant:
+
+```ts
+  it('keeps the composition anchored to the Java blend at full coverage', () => {
+    const source = walk('100');
+    const candidate = animation('200', 1,
+      keyframe(0, pose('Root/Hip', 0, 0)), keyframe(0.5, pose('Root/Hip', 0.9, 120)), keyframe(1, pose('Root/Hip', 0, 70)));
+    const v2 = compareMotion(source, candidate);
+    expect(v2.coveragePercent).toBe(100);
+    const blend = v2.posePercent * 0.65 + v2.timingPercent * 0.2 + v2.coveragePercent * 0.15;
+    expect(v2.overallPercent).toBeCloseTo(blend, 1); // coverage/100 = 1 -> attenuation is identity
+  });
 ```
 
 - [ ] **Step 2: Run — fails** (lockstep pose < 97 for the held sweep, warpScore hardcoded 100).
@@ -811,7 +838,7 @@ and in the joint-score loop divide accumulations by `perJointPathCount` = pathLe
   const warpScore = warpScoreRaw;
   let timing = durationPercent * 0.5 + warpScore * 0.5;
 ```
-(The Java pattern-heuristic import `javaTimingPercent` is removed from this file.)
+(The Java pattern-heuristic import `javaTimingPercent` is removed from this file; the overall line is unchanged — `((posePercent * 0.65 + timing * 0.2 + coveragePercent * 0.15) * coveragePercent) / 100` — with `timing` now the composite.)
 
 PERFORMANCE NOTE: cells computed = sampleCount·(2·band+1) ≈ 49·13 = 637 per comparison, each over all common joints — same order of work as the ported engine's 49·joints lockstep×13. The 213-case scorecard stays in the low seconds. `cellDeltas` is recomputed during path aggregation for only ~2·sampleCount cells; do not cache all cells' deltas (memory) — recomputing the path cells is cheaper and deterministic.
 
@@ -841,7 +868,7 @@ oracle test remain untouched as the Java-fidelity anchor.
 - Create: `frontend/src/motion/motionEngineGolden.test.ts`
 - Generate + commit: `frontend/src/motion/motion-engine-golden.json`
 
-**Interfaces:** Consumes `compareMotion`, the parity oracle's INPUTS (reused as diverse normalized pairs — the oracle's Java outputs are irrelevant here), and two synthetic partial-coverage pairs. Pins the v2 engine's own behavior post-1b.
+**Interfaces:** Consumes `compareMotion` and the parity oracle's INPUTS (reused as diverse normalized pairs — the oracle's Java outputs are irrelevant here; partial-coverage behavior is separately pinned by the tuned scorecard baseline). Pins the v2 engine's own behavior post-1b.
 
 - [ ] **Step 1: Write the golden test**
 
@@ -938,33 +965,39 @@ import { clipToNormalized } from './clipToNormalized';
 import { compareMotion } from './motionEngine';
 ```
 
-Inside `analyzeMotionClips`, replace the `compareTrackPairs` phase/authored computations and the pose/timing/overall derivation with:
+Inside `analyzeMotionClips`: the `scopedSource`/`scopedCandidate` declarations (`selectedTracks(...)`) currently sit BELOW the `compareTrackPairs` calls — MOVE those two declarations UP so they come first, DELETE the two `compareTrackPairs` calls, and place this block AFTER the declarations (ordering matters — referencing them earlier is a TDZ ReferenceError):
 
 ```ts
   const scopedSourceClip = new AnimationClip(source.name, source.duration, scopedSource);
   const scopedCandidateClip = new AnimationClip(candidate.name, candidate.duration, scopedCandidate);
-  const v2 = compareMotion(
-    clipToNormalized(scopedSourceClip, source.name),
-    clipToNormalized(scopedCandidateClip, candidate.name),
-    { sampleCount: sampleCount + 1 },
-  );
-  const pose = Math.round(v2.posePercent);
-  const durationSimilarity = Math.round(v2.durationPercent);
-  const timing = Math.round(v2.timingPercent);
-  const coveragePercent = Math.round(v2.coveragePercent);
-  const shapeOverall = Math.round(v2.overallPercent);
-  const timingOverall = Math.round(((v2.timingPercent * 0.8 + v2.posePercent * 0.2) * v2.coveragePercent) / 100);
-  const v2FrameScores = v2.frameScores.map((frame) => frame.posePercent / 100);
-  const v2TrackScores: MotionTrackScore[] = v2.jointScores
-    .filter((joint) => joint.presentInSource && joint.presentInCandidate)
-    .map((joint) => ({
-      name: motionTrackLabel(joint.jointPath),
-      rawName: joint.jointPath,
-      score: joint.posePercent / 100,
-      worstScore: joint.posePercent / 100,
-      worstProgress: 0,
-    }))
-    .sort((left, right) => left.score - right.score);
+  const normalizedSource = clipToNormalized(scopedSourceClip, source.name);
+  const normalizedCandidate = clipToNormalized(scopedCandidateClip, candidate.name);
+  // No-evidence guard (mirrors the ported/tuned adapters): a scope or clip whose
+  // tracks all normalize away carries no motion evidence — zeros, never 100/EXACT.
+  const v2 = normalizedSource.keyframes.length === 0 || normalizedCandidate.keyframes.length === 0
+    ? null
+    : compareMotion(normalizedSource, normalizedCandidate, { sampleCount: sampleCount + 1 });
+  const pose = v2 ? Math.round(v2.posePercent) : 0;
+  const durationSimilarity = v2 ? Math.round(v2.durationPercent) : 0;
+  const timing = v2 ? Math.round(v2.timingPercent) : 0;
+  const coveragePercent = v2 ? Math.round(v2.coveragePercent) : 0;
+  const shapeOverall = v2 ? Math.round(v2.overallPercent) : 0;
+  const timingOverall = v2
+    ? Math.round(((v2.timingPercent * 0.65 + v2.posePercent * 0.2 + v2.coveragePercent * 0.15) * v2.coveragePercent) / 100)
+    : 0;
+  const v2FrameScores = v2 ? v2.frameScores.map((frame) => frame.posePercent / 100) : [];
+  const v2TrackScores: MotionTrackScore[] = v2
+    ? v2.jointScores
+      .filter((joint) => joint.presentInSource && joint.presentInCandidate)
+      .map((joint) => ({
+        name: motionTrackLabel(joint.jointPath),
+        rawName: joint.jointPath,
+        score: joint.posePercent / 100,
+        worstScore: joint.posePercent / 100,
+        worstProgress: 0,
+      }))
+      .sort((left, right) => left.score - right.score)
+    : [];
 ```
 
 with the downstream wiring: `frameScores`/`trackScores` for shape AND timing modes both use `v2FrameScores`/`v2TrackScores`; `overall`/`primaryValue` = `shapeOverall` (shape) / `timingOverall` (timing); `coverage: coveragePercent` in the result; `exactCurveData` stays `exactCurveMatch(source, candidate)` (raw clips, unscoped — as today); everything else (loop, root, verdict/tone logic, largestDifference*, counts, durations) keeps its existing derivation, now fed from the new frame/track score arrays. DELETE the now-unused `compareTrackPairs`, `PairSamples`, `prepareTrack`, `valuesSimilarity`, `vectorSimilarity`, `quaternionSimilarity`, `quaternionAngle`, `distance`, `average` helpers ONLY IF nothing else references them — `loopContinuity` still uses several (`prepareTrack`, `valuesSimilarity`, `vectorSimilarity`, `quaternionVelocity`, `linearVelocity`, `quaternionAngle`, `distance`, `average`) and `rootPath` uses `prepareTrack` — so delete ONLY `compareTrackPairs` and `PairSamples`. Everything loop/root stays.
@@ -975,9 +1008,9 @@ Note on `largestDifferenceTimeSeconds`: keep the existing formula; with DTW the 
 
 `npx vitest run src/components/MotionComparisonLab.test.ts`. Expected outcomes to verify and, where numbers legitimately moved, update WITH a justification comment (each updated expectation must cite the v2 mechanism):
 - exact-copy test: passes unchanged (raw exactness + 100 override).
-- retimed shape/timing test: `shape.pose` stays 100 (phase-normalized + DTW); `timing.timing < shape.pose` still true via durationPercent 80 → timing = 90.
+- retimed shape/timing test (its fixture HALVES the times: 1s vs 0.5s): `shape.pose` stays 100 (phase-normalized + DTW); `timing.timing` = durationPercent 50 · 0.5 + warpScore 100 · 0.5 = **75** < shape.pose ✓; `durationDeltaSeconds` −0.5 unchanged (clip-derived). ONE sanctioned expectation change: `timing.largestDifferenceTimeSeconds` becomes **0** — v2's phase-normalized frameScores are uniform 100 for a pure uniform retime, so there IS no within-clip divergence point (the old > 0 came from seconds-domain sampling artifacts). Update that assertion to `toBe(0)` with exactly this justification in a comment.
 - jointScope test: counts unchanged; `upper.pose === 100` (identical Head tracks); `full.pose < upper.pose` (Foot differs).
-- tiny-overlap test: `coverage < 5` ✓, `primaryValue < 10` via multiplicative composition ✓, `pose` is now the JOINT-scoped mean (still 100 for the identical shared track) ✓.
+- tiny-overlap test: `coverage < 5` ✓; `primaryValue < 10` via coverage attenuation ((0.65·100+0.2·t+0.15·2.44)·0.0244 ≈ 2) ✓; `pose` still 100 (identical shared track) ✓.
 - loop/root/non-mutation tests: untouched paths, must pass as-is.
 If any expectation shifts beyond these mechanisms, STOP — that's an unplanned behavior change to diagnose, not an expectation to edit.
 
