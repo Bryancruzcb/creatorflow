@@ -30,6 +30,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import { LocalBridgeClient, type LocalMotionComparison, type LocalPluginPairing, type LocalProjectSummary } from '../bridge/localBridge';
+import { verificationBasis } from '../bridge/evidenceBasis';
+import { EvidenceBasisMark } from './EvidenceBasisMark';
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
 import { MotionScenarioPicker } from './MotionScenarioPicker';
 import { clipInRig, rigById, rigFixtures } from '../motion/rigFixtures';
@@ -961,7 +963,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
         </div>
       </> : <RobloxProjectExample onOpenPair={openProjectClip} />}
 
-      <section className="motion-boundary-note"><AlertTriangle size={17} /><div><strong>This is evidence, not a copyright verdict.</strong><p>A high score can result from common walk cycles, shared rigs, mocap libraries, or authorized reuse. A production finding must stay attached to Animation IDs, source files, licenses, authors, dates, and a human decision.</p></div></section>
+      <section className="motion-boundary-note"><AlertTriangle size={17} /><div><strong>This is evidence, not a copyright verdict.</strong> <EvidenceBasisMark basis={verificationBasis()} /><p>A high score can result from common walk cycles, shared rigs, mocap libraries, or authorized reuse. A production finding must stay attached to Animation IDs, source files, licenses, authors, dates, and a human decision.</p></div></section>
 
       <section className="motion-roblox-path">
         <header><span>Roblox Studio bridge · desktop pairing required</span><h2>The plugin supplies the motion; CreatorFlow keeps the evidence.</h2><p>The bridge reads permitted clips and converts poses, transforms, easing, and timing into a normalized record. This web prototype does not include installable Studio or animation-authoring tools.</p></header>

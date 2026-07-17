@@ -71,6 +71,18 @@
   "$defs": {
     "nullableHex": { "type": ["string", "null"], "pattern": "^[0-9a-f]{16}$" },
     "nullableString": { "type": ["string", "null"] },
+    "evidenceBasis": { "enum": ["VERIFIED", "DECLARED", "NOT_VERIFIED"] },
+    "evidenceBases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["verification", "source", "ownership"],
+      "properties": {
+        "verification": { "$ref": "#/$defs/evidenceBasis" },
+        "source": { "$ref": "#/$defs/evidenceBasis" },
+        "ownership": { "$ref": "#/$defs/evidenceBasis" },
+        "decision": { "$ref": "#/$defs/evidenceBasis" }
+      }
+    },
     "asset": {
       "type": "object",
       "additionalProperties": false,
@@ -110,6 +122,7 @@
           }
         },
         "decision": { "enum": ["PENDING", "APPROVED", "NEEDS_REVIEW", "BLOCKED", "EXCLUDED"] },
+        "evidenceBases": { "$ref": "#/$defs/evidenceBases" },
         "matches": {
           "type": "array",
           "items": {
