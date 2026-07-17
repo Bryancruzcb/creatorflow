@@ -105,4 +105,23 @@ describe('CreatorFlow manifest validation', () => {
     manifest.summary.unresolvedSources = 1;
     expect(validate(manifest)).toMatchObject({ ok: true });
   });
+
+  it('accepts a manifest with a declared intended experience', () => {
+    const manifest = validManifest();
+    manifest.experience = { universeId: 1234567890, placeId: 9876543210, experienceName: 'Obby Tower' };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('still accepts a manifest that omits the intended experience entirely', () => {
+    const manifest = validManifest();
+    expect('experience' in manifest).toBe(false);
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('rejects a declared experience missing a required inner field', () => {
+    const manifest = validManifest() as unknown as Record<string, unknown>;
+    manifest.experience = { universeId: 1234567890, placeId: 9876543210 };
+    const result = validate(manifest);
+    expect(result.ok).toBe(false);
+  });
 });

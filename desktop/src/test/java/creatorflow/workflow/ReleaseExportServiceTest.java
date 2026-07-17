@@ -67,6 +67,36 @@ class ReleaseExportServiceTest {
     }
 
     @Test
+    void stampsABoundExperienceOntoTheManifestAndReleaseRowButOmitsItWhenUnbound() throws Exception {
+        try (Database database = new Database(directory.resolve("experience-release.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "scan-1", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.CLEAR, resolved())));
+
+            ReleaseBundle unbound = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+            assertFalse(unbound.release().manifestJson().contains("\"experience\""));
+            assertEquals(null, unbound.manifest().experience());
+            assertEquals(null, unbound.release().universeId());
+            assertEquals(null, unbound.release().placeId());
+            assertEquals(null, unbound.release().experienceName());
+
+            fixture.projects.bindExperience(project.projectId(), 1234567890L, 9876543210L, "Obby Tower");
+            ScanRun secondRun = fixture.persistScan(project, "scan-2", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.CLEAR, resolved())));
+            ReleaseBundle bound = fixture.service.create(project.projectId(), secondRun.id(), "1.0.1");
+
+            assertEquals(new CreativeManifest.IntendedExperience(1234567890L, 9876543210L, "Obby Tower"),
+                    bound.manifest().experience());
+            assertTrue(bound.release().manifestJson().contains("Obby Tower"));
+            assertEquals(1234567890L, bound.release().universeId());
+            assertEquals(9876543210L, bound.release().placeId());
+            assertEquals("Obby Tower", bound.release().experienceName());
+            assertEquals(bound.release(), fixture.releases.findById(bound.release().id()).orElseThrow());
+        }
+    }
+
+    @Test
     void comparisonUsesPreviousProjectReleaseAcrossImmutableScans() {
         try (Database database = new Database(directory.resolve("diff.db"))) {
             Fixture fixture = new Fixture(database);

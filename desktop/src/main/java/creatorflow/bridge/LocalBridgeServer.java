@@ -76,6 +76,7 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern PROJECT_ASSETS = Pattern.compile("^/api/v1/projects/(\\d+)/assets$");
     private static final Pattern PROJECT_RELEASES = Pattern.compile("^/api/v1/projects/(\\d+)/releases$");
     private static final Pattern PROJECT_PLUGIN_PAIRING = Pattern.compile("^/api/v1/projects/(\\d+)/plugin-pairings$");
+    private static final Pattern PROJECT_EXPERIENCE = Pattern.compile("^/api/v1/projects/(\\d+)/experience$");
     private static final Pattern PROJECT_MOTION_COMPARISONS = Pattern.compile("^/api/v1/projects/(\\d+)/motion-comparisons$");
     private static final Pattern PROJECT_ANIMATION_SNAPSHOTS = Pattern.compile("^/api/v1/projects/(\\d+)/animation-snapshots$");
     private static final Pattern SCAN = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)$");
@@ -344,6 +345,24 @@ public final class LocalBridgeServer implements AutoCloseable {
                     "endpoint", origin.toString(),
                     "token", pairing.token(),
                     "expiresAt", pairing.expiresAt()));
+            return;
+        }
+
+        matcher = PROJECT_EXPERIENCE.matcher(path);
+        if (matcher.matches()) {
+            requireMutation(exchange);
+            long projectId = Long.parseLong(matcher.group(1));
+            localProjects.findByProjectId(projectId)
+                    .orElseThrow(() -> new HttpError(404, "Local project not found"));
+            JsonNode body = readJson(exchange);
+            Long universeId = nullableLong(body, "universeId");
+            Long placeId = nullableLong(body, "placeId");
+            String experienceName = requiredText(body, "experienceName");
+            if (universeId == null) throw new IllegalArgumentException("universeId is required");
+            if (placeId == null) throw new IllegalArgumentException("placeId is required");
+            localProjects.bindExperience(projectId, universeId, placeId, experienceName);
+            LocalProject updated = localProjects.findByProjectId(projectId).orElseThrow();
+            sendJson(exchange, 200, projectView(updated));
             return;
         }
 
@@ -715,6 +734,7 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("name", project.name());
         view.put("adoptedAt", project.adoptedAt());
         view.put("activeScanRunId", project.activeScanRunId());
+        view.put("experience", experienceView(project.universeId(), project.placeId(), project.experienceName()));
         return view;
     }
 
@@ -728,6 +748,7 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("manifestUrl", "/api/v1/releases/" + release.id() + "/manifest");
         view.put("reportUrl", "/api/v1/releases/" + release.id() + "/report");
         view.put("comparison", readStoredJson(release.comparisonJson()));
+        view.put("experience", experienceView(release.universeId(), release.placeId(), release.experienceName()));
         return view;
     }
 
@@ -741,6 +762,17 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("manifestUrl", "/api/v1/releases/" + release.id() + "/manifest");
         view.put("reportUrl", "/api/v1/releases/" + release.id() + "/report");
         view.put("comparison", readStoredJson(release.comparisonJson()));
+        view.put("experience", experienceView(release.universeId(), release.placeId(), release.experienceName()));
+        return view;
+    }
+
+    /** A human declaration only — CreatorFlow does not verify ownership of or access to it. */
+    private static Map<String, Object> experienceView(Long universeId, Long placeId, String experienceName) {
+        if (universeId == null || placeId == null || experienceName == null) return null;
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("universeId", universeId);
+        view.put("placeId", placeId);
+        view.put("experienceName", experienceName);
         return view;
     }
 

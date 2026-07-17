@@ -34,7 +34,7 @@ import {
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import { heavyAssets } from '../heavyAssets';
-import { LocalBridgeClient, type LocalProjectSummary, type LocalScanRun } from '../bridge/localBridge';
+import { LocalBridgeClient, type LocalProjectRecord, type LocalProjectSummary, type LocalScanRun } from '../bridge/localBridge';
 import { validateManifestFile, type CreatorFlowManifest, type ManifestValidationIssue } from '../manifest/manifest';
 import { WorkspacePreferencesProvider } from '../preferences/workspacePreferences';
 import { BrandMark } from './BrandMark';
@@ -632,7 +632,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
           if (!stored || typeof stored.projectId !== 'number' || typeof stored.name !== 'string') return;
           void client.listProjectAssets(stored.projectId, 1, 0).then(async (page) => {
             if (controller.signal.aborted) return;
-            setLocalProject({ projectId: stored.projectId!, name: stored.name! });
+            setLocalProject({ projectId: stored.projectId!, name: stored.name!, experience: stored.experience ?? null });
             if (page.scanRunId) setLocalRun(await client.getScanRun(page.scanRunId));
           }).catch(() => localStorage.removeItem('creatorflow:local-project:v1'));
         } catch {
@@ -643,7 +643,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
         if (controller.signal.aborted) return;
         const restored = projects.items.find((project) => project.projectId === workspace.activeProjectId) ?? projects.items[0];
         if (!restored) return;
-        const summary = { projectId: restored.projectId, name: restored.name };
+        const summary: LocalProjectSummary = { projectId: restored.projectId, name: restored.name, experience: restored.experience ?? null };
         setLocalProject(summary);
         localStorage.setItem('creatorflow:local-project:v1', JSON.stringify(summary));
         if (workspace.activeProjectId === restored.projectId) {
@@ -664,6 +664,19 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
       void bridgeClient.saveWorkspaceState({ activeProjectId: localProject.projectId, activeScanRunId: run?.id ?? null }).catch(() => undefined);
     }
   }, [bridgeClient, localProject]);
+
+  const handleExperienceBound = useCallback((record: LocalProjectRecord) => {
+    setLocalProject((current) => {
+      if (!current || current.projectId !== record.projectId) return current;
+      const next: LocalProjectSummary = { ...current, experience: record.experience ?? null };
+      try {
+        localStorage.setItem('creatorflow:local-project:v1', JSON.stringify(next));
+      } catch {
+        // Persisted restore is best-effort; the in-memory declaration is already current.
+      }
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     if (!projectMenuOpen) return;
@@ -770,13 +783,14 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
     try {
       const project = await bridgeClient.pickProject();
       if (!project) return;
-      setLocalProject(project);
+      const summary: LocalProjectSummary = { ...project, experience: project.experience ?? null };
+      setLocalProject(summary);
       setLocalRun(null);
       setLocalSelectedAssetId(null);
       setActiveDataset('local');
-      localStorage.setItem('creatorflow:local-project:v1', JSON.stringify(project));
-      void bridgeClient.saveWorkspaceState({ activeProjectId: project.projectId, activeScanRunId: null }).catch(() => undefined);
-      setImportNotice({ tone: 'success', title: `${project.name} selected locally`, detail: 'Folder permission came from the native desktop picker. No creative payload was uploaded.' });
+      localStorage.setItem('creatorflow:local-project:v1', JSON.stringify(summary));
+      void bridgeClient.saveWorkspaceState({ activeProjectId: summary.projectId, activeScanRunId: null }).catch(() => undefined);
+      setImportNotice({ tone: 'success', title: `${summary.name} selected locally`, detail: 'Folder permission came from the native desktop picker. No creative payload was uploaded.' });
       changeView('project');
     } catch (reason) {
       setImportNotice({ tone: 'error', title: 'Local project could not be opened', detail: reason instanceof Error ? reason.message : 'The desktop bridge rejected the project selection.' });
@@ -881,6 +895,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
                 { label: 'Project ID', value: activeLocal ? String(activeLocal.projectId) : activeManifest ? `manifest:${activeManifest.project.name}:${activeManifest.project.release}` : 'sample:northwind', mono: true, copyValue: activeLocal ? String(activeLocal.projectId) : activeManifest ? `manifest:${activeManifest.project.name}:${activeManifest.project.release}` : 'sample:northwind' },
                 { label: 'Dataset', value: activeLocal ? 'Desktop local project' : activeManifest ? 'Imported read-only snapshot' : 'Authored sample scenario' },
                 { label: 'Release', value: activeManifest?.project.release ?? (activeLocal ? 'Set during release export' : '2.4.0-rc2 sample') },
+                { label: 'Intended experience', value: activeLocal?.experience ? `${activeLocal.experience.experienceName} (declared by you, not verified)` : activeManifest?.experience ? `${activeManifest.experience.experienceName} (declared, not verified)` : activeLocal ? 'Not yet declared' : activeManifest ? 'Not declared in this manifest' : 'Not applicable' },
                 { label: 'Current view', value: navigationItems.find((item) => item.id === view)?.label ?? view },
               ],
             },
@@ -920,7 +935,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
               exit={reduceMotion ? { opacity: 0 } : { opacity: 0, y: -6, filter: 'blur(2px)' }}
               transition={{ duration: reduceMotion ? 0 : 0.28, ease: [0.25, 1, 0.5, 1] }}
             >
-              {view === 'overview' ? activeLocal ? <LocalProjectOverview project={activeLocal} run={localRun} onOpenRun={() => changeView('project')} onOpenEvidence={() => changeView('evidence')} /> : activeManifest && activeImport ? <ImportedProjectOverview manifest={activeManifest} fileBytes={activeImport.fileBytes} onOpenEvidence={() => changeView('evidence')} /> : <OverviewView onOpenAsset={openAsset} onOpenEvidence={() => changeView('evidence')} onOpenMotion={() => changeView('motion')} /> : null}
+              {view === 'overview' ? activeLocal && bridgeClient ? <LocalProjectOverview client={bridgeClient} project={activeLocal} run={localRun} onOpenRun={() => changeView('project')} onOpenEvidence={() => changeView('evidence')} onExperienceBound={handleExperienceBound} /> : activeManifest && activeImport ? <ImportedProjectOverview manifest={activeManifest} fileBytes={activeImport.fileBytes} onOpenEvidence={() => changeView('evidence')} /> : <OverviewView onOpenAsset={openAsset} onOpenEvidence={() => changeView('evidence')} onOpenMotion={() => changeView('motion')} /> : null}
               {view === 'project' ? activeLocal && bridgeClient ? <LocalScanView client={bridgeClient} project={activeLocal} onRunChange={handleLocalRunChange} onOpenEvidence={() => changeView('evidence')} /> : activeManifest ? <ImportedProjectRun manifest={activeManifest} onOpenEvidence={() => changeView('evidence')} /> : <ReleasePathLab onNavigate={changeView} /> : null}
               {view === 'assets' ? <>{activeLocal ? <CapabilityDemoNotice projectName={activeLocal.name} kind="assets" dataset="local" /> : activeManifest ? <CapabilityDemoNotice projectName={activeManifest.project.name} kind="assets" /> : null}<AssetsView /></> : null}
               {view === 'gallery' ? <Suspense fallback={<div className="workspace-view-loading">Opening model gallery…</div>}><ModelGallery /></Suspense> : null}

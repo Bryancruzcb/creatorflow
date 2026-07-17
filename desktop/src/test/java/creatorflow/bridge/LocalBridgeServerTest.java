@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import creatorflow.TestMedia;
 import creatorflow.db.AuditRepository;
@@ -224,6 +225,40 @@ class LocalBridgeServerTest {
                 .get("items");
         assertEquals(1, releaseList.size());
         assertEquals(1, releaseList.get(0).get("comparison").get("added").asInt());
+    }
+
+    @Test
+    void bindsAnIntendedExperienceDeclarationAndSurfacesItOnProjectAndReleaseViews() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+
+        String body = "{\"universeId\":1234567890,\"placeId\":9876543210,\"experienceName\":\"Obby Tower\"}";
+        assertEquals(403, postJson("/api/v1/projects/" + projectId + "/experience",
+                cookie, origin.toString(), null, body).statusCode());
+
+        HttpResponse<String> bound = postJson("/api/v1/projects/" + projectId + "/experience",
+                cookie, origin.toString(), csrf, body);
+        assertEquals(200, bound.statusCode(), bound.body());
+        JsonNode boundExperience = json.readTree(bound.body()).get("experience");
+        assertEquals(1234567890L, boundExperience.get("universeId").asLong());
+        assertEquals(9876543210L, boundExperience.get("placeId").asLong());
+        assertEquals("Obby Tower", boundExperience.get("experienceName").asText());
+
+        HttpResponse<String> projects = get("/api/v1/projects", cookie);
+        assertEquals(200, projects.statusCode());
+        JsonNode listedExperience = json.readTree(projects.body()).get("items").get(0).get("experience");
+        assertEquals("Obby Tower", listedExperience.get("experienceName").asText());
+
+        assertEquals(400, postJson("/api/v1/projects/" + projectId + "/experience",
+                cookie, origin.toString(), csrf,
+                "{\"universeId\":1234567890,\"placeId\":9876543210,\"experienceName\":\"   \"}").statusCode());
+        assertEquals(400, postJson("/api/v1/projects/" + projectId + "/experience",
+                cookie, origin.toString(), csrf,
+                "{\"placeId\":9876543210,\"experienceName\":\"Obby Tower\"}").statusCode());
+        assertEquals(400, postJson("/api/v1/projects/" + projectId + "/experience",
+                cookie, origin.toString(), csrf,
+                "{\"universeId\":-1,\"placeId\":9876543210,\"experienceName\":\"Obby Tower\"}").statusCode());
     }
 
     @Test

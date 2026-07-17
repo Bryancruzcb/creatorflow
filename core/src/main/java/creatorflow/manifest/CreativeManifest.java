@@ -1,6 +1,7 @@
 package creatorflow.manifest;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import creatorflow.model.VerificationStatus;
@@ -13,15 +14,22 @@ import java.util.Objects;
 import java.util.Set;
 
 /** Portable, versioned evidence inventory for one creative-project release. */
-@JsonPropertyOrder({"$schema", "project", "generatedAt", "summary", "assets"})
+@JsonPropertyOrder({"$schema", "project", "experience", "generatedAt", "summary", "assets"})
 public record CreativeManifest(
         @JsonProperty("$schema") String schema,
         Project project,
         Instant generatedAt,
         Summary summary,
-        List<AssetEntry> assets) {
+        List<AssetEntry> assets,
+        @JsonInclude(JsonInclude.Include.NON_NULL) IntendedExperience experience) {
 
     public static final String SCHEMA = "creatorflow.manifest/v0.1";
+
+    /** Convenience constructor for the common case of a manifest with no declared experience. */
+    public CreativeManifest(String schema, Project project, Instant generatedAt, Summary summary,
+                            List<AssetEntry> assets) {
+        this(schema, project, generatedAt, summary, assets, null);
+    }
 
     public CreativeManifest {
         if (!SCHEMA.equals(schema)) {
@@ -55,6 +63,18 @@ public record CreativeManifest(
         public Project {
             name = requireText(name, "project name");
             release = requireText(release, "release");
+        }
+    }
+
+    /**
+     * A user-declared intended Roblox experience binding for this release. This is a human
+     * declaration only — CreatorFlow does not verify ownership of or access to the experience.
+     */
+    public record IntendedExperience(long universeId, long placeId, String experienceName) {
+        public IntendedExperience {
+            if (universeId < 1) throw new IllegalArgumentException("universeId must be positive");
+            if (placeId < 1) throw new IllegalArgumentException("placeId must be positive");
+            experienceName = requireText(experienceName, "experience name");
         }
     }
 
