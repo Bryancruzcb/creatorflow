@@ -262,6 +262,52 @@ class LocalBridgeServerTest {
     }
 
     @Test
+    void recordsASelfReportedPublishedPlaceVersionOnARelease() throws Exception {
+        TestMedia.writePng(directory, "hero.png", TestMedia.structuredImage(9));
+        ObjectMapper json = new ObjectMapper();
+        HttpResponse<String> picked = post("/api/v1/project-picker", cookie, origin.toString(), csrf);
+        long projectId = json.readTree(picked.body()).get("projectId").asLong();
+
+        HttpResponse<String> started = postJson("/api/v1/projects/" + projectId + "/scan-runs",
+                cookie, origin.toString(), csrf, "{\"release\":\"test-1\"}");
+        assertEquals(202, started.statusCode());
+        String runId = json.readTree(started.body()).get("id").asText();
+
+        String state = "QUEUED";
+        for (int attempt = 0; attempt < 100 && !"COMPLETED".equals(state); attempt++) {
+            Thread.sleep(25);
+            state = json.readTree(get("/api/v1/scan-runs/" + runId, cookie).body()).get("state").asText();
+        }
+        assertEquals("COMPLETED", state);
+
+        HttpResponse<String> created = postJson("/api/v1/projects/" + projectId + "/releases",
+                cookie, origin.toString(), csrf,
+                "{\"scanRunId\":\"" + runId + "\",\"release\":\"test-1.0\"}");
+        assertEquals(201, created.statusCode());
+        String releaseId = json.readTree(created.body()).get("id").asText();
+        assertTrue(json.readTree(created.body()).get("publishedPlaceVersion").isNull());
+
+        assertEquals(403, postJson("/api/v1/releases/" + releaseId + "/published-version",
+                cookie, origin.toString(), null, "{\"publishedPlaceVersion\":7}").statusCode());
+
+        HttpResponse<String> recorded = postJson("/api/v1/releases/" + releaseId + "/published-version",
+                cookie, origin.toString(), csrf, "{\"publishedPlaceVersion\":7}");
+        assertEquals(200, recorded.statusCode(), recorded.body());
+        assertEquals(7, json.readTree(recorded.body()).get("publishedPlaceVersion").asInt());
+
+        var releaseList = json.readTree(get("/api/v1/projects/" + projectId + "/releases", cookie).body())
+                .get("items");
+        assertEquals(7, releaseList.get(0).get("publishedPlaceVersion").asInt());
+
+        assertEquals(400, postJson("/api/v1/releases/" + releaseId + "/published-version",
+                cookie, origin.toString(), csrf, "{}").statusCode());
+        assertEquals(400, postJson("/api/v1/releases/" + releaseId + "/published-version",
+                cookie, origin.toString(), csrf, "{\"publishedPlaceVersion\":0}").statusCode());
+        assertEquals(400, postJson("/api/v1/releases/" + releaseId + "/published-version",
+                cookie, origin.toString(), csrf, "{\"publishedPlaceVersion\":-1}").statusCode());
+    }
+
+    @Test
     void projectListHidesRootsAndWorkspaceStateSurvivesBridgeRestart() throws Exception {
         ObjectMapper json = new ObjectMapper();
         long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
