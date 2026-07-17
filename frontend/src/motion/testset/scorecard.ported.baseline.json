@@ -1,5 +1,5 @@
 {
-  "engine": "ported Java-parity engine (49 samples / verdict bands 90-70)",
+  "engine": "ported Java-parity engine (49 samples / flags at >=90 or exact)",
   "flaggedByCase": {
     "robot:reupload:Dance": true,
     "robot:retime-fast:Dance": true,

@@ -43,7 +43,7 @@ class MotionParityOracleGeneratorTest {
             node.set("result", mapper.valueToTree(result));
         }
 
-        if (System.getenv("UPDATE_MOTION_PARITY_ORACLE") != null) {
+        if ("1".equals(System.getenv("UPDATE_MOTION_PARITY_ORACLE"))) {
             Files.createDirectories(ORACLE_PATH.getParent());
             mapper.writerWithDefaultPrettyPrinter().writeValue(ORACLE_PATH.toFile(), oracle);
             return;

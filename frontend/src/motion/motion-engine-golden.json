@@ -218,5 +218,15 @@
     "warpScore": 100,
     "exactCurveData": false,
     "verdict": "HIGH_SIMILARITY"
+  },
+  "fixture-scale-sparse": {
+    "overallPercent": 96.35,
+    "posePercent": 94.39,
+    "timingPercent": 100,
+    "coveragePercent": 100,
+    "durationPercent": 100,
+    "warpScore": 100,
+    "exactCurveData": false,
+    "verdict": "HIGH_SIMILARITY"
   }
 }
