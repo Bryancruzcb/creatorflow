@@ -11,6 +11,7 @@ import { compareClips } from '../../components/MotionComparisonLab';
 import { clipToNormalized } from '../clipToNormalized';
 import { deserializeClip } from '../motionCurves';
 import { compareNormalized } from '../motionEngineCore';
+import { compareMotion } from '../motionEngine';
 import type { CaseClass, CaseKind, CopyDetectionCase } from './copyDetectionCases';
 
 export interface EngineOutcome { score: number | null; flagged: boolean; exact: boolean }
@@ -82,6 +83,23 @@ export function portedEngineAdapter(): EngineAdapter {
       return { score: null, flagged: false, exact: false };
     }
     const result = compareNormalized(normalizedSource, normalizedCandidate);
+    return {
+      score: result.overallPercent,
+      flagged: result.verdict === 'EXACT_CURVE_DATA' || result.verdict === 'HIGH_SIMILARITY',
+      exact: result.exactCurveData,
+    };
+  };
+}
+
+/** Phase 1b graded engine (v2). Flags at its own >=90 HIGH band or exact. */
+export function tunedEngineAdapter(): EngineAdapter {
+  return (source, candidate) => {
+    const normalizedSource = clipToNormalized(source);
+    const normalizedCandidate = clipToNormalized(candidate);
+    if (normalizedSource.keyframes.length === 0 || normalizedCandidate.keyframes.length === 0) {
+      return { score: null, flagged: false, exact: false };
+    }
+    const result = compareMotion(normalizedSource, normalizedCandidate);
     return {
       score: result.overallPercent,
       flagged: result.verdict === 'EXACT_CURVE_DATA' || result.verdict === 'HIGH_SIMILARITY',
