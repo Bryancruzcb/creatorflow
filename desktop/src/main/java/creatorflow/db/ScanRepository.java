@@ -336,7 +336,7 @@ public final class ScanRepository {
     public Optional<SourceEvidenceRecord> evidenceFor(long assetId) {
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
-                    SELECT * FROM source_evidence WHERE scan_asset_id = ? ORDER BY recorded_at DESC LIMIT 1""")) {
+                    SELECT * FROM source_evidence WHERE scan_asset_id = ? ORDER BY recorded_at DESC, id DESC LIMIT 1""")) {
                 statement.setLong(1, assetId);
                 try (ResultSet result = statement.executeQuery()) {
                     return result.next() ? Optional.of(mapEvidence(result)) : Optional.empty();
