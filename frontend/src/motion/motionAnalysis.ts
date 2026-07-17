@@ -1,5 +1,8 @@
 import { AnimationClip, type KeyframeTrack } from 'three';
 
+import { clipToNormalized } from './clipToNormalized';
+import { compareMotion } from './motionEngine';
+
 export type MotionAnalysisMode = 'shape' | 'timing' | 'loop' | 'root';
 export type MotionJointScope = 'full' | 'upper' | 'lower' | 'root';
 
@@ -89,11 +92,6 @@ export interface MotionAnalysisResult {
 interface PreparedTrack {
   track: KeyframeTrack;
   sample: (time: number) => number[];
-}
-
-interface PairSamples {
-  frameScores: number[];
-  trackScores: MotionTrackScore[];
 }
 
 const ROOT_PATTERN = /(?:^|[\[\]./_-])(humanoidrootpart|root|body|hips?|pelvis)(?:$|[\[\]./_-])/i;
@@ -207,57 +205,6 @@ function linearVelocity(start: ArrayLike<number>, end: ArrayLike<number>, size: 
 
 function selectedTracks(clip: AnimationClip, scope: MotionJointScope) {
   return clip.tracks.filter((track) => trackMatchesJointScope(track.name, scope));
-}
-
-function compareTrackPairs(
-  source: AnimationClip,
-  candidate: AnimationClip,
-  scope: MotionJointScope,
-  sampleCount: number,
-  alignment: 'phase' | 'seconds',
-): PairSamples {
-  const sourceTracks = new Map(selectedTracks(source, scope).map((track) => [track.name, prepareTrack(track)]));
-  const candidateTracks = new Map(selectedTracks(candidate, scope).map((track) => [track.name, prepareTrack(track)]));
-  const commonNames = [...sourceTracks.keys()].filter((name) => candidateTracks.has(name));
-  const frameTotals = Array.from({ length: sampleCount }, () => 0);
-  const frameCounts = Array.from({ length: sampleCount }, () => 0);
-  const trackScores: MotionTrackScore[] = [];
-  const authoredWindow = Math.max(source.duration, candidate.duration, 0.001);
-
-  for (const name of commonNames) {
-    const sourceTrack = sourceTracks.get(name)!;
-    const candidateTrack = candidateTracks.get(name)!;
-    const size = Math.min(sourceTrack.track.getValueSize(), candidateTrack.track.getValueSize());
-    const samples: number[] = [];
-    for (let frame = 0; frame < sampleCount; frame += 1) {
-      const progress = sampleCount === 1 ? 0 : frame / (sampleCount - 1);
-      const sourceTime = alignment === 'phase' ? progress * source.duration : progress * authoredWindow;
-      const candidateTime = alignment === 'phase' ? progress * candidate.duration : progress * authoredWindow;
-      const score = valuesSimilarity(
-        name,
-        sourceTrack.sample(sourceTime),
-        candidateTrack.sample(candidateTime),
-        size,
-      );
-      samples.push(score);
-      frameTotals[frame] += score;
-      frameCounts[frame] += 1;
-    }
-    const worstScore = samples.length ? Math.min(...samples) : 0;
-    const worstIndex = Math.max(0, samples.indexOf(worstScore));
-    trackScores.push({
-      name: motionTrackLabel(name),
-      rawName: name,
-      score: average(samples),
-      worstScore,
-      worstProgress: sampleCount === 1 ? 0 : worstIndex / (sampleCount - 1),
-    });
-  }
-
-  return {
-    frameScores: frameTotals.map((total, index) => frameCounts[index] ? total / frameCounts[index] : 0),
-    trackScores: trackScores.sort((left, right) => left.score - right.score),
-  };
 }
 
 function loopContinuity(clip: AnimationClip, scope: MotionJointScope): LoopContinuityResult {
@@ -436,19 +383,41 @@ export function analyzeMotionClips(
   const jointScope = options.jointScope ?? 'full';
   const sampleCount = Math.max(12, Math.round(options.sampleCount ?? 48));
   const reviewThreshold = Math.max(50, Math.min(100, options.reviewThreshold ?? 85));
-  const phase = compareTrackPairs(source, candidate, jointScope, sampleCount, 'phase');
-  const authored = compareTrackPairs(source, candidate, jointScope, sampleCount, 'seconds');
   const scopedSource = selectedTracks(source, jointScope);
   const scopedCandidate = selectedTracks(candidate, jointScope);
+  const scopedSourceClip = new AnimationClip(source.name, source.duration, scopedSource);
+  const scopedCandidateClip = new AnimationClip(candidate.name, candidate.duration, scopedCandidate);
+  const normalizedSource = clipToNormalized(scopedSourceClip, source.name);
+  const normalizedCandidate = clipToNormalized(scopedCandidateClip, candidate.name);
+  // No-evidence guard (mirrors the ported/tuned adapters): a scope or clip whose
+  // tracks all normalize away carries no motion evidence — zeros, never 100/EXACT.
+  const v2 = normalizedSource.keyframes.length === 0 || normalizedCandidate.keyframes.length === 0
+    ? null
+    : compareMotion(normalizedSource, normalizedCandidate, { sampleCount: sampleCount + 1 });
+  const pose = v2 ? Math.round(v2.posePercent) : 0;
+  const durationSimilarity = v2 ? Math.round(v2.durationPercent) : 0;
+  const timing = v2 ? Math.round(v2.timingPercent) : 0;
+  const coveragePercent = v2 ? Math.round(v2.coveragePercent) : 0;
+  const shapeOverall = v2 ? Math.round(v2.overallPercent) : 0;
+  const timingOverall = v2
+    ? Math.round(((v2.timingPercent * 0.65 + v2.posePercent * 0.2 + v2.coveragePercent * 0.15) * v2.coveragePercent) / 100)
+    : 0;
+  const v2FrameScores = v2 ? v2.frameScores.map((frame) => frame.posePercent / 100) : [];
+  const v2TrackScores: MotionTrackScore[] = v2
+    ? v2.jointScores
+      .filter((joint) => joint.presentInSource && joint.presentInCandidate)
+      .map((joint) => ({
+        name: motionTrackLabel(joint.jointPath),
+        rawName: joint.jointPath,
+        score: joint.posePercent / 100,
+        worstScore: joint.posePercent / 100,
+        worstProgress: 0,
+      }))
+      .sort((left, right) => left.score - right.score)
+    : [];
   const sourceNames = new Set(scopedSource.map((track) => track.name));
   const candidateNames = new Set(scopedCandidate.map((track) => track.name));
   const commonNames = [...sourceNames].filter((name) => candidateNames.has(name));
-  const coverage = commonNames.length / Math.max(1, new Set([...sourceNames, ...candidateNames]).size);
-  const pose = Math.round(average(phase.frameScores) * 100);
-  const durationRatio = Math.max(0.001, candidate.duration / Math.max(0.001, source.duration));
-  const durationSimilarity = Math.round(Math.exp(-Math.abs(Math.log(durationRatio)) * 1.8) * 100);
-  const authoredTimeAgreement = Math.round(average(authored.frameScores) * 100);
-  const timing = Math.round(authoredTimeAgreement * 0.72 + durationSimilarity * 0.28);
   const exactCurveData = exactCurveMatch(source, candidate);
   const loop = {
     source: loopContinuity(source, jointScope),
@@ -464,14 +433,10 @@ export function analyzeMotionClips(
     candidate: rootCandidate,
   };
 
-  let frameScores = mode === 'timing' ? authored.frameScores : phase.frameScores;
-  let trackScores = mode === 'timing' ? authored.trackScores : phase.trackScores;
-  const coveragePercent = Math.round(coverage * 100);
-  const relationshipScore = (signal: number) => signal + coveragePercent === 0
-    ? 0
-    : Math.round((2 * signal * coveragePercent) / (signal + coveragePercent));
+  let frameScores = v2FrameScores;
+  let trackScores = v2TrackScores;
   let primaryLabel = mode === 'shape' ? 'Motion-shape relationship' : 'Authored-time relationship';
-  let overall = mode === 'shape' ? relationshipScore(pose) : relationshipScore(timing);
+  let overall = mode === 'shape' ? shapeOverall : timingOverall;
   let primaryValue: number | null = overall;
 
   if (mode === 'loop') {

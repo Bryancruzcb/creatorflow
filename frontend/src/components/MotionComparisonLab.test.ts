@@ -46,7 +46,10 @@ describe('motion comparison', () => {
     expect(shape.pose).toBe(100);
     expect(timing.timing).toBeLessThan(shape.pose);
     expect(timing.durationDeltaSeconds).toBeCloseTo(-0.5, 6);
-    expect(timing.largestDifferenceTimeSeconds).toBeGreaterThan(0);
+    // v2 cutover: v2's phase-normalized frameScores are uniform 100 for a pure
+    // uniform retime, so there IS no within-clip divergence point (the old > 0
+    // came from seconds-domain sampling artifacts).
+    expect(timing.largestDifferenceTimeSeconds).toBe(0);
   });
 
   it('filters comparison tracks by joint scope', () => {

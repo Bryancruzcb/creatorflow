@@ -13,7 +13,7 @@ import { buildCases } from './copyDetectionCases';
 import { loadRigFixture } from './fixtureLoader';
 import { currentEngineAdapter, formatScorecard, runScorecard } from './scorecard';
 
-const ENGINE_TITLE = 'current TS engine (shape / full / 48 samples / threshold 85)';
+const ENGINE_TITLE = 'live web engine (v2 via analyzeMotionClips)';
 const baselinePath = fileURLToPath(new URL('./scorecard.baseline.json', import.meta.url));
 
 describe('copy-detection scorecard', () => {

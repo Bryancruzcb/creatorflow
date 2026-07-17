@@ -2,8 +2,15 @@
 # Motion copy-detection test set
 
 The safety net for every motion-engine change (handoff Phase 0). `npm test` runs
-`copyDetection.test.ts`, which grades the engine over ~217 labeled cases and prints a
-recall / false-positive scorecard. Per-case flag outcomes are pinned in
+`copyDetection.test.ts`, which grades the LIVE web engine over ~217 labeled cases and
+prints a recall / false-positive scorecard. Since the Phase 1b cutover the live engine
+IS the graded v2: `analyzeMotionClips`'s shape/timing modes run `clipToNormalized` →
+`compareMotion` (DTW + de-weight + coverage-attenuated composition); the old TS
+heuristic engine is deleted from shape/timing, while loop and root remain TS-only
+add-on views. Thresholds: the UI review threshold (85) is a UI preference for
+surfacing review candidates; the registry verdict bands live in the engine
+(HIGH ≥ 90, MODERATE ≥ 70) — so this scorecard and the tuned one differ only in
+the 85–90 flag band. Per-case flag outcomes are pinned in
 `scorecard.baseline.json` — an engine change that moves any case across the flag
 threshold fails CI until the baseline is regenerated on purpose:
 
@@ -32,11 +39,11 @@ threshold fails CI until the baseline is regenerated on purpose:
 
 - Mirrored fixtures swap left/right joints and reflect curves across the YZ plane.
   That is a faithful mirror only insofar as the rigs are left/right symmetric (both
-  are, near enough). At baseline the engine already flags 10/17 mirrored fixtures
-  (58.8%): every hit is on the robot rig's symmetric holds and gross-motion clips
-  (Dance, Death, Idle, Jump, No, Sitting, Standing, Walking, WalkJump, Yes), while it
-  misses all 3 fox rig mirrors (Run, Survey, Walk) and 4 more robot clips (Punch,
-  Running, ThumbsUp, Wave). Dedicated mirror canonicalization — to close that gap on
+  are, near enough). The live v2 baseline flags 8/17 mirrored fixtures (47.1%):
+  every hit is on the robot rig's symmetric holds and gross-motion clips
+  (Dance, Death, Idle, Jump, No, Sitting, Standing, Yes), while it misses all 3 fox
+  rig mirrors (Run, Survey, Walk) and 6 more robot clips (Punch, Running, ThumbsUp,
+  Walking, WalkJump, Wave). Dedicated mirror canonicalization — to close that gap on
   purpose rather than by accident — is still Phase 3's job.
 - A scorecard number is a measurement, not a verdict. Precision (not flagging the
   innocent) outranks recall — a change that raises recall by raising the family/unrelated
@@ -55,11 +62,10 @@ expect the baseline to need a rerun afterwards.
 `compareNormalized`) on the same case list and pins `scorecard.ported.baseline.json`
 (regenerate deliberately: `UPDATE_MOTION_PORTED_BASELINE=1 npm test`; PowerShell:
 `$env:UPDATE_MOTION_PORTED_BASELINE = '1'; npm test; Remove-Item Env:UPDATE_MOTION_PORTED_BASELINE`).
-The two engines use different flag thresholds by design (current: score ≥ 85;
+The two engines use different flag thresholds by design (live UI: score ≥ 85;
 ported: its own ≥ 90 HIGH band), so compare the two scorecards side by side, not
-row-by-row against a shared bar. The live app still runs the current engine —
-the cutover decision belongs to the Phase 1b boundary; see "v2 web engine (Phase
-1b)" below for the graded candidate and its parity anchor.
+row-by-row against a shared bar. The live app runs v2 since the Phase 1b cutover;
+see "v2 web engine (Phase 1b)" below for the graded engine and its parity anchor.
 
 ## v2 web engine (Phase 1b)
 
