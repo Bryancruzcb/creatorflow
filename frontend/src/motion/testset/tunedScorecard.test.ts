@@ -14,7 +14,7 @@ import { buildCases } from './copyDetectionCases';
 import { loadRigFixture } from './fixtureLoader';
 import { formatScorecard, runScorecard, tunedEngineAdapter } from './scorecard';
 
-const ENGINE_TITLE = 'v2 web engine (de-weight stage)';
+const ENGINE_TITLE = 'v2 web engine (DTW)';
 const baselinePath = fileURLToPath(new URL('./scorecard.tuned.baseline.json', import.meta.url));
 
 describe('v2-engine copy-detection scorecard', () => {

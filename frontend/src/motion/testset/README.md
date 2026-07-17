@@ -58,5 +58,15 @@ expect the baseline to need a rerun afterwards.
 The two engines use different flag thresholds by design (current: score ≥ 85;
 ported: its own ≥ 90 HIGH band), so compare the two scorecards side by side, not
 row-by-row against a shared bar. The live app still runs the current engine —
-the cutover decision belongs to the Phase 1b boundary, with both scorecards on
-the table. Parity proof for the ported core: `../parity/motionParity.test.ts`.
+the cutover decision belongs to the Phase 1b boundary; see "v2 web engine (Phase
+1b)" below for the graded candidate and its parity anchor.
+
+## v2 web engine (Phase 1b)
+
+`tunedScorecard.test.ts` grades the v2 engine (`compareMotion`): the parity-proven
+Java kernel + three graded divergences — multiplicative coverage (no tiny-overlap
+false accusations, no full-coverage inflation), position de-weighted 0.25/0.65/0.10
+(finding 7), and banded DTW (Sakoe-Chiba 12.5%) with a duration+warp timing
+composite. Baseline: `scorecard.tuned.baseline.json`, regenerated per graded stage
+(`UPDATE_MOTION_TUNED_BASELINE=1`). The parity-locked `compareNormalized` and its
+oracle test remain untouched as the Java-fidelity anchor.

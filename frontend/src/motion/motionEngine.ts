@@ -12,9 +12,8 @@
  */
 import type { NormalizedAnimationJson } from './normalizedMotion';
 import {
-  type NormalizedJointScore, type NormalizedVerdict, type PoseBlendWeights,
+  type NormalizedJointScore, type NormalizedVerdict, type PoseBlendWeights, type PoseSample, type PoseDelta,
   canonicalCurvesEqual, poseDelta, round, sample, trackMetadataPercent, tracks,
-  timingPercent as javaTimingPercent,
 } from './motionEngineCore';
 
 export const ENGINE_V2_VERSION = 'creatorflow.motion-comparison/v2-web';
@@ -71,27 +70,102 @@ export function compareMotion(
   const commonJoints = [...sourceTracks.keys()].filter((joint) => candidateTracks.has(joint)).sort();
   let coveragePercent = allJoints.length === 0 ? 0 : (100 * commonJoints.length) / allJoints.length;
 
-  // Composition stage: lockstep (i,i) sampling, exactly as the parity core does.
+  // --- Banded DTW over lockstep sample grids (handoff finding 6) ---
+  // Cost cell = DISTANCE (1 - posePercent/100), never similarity: DTW minimizes.
+  // Duration-aware band: a duration mismatch of fraction f shifts alignment by up to
+  // f*(N-1) samples (a 30% inserted hold needs ~23% of the timeline), so the band
+  // floors at 12.5% but grows to cover that shift, capped at 35%. Same-duration
+  // pairs (all our negatives) keep the tight 12.5% corridor.
+  const maxDuration = Math.max(source.duration, candidate.duration);
+  const durationShift = maxDuration === 0 ? 0 : Math.abs(source.duration - candidate.duration) / maxDuration;
+  const band = Math.min(
+    Math.round(0.35 * (sampleCount - 1)),
+    Math.max(2, Math.round(0.125 * (sampleCount - 1)), Math.ceil(durationShift * (sampleCount - 1)) + 2),
+  );
+  const sourceSamples: PoseSample[][] = [];
+  const candidateSamples: PoseSample[][] = [];
+  for (let i = 0; i < sampleCount; i += 1) {
+    const normalizedTime = i / (sampleCount - 1);
+    sourceSamples.push(commonJoints.map((joint) => sample(sourceTracks.get(joint)!, normalizedTime * source.duration)));
+    candidateSamples.push(commonJoints.map((joint) => sample(candidateTracks.get(joint)!, normalizedTime * candidate.duration)));
+  }
+  const jointCount = commonJoints.length;
+  const cellDeltas = (i: number, j: number): PoseDelta[] =>
+    sourceSamples[i].map((sourcePose, jointIndex) => poseDelta(sourcePose, candidateSamples[j][jointIndex], weights));
+  const cellCost = (deltas: PoseDelta[]): number =>
+    jointCount === 0 ? 1 : 1 - deltas.reduce((total, delta) => total + delta.posePercent, 0) / jointCount / 100;
+
+  // DP within the Sakoe-Chiba band.
+  // STEP_PENALTY: a small per-transition cost on non-diagonal (up/left) moves. Without it,
+  // unweighted DTW is prone to the classic "trivial expansion" pathology: a tiny CONSTANT
+  // pose offset (no real timing difference at all) can still look pointwise-cheaper a few
+  // samples off the diagonal purely from sampling-grid quantization, so unconstrained DTW
+  // drifts the whole path off it for a fraction-of-a-percent gain. STEP_PENALTY prices that
+  // drift out (it costs strictly more than the trivial per-cell saving accumulates to) while
+  // staying far below the large, sustained per-cell savings a genuine inserted hold produces
+  // (see motionEngine.test.ts's 'reports zero warp' vs 'aligns an inserted hold' cases).
+  const STEP_PENALTY = 0.1;
+  const INF = Number.POSITIVE_INFINITY;
+  const cost: number[][] = Array.from({ length: sampleCount }, () => Array(sampleCount).fill(INF));
+  const accumulated: number[][] = Array.from({ length: sampleCount }, () => Array(sampleCount).fill(INF));
+  for (let i = 0; i < sampleCount; i += 1) {
+    for (let j = Math.max(0, i - band); j <= Math.min(sampleCount - 1, i + band); j += 1) {
+      cost[i][j] = cellCost(cellDeltas(i, j));
+    }
+  }
+  accumulated[0][0] = cost[0][0];
+  for (let i = 0; i < sampleCount; i += 1) {
+    for (let j = Math.max(0, i - band); j <= Math.min(sampleCount - 1, i + band); j += 1) {
+      if (i === 0 && j === 0) continue;
+      const diag = i > 0 && j > 0 ? accumulated[i - 1][j - 1] : INF;
+      const up = i > 0 ? accumulated[i - 1][j] + STEP_PENALTY : INF;
+      const left = j > 0 ? accumulated[i][j - 1] + STEP_PENALTY : INF;
+      accumulated[i][j] = cost[i][j] + Math.min(diag, up, left);
+    }
+  }
+  // Backtrack (diag preferred on ties -> deterministic), collecting the path.
+  const path: Array<[number, number]> = [];
+  let pi = sampleCount - 1;
+  let pj = sampleCount - 1;
+  while (pi > 0 || pj > 0) {
+    path.push([pi, pj]);
+    const diag = pi > 0 && pj > 0 ? accumulated[pi - 1][pj - 1] : INF;
+    const up = pi > 0 ? accumulated[pi - 1][pj] + STEP_PENALTY : INF;
+    const left = pj > 0 ? accumulated[pi][pj - 1] + STEP_PENALTY : INF;
+    if (diag <= up && diag <= left) { pi -= 1; pj -= 1; }
+    else if (up <= left) { pi -= 1; }
+    else { pj -= 1; }
+  }
+  path.push([0, 0]);
+  path.reverse();
+  const pathLength = path.length;
+  const meanWarp = path.reduce((total, [i, j]) => total + Math.abs(i - j), 0) / pathLength;
+  const warpScoreRaw = 100 * Math.max(0, 1 - meanWarp / band);
+
+  // Per-joint + per-frame aggregation along the ALIGNED path.
   const perJoint = new Map<string, { poseTotal: number; positionTotal: number; rotationTotal: number; maxPosition: number; maxRotation: number }>();
   for (const joint of commonJoints) perJoint.set(joint, { poseTotal: 0, positionTotal: 0, rotationTotal: 0, maxPosition: 0, maxRotation: 0 });
-  const frameScores: Array<{ sampleIndex: number; posePercent: number }> = [];
-  for (let sampleIndex = 0; sampleIndex < sampleCount; sampleIndex += 1) {
-    const normalizedTime = sampleIndex / (sampleCount - 1);
-    const sourceTime = normalizedTime * source.duration;
-    const candidateTime = normalizedTime * candidate.duration;
-    let frameTotal = 0;
-    for (const joint of commonJoints) {
-      const delta = poseDelta(sample(sourceTracks.get(joint)!, sourceTime), sample(candidateTracks.get(joint)!, candidateTime), weights);
-      const acc = perJoint.get(joint)!;
+  const frameTotals = Array(sampleCount).fill(0);
+  const frameCounts = Array(sampleCount).fill(0);
+  for (const [i, j] of path) {
+    const deltas = cellDeltas(i, j);
+    let cellTotal = 0;
+    deltas.forEach((delta, jointIndex) => {
+      const acc = perJoint.get(commonJoints[jointIndex])!;
       acc.poseTotal += delta.posePercent;
       acc.positionTotal += delta.positionDelta;
       acc.rotationTotal += delta.rotationDelta;
       acc.maxPosition = Math.max(acc.maxPosition, delta.positionDelta);
       acc.maxRotation = Math.max(acc.maxRotation, delta.rotationDelta);
-      frameTotal += delta.posePercent;
-    }
-    frameScores.push({ sampleIndex, posePercent: round(commonJoints.length === 0 ? 0 : frameTotal / commonJoints.length, 2) });
+      cellTotal += delta.posePercent;
+    });
+    frameTotals[i] += jointCount === 0 ? 0 : cellTotal / jointCount;
+    frameCounts[i] += 1;
   }
+  const frameScores = frameTotals.map((total, index) => ({
+    sampleIndex: index,
+    posePercent: round(frameCounts[index] ? total / frameCounts[index] : 0, 2),
+  }));
 
   const jointScores: NormalizedJointScore[] = [];
   let poseTotal = 0;
@@ -104,25 +178,24 @@ export function compareMotion(
     }
     const acc = perJoint.get(joint)!;
     const metadataPercent = trackMetadataPercent(sourceTracks.get(joint)!, candidateTracks.get(joint)!);
-    const jointPercent = (acc.poseTotal / sampleCount) * 0.96 + metadataPercent * 0.04;
+    const jointPercent = (acc.poseTotal / pathLength) * 0.96 + metadataPercent * 0.04;
     poseTotal += jointPercent;
     jointScores.push({
       jointPath: joint,
       presentInSource: true,
       presentInCandidate: true,
       posePercent: round(jointPercent, 2),
-      meanPositionDelta: round(acc.positionTotal / sampleCount, 6),
+      meanPositionDelta: round(acc.positionTotal / pathLength, 6),
       maxPositionDelta: round(acc.maxPosition, 6),
-      meanRotationDeltaDegrees: round((acc.rotationTotal / sampleCount) * (180 / Math.PI), 3),
+      meanRotationDeltaDegrees: round((acc.rotationTotal / pathLength) * (180 / Math.PI), 3),
       maxRotationDeltaDegrees: round(acc.maxRotation * (180 / Math.PI), 3),
     });
   }
 
   let posePercent = commonJoints.length === 0 ? 0 : poseTotal / commonJoints.length;
   const durationPercent = durationPercentOf(source, candidate);
-  // Composition stage keeps the Java timing heuristic verbatim via the core export.
-  let timing = javaTimingPercent(source, candidate);
-  const warpScore = 100; // no warp measured until the DTW stage (Task 5)
+  const warpScore = warpScoreRaw;
+  let timing = durationPercent * 0.5 + warpScore * 0.5;
 
   let overallPercent = ((posePercent * 0.65 + timing * 0.2 + coveragePercent * 0.15) * coveragePercent) / 100;
   if (exact) {

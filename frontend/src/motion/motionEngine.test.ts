@@ -1,8 +1,7 @@
 // frontend/src/motion/motionEngine.test.ts
 import { describe, expect, it } from 'vitest';
 import type { NormalizedAnimationJson, NormalizedKeyframeJson, NormalizedPoseJson } from './normalizedMotion';
-import { compareNormalized, JAVA_POSE_WEIGHTS } from './motionEngineCore';
-import { compareMotion, ENGINE_V2_VERSION } from './motionEngine';
+import { compareMotion } from './motionEngine';
 
 function pose(jointPath: string, x: number, yawDegrees: number): NormalizedPoseJson {
   const angle = (yawDegrees * Math.PI) / 180;
@@ -18,22 +17,14 @@ describe('compareMotion (v2) — composition stage', () => {
   const walk = (id: string) => animation(id, 1,
     keyframe(0, pose('Root/Hip', 0, 0)), keyframe(0.5, pose('Root/Hip', 0.25, 35)), keyframe(1, pose('Root/Hip', 0, 70)));
 
-  it('is byte-identical to the parity core at full coverage (composition only bites below 100)', () => {
-    // Pinned to JAVA_POSE_WEIGHTS explicitly: this is a Java-weight lockstep equality
-    // check, so it must stay independent of the v2 default (Task 4 de-weights that
-    // default to V2_POSE_WEIGHTS — see the 'de-weight stage' describe block below).
-    // Task 5 replaces it with the DTW-era variant (see those tasks) — it is stage-scoped.
+  it('keeps the composition anchored to the Java blend at full coverage', () => {
     const source = walk('100');
     const candidate = animation('200', 1,
       keyframe(0, pose('Root/Hip', 0, 0)), keyframe(0.5, pose('Root/Hip', 0.9, 120)), keyframe(1, pose('Root/Hip', 0, 70)));
-    const v1 = compareNormalized(source, candidate);
-    const v2 = compareMotion(source, candidate, { poseWeights: JAVA_POSE_WEIGHTS });
-    expect(v2.engineVersion).toBe(ENGINE_V2_VERSION);
-    expect(v2.posePercent).toBe(v1.posePercent);            // same kernel, same lockstep in this stage
-    expect(v2.timingPercent).toBe(v1.timingPercent);
-    expect(v2.coveragePercent).toBe(v1.coveragePercent);
+    const v2 = compareMotion(source, candidate);
     expect(v2.coveragePercent).toBe(100);
-    expect(v2.overallPercent).toBe(v1.overallPercent);      // (0.65p+0.2t+0.15c)*c/100 === Java overall at c=100
+    const blend = v2.posePercent * 0.65 + v2.timingPercent * 0.2 + v2.coveragePercent * 0.15;
+    expect(v2.overallPercent).toBeCloseTo(blend, 1); // coverage/100 = 1 -> attenuation is identity
   });
 
   it('annihilates tiny-overlap scores instead of promoting them (the false-accusation guard)', () => {
@@ -79,5 +70,37 @@ describe('compareMotion (v2) — de-weight stage', () => {
     // pose = 0.25*100 + 0.65*5.9165 + 0.10*100 = 38.85 -> *0.96 + 4 = 41.29
     const rotationOnly = compareMotion(still('100', 0, 0), still('200', 0, 90));
     expect(rotationOnly.posePercent).toBeCloseTo(41.29, 1);
+  });
+});
+
+describe('compareMotion (v2) — banded DTW stage', () => {
+  const posesAt = (yaw: number) => pose('Root/Hip', 0, yaw);
+  /** A clip whose yaw sweeps 0..90 with an inserted hold between 40% and 70% of the timeline. */
+  const heldSweep = (id: string) => animation(id, 1.3,
+    keyframe(0, posesAt(0)), keyframe(0.4, posesAt(36)), keyframe(0.7, posesAt(36)), keyframe(1.3, posesAt(90)));
+  const sweep = (id: string) => animation(id, 1,
+    keyframe(0, posesAt(0)), keyframe(0.4, posesAt(36)), keyframe(1, posesAt(90)));
+
+  it('aligns an inserted hold elastically instead of punishing the lockstep misalignment', () => {
+    const dtw = compareMotion(sweep('100'), heldSweep('200'));
+    // Lockstep at these samples misaligns the post-hold sweep; DTW re-aligns it.
+    expect(dtw.posePercent).toBeGreaterThan(97);
+    expect(dtw.warpScore).toBeLessThan(100);   // the alignment cost shows up as warp, not pose damage
+    expect(dtw.verdict).toBe('HIGH_SIMILARITY');
+  });
+
+  it('reports zero warp and full timing for identical timelines', () => {
+    const result = compareMotion(sweep('100'), sweep('200'));
+    expect(result.exactCurveData).toBe(true);   // identical curves
+    const nearCopy = compareMotion(sweep('100'), animation('300', 1,
+      keyframe(0, posesAt(1)), keyframe(0.4, posesAt(37)), keyframe(1, posesAt(91))));
+    expect(nearCopy.warpScore).toBe(100);
+    expect(nearCopy.timingPercent).toBe(100);
+  });
+
+  it('stays deterministic: two runs produce identical results', () => {
+    const first = compareMotion(sweep('100'), heldSweep('200'));
+    const second = compareMotion(sweep('100'), heldSweep('200'));
+    expect(second).toEqual(first);
   });
 });
