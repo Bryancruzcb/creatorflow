@@ -1232,6 +1232,10 @@ code {
 .status-pending,
 .status-excluded { color: var(--ink-muted); }
 
+.evidence-basis-verified { color: var(--clear); }
+.evidence-basis-declared { color: var(--blue); }
+.evidence-basis-not-verified { color: var(--ink-muted); }
+
 .decision-panel {
   padding: var(--space-6);
   background: var(--desk);

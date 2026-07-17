@@ -195,7 +195,7 @@ public record CreativeManifest(
     }
 
     @JsonPropertyOrder({"path", "fileName", "fileType", "sizeBytes", "sha256", "width", "height",
-            "fingerprints", "verification", "source", "decision", "matches", "findings"})
+            "fingerprints", "verification", "source", "decision", "evidenceBases", "matches", "findings"})
     public record AssetEntry(
             String path,
             String fileName,
@@ -209,7 +209,21 @@ public record CreativeManifest(
             SourceEvidence source,
             ReleaseDecision decision,
             List<Match> matches,
-            List<String> findings) {
+            List<String> findings,
+            @JsonInclude(JsonInclude.Include.NON_NULL) EvidenceBases evidenceBases) {
+
+        /**
+         * Convenience constructor for the common case where {@code evidenceBases} has not been
+         * computed yet. {@code evidenceBases} is an OPTIONAL v0.2 manifest field (schema version is
+         * not bumped); the export path should populate it via {@link EvidenceBases#of(AssetEntry)}
+         * and {@link #withEvidenceBases(EvidenceBases)}.
+         */
+        public AssetEntry(String path, String fileName, String fileType, long sizeBytes, String sha256,
+                int width, int height, Fingerprints fingerprints, VerificationStatus verification,
+                SourceEvidence source, ReleaseDecision decision, List<Match> matches, List<String> findings) {
+            this(path, fileName, fileType, sizeBytes, sha256, width, height, fingerprints, verification,
+                    source, decision, matches, findings, null);
+        }
 
         public AssetEntry {
             path = requirePortablePath(path);
@@ -228,6 +242,12 @@ public record CreativeManifest(
             decision = Objects.requireNonNull(decision, "decision");
             matches = List.copyOf(matches);
             findings = List.copyOf(findings);
+        }
+
+        /** Returns a copy of this entry with its {@code evidenceBases} replaced. */
+        public AssetEntry withEvidenceBases(EvidenceBases bases) {
+            return new AssetEntry(path, fileName, fileType, sizeBytes, sha256, width, height,
+                    fingerprints, verification, source, decision, matches, findings, bases);
         }
     }
 
