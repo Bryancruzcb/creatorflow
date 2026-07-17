@@ -116,13 +116,32 @@ preflight" and "Team registry" as explicit destinations with separate capability
 
 Confirmed-major, still open:
 
-1. **Dual scoring algorithms** — *partially resolved 2026-07-17 (PRs #12/#19).* The `shape` and
-   `timing` modes now route through the parity-proven v2 engine (`frontend/src/motion/motionEngine.ts`,
-   golden-locked against the Java `MotionComparisonEngine` via `motionEngineGolden.test.ts`). The
-   finding is now **narrowed to the `loop` and `root` modes only**: those still use the independent
-   legacy heuristics in `motionAnalysis.ts` (`loopContinuity`, `rootComparison` — different decay
-   math), untested against Java/v2, shown under the same UI labels. Still to do: port them to the v2
-   kernel or label them as a distinct legacy metric, with a cross-implementation test.
+1. **Dual scoring algorithms** — *resolved 2026-07-17 (PRs #12/#19, loop/root follow-up).* The
+   `shape` and `timing` modes route through the parity-proven v2 engine
+   (`frontend/src/motion/motionEngine.ts`, golden-locked against the Java
+   `MotionComparisonEngine` via `motionEngineGolden.test.ts`). `loop` and `root` stay
+   deliberately distinct metrics (loop = intra-clip seam continuity, root = channel-restricted
+   inter-clip translation match) and are never presented as the same pose-relationship score
+   as `shape`/`timing` — but their pose-distance math is no longer an independent curve: both
+   `loopContinuity`'s pose-closure term and `rootComparison`'s per-point score in
+   `motionAnalysis.ts` now call `motionEngineCore.poseDelta` directly (same
+   `POSITION_DECAY`=2.25 / `ROTATION_DECAY`=1.8 fixed-decay kernel as v2), replacing the old
+   linear-quaternion (`1 - angle/π`) and self-normalized-by-the-pair's-own-path-size
+   `Math.exp` math. `rootPath`'s point sampling (feeds `RootPathPlot`) is unchanged — only the
+   comparison step's math changed. `loop`'s velocity-continuity term stays bespoke by
+   necessity: v2 has no velocity concept and there is no second clip to compare against
+   (loop is intra-clip), so there is nothing to port it to; it is now covered by tests
+   instead of left untested. UI labels were already differentiated in the 2026-07-17 PRs
+   #12/#19 pass; this follow-up additionally fixed the loop/root indicator bars that were
+   coloring from unrelated v2 fields (`result.coverage`, `root.similarity`) instead of the
+   value printed next to them (`MotionComparisonLab.tsx`'s "Scoped joints"/"Candidate travel"
+   rows now carry no fabricated quality bar, since a joint count and a raw travel distance
+   have no percentage to show), and labeled `RegistryMatchCard`'s pose figure as an
+   independent v2 comparison when viewed under `loop`/`root` modes. `loop`/`root` previously
+   had zero test coverage; `frontend/src/motion/motionAnalysis.test.ts` now covers
+   `analyzeMotionClips` under both modes, `loopContinuity`/`rootPath`/`rootComparison`
+   behavior, and a parity check (dynamically derived from `motionEngineCore.poseDelta`, not
+   hand-copied constants) that the ported pose component agrees with it on synthetic cases.
 2. **`localBridge.ts` has zero tests** — it's the only integration contract with the Java
    bridge.
 3. **`styles.css`** is a 12,360-line monolith fighting six `*.premium.css` override files;
