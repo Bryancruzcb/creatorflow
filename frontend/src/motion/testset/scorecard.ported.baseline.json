@@ -190,6 +190,8 @@
     "robot:neg:WalkJump-vs-Wave": false,
     "robot:neg:WalkJump-vs-Yes": false,
     "robot:neg:Wave-vs-Yes": false,
+    "robot:neg-partial:low:Walking": false,
+    "robot:neg-partial:half:Walking": false,
     "fox:reupload:Run": true,
     "fox:retime-fast:Run": true,
     "fox:retime-slow:Run": true,
@@ -213,7 +215,9 @@
     "fox:mirror:Walk": false,
     "fox:neg:Run-vs-Survey": false,
     "fox:neg:Run-vs-Walk": false,
-    "fox:neg:Survey-vs-Walk": false
+    "fox:neg:Survey-vs-Walk": false,
+    "fox:neg-partial:low:Walk": false,
+    "fox:neg-partial:half:Walk": false
   },
   "recall": {
     "hit": 106,
@@ -221,6 +225,6 @@
   },
   "falsePositives": {
     "hit": 1,
-    "total": 93
+    "total": 97
   }
 }

@@ -29,8 +29,11 @@ describe('ported-engine copy-detection scorecard', () => {
 
   it('covers the full labeled set', () => {
     expect(scorecard.recall.overall.total).toBe(119);
-    expect(scorecard.falsePositives.overall.total).toBe(93);
+    expect(scorecard.falsePositives.overall.total).toBe(97);
     expect(scorecard.variants).toHaveLength(1);
+    for (const row of scorecard.rows) {
+      expect(row.score === null || Number.isFinite(row.score), `${row.id} produced a non-finite score`).toBe(true);
+    }
   });
 
   it('always catches exact re-uploads through the adapter + ported core', () => {

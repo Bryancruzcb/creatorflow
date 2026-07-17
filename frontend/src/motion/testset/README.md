@@ -2,7 +2,7 @@
 # Motion copy-detection test set
 
 The safety net for every motion-engine change (handoff Phase 0). `npm test` runs
-`copyDetection.test.ts`, which grades the engine over ~213 labeled cases and prints a
+`copyDetection.test.ts`, which grades the engine over ~217 labeled cases and prints a
 recall / false-positive scorecard. Per-case flag outcomes are pinned in
 `scorecard.baseline.json` — an engine change that moves any case across the flag
 threshold fails CI until the baseline is regenerated on purpose:
@@ -23,6 +23,10 @@ threshold fails CI until the baseline is regenerated on purpose:
   prove nothing.
 - **Variant** (reported, ungraded): Walking↔WalkJump — WalkJump is built from Walking,
   so neither label is honest.
+- `partial-coverage` negatives: the source clip vs a copy of itself where only a
+  slice of tracks keeps its joint names (2 = "low", half = "half") and the rest are
+  renamed to unshared joints. Sharing one limb's curves with an otherwise unrelated
+  rig is not theft evidence — an engine that flags these over-trusts coverage.
 
 ## Honesty caveats
 
