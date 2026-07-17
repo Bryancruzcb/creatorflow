@@ -22,7 +22,8 @@ final class SchemaMigrator {
             new Migration(5, "animation_comparisons", "/creatorflow/db/migrations/V005__animation_comparisons.sql"),
             new Migration(6, "motion_snapshots", "/creatorflow/db/migrations/V006__motion_snapshots.sql"),
             new Migration(7, "intended_experience", "/creatorflow/db/migrations/V007__intended_experience.sql"),
-            new Migration(8, "published_place_version", "/creatorflow/db/migrations/V008__published_place_version.sql"));
+            new Migration(8, "published_place_version", "/creatorflow/db/migrations/V008__published_place_version.sql"),
+            new Migration(9, "plugin_pairings", "/creatorflow/db/migrations/V009__plugin_pairings.sql"));
 
     private final Connection connection;
 
