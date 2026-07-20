@@ -1,35 +1,53 @@
 # CreatorFlow
 
-**A local-first release-preflight tool for small Roblox teams — can these exact assets safely
-ship to the intended experience, what changed, what permission or provenance evidence is missing,
-and what can the team roll back to?**
+Before a Roblox team publishes an update, CreatorFlow checks every changed asset against a
+snapshot of the last release and returns **PASS** or **BLOCKED**.
 
 [![CI](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml)
 ![Java 21](https://img.shields.io/badge/Java-21-5d86b4)
-![Spring Boot 3.3](https://img.shields.io/badge/Spring%20Boot-3.3-5d86b4)
 ![JavaFX 21](https://img.shields.io/badge/JavaFX-21-5d86b4)
+![React 19](https://img.shields.io/badge/React-19-5d86b4)
 
-> **Direction (2026-07-17 strategic redirect).** CreatorFlow narrowed from a general
-> originality-checked creative-asset gallery to a **local-first release-preflight tool for small
-> Roblox teams**. The focused workflow: choose a project and intended Roblox experience → read
-> permitted KeyframeSequence Animation IDs through the Studio plugin → compare changed assets
-> against immutable last-known-good snapshots → resolve provenance findings → produce a
-> deterministic **PASS / BLOCKED** release record with a rollback target → hand publishing back
-> to Roblox Studio. Similarity and motion comparison are **supporting evidence only, never a
-> copied/not-copied verdict.** See [`docs/STRATEGIC-REDIRECT.md`](docs/STRATEGIC-REDIRECT.md),
-> the [consolidation report](docs/CONSOLIDATION-REPORT.md) that mapped it against the code, and
-> the milestone tracker in the issues. The gallery/marketplace product described further down is
-> **frozen legacy** (kept green, no new work) — see [Legacy: the community gallery](#legacy-the-community-gallery).
+It runs locally. A hardened `127.0.0.1` desktop bridge pairs with a Roblox Studio plugin and reads
+only normalized KeyframeSequence data — never raw asset files — so nothing leaves your machine.
+Changed assets are compared against insert-only SQLite snapshots, provenance findings are resolved
+with a required reason, and the run emits a deterministic release manifest naming exactly which
+version to roll back to. Similarity and motion comparison are **supporting evidence only, never a
+copied/not-copied verdict.**
 
-The preflight product runs locally: a hardened `127.0.0.1` desktop bridge pairs with a Roblox
-Studio plugin, reads only normalized KeyframeSequence data (never raw asset files), stores
-insert-only motion/animation snapshots in SQLite, records human provenance decisions with
-required reasons, and emits a deterministic release manifest evaluated to PASS or BLOCKED. Motion
-comparison uses a parity-proven engine (a TypeScript port of the Java reference algorithm plus a
-graded v2 with banded DTW and a coverage guard) to surface *what changed* between an asset and its
-last-known-good baseline — as a review lead, never a verdict.
+## The hardest problem: making the comparison engine safe to improve
 
-Three Maven modules plus a React frontend and two Studio plugins:
+The accurate motion engine was Java, reachable only through the localhost desktop bridge, and the
+website ran a separate, algorithmically different TypeScript engine. Java cannot run in a browser
+at all — and serving it would have meant a paid JVM tier, a lossy converter, and a network round
+trip purely to run code that can't run where the users are. So I reimplemented the Java algorithm
+in TypeScript and **proved numeric parity against a Java-generated oracle before touching any of
+the math** (rounded fields within 0.01, intermediates around 1e-6). Committing that port before
+changing anything is the whole reason the later numbers mean something: every improvement after it
+was measured against a provably identical baseline.
+
+Swapping the old browser engine for that port is what moved the headline number:
+
+| | before | after |
+| --- | --- | --- |
+| False positives | 14/97 (14.4%) | **4/97 (4.1%)** |
+| Recall | 112/119 (94.1%) | 110/119 (92.4%) |
+
+The 1.7-point recall cost is two mirror cases, and it was a deliberate trade. Three tuning changes
+went in on top — multiplicative-coverage composition, a position de-weight, and banded DTW — each
+graded separately against the same scorecard; net they bought recall back at no false-positive
+cost. The engine is pinned by 23 golden vectors and a parity test that fails if the port drifts
+from the Java reference.
+
+<!-- SCREENSHOT — replace this comment before treating the README as done.
+     Capture one frame of the preflight workspace showing a real BLOCKED release record: the
+     verdict, the findings that caused it, and the named rollback target, all visible together.
+     A real run, not a mockup. Save as docs/screenshots/preflight-blocked.png, then:
+
+![A BLOCKED release record, showing the findings that blocked it and the version to roll back to](docs/screenshots/preflight-blocked.png)
+-->
+
+## How it's put together
 
 | Module | What it is | Stack |
 | --- | --- | --- |
@@ -38,15 +56,8 @@ Three Maven modules plus a React frontend and two Studio plugins:
 | `frontend` | The release-preflight workspace UI (motion lab, snapshots, evidence, releases) | React 19 + Vite + TypeScript |
 | `server` | **Frozen legacy**: community gallery, accounts, uploads, registry API, disputes | Spring Boot 3.3, Thymeleaf, JPA/H2 |
 
-## The story
-
-This started as an April 2026 hackathon project (SJ Hacks) — a dashboard mockup for a creator
-asset platform whose hardest judge question was *"How would you make sure something being uploaded
-isn't already someone else's copyrighted work?"* The answer — **detection layers plus a
-declaration-and-dispute process, with honest limits** — became a community gallery (now frozen
-legacy, documented below). The 2026-07-17 redirect refocused that engineering on the one workflow
-with a real, unserved user: **release preflight for small Roblox teams**, where the same honesty
-constraint (similarity is a review lead, never a verdict) is exactly right.
+`core` has no UI, database, or Spring dependencies, so a fingerprint means exactly the same thing
+in the CLI as it does in the desktop app.
 
 ## Quickstart
 
@@ -55,16 +66,30 @@ Requires JDK 21+ and Maven.
 ```bash
 git clone https://github.com/Bryancruzcb/creatorflow.git
 cd creatorflow
-mvn install                                # build everything once (runs the full Java test suite)
-java -jar server/target/creatorflow-server-1.3.0.jar --creatorflow.demo-seed=true
+mvn install          # builds everything and runs the full Java test suite
 ```
 
-Open **http://localhost:8080** — the demo seed publishes three members and a working gallery
-through the real pipeline: a deliberately re-uploaded image (so a **flagged-similar** asset and
-its evidence are visible immediately), a **two-version stack** with a pinned review comment, and
-a couple of feedback requests. Demo accounts (`mira_pixels`, `ada_shaders`, `tomas_sound`) share
-the password `creatorflow-demo`, or sign up fresh and upload something yourself. Drop the flag
-for an empty registry; `mvn -pl server spring-boot:run` works too.
+To run the preflight desktop app:
+
+```bash
+mvn -pl desktop javafx:run
+```
+
+Pair it with the Roblox Studio plugin in [`roblox-plugin/`](roblox-plugin), pick a project, and
+export a release to see a PASS/BLOCKED record. The frozen community gallery still builds and runs
+separately — see [Legacy: the community gallery](#legacy-the-community-gallery).
+
+## Project history
+
+This began as an April 2026 hackathon project (SJ Hacks) whose hardest judge question was *"How
+would you make sure something being uploaded isn't already someone else's copyrighted work?"* The
+answer — detection layers plus a declaration-and-dispute process, with honest limits — became a
+community gallery. On 2026-07-17 I narrowed it to the one workflow with a real, unserved user:
+release preflight for small Roblox teams, where the same honesty constraint (similarity is a
+review lead, never a verdict) is exactly right.
+
+Full detail in [`docs/STRATEGIC-REDIRECT.md`](docs/STRATEGIC-REDIRECT.md) and the
+[consolidation report](docs/CONSOLIDATION-REPORT.md) that mapped the decision against the code.
 
 ## Legacy: the community gallery
 
