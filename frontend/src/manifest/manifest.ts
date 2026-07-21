@@ -1,7 +1,5 @@
-import Ajv2020, { type ErrorObject } from 'ajv/dist/2020';
-import addFormats from 'ajv-formats';
-import manifestSchemaV1 from './creatorflow-manifest-v0.1.schema.json';
-import manifestSchemaV2 from './creatorflow-manifest-v0.2.schema.json';
+import { type ErrorObject } from 'ajv/dist/2020';
+import { validateManifestV1 as validateSchemaV1, validateManifestV2 as validateSchemaV2 } from './validators.generated.js';
 
 export const CREATORFLOW_MANIFEST_SCHEMA = 'creatorflow.manifest/v0.1' as const;
 export const CREATORFLOW_MANIFEST_SCHEMA_V2 = 'creatorflow.manifest/v0.2' as const;
@@ -123,11 +121,6 @@ export interface ManifestValidationIssue {
 export type ManifestValidationResult =
   | { ok: true; manifest: CreatorFlowManifest }
   | { ok: false; issues: ManifestValidationIssue[] };
-
-const ajv = new Ajv2020({ allErrors: true, strict: true });
-addFormats(ajv);
-const validateSchemaV1 = ajv.compile<CreatorFlowManifest>(manifestSchemaV1);
-const validateSchemaV2 = ajv.compile<CreatorFlowManifest>(manifestSchemaV2);
 
 function schemaIssue(error: ErrorObject): ManifestValidationIssue {
   const missingProperty = typeof error.params.missingProperty === 'string' ? `/${error.params.missingProperty}` : '';

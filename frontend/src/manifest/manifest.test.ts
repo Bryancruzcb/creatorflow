@@ -1,3 +1,6 @@
+import { existsSync, readFileSync } from 'node:fs';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   CREATORFLOW_MANIFEST_SCHEMA,
@@ -6,6 +9,8 @@ import {
   validateManifestText,
   type CreatorFlowManifest,
 } from './manifest';
+
+const manifestDir = dirname(fileURLToPath(import.meta.url));
 
 function validManifest(): CreatorFlowManifest {
   return {
@@ -247,5 +252,40 @@ describe('CreatorFlow manifest validation', () => {
     };
     const result = validate(manifest);
     expect(result.ok).toBe(false);
+  });
+});
+
+// The desktop app serves the built frontend under a strict CSP (`script-src 'self'`,
+// no `unsafe-eval`). Ajv's normal `ajv.compile()` generates validator code via
+// `new Function(...)` at runtime, which that CSP blocks outright — and because the
+// old code did this at module scope, importing manifest.ts threw during evaluation and
+// the whole app failed to mount (a blank page), not just manifest validation. These
+// tests pin the fix — build-time standalone Ajv compilation via
+// scripts/compile-manifest-validators.mjs — so a future edit can't silently regress
+// back to runtime compilation.
+describe('CSP-safe manifest validator compilation', () => {
+  it('manifest.ts imports the generated validators instead of compiling Ajv at runtime', () => {
+    const source = readFileSync(resolve(manifestDir, 'manifest.ts'), 'utf8');
+    expect(source).toMatch(/from ['"]\.\/validators\.generated(?:\.js)?['"]/);
+    expect(source).not.toMatch(/\bajv\.compile\b/i);
+    expect(source).not.toMatch(/new Ajv2020\(/);
+  });
+
+  it('validators.generated.js exists and contains no runtime code generation', () => {
+    const generatedPath = resolve(manifestDir, 'validators.generated.js');
+    expect(existsSync(generatedPath)).toBe(true);
+
+    const source = readFileSync(generatedPath, 'utf8');
+    expect(source).not.toMatch(/new Function\s*\(/);
+    expect(source).not.toMatch(/[^.\w]eval\s*\(/);
+    // The whole point of standalone compilation is that nothing gets `require()`d at
+    // runtime either (a bare `require` reference would throw in a browser bundle,
+    // trading an EvalError blank page for a ReferenceError blank page). See
+    // rewriteRequiresAsImports in compile-manifest-validators.mjs.
+    expect(source).not.toMatch(/\brequire\(/);
+  });
+
+  it('validators.generated.d.ts exists alongside the generated module', () => {
+    expect(existsSync(resolve(manifestDir, 'validators.generated.d.ts'))).toBe(true);
   });
 });
