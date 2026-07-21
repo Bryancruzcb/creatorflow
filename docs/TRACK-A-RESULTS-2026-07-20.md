@@ -109,9 +109,31 @@ Part 2:
    block). Worth a wording check in the UI so "unresolved: 23" next to a PASS doesn't
    read as a contradiction.
 3. `favicon.ico` 404s on the served workspace (cosmetic).
-4. UI-level wording/badge checks that need eyes on the rendered app were **pending the
-   CSP fix** at the time of the API pass — see the visual-pass section below if present,
-   otherwise treat them as the first item of the live session.
+4. ~~UI-level wording/badge checks pending the CSP fix~~ — completed, see below.
+
+## Visual pass (after the CSP fix, on the real desktop-served path)
+
+Chromium against `LocalBridgeServer` + rebuilt `frontend/dist`, full CSP active:
+
+- App mounts fully (landing page + workspace); the only console error is the
+  cosmetic `favicon.ico` 404.
+- The seeded local project appears in the dataset menu as
+  "Track A demo · Persisted local project"; its scan view reloads the completed
+  run (80 assets, 6 warnings, matching run ID) from SQLite.
+- Overview experience card: "**Declared by you**: Track A Demo Experience ·
+  universe 7326118016 / place 18963946739. **CreatorFlow has not verified
+  ownership of or access to this experience.**" — honest wording confirmed.
+- Evidence view: per-facet basis captions render — "Verified — Computed by
+  CreatorFlow — not a claim of originality or ownership", "Ownership / Not
+  verified — CreatorFlow did not or cannot check this. No Roblox ownership or
+  permission API is called."
+- Decision form: "Record decision" is **disabled** while the reason textarea is
+  empty (matches the API-side 400).
+- Releases view: 1 PASS + 2 BLOCKED releases; "Rollback target: Working
+  (v925dc7da) — manifest. Roll back to this release in Roblox Studio if this one
+  must be reverted — CreatorFlow does not perform the rollback."; "Published as
+  place version 42 (self-reported — not verified against Roblox)"; Manifest
+  JSON + Gate report download links present per release.
 
 ## What this dry run deliberately could not cover
 
