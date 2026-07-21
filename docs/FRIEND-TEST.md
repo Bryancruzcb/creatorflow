@@ -38,12 +38,13 @@ Windows; CI runs the full suite.)
 ## Run the desktop workspace
 
 ```bash
-mvn -pl desktop javafx:run -Djavafx.options="-Dcreatorflow.web.root=<ABSOLUTE-PATH>/frontend/dist -Dcreatorflow.web.open=true"
+mvn -pl desktop javafx:run -Dcreatorflow.web.root=<ABSOLUTE-PATH>/frontend/dist -Dcreatorflow.web.open=true
 ```
 
-The browser workspace opens on a `http://127.0.0.1:<port>` URL. Pick or create
-a local project, then create a **plugin pairing** — you'll get the endpoint URL
-and an 8-hour token.
+The browser workspace opens on a `http://127.0.0.1:<port>` URL; the same URL is
+also printed to the console (`CreatorFlow workspace: ...`) in case no browser
+opens. Pick or create a local project, then create a **plugin pairing** — you'll
+get the endpoint URL and an 8-hour token.
 
 ## Install the Studio plugin
 
@@ -69,10 +70,12 @@ connection**, and allow the HTTP-permission prompt Studio raises.
    - **[offline]** restart the desktop app mid-session. **As of the pairing-
      lifecycle increment, pairings persist across a desktop restart** — so the
      SAME token must STILL work after relaunch (it's stored hashed in SQLite,
-     valid until its 8-hour expiry). Then **revoke** the pairing from the Studio
-     bridge panel and confirm the plugin's next request now fails with the
-     pairing-required error. (This is the reverse of the old behavior, where a
-     restart invalidated the token — verify the new persistence explicitly.)
+     valid until its 8-hour expiry). **The bridge port changes on every launch**,
+     so after a restart paste the NEW endpoint URL into the plugin while keeping
+     the same token. Then **revoke** the pairing from the Studio bridge panel and
+     confirm the plugin's next request now fails with the pairing-required error.
+     (This is the reverse of the old behavior, where a restart invalidated the
+     token — verify the new persistence explicitly.)
    - **[live-Studio]** a very dense baked clip (the server caps at 2,000
      keyframes — the plugin does not pre-check this; note what the failure looks
      like)

@@ -165,7 +165,7 @@ The JavaFX app manages a local library offline: projects, drag-and-drop imports,
 originality check against your own collection, SQLite persistence.
 
 ```bash
-mvn -pl desktop javafx:run                # add -Djavafx.options=-Dcreatorflow.demo=true for sample data
+mvn -pl desktop javafx:run                # add -Dcreatorflow.demo=true for sample data
 ```
 
 Connect it to the platform under **Settings → Community registry** (create an account there or
@@ -224,8 +224,13 @@ To run the desktop-owned browser workspace directly from a frontend build:
 ```bash
 npm --prefix frontend run build
 mvn -pl desktop javafx:run \
-  -Djavafx.options="-Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true"
+  -Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true
 ```
+
+The app prints the workspace URL (`CreatorFlow workspace: http://127.0.0.1:<port>/launch?...`)
+to the console at startup, so the session is recoverable even if no browser opens.
+(The old `-Djavafx.options="..."` form silently failed to reach the app JVM — the desktop
+pom now forwards these properties itself.)
 
 For a self-contained desktop artifact, activate the packaging profile by supplying the same build
 directory at package time:
