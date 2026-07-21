@@ -17,7 +17,7 @@ public final class LibraryPaths {
 
     public LibraryPaths() {
         String override = System.getProperty(DATA_DIR_PROPERTY);
-        this.dataDir = override != null
+        this.dataDir = override != null && !override.isBlank()
                 ? Path.of(override)
                 : Path.of(System.getProperty("user.home"), ".creatorflow");
     }
