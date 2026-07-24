@@ -19,6 +19,7 @@ import creatorflow.bridge.ScanCoordinator;
 import creatorflow.service.AssetImporter;
 import creatorflow.service.DemoSeeder;
 import creatorflow.service.LibraryPaths;
+import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.registry.HttpRegistryClient;
 import creatorflow.service.registry.RegistrySettings;
 import creatorflow.verification.OriginalityEngine;
@@ -35,6 +36,7 @@ public final class AppContext implements AutoCloseable {
     private final ProjectRepository projects;
     private final AssetRepository assets;
     private final RegistrySettings registrySettings;
+    private final OpenCloudSettings openCloudSettings;
     private final AssetImporter importer;
     private final LocalProjectRepository localProjects;
     private final ScanRepository scans;
@@ -54,6 +56,7 @@ public final class AppContext implements AutoCloseable {
         this.projects = new ProjectRepository(database);
         this.assets = new AssetRepository(database);
         this.registrySettings = new RegistrySettings(paths.dataDir());
+        this.openCloudSettings = new OpenCloudSettings(paths.dataDir());
         this.importer = new AssetImporter(assets, new OriginalityEngine(), paths.libraryDir(),
                 new HttpRegistryClient(registrySettings));
         this.localProjects = new LocalProjectRepository(database);
@@ -100,6 +103,10 @@ public final class AppContext implements AutoCloseable {
 
     public RegistrySettings registrySettings() {
         return registrySettings;
+    }
+
+    public OpenCloudSettings openCloudSettings() {
+        return openCloudSettings;
     }
 
     public synchronized LocalBridgeServer startLocalBridge(Supplier<Window> owner) {
