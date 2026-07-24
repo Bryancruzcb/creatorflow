@@ -1,6 +1,7 @@
 package creatorflow.ui.pages;
 
 import creatorflow.AppContext;
+import creatorflow.service.opencloud.OpenCloudClient;
 import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.registry.HttpRegistryClient;
 import creatorflow.service.registry.RegistrySettings;
@@ -168,12 +169,18 @@ public final class SettingsPage {
         status.getStyleClass().add("field-note");
         status.setWrapText(true);
 
-        // Seam: real connection testing needs the Open Cloud client, wired in Task 3. The button
-        // exists now (disabled) so the layout and enable/wire step land cleanly then.
+        // Probes Open Cloud with the saved key (a stable public asset) so the user learns the key is
+        // accepted before relying on it. Synchronous, mirroring the registry card's "Test connection".
         Button test = new Button("Test connection");
         test.getStyleClass().add("ghost-button");
-        test.setDisable(true);
-        test.setTooltip(new Tooltip("Available once Open Cloud verification ships."));
+        test.setTooltip(new Tooltip("Checks that Roblox accepts your saved key."));
+        test.setOnAction(e -> {
+            if (!settings.isConfigured()) {
+                status.setText("Save a key first, then test the connection.");
+                return;
+            }
+            status.setText(connectionMessage(new OpenCloudClient(settings).testConnection()));
+        });
 
         Button save = new Button("Save");
         save.getStyleClass().add("primary-button");
@@ -212,6 +219,17 @@ public final class SettingsPage {
 
     private static String storageLine(OpenCloudSettings settings) {
         return "Key storage: " + settings.storageMode().label() + ".";
+    }
+
+    /** Honest, plain-language mapping of a connectivity probe outcome for the Settings status line. */
+    private static String connectionMessage(OpenCloudClient.ConnectionStatus status) {
+        return switch (status) {
+            case OK -> "Open Cloud reachable — your key is accepted.";
+            case KEY_REJECTED -> "Roblox rejected the key. Check the value and that it has asset, "
+                    + "universe, and group read scopes.";
+            case RATE_LIMITED -> "Rate-limited by Roblox — the key works; wait a moment and try again.";
+            case UNREACHABLE -> "Could not reach Roblox Open Cloud. Check your connection and try again.";
+        };
     }
 
     private static Label fieldLabel(String text) {

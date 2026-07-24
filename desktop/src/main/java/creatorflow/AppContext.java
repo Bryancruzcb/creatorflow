@@ -7,6 +7,7 @@ import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.MotionSnapshotRepository;
+import creatorflow.db.OwnershipVerificationRepository;
 import creatorflow.db.PluginPairingRepository;
 import creatorflow.db.ProjectRepository;
 import creatorflow.db.ReleaseRepository;
@@ -14,12 +15,15 @@ import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
 import creatorflow.bridge.JavaFxProjectPicker;
 import creatorflow.bridge.LocalBridgeServer;
+import creatorflow.bridge.OwnershipVerification;
 import creatorflow.bridge.PluginPairingService;
 import creatorflow.bridge.ScanCoordinator;
 import creatorflow.service.AssetImporter;
 import creatorflow.service.DemoSeeder;
 import creatorflow.service.LibraryPaths;
+import creatorflow.service.opencloud.OpenCloudClient;
 import creatorflow.service.opencloud.OpenCloudSettings;
+import creatorflow.service.opencloud.OwnershipVerifier;
 import creatorflow.service.registry.HttpRegistryClient;
 import creatorflow.service.registry.RegistrySettings;
 import creatorflow.verification.OriginalityEngine;
@@ -48,6 +52,7 @@ public final class AppContext implements AutoCloseable {
     private final MotionSnapshotRepository motionSnapshots;
     private final PluginPairingService pluginPairings;
     private final ReleaseExportService releaseExports;
+    private final OwnershipVerificationRepository ownershipVerifications;
     private LocalBridgeServer bridge;
 
     private AppContext(LibraryPaths paths) {
@@ -70,6 +75,7 @@ public final class AppContext implements AutoCloseable {
         this.pluginPairings = new PluginPairingService(new PluginPairingRepository(database));
         this.releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit);
+        this.ownershipVerifications = new OwnershipVerificationRepository(database);
     }
 
     public static AppContext create() {
@@ -114,9 +120,14 @@ public final class AppContext implements AutoCloseable {
         String webRootValue = System.getProperty(LocalBridgeServer.WEB_ROOT_PROPERTY);
         Path webRoot = webRootValue == null || webRootValue.isBlank() ? null : Path.of(webRootValue);
         ScanCoordinator coordinator = new ScanCoordinator(scans, localProjects, audit);
+        // The verifier owns the only live Open Cloud HTTP client; the bridge holds it behind the
+        // narrow OwnershipVerification seam so the verify route is the single live-call site.
+        OwnershipVerification ownershipVerifier =
+                new OwnershipVerifier(new OpenCloudClient(openCloudSettings))::verify;
         bridge = new LocalBridgeServer(new JavaFxProjectPicker(owner), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,
-                pluginPairings, releaseExports, coordinator, webRoot).start();
+                pluginPairings, releaseExports, openCloudSettings, ownershipVerifier,
+                ownershipVerifications, coordinator, webRoot).start();
         return bridge;
     }
 

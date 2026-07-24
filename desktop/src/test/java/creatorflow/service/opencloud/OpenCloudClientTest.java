@@ -263,6 +263,29 @@ class OpenCloudClientTest {
         assertTrue(new OpenCloudClient(configured, baseUrl).isConfigured());
     }
 
+    // ---- testConnection ---------------------------------------------------------------------
+
+    @Test
+    void testConnectionReportsOkWhenTheProbeAssetLoads() {
+        stub("/assets/v1/assets/507766388", 200, ASSET_USER_CREATOR);
+        assertEquals(OpenCloudClient.ConnectionStatus.OK, client().testConnection());
+    }
+
+    @Test
+    void testConnectionReportsKeyRejectedOn401() {
+        stub("/assets/v1/assets/507766388", 401, "{\"code\":\"UNAUTHENTICATED\",\"message\":\"missing key\"}");
+        assertEquals(OpenCloudClient.ConnectionStatus.KEY_REJECTED, client().testConnection());
+    }
+
+    @Test
+    void testConnectionReportsRateLimitedOn429() {
+        server.createContext("/assets/v1/assets/507766388", exchange -> {
+            exchange.getResponseHeaders().add("Retry-After", "30");
+            respond(exchange, 429, "{\"code\":\"RESOURCE_EXHAUSTED\",\"message\":\"slow down\"}");
+        });
+        assertEquals(OpenCloudClient.ConnectionStatus.RATE_LIMITED, client().testConnection());
+    }
+
     @Test
     void unknownUniverseOwnerYieldsNullOwner() throws IOException {
         stub("/cloud/v2/universes/5", 200, "{\"path\":\"universes/5\",\"id\":\"5\"}");

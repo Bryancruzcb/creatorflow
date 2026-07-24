@@ -12,11 +12,15 @@ import creatorflow.db.AnimationComparisonRepository;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.MotionSnapshotRepository;
+import creatorflow.db.OwnershipVerificationRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.manifest.OwnershipEvidence;
 import creatorflow.manifest.ScanOptions;
+import creatorflow.service.opencloud.OpenCloudSettings;
+import creatorflow.service.opencloud.RateLimitedException;
 import creatorflow.motion.MotionComparisonEngine;
 import creatorflow.motion.MotionComparisonRequest;
 import creatorflow.motion.MotionSnapshotKind;
@@ -25,6 +29,7 @@ import creatorflow.workflow.AnimationComparisonRecord;
 import creatorflow.workflow.MotionSnapshotRecord;
 import creatorflow.workflow.DecisionType;
 import creatorflow.workflow.LocalProject;
+import creatorflow.workflow.OwnershipVerificationRecord;
 import creatorflow.workflow.ReleaseBundle;
 import creatorflow.workflow.ReleaseExportService;
 import creatorflow.workflow.ReleaseRecord;
@@ -46,6 +51,7 @@ import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.LinkedHashMap;
@@ -87,6 +93,10 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern ASSET = Pattern.compile("^/api/v1/assets/(\\d+)$");
     private static final Pattern ASSET_DECISIONS = Pattern.compile("^/api/v1/assets/(\\d+)/decisions$");
     private static final Pattern ASSET_EVIDENCE = Pattern.compile("^/api/v1/assets/(\\d+)/source-evidence$");
+    private static final Pattern ASSET_VERIFY_OWNERSHIP =
+            Pattern.compile("^/api/v1/assets/(\\d+)/verify-ownership$");
+    private static final Pattern ASSET_OWNERSHIP_VERIFICATIONS =
+            Pattern.compile("^/api/v1/assets/(\\d+)/ownership-verifications$");
     private static final Pattern RELEASE_MANIFEST = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/manifest$");
     private static final Pattern RELEASE_REPORT = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/report$");
     private static final Pattern RELEASE_PUBLISHED_VERSION = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/published-version$");
@@ -104,6 +114,9 @@ public final class LocalBridgeServer implements AutoCloseable {
     private final MotionSnapshotRepository motionSnapshots;
     private final PluginPairingService pluginPairings;
     private final ReleaseExportService releaseExports;
+    private final OpenCloudSettings openCloudSettings;
+    private final OwnershipVerification ownershipVerifier;
+    private final OwnershipVerificationRepository ownershipVerifications;
     private final ScanCoordinator coordinator;
     private final Path staticRoot;
     private final ObjectMapper json = JsonMapper.builder().addModule(new JavaTimeModule())
@@ -124,7 +137,11 @@ public final class LocalBridgeServer implements AutoCloseable {
                              AnimationComparisonRepository animationComparisons,
                              MotionSnapshotRepository motionSnapshots,
                              PluginPairingService pluginPairings,
-                             ReleaseExportService releaseExports, ScanCoordinator coordinator,
+                             ReleaseExportService releaseExports,
+                             OpenCloudSettings openCloudSettings,
+                             OwnershipVerification ownershipVerifier,
+                             OwnershipVerificationRepository ownershipVerifications,
+                             ScanCoordinator coordinator,
                              Path staticRoot) {
         this.picker = java.util.Objects.requireNonNull(picker, "picker");
         this.localProjects = java.util.Objects.requireNonNull(localProjects, "localProjects");
@@ -136,6 +153,10 @@ public final class LocalBridgeServer implements AutoCloseable {
         this.motionSnapshots = java.util.Objects.requireNonNull(motionSnapshots, "motionSnapshots");
         this.pluginPairings = java.util.Objects.requireNonNull(pluginPairings, "pluginPairings");
         this.releaseExports = java.util.Objects.requireNonNull(releaseExports, "releaseExports");
+        this.openCloudSettings = java.util.Objects.requireNonNull(openCloudSettings, "openCloudSettings");
+        this.ownershipVerifier = java.util.Objects.requireNonNull(ownershipVerifier, "ownershipVerifier");
+        this.ownershipVerifications =
+                java.util.Objects.requireNonNull(ownershipVerifications, "ownershipVerifications");
         this.coordinator = java.util.Objects.requireNonNull(coordinator, "coordinator");
         this.staticRoot = normalizeStaticRoot(staticRoot);
     }
@@ -583,6 +604,20 @@ public final class LocalBridgeServer implements AutoCloseable {
             }
             return;
         }
+        matcher = ASSET_VERIFY_OWNERSHIP.matcher(path);
+        if (matcher.matches()) {
+            verifyOwnership(exchange, Long.parseLong(matcher.group(1)));
+            return;
+        }
+        matcher = ASSET_OWNERSHIP_VERIFICATIONS.matcher(path);
+        if (matcher.matches()) {
+            requireMethod(exchange, "GET");
+            long assetId = Long.parseLong(matcher.group(1));
+            if (scans.findAsset(assetId).isEmpty()) throw new HttpError(404, "Scan asset not found");
+            sendJson(exchange, 200, Map.of("items", ownershipVerifications.historyForAsset(assetId).stream()
+                    .map(LocalBridgeServer::ownershipVerificationView).toList()));
+            return;
+        }
         matcher = ASSET.matcher(path);
         if (matcher.matches()) {
             requireMethod(exchange, "GET");
@@ -640,6 +675,81 @@ public final class LocalBridgeServer implements AutoCloseable {
             return;
         }
         throw new HttpError(404, "API endpoint not found");
+    }
+
+    /**
+     * The single live Open Cloud call site. Verifies who created the animation {@code robloxAssetId}
+     * (supplied in the request body) against who owns the scan asset's bound experience, persists the
+     * observation to the insert-only ledger, and returns the stored view. Honesty is load-bearing:
+     * <ul>
+     *   <li>No configured key ⇒ 409 (nothing can be verified yet) — never a false result.</li>
+     *   <li>A rate-limit (429) is surfaced distinctly with a retry hint, not folded into a failure.</li>
+     *   <li>Any other API failure becomes a persisted {@code UNVERIFIABLE} (the verifier's job),
+     *       never a false {@code VERIFIED}.</li>
+     * </ul>
+     * Export never reaches here — it reads persisted rows only, keeping the manifest deterministic.
+     */
+    private void verifyOwnership(HttpExchange exchange, long assetId) throws IOException {
+        requireMutation(exchange);
+        ScanAsset asset = scans.findAsset(assetId)
+                .orElseThrow(() -> new HttpError(404, "Scan asset not found"));
+        if (!openCloudSettings.isConfigured()) {
+            throw new HttpError(409, "Add a Roblox Open Cloud API key in Settings before verifying ownership.");
+        }
+        ScanRun run = scans.findById(asset.scanRunId())
+                .orElseThrow(() -> new HttpError(404, "Scan run not found"));
+        LocalProject project = localProjects.findByProjectId(run.projectId())
+                .orElseThrow(() -> new HttpError(404, "Local project not found"));
+
+        JsonNode body = readJson(exchange);
+        Long robloxAssetId = nullableLong(body, "robloxAssetId");
+        Long universeId = project.universeId();
+        if (robloxAssetId == null || universeId == null) {
+            // A point-in-time ownership check needs both a real Roblox animation id to look up and a
+            // bound experience to check its creator against. Missing either is a precondition failure,
+            // not a bad request.
+            throw new HttpError(404,
+                    "This asset needs an animation id and a bound experience to verify ownership.");
+        }
+
+        OwnershipEvidence evidence;
+        try {
+            evidence = ownershipVerifier.verify(robloxAssetId, universeId, Instant.now());
+        } catch (RateLimitedException rateLimited) {
+            Map<String, Object> retry = new LinkedHashMap<>();
+            retry.put("error", "Roblox Open Cloud is rate-limiting requests. Wait a moment and try again.");
+            if (rateLimited.retryAfter() != null) {
+                retry.put("retryAfterSeconds", rateLimited.retryAfter().toSeconds());
+            }
+            sendJson(exchange, 429, retry);
+            return;
+        }
+        OwnershipVerificationRecord record = ownershipVerifications.insert(assetId, universeId, evidence);
+        sendJson(exchange, 201, ownershipVerificationView(record));
+    }
+
+    /**
+     * The persisted verification as the UI sees it. Deliberately omits {@code rawResponseJson} (the
+     * captured upstream body) and, of course, never carries the API key — neither belongs in a
+     * history the frontend renders.
+     */
+    private static Map<String, Object> ownershipVerificationView(OwnershipVerificationRecord record) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", record.id());
+        view.put("scanAssetId", record.scanAssetId());
+        view.put("robloxAssetId", record.robloxAssetId());
+        view.put("universeId", record.universeId());
+        view.put("creatorType", record.creatorType());
+        view.put("creatorId", record.creatorId());
+        view.put("assetType", record.assetType());
+        view.put("moderationState", record.moderationState());
+        view.put("ownerType", record.ownerType());
+        view.put("ownerId", record.ownerId());
+        view.put("memberRank", record.memberRank());
+        view.put("outcome", record.outcome().name());
+        view.put("verified", record.verified());
+        view.put("checkedAt", record.checkedAt());
+        return view;
     }
 
     private void streamEvents(HttpExchange exchange, String runId) throws IOException {

@@ -97,6 +97,32 @@ public final class OwnershipVerificationRepository {
         return record;
     }
 
+    /**
+     * The full verification history for one scan asset, newest first (the same
+     * {@code checked_at DESC, rowid DESC} ordering {@link #latestForAsset(long)} uses, so the first
+     * element is always the current answer). Empty when the asset was never verified. This backs the
+     * bridge's history route, which never exposes the raw response body or the API key.
+     */
+    public java.util.List<OwnershipVerificationRecord> historyForAsset(long scanAssetId) {
+        synchronized (connection) {
+            try (PreparedStatement statement = connection.prepareStatement("""
+                    SELECT * FROM ownership_verifications
+                    WHERE scan_asset_id = ?
+                    ORDER BY checked_at DESC, rowid DESC""")) {
+                statement.setLong(1, scanAssetId);
+                try (ResultSet result = statement.executeQuery()) {
+                    java.util.List<OwnershipVerificationRecord> records = new java.util.ArrayList<>();
+                    while (result.next()) {
+                        records.add(map(result));
+                    }
+                    return java.util.List.copyOf(records);
+                }
+            } catch (SQLException error) {
+                throw new IllegalStateException("Could not load ownership verification history", error);
+            }
+        }
+    }
+
     /** The most recent verification for one scan asset, if any. */
     public Optional<OwnershipVerificationRecord> latestForAsset(long scanAssetId) {
         synchronized (connection) {

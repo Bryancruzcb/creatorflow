@@ -39,6 +39,13 @@ public final class OpenCloudClient {
     /** A group can have up to 40 roles; a small paging bound keeps a runaway token loop finite. */
     private static final int MAX_ROLE_PAGES = 20;
 
+    /**
+     * A stable, publicly-readable ROBLOX default animation ("R15Idle", from the Task 0 spike note).
+     * {@link #testConnection()} reads it to prove both connectivity and that the key is accepted,
+     * without needing the user to name an asset they own.
+     */
+    static final long PROBE_ASSET_ID = 507766388L;
+
     private final OpenCloudSettings settings;
     private final String baseUrl;
 
@@ -56,6 +63,27 @@ public final class OpenCloudClient {
     /** Whether a key is configured; the bridge route gates the live call on this. */
     public boolean isConfigured() {
         return settings.isConfigured();
+    }
+
+    /**
+     * A lightweight connectivity + key-acceptance probe for the Settings "Test connection" button.
+     * Reads one well-known public asset ({@link #PROBE_ASSET_ID}) and interprets the outcome. Never
+     * throws — a "test" that blows up would be a poor button. A 401/403 means the key was rejected;
+     * a 429 means the key works but is throttled; any other failure is reported as unreachable.
+     */
+    public ConnectionStatus testConnection() {
+        try {
+            getAsset(PROBE_ASSET_ID);
+            return ConnectionStatus.OK;
+        } catch (RateLimitedException rateLimited) {
+            return ConnectionStatus.RATE_LIMITED; // the key was accepted, just throttled
+        } catch (OpenCloudException http) {
+            return (http.status() == 401 || http.status() == 403)
+                    ? ConnectionStatus.KEY_REJECTED
+                    : ConnectionStatus.UNREACHABLE;
+        } catch (IOException network) {
+            return ConnectionStatus.UNREACHABLE;
+        }
     }
 
     /**
@@ -262,5 +290,17 @@ public final class OpenCloudClient {
      * {@code user} nor a {@code group} owner.
      */
     public record UniverseOwner(String ownerType, Long ownerId) {
+    }
+
+    /** The outcome of {@link #testConnection()}, mapped to an honest message in the Settings UI. */
+    public enum ConnectionStatus {
+        /** Open Cloud responded and accepted the key. */
+        OK,
+        /** Open Cloud rejected the key (401/403) — wrong value or missing scopes. */
+        KEY_REJECTED,
+        /** The key works but Open Cloud is rate-limiting (429) — a transient throttle. */
+        RATE_LIMITED,
+        /** Open Cloud could not be reached, or returned an unexpected error. */
+        UNREACHABLE
     }
 }
