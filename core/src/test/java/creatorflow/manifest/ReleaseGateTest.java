@@ -83,6 +83,9 @@ class ReleaseGateTest {
         // ...but it must clearly prompt a human to record a decision.
         assertTrue(message.contains("no decision"), "message must surface the missing decision");
         assertTrue(message.contains("confirm"), "message must prompt a human confirmation");
+        // ...and it must not present the file-to-animation link as CreatorFlow's own finding: the
+        // animation id was typed in by a person, and the lead is only as good as that declaration.
+        assertTrue(message.contains("entered"), "message must say the animation id was entered by a person");
     }
 
     @Test

@@ -190,11 +190,16 @@ public final class ReleaseExportService {
      * carried through exactly as persisted so a check's staleness stays visible and re-exports remain
      * byte-identical. This never fabricates a fact the ledger did not record; a row whose outcome is
      * {@code UNVERIFIABLE} keeps its null facts and the classifier leaves the basis {@code NOT_VERIFIED}.
+     *
+     * <p>The checked {@code robloxAssetId} and its provenance ({@link OwnershipVerificationRecord#assetIdSource()}
+     * — a person typed it) are both carried into the manifest, so an exported ownership block always
+     * says which animation was checked and who claimed the file is that animation. Without that, a
+     * VERIFIED ownership fact about a declared id would read as a verified fact about the file.
      */
     private static OwnershipEvidence toEvidence(OwnershipVerificationRecord record) {
-        return new OwnershipEvidence(record.robloxAssetId(), record.creatorType(), record.creatorId(),
-                record.assetType(), record.moderationState(), record.ownerType(), record.ownerId(),
-                record.memberRank(), record.outcome(), record.checkedAt());
+        return new OwnershipEvidence(record.robloxAssetId(), record.assetIdSource(), record.creatorType(),
+                record.creatorId(), record.assetType(), record.moderationState(), record.ownerType(),
+                record.ownerId(), record.memberRank(), record.outcome(), record.checkedAt());
     }
 
     private static Match toMatch(ScanFinding finding, Map<Integer, ScanAsset> byOrdinal) {

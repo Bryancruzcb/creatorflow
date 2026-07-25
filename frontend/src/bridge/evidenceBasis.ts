@@ -1,5 +1,5 @@
 import type { LocalDecision, LocalSourceEvidence } from './localBridge';
-import type { ManifestOwnershipOutcome } from '../manifest/manifest';
+import type { ManifestOwnershipAssetIdSource, ManifestOwnershipOutcome } from '../manifest/manifest';
 
 /**
  * The provenance basis for one piece of evidence, mirroring the core classifier
@@ -39,6 +39,10 @@ export function verificationBasis(): EvidenceBasis {
  * `EvidenceBases.ownershipBasis(OwnershipEvidence)` on the core/export path exactly — the two
  * classifiers are a load-bearing invariant and must not diverge. VERIFIED here means "we obtained
  * the facts", never "you have the right to use this".
+ *
+ * This covers the FACTS only. The animation id those facts are about was typed in by a person; the
+ * claim that this file *is* that animation is classified separately by {@link ownershipLinkBasis}
+ * and is never VERIFIED. The two must not be collapsed into one statement about the file.
  */
 export function ownershipBasis(
   ownership: { outcome: ManifestOwnershipOutcome } | null | undefined,
@@ -46,6 +50,24 @@ export function ownershipBasis(
   return ownership && (ownership.outcome === 'MATCH' || ownership.outcome === 'MISMATCH')
     ? 'VERIFIED'
     : 'NOT_VERIFIED';
+}
+
+/**
+ * The basis for the *linkage* between a scanned file and the Roblox animation id its ownership was
+ * checked against — a different question from {@link ownershipBasis}, which covers the facts Roblox
+ * returned about that id.
+ *
+ * `DECLARED` exactly when the record says `DECLARED_BY_USER`: a person typed the id in while looking
+ * at this file, and CreatorFlow cannot check that the file really is that animation. Anything else —
+ * no record, or a provenance this build does not recognize (e.g. an ownership block exported before
+ * the field existed) — is `NOT_VERIFIED`, an honest unknown. It is **never** `VERIFIED`: no code path
+ * can verify a file-to-animation linkage. Mirrors `EvidenceBases.ownershipLinkBasis(OwnershipEvidence)`
+ * on the core/export path exactly — a load-bearing cross-runtime invariant.
+ */
+export function ownershipLinkBasis(
+  ownership: { assetIdSource?: ManifestOwnershipAssetIdSource } | null | undefined,
+): EvidenceBasis {
+  return ownership?.assetIdSource === 'DECLARED_BY_USER' ? 'DECLARED' : 'NOT_VERIFIED';
 }
 
 /** DECLARED once a human has recorded both a source and a license; NOT_VERIFIED (unknown) otherwise. */

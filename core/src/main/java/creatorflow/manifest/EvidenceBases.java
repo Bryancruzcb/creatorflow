@@ -31,6 +31,13 @@ import java.util.Objects;
  *       {@code VERIFIED} here means "we obtained the facts", never "you have the right to use this".
  *       The frontend classifier ({@code evidenceBasis.ts}'s {@code ownershipBasis}) mirrors this rule.</li>
  * </ul>
+ *
+ * <p><strong>The ownership basis covers the facts, not the linkage.</strong> An ownership check runs
+ * against an animation id a <em>person typed in</em>: nothing in a scanned file identifies a Roblox
+ * asset. So {@code ownership == VERIFIED} says "we obtained these facts about that id", and
+ * {@link #ownershipLinkBasis(OwnershipEvidence)} separately says "a human asserted this file is that
+ * animation" ({@code DECLARED}). The two must never be collapsed: a verified ownership fact about a
+ * declared id is not a verified statement about the file.
  */
 @JsonPropertyOrder({"verification", "source", "ownership", "decision"})
 public record EvidenceBases(
@@ -63,5 +70,25 @@ public record EvidenceBases(
      */
     private static EvidenceBasis ownershipBasis(OwnershipEvidence ownership) {
         return ownership != null && ownership.verified() ? EvidenceBasis.VERIFIED : EvidenceBasis.NOT_VERIFIED;
+    }
+
+    /**
+     * The basis for the <em>linkage</em> between a scanned file and the Roblox animation id its
+     * ownership was checked against — a different question from {@link #ownership()}, which covers
+     * the facts Roblox returned about that id.
+     *
+     * <p>{@code DECLARED} exactly when the evidence records
+     * {@link OwnershipEvidence#ASSET_ID_DECLARED_BY_USER}: a person typed the id, and CreatorFlow
+     * cannot check that the file really is that animation. Anything else — no evidence, nothing
+     * checked, or a provenance this build does not recognize (including evidence exported before
+     * the field existed) — is {@code NOT_VERIFIED}, an honest unknown. It is never {@code VERIFIED};
+     * no code path can verify a file-to-animation linkage. Mirrored verbatim by
+     * {@code evidenceBasis.ts}'s {@code ownershipLinkBasis} — a load-bearing cross-runtime invariant.
+     */
+    public static EvidenceBasis ownershipLinkBasis(OwnershipEvidence ownership) {
+        return ownership != null
+                && OwnershipEvidence.ASSET_ID_DECLARED_BY_USER.equals(ownership.assetIdSource())
+                ? EvidenceBasis.DECLARED
+                : EvidenceBasis.NOT_VERIFIED;
     }
 }

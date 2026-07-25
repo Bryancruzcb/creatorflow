@@ -58,6 +58,7 @@ function verification(overrides: Partial<LocalOwnershipVerification> = {}): Loca
     id: 'own-1',
     scanAssetId: asset.id,
     robloxAssetId: 507766388,
+    assetIdSource: 'DECLARED_BY_USER',
     universeId: 90110,
     creatorType: 'USER',
     creatorId: 1,
@@ -172,6 +173,54 @@ describe('LocalEvidenceView ownership verification', () => {
 
     const alert = await screen.findByRole('alert');
     expect(alert.textContent!.toLowerCase()).toContain('rate-limited, try again');
+  });
+
+  it('says plainly that the animation id was entered by a person and only that id was checked', async () => {
+    const client = makeMockClient({
+      listOwnershipVerifications: vi.fn().mockResolvedValue({ items: [verification()] }),
+    });
+    render(<LocalEvidenceView client={client} project={boundProject} />);
+
+    const headline = await screen.findByText(/creator matches the experience owner/i);
+    const verdict = headline.closest('.local-ownership-verdict') as HTMLElement;
+
+    // The checked id is shown next to a DECLARED mark, not presented as something CreatorFlow found.
+    const idFact = within(verdict).getByText('Animation ID you entered', { selector: 'dt' })
+      .closest('div') as HTMLElement;
+    expect(within(idFact).getByText(/507766388/)).toBeTruthy();
+    expect(within(idFact).getByText(/declared/i)).toBeTruthy();
+
+    // And the panel spells the limit out in words: a person typed the id, and only that id's
+    // ownership was checked — the file was never matched to the animation.
+    const panel = verdict.closest('.local-ownership-verification') as HTMLElement;
+    const copy = panel.textContent!.toLowerCase();
+    expect(copy).toContain('you entered');
+    expect(copy).toContain('cannot check that this file is that animation');
+  });
+
+  it('never claims the FILE’s ownership was verified, even on a MATCH', async () => {
+    const client = makeMockClient({
+      listOwnershipVerifications: vi.fn().mockResolvedValue({ items: [verification()] }),
+    });
+    render(<LocalEvidenceView client={client} project={boundProject} />);
+
+    const headline = await screen.findByText(/creator matches the experience owner/i);
+    const panel = headline.closest('.local-ownership-verification')!;
+    const copy = panel.textContent!.toLowerCase();
+    expect(copy).not.toContain('this file is owned');
+    expect(copy).not.toContain('you own this file');
+    expect(copy).not.toContain('ownership of this file is verified');
+  });
+
+  it('tells a person the id is theirs to supply before any check has run', async () => {
+    const client = makeMockClient();
+    render(<LocalEvidenceView client={client} project={boundProject} />);
+
+    await screen.findByLabelText(/roblox animation asset id/i);
+    const panel = document.querySelector('.local-ownership-verification') as HTMLElement;
+    const copy = panel.textContent!.toLowerCase();
+    expect(copy).toContain('you type');
+    expect(copy).toContain('declared by you');
   });
 
   it('disables the verify action with a clear reason when no experience is bound', async () => {

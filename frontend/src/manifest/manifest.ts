@@ -40,14 +40,28 @@ export type ManifestOwnershipOutcome = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE';
 export type ManifestOwnershipIdentityType = 'USER' | 'GROUP';
 
 /**
+ * Where the checked `robloxAssetId` came from. `DECLARED_BY_USER` is the only value CreatorFlow can
+ * produce: nothing in a scanned file identifies a Roblox asset, so a person types the id in. Absent
+ * means the provenance is unknown (an ownership block exported before this field existed) — and
+ * unknown is never back-filled into a claim. Mirrors `OwnershipEvidence.ASSET_ID_DECLARED_BY_USER`.
+ */
+export type ManifestOwnershipAssetIdSource = 'DECLARED_BY_USER';
+
+/**
  * Raw facts from one ownership verification of an animation asset: who created it, who owns the
  * target experience, and (on the user-creator/group-owner path) the creator's group rank. Serialized
  * with null facts omitted, so only `robloxAssetId`, `outcome`, and `checkedAt` are guaranteed
  * present. Honesty constraint: a populated block never means "you have the right to use this" — it
  * means CreatorFlow observed these facts at `checkedAt` (a point-in-time observation).
+ *
+ * Honesty constraint #2: these facts are about `robloxAssetId`, which a person supplied
+ * (`assetIdSource`). The block therefore never states that the *asset entry it hangs off* is that
+ * animation — that link is a human declaration, classified by `ownershipLinkBasis`.
  */
 export interface ManifestOwnershipEvidence {
   robloxAssetId: number;
+  /** OPTIONAL (v0.2, no schema bump): absent on blocks exported before the field existed. */
+  assetIdSource?: ManifestOwnershipAssetIdSource;
   creatorType?: ManifestOwnershipIdentityType;
   creatorId?: number;
   assetType?: string;

@@ -12,11 +12,12 @@ It runs locally. A hardened `127.0.0.1` desktop bridge pairs with a Roblox Studi
 only normalized KeyframeSequence data — never raw asset files — so nothing leaves your machine.
 Changed assets are compared against insert-only SQLite snapshots, provenance findings are resolved
 with a required reason, and the run emits a deterministic release manifest naming exactly which
-version to roll back to. With an optional Roblox Open Cloud API key, it also verifies an
-animation's creator and the target experience's owner through Roblox's own API and surfaces
-whether they match — where **VERIFIED means the facts were obtained, never that the team holds the
-right to ship the asset**, a mismatch is a review lead rather than an accusation, and a file with
-only a hash stays NOT_VERIFIED. Similarity and motion comparison are **supporting evidence only,
+version to roll back to. With an optional Roblox Open Cloud API key, it also looks up the creator
+of an animation id **you enter** and the target experience's owner through Roblox's own API and
+surfaces whether they match — where **VERIFIED means the facts were obtained, never that the team
+holds the right to ship the asset**, a mismatch is a review lead rather than an accusation, and
+the link between your file and that animation id stays **DECLARED**, because no tool can read a
+Roblox asset id out of a local file. Similarity and motion comparison are **supporting evidence only,
 never a copied/not-copied verdict.**
 
 ## The hardest problem: making the comparison engine safe to improve

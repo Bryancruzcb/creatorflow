@@ -227,6 +227,12 @@ export interface LocalDecision {
 export type OwnershipIdentityType = 'USER' | 'GROUP';
 /** `MATCH`/`MISMATCH` both mean facts were obtained; `UNVERIFIABLE` means they could not be. Mirrors the core `OwnershipOutcome`. */
 export type OwnershipOutcome = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE';
+/**
+ * Where a checked animation id came from. Only `DECLARED_BY_USER` exists: a person types the id into
+ * the ownership panel, because nothing in a scanned file identifies a Roblox asset. Mirrors
+ * `OwnershipEvidence.ASSET_ID_DECLARED_BY_USER` / `ManifestOwnershipAssetIdSource`.
+ */
+export type OwnershipAssetIdSource = 'DECLARED_BY_USER';
 
 /**
  * One persisted point-in-time Open Cloud ownership observation for a scan asset, as the bridge
@@ -236,11 +242,17 @@ export type OwnershipOutcome = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE';
  * Honesty (load-bearing): a populated record never means "you have the right to use this asset" — it
  * means CreatorFlow observed these facts at `checkedAt`. A `MISMATCH` is a review lead for a human,
  * never proof of wrongdoing. Mirrors `OwnershipVerificationRecord` on the desktop side.
+ *
+ * Honesty #2: every fact here is about `robloxAssetId`, and `assetIdSource` records that a person
+ * supplied that id. The record says nothing verified about the scanned file itself — the claim that
+ * the file is that animation is the user's, classified by `ownershipLinkBasis`.
  */
 export interface LocalOwnershipVerification {
   id: string;
   scanAssetId: number;
   robloxAssetId: number;
+  /** Always `DECLARED_BY_USER`: the id came from the verify form, not from the file. */
+  assetIdSource: OwnershipAssetIdSource;
   universeId: number;
   creatorType: OwnershipIdentityType | null;
   creatorId: number | null;

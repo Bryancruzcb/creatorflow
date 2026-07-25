@@ -16,6 +16,7 @@ function verification(overrides: Partial<LocalOwnershipVerification> = {}): Loca
     id: 'own-1',
     scanAssetId: 42,
     robloxAssetId: 507766388,
+    assetIdSource: 'DECLARED_BY_USER',
     universeId: 90110,
     creatorType: 'USER',
     creatorId: 1,
@@ -117,6 +118,26 @@ describe('describeOwnershipOutcome', () => {
     expect(display.basis).toBe('NOT_VERIFIED');
     expect(display.tone).toBe('unverifiable');
     expect(display.isReviewLead).toBe(false);
+  });
+
+  it('keeps the file-to-animation linkage DECLARED for every outcome, never VERIFIED', () => {
+    // The facts basis and the linkage basis answer different questions and must not be collapsed:
+    // CreatorFlow obtained the facts, but a person claimed this file is that animation.
+    (['MATCH', 'MISMATCH', 'UNVERIFIABLE'] as const).forEach((outcome) => {
+      const display = describeOwnershipOutcome(verification({ outcome }));
+      expect(display.linkBasis).toBe('DECLARED');
+      expect(display.linkage.toLowerCase()).toContain('you entered');
+      expect(display.linkage.toLowerCase()).toContain('cannot check that this file is that animation');
+    });
+  });
+
+  it('never states the linkage as an outcome the tool established', () => {
+    const display = describeOwnershipOutcome(verification({ outcome: 'MATCH' }));
+    const copy = `${display.headline} ${display.detail} ${display.linkage}`.toLowerCase();
+    expect(copy).not.toContain('this file is owned');
+    expect(copy).not.toContain('you own this file');
+    // The verdict speaks about the animation ID that was checked, not about the file itself.
+    expect(display.detail.toLowerCase()).toContain('animation id you entered');
   });
 });
 

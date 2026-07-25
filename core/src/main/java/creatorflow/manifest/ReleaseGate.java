@@ -68,8 +68,9 @@ public final class ReleaseGate {
                     && asset.decision() == ReleaseDecision.PENDING) {
                 ownershipMismatchUndecided++;
                 violations.add(violation(asset, Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION,
-                        "The animation's creator is not the owner of the target experience and no "
-                                + "decision has been recorded — confirm the team has rights to ship it."));
+                        "The Roblox animation ID entered for this file has a creator who is not the "
+                                + "owner of the target experience, and no decision has been recorded — "
+                                + "confirm the team has rights to ship it."));
             }
         }
 

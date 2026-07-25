@@ -271,6 +271,42 @@ describe('CreatorFlow manifest validation', () => {
     expect(validate(manifest)).toMatchObject({ ok: true });
   });
 
+  it('accepts an ownership block declaring the checked animation id was entered by a person', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 507766388,
+      assetIdSource: 'DECLARED_BY_USER',
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('rejects an ownership block claiming a linkage provenance the schema does not define', () => {
+    // The file-to-animation link can only ever be a human declaration. A manifest asserting some
+    // other — implicitly stronger — provenance must be refused, not silently downgraded.
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = {
+      robloxAssetId: 507766388,
+      assetIdSource: 'VERIFIED_BY_CREATORFLOW',
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('still accepts an ownership block written before assetIdSource existed (backward compat)', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 507766388,
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect('assetIdSource' in manifest.assets[0].ownership!).toBe(false);
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
   it('accepts a facts-less UNVERIFIABLE ownership block carrying only the required fields', () => {
     const manifest = validManifestV2();
     manifest.assets[0].ownership = {

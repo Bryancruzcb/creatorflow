@@ -578,6 +578,9 @@ class LocalBridgeServerTest {
         assertEquals("USER", view.get("creatorType").asText());
         assertEquals(42L, view.get("ownerId").asLong());
         assertFalse(view.get("checkedAt").isNull());
+        // The id came out of the request body — a person typed it. The view says so, so the UI can
+        // render the file-to-animation link as DECLARED instead of implying CreatorFlow found it.
+        assertEquals("DECLARED_BY_USER", view.get("assetIdSource").asText());
         // The API key and the raw upstream body must never appear in a rendered view.
         assertFalse(verified.body().contains("oc-test-key-abc123"));
         assertFalse(verified.body().toLowerCase(java.util.Locale.ROOT).contains("rawresponse"));

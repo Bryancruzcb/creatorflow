@@ -60,7 +60,9 @@ public final class OwnershipVerifier {
      * Verify who created {@code robloxAssetId} against who owns the experience {@code universeId},
      * returning a fully-populated {@link OwnershipEvidence} stamped with {@code now}.
      *
-     * @param robloxAssetId the animation asset id to check
+     * @param robloxAssetId the animation asset id to check — always human-supplied (nothing in a
+     *     scanned file identifies a Roblox asset), which is why the returned evidence records
+     *     {@link OwnershipEvidence#ASSET_ID_DECLARED_BY_USER} as its linkage provenance
      * @param universeId the bound experience's universe id
      * @param now the point-in-time this verification is performed; stamped verbatim into
      *     {@link OwnershipEvidence#checkedAt()} (no wall clock is read here, keeping the caller in
@@ -130,8 +132,12 @@ public final class OwnershipVerifier {
         Integer memberRank = membership == null ? null : membership.rank();
         OwnershipOutcome outcome =
                 OwnershipOutcome.evaluate(creatorType, creatorId, ownerType, ownerId, membership);
-        return new OwnershipEvidence(robloxAssetId, creatorType, creatorId, assetType, moderationState,
-                ownerType, ownerId, memberRank, outcome, now);
+        // The facts above are CreatorFlow's own; the id they are about arrived from a person typing
+        // it into the ownership panel, and that provenance is recorded next to them so no consumer
+        // can read "who owns animation N" as "this file is animation N, and you own it".
+        return new OwnershipEvidence(robloxAssetId, OwnershipEvidence.ASSET_ID_DECLARED_BY_USER,
+                creatorType, creatorId, assetType, moderationState, ownerType, ownerId, memberRank,
+                outcome, now);
     }
 
     private static boolean isAnimation(String assetType) {

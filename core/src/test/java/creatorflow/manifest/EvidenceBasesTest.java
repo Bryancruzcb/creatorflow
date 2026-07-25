@@ -101,6 +101,64 @@ class EvidenceBasesTest {
     }
 
     @Test
+    void theFileToAnimationLinkageStaysDeclaredEvenWhenTheOwnershipFactsAreVerified() {
+        // The two bases answer different questions. The OUTCOME's basis is VERIFIED because
+        // CreatorFlow obtained the facts from Roblox for the id it was given. The LINKAGE's basis —
+        // "is this scanned file that animation?" — is DECLARED, because a person typed the id and
+        // nothing in the file ties it to a Roblox asset. It must never read as VERIFIED.
+        for (OwnershipOutcome obtained : new OwnershipOutcome[] {OwnershipOutcome.MATCH, OwnershipOutcome.MISMATCH}) {
+            OwnershipEvidence evidence = evidence(obtained);
+            assertEquals(EvidenceBasis.VERIFIED, EvidenceBases.of(assetWithOwnership(evidence)).ownership(),
+                    "the ownership facts themselves stay VERIFIED for " + obtained);
+            assertEquals(EvidenceBasis.DECLARED, EvidenceBases.ownershipLinkBasis(evidence),
+                    "the file-to-animation linkage is human-declared, never verified");
+            assertEquals(OwnershipEvidence.ASSET_ID_DECLARED_BY_USER, evidence.assetIdSource(),
+                    "the evidence must record where the checked id came from");
+            assertEquals(507766388L, evidence.robloxAssetId(),
+                    "the evidence must record the id that was actually checked");
+        }
+    }
+
+    @Test
+    void anAbsentOrUnknownAssetIdSourceIsNotVerifiedNeverAFalseDeclared() {
+        assertEquals(EvidenceBasis.NOT_VERIFIED, EvidenceBases.ownershipLinkBasis(null),
+                "no evidence at all means no linkage was ever asserted");
+        assertEquals(EvidenceBasis.NOT_VERIFIED, EvidenceBases.ownershipLinkBasis(OwnershipEvidence.unchecked()),
+                "nothing was checked, so nothing was declared");
+        // Evidence deserialized from a manifest written before assetIdSource existed: the provenance
+        // of that linkage is simply unknown, and unknown renders as unknown.
+        OwnershipEvidence legacy = new OwnershipEvidence(507766388L, null, OwnershipEvidence.TYPE_USER, 1L,
+                "Animation", "Approved", OwnershipEvidence.TYPE_USER, 1L, null, OwnershipOutcome.MATCH,
+                Instant.parse("2026-07-23T18:30:00Z"));
+        assertNull(legacy.assetIdSource());
+        assertEquals(EvidenceBasis.NOT_VERIFIED, EvidenceBases.ownershipLinkBasis(legacy));
+    }
+
+    /**
+     * The linkage-basis truth table, mirrored verbatim by {@code evidenceBasis.test.ts}'s
+     * {@code ownershipLinkBasis} parity test. Only an explicit {@code DECLARED_BY_USER} reads as
+     * DECLARED; absent/unknown stays NOT_VERIFIED; nothing ever reads as VERIFIED, because no code
+     * path can verify that a scanned file is a particular Roblox animation.
+     */
+    @Test
+    void ownershipLinkBasisTruthTableMatchesTheCrossRuntimeContract() {
+        assertEquals(EvidenceBasis.DECLARED, linkBasisFor(OwnershipEvidence.ASSET_ID_DECLARED_BY_USER));
+        assertEquals(EvidenceBasis.NOT_VERIFIED, linkBasisFor(null));
+    }
+
+    @Test
+    void refusesToHoldALinkageProvenanceThisBuildDoesNotUnderstand() {
+        // A manifest may say "a person declared this id" or say nothing (unknown). It must never
+        // assert some other, possibly stronger, provenance that no code here can honor.
+        assertThrows(IllegalArgumentException.class, () -> linkBasisFor("VERIFIED_BY_CREATORFLOW"));
+    }
+
+    private static EvidenceBasis linkBasisFor(String assetIdSource) {
+        return EvidenceBases.ownershipLinkBasis(new OwnershipEvidence(1L, assetIdSource, null, null, null,
+                null, null, null, null, OwnershipOutcome.MATCH, Instant.parse("2026-07-23T18:30:00Z")));
+    }
+
+    @Test
     void fullCrossProductOfVerificationSourceAndDecisionMatchesTheDocumentedRules() {
         for (VerificationStatus verification : VerificationStatus.values()) {
             for (boolean sourceResolved : new boolean[] {true, false}) {

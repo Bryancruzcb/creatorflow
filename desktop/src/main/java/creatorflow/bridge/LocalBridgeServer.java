@@ -701,6 +701,10 @@ public final class LocalBridgeServer implements AutoCloseable {
         LocalProject project = localProjects.findByProjectId(run.projectId())
                 .orElseThrow(() -> new HttpError(404, "Local project not found"));
 
+        // The animation id is DECLARED: it comes from the request body, i.e. a person typed it into
+        // the ownership panel while looking at this file. CreatorFlow cannot derive a Roblox asset id
+        // from a scanned file, so nothing here ties the two together beyond that human claim — which
+        // is why the persisted row and every view of it carry an explicit assetIdSource.
         JsonNode body = readJson(exchange);
         Long robloxAssetId = nullableLong(body, "robloxAssetId");
         Long universeId = project.universeId();
@@ -732,12 +736,16 @@ public final class LocalBridgeServer implements AutoCloseable {
      * The persisted verification as the UI sees it. Deliberately omits {@code rawResponseJson} (the
      * captured upstream body) and, of course, never carries the API key — neither belongs in a
      * history the frontend renders.
+     *
+     * <p>Carries {@code assetIdSource} so the UI renders the file-to-animation link honestly: the
+     * ownership facts are CreatorFlow's own, but the id they are about was typed in by a person.
      */
     private static Map<String, Object> ownershipVerificationView(OwnershipVerificationRecord record) {
         Map<String, Object> view = new LinkedHashMap<>();
         view.put("id", record.id());
         view.put("scanAssetId", record.scanAssetId());
         view.put("robloxAssetId", record.robloxAssetId());
+        view.put("assetIdSource", record.assetIdSource());
         view.put("universeId", record.universeId());
         view.put("creatorType", record.creatorType());
         view.put("creatorId", record.creatorId());

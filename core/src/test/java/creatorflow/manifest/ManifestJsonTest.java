@@ -305,6 +305,10 @@ class ManifestJsonTest {
         assertTrue(written.contains("\"outcome\" : \"MATCH\""));
         assertTrue(written.contains("\"robloxAssetId\" : 507766388"));
         assertTrue(written.contains("\"memberRank\" : 12"));
+        // The id that was checked came from a person typing it — the manifest says so out loud, so a
+        // reader never mistakes an obtained ownership fact for a verified file-to-animation linkage.
+        assertTrue(written.contains("\"assetIdSource\" : \"DECLARED_BY_USER\""),
+                "the manifest must record that the checked animation id was human-declared");
 
         // Determinism: re-serializing the same manifest is byte-identical even with ownership present.
         assertEquals(written, json.write(manifest));
@@ -359,6 +363,59 @@ class ManifestJsonTest {
                 """;
         CreativeManifest manifest = new ManifestJson().read(olderV2);
         assertEquals(null, manifest.assets().getFirst().ownership());
+    }
+
+    @Test
+    void anOwnershipBlockWrittenBeforeAssetIdSourceExistedStillReadsWithAnUnknownLinkage() throws Exception {
+        // Backward compat #2: assetIdSource is additive and OPTIONAL (no schema version bump), so a
+        // v0.2 manifest exported before it existed must still validate. Its linkage provenance is
+        // simply unknown — and unknown must never be back-filled into a claim we did not record.
+        String olderOwnership = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 1, "clear": 1, "similar": 0, "duplicate": 0, "unresolvedSources": 1, "pendingDecisions": 1},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": [{
+                    "path": "asset.png", "fileName": "asset.png", "fileType": "png", "sizeBytes": 1,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "width": 1, "height": 1,
+                    "fingerprints": {"dHash": null, "pHash": null, "audio": null}, "verification": "CLEAR",
+                    "source": {"source": null, "license": null, "evidenceUrl": null},
+                    "decision": "PENDING", "matches": [], "findings": [],
+                    "ownership": {"robloxAssetId": 507766388, "outcome": "MATCH", "checkedAt": "2026-07-23T18:30:00Z"}
+                  }]
+                }
+                """;
+        OwnershipEvidence ownership = new ManifestJson().read(olderOwnership).assets().getFirst().ownership();
+        assertEquals(507766388L, ownership.robloxAssetId());
+        assertEquals(null, ownership.assetIdSource());
+        assertEquals(EvidenceBasis.NOT_VERIFIED, EvidenceBases.ownershipLinkBasis(ownership));
+    }
+
+    @Test
+    void rejectsAnOwnershipBlockClaimingAnUnknownAssetIdSource() {
+        // The only linkage provenance this build can honestly produce is DECLARED_BY_USER. A manifest
+        // asserting some other (e.g. self-congratulatory "verified") source must be rejected outright.
+        String bogusSource = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 1, "clear": 1, "similar": 0, "duplicate": 0, "unresolvedSources": 1, "pendingDecisions": 1},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": [{
+                    "path": "asset.png", "fileName": "asset.png", "fileType": "png", "sizeBytes": 1,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "width": 1, "height": 1,
+                    "fingerprints": {"dHash": null, "pHash": null, "audio": null}, "verification": "CLEAR",
+                    "source": {"source": null, "license": null, "evidenceUrl": null},
+                    "decision": "PENDING", "matches": [], "findings": [],
+                    "ownership": {"robloxAssetId": 1, "assetIdSource": "VERIFIED_BY_CREATORFLOW",
+                                  "outcome": "MATCH", "checkedAt": "2026-07-23T18:30:00Z"}
+                  }]
+                }
+                """;
+        assertThrows(Exception.class, () -> new ManifestJson().read(bogusSource));
     }
 
     @Test

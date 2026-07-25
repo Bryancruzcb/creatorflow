@@ -1,5 +1,6 @@
 package creatorflow.workflow;
 
+import creatorflow.manifest.OwnershipEvidence;
 import creatorflow.ownership.OwnershipOutcome;
 import java.time.Instant;
 
@@ -17,7 +18,8 @@ import java.time.Instant;
  *
  * @param id the ledger row id (a UUID)
  * @param scanAssetId the immutable scan asset this verification is about
- * @param robloxAssetId the animation asset id that was checked against Roblox
+ * @param robloxAssetId the animation asset id that was checked against Roblox — supplied by a
+ *     person, never derived from the file (see {@link #assetIdSource()})
  * @param universeId the bound experience's universe id the creator was checked against
  * @param creatorType {@code "USER"} | {@code "GROUP"} | {@code null}
  * @param creatorId the asset creator's id; {@code null} if it could not be obtained
@@ -49,5 +51,21 @@ public record OwnershipVerificationRecord(
     /** {@code true} when authoritative facts were obtained (outcome {@code MATCH} or {@code MISMATCH}). */
     public boolean verified() {
         return outcome == OwnershipOutcome.MATCH || outcome == OwnershipOutcome.MISMATCH;
+    }
+
+    /**
+     * Where {@link #robloxAssetId()} came from: always
+     * {@link OwnershipEvidence#ASSET_ID_DECLARED_BY_USER}. The ledger has exactly one writer — the
+     * bridge's verify-ownership route — and that route reads the id out of the request body, i.e. a
+     * person typed it into the ownership panel. Nothing in a scanned file identifies a Roblox asset,
+     * so the file-to-animation linkage every row carries is a human declaration, and the whole
+     * product must present it that way even though the ownership facts themselves are CreatorFlow's.
+     *
+     * <p>Derived rather than stored: with a single writer there is no row this could differ for, and
+     * a column would only invite a second writer to leave it wrong. A future path that obtains an id
+     * without a human must persist its own source and change this method — not reuse it.
+     */
+    public String assetIdSource() {
+        return OwnershipEvidence.ASSET_ID_DECLARED_BY_USER;
     }
 }

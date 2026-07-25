@@ -105,20 +105,20 @@ npm --prefix frontend run build
 - Similarity is a review lead, never an authorship, copying, or copyright verdict — this
   honesty won the SJ Hacks judge question and it's all over the docs; keep it.
 - Ownership `VERIFIED` means CreatorFlow obtained the creator/owner facts from Roblox, **not**
-  that the team has the right to use the asset; a mismatch is a review lead, never an accusation,
-  and a scanned file with only a `sha256`/path stays `NOT_VERIFIED` (no Roblox id to check). See
-  *Ownership verification* below.
+  that the team has the right to use the asset; a mismatch is a review lead, never an accusation.
+  Those facts are about an **animation id a person typed in** — the link between the scanned file
+  and that id is `DECLARED`, never verified. See *Ownership verification* below.
 - "Publish" in CreatorFlow currently means prepare and record a Roblox Studio handoff. It is
   not a direct Roblox upload.
 
 ## Ownership verification (Phase A — shipped 2026-07-24)
 
 The always-`NOT_VERIFIED` ownership row is now *verified where Roblox's Open Cloud API allows
-it*. On an animation asset that carries a real Roblox animation id and whose project has a bound
-experience, an explicit **Verify ownership** action calls Open Cloud once (desktop-side — the
-only live-call site), confirms who created the asset and who owns the target experience, and
-persists the raw facts to an insert-only ledger (`V010`). Downstream reads persisted rows only —
-export never touches the network, so manifests stay byte-deterministic.
+it*. In a project with a bound experience, a person enters a Roblox animation id for the file
+they are looking at and an explicit **Verify ownership** action calls Open Cloud once
+(desktop-side — the only live-call site), confirms who created *that animation* and who owns the
+target experience, and persists the raw facts to an insert-only ledger (`V010`). Downstream reads
+persisted rows only — export never touches the network, so manifests stay byte-deterministic.
 
 - **Key setup.** Add a user-scoped Open Cloud API key (asset + universe + group read) under
   **Settings → Roblox Open Cloud**. The key stays on the machine — never in the manifest,
@@ -137,11 +137,20 @@ export never touches the network, so manifests stay byte-deterministic.
   mid-check, the role-paging cap) is still a MATCH, recorded with no rank. Only an **observed**
   absence — a 200 with an empty memberships list — can produce a MISMATCH, so a shape divergence
   can never turn a real group member into a published accusation of non-membership.
+- **The linkage is DECLARED, the facts are VERIFIED.** Nothing in a scanned file identifies a
+  Roblox asset — CreatorFlow cannot derive an animation id from a `sha256`/path, so the id always
+  comes from a person typing it into the ownership panel. The two claims are therefore kept
+  apart everywhere: the manifest's `ownership` block records the id that was actually checked
+  plus `assetIdSource: "DECLARED_BY_USER"`; `EvidenceBases.ownershipLinkBasis` /
+  `evidenceBasis.ts`'s `ownershipLinkBasis` classify that linkage as `DECLARED` (never
+  `VERIFIED`, for any input); and the panel says in words that you entered the id and that only
+  that id's ownership was checked. `evidenceBases.ownership = VERIFIED` is a statement about the
+  animation id, never about the file.
 - **What stays NOT_VERIFIED.** Any failure — no key, a 4xx/5xx, a 429 rate-limit, an
-  unreadable/deleted id — is `UNVERIFIABLE`, never a false `VERIFIED`. Generic scanned files that
-  carry only a `sha256`/path have no Roblox id to check, so they stay `NOT_VERIFIED` by design.
-  A verification is a **point-in-time observation**: CreatorFlow surfaces `checkedAt` ("checked
-  N days ago") and does not expire or auto-re-check.
+  unreadable/deleted id — is `UNVERIFIABLE`, never a false `VERIFIED`. A file nobody has entered
+  an id for has no ownership block at all and stays `NOT_VERIFIED`. A verification is a
+  **point-in-time observation**: CreatorFlow surfaces `checkedAt` ("checked N days ago") and does
+  not expire or auto-re-check.
 
 ## Two Studio-plugin paths (hard rule)
 

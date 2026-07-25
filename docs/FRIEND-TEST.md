@@ -108,9 +108,9 @@ published version. Do it in order; capture results in the template at the end.
    user-scoped Open Cloud API key (asset + universe + group read) and press **Test
    connection** — confirm it reports the key accepted, and that the storage line
    reads *encrypted (Windows DPAPI)* on Windows (or *not encrypted on this OS*
-   elsewhere). Then, on an animation asset that has a real Roblox animation id and
-   whose project has a bound experience (step 1), press **Verify ownership**.
-   Confirm exactly one of three honest outcomes:
+   elsewhere). Then, on a file you know the Roblox animation id for, in a project
+   with a bound experience (step 1), type that id into the ownership panel and
+   press **Verify ownership**. Confirm exactly one of three honest outcomes:
    - **VERIFIED — creator matches the experience owner** (a MATCH): positive
      evidence, worded as *who created it / who owns the experience*, never "you
      have the right to use it";
@@ -124,9 +124,13 @@ published version. Do it in order; capture results in the template at the end.
    Confirm the verdict shows the point-in-time facts (creator, experience owner,
    moderation) and a **checked today / N days ago** stamp. Then check the honesty
    boundaries: with **no key configured** the button is disabled with a clear
-   reason; a generic scanned file with only a `sha256`/path (no Roblox id) stays
-   **NOT_VERIFIED** with nothing to check. A verification is a point-in-time
-   observation — CreatorFlow surfaces `checkedAt`; it does not expire or re-check.
+   reason; a file nobody has entered an id for stays **NOT_VERIFIED** with nothing
+   to check. Most important — confirm the panel does **not** claim it verified
+   *this file's* ownership: the **Animation ID you entered** row must read
+   **DECLARED** next to the VERIFIED facts, and the panel must say in words that
+   you entered the id and that CreatorFlow cannot check that this file is that
+   animation. A verification is a point-in-time observation — CreatorFlow surfaces
+   `checkedAt`; it does not expire or re-check.
 5. **Record a provenance decision [offline].** For a flagged/similar asset, try
    to save a decision with an EMPTY reason — the control must stay disabled /
    reject it. Enter a reason, save, and confirm it appears in the append-only
@@ -173,7 +177,8 @@ Part 2:
   tri-state badges ........ VERIFIED/DECLARED/NOT_VERIFIED shown correctly? Y/N ; ownership NOT_VERIFIED before verify? Y/N
   ownership verify ........ key accepted? Y/N ; storage line: "encrypted (Windows DPAPI)" / "not encrypted on this OS"
                             outcome: MATCH/MISMATCH/UNVERIFIABLE ; checkedAt shown? Y/N
-                            no-key disables button? Y/N ; sha256-only file stays NOT_VERIFIED? Y/N
+                            no-key disables button? Y/N ; un-checked file stays NOT_VERIFIED? Y/N
+                            entered-id row reads DECLARED, not VERIFIED? Y/N
                             mismatch worded as a lead, not an accusation? Y/N
   required-reason gate .... blocked on empty reason? Y/N
   release PASS/BLOCKED .... result + reasons: ____

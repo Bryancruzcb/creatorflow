@@ -19,6 +19,7 @@ import creatorflow.manifest.CreativeManifest.AssetEntry;
 import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.manifest.EvidenceBases;
 import creatorflow.manifest.EvidenceBasis;
 import creatorflow.manifest.ManifestJson;
 import creatorflow.manifest.OwnershipEvidence;
@@ -282,6 +283,15 @@ class ReleaseExportServiceTest {
             // The stamped ownership survives serialization into the persisted manifest JSON.
             assertTrue(bundle.release().manifestJson().contains("\"robloxAssetId\" : 507766388"));
             assertTrue(bundle.release().manifestJson().contains("\"checkedAt\" : \"2026-07-24T12:00:00Z\""));
+
+            // The export records WHICH animation id was checked and that a person supplied it. The
+            // ownership FACTS are CreatorFlow's (VERIFIED); the file-to-animation link is the user's
+            // (DECLARED) — an exported manifest must never let the two read as one verified claim.
+            assertEquals(507766388L, hero.ownership().robloxAssetId());
+            assertEquals(OwnershipEvidence.ASSET_ID_DECLARED_BY_USER, hero.ownership().assetIdSource());
+            assertEquals(EvidenceBasis.DECLARED, EvidenceBases.ownershipLinkBasis(hero.ownership()));
+            assertEquals(EvidenceBasis.NOT_VERIFIED, EvidenceBases.ownershipLinkBasis(theme.ownership()));
+            assertTrue(bundle.release().manifestJson().contains("\"assetIdSource\" : \"DECLARED_BY_USER\""));
         }
     }
 

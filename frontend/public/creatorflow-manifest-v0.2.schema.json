@@ -74,12 +74,14 @@
     "evidenceBasis": { "enum": ["VERIFIED", "DECLARED", "NOT_VERIFIED"] },
     "ownershipOutcome": { "enum": ["MATCH", "MISMATCH", "UNVERIFIABLE"] },
     "ownershipIdentityType": { "enum": ["USER", "GROUP"] },
+    "ownershipAssetIdSource": { "enum": ["DECLARED_BY_USER"] },
     "ownership": {
       "type": "object",
       "additionalProperties": false,
       "required": ["robloxAssetId", "outcome", "checkedAt"],
       "properties": {
         "robloxAssetId": { "type": "integer", "minimum": 1 },
+        "assetIdSource": { "$ref": "#/$defs/ownershipAssetIdSource" },
         "creatorType": { "$ref": "#/$defs/ownershipIdentityType" },
         "creatorId": { "type": "integer", "minimum": 1 },
         "assetType": { "type": "string" },

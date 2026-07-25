@@ -4,6 +4,7 @@ import {
   evidenceBasesFor,
   OWNERSHIP_BASIS,
   ownershipBasis,
+  ownershipLinkBasis,
   sourceBasis,
   verificationBasis,
 } from './evidenceBasis';
@@ -75,6 +76,34 @@ describe('ownershipBasis', () => {
     table.forEach(([outcome, expected]) => {
       expect(ownershipBasis(outcome ? { outcome } : outcome)).toBe(expected);
     });
+  });
+});
+
+describe('ownershipLinkBasis', () => {
+  it('is DECLARED when a person supplied the animation id — never VERIFIED', () => {
+    // The ownership FACTS can be VERIFIED (CreatorFlow obtained them), but the link between the
+    // scanned file and that animation id is a human claim: nothing in the file identifies a Roblox
+    // asset, so no code path can ever verify it.
+    expect(ownershipLinkBasis({ assetIdSource: 'DECLARED_BY_USER' })).toBe('DECLARED');
+  });
+
+  it('is NOT_VERIFIED when the linkage provenance is absent or unknown', () => {
+    expect(ownershipLinkBasis(null)).toBe('NOT_VERIFIED');
+    expect(ownershipLinkBasis(undefined)).toBe('NOT_VERIFIED');
+    // e.g. an ownership block exported before assetIdSource existed: unknown stays unknown.
+    expect(ownershipLinkBasis({})).toBe('NOT_VERIFIED');
+  });
+
+  // Cross-runtime parity: asserted verbatim by the Java
+  // EvidenceBasesTest#ownershipLinkBasisTruthTableMatchesTheCrossRuntimeContract.
+  it('matches the Java EvidenceBases.ownershipLinkBasis truth table exactly', () => {
+    expect(ownershipLinkBasis({ assetIdSource: 'DECLARED_BY_USER' })).toBe('DECLARED');
+    expect(ownershipLinkBasis({ assetIdSource: undefined })).toBe('NOT_VERIFIED');
+  });
+
+  it('never returns VERIFIED for any input', () => {
+    const inputs = [null, undefined, {}, { assetIdSource: 'DECLARED_BY_USER' as const }];
+    inputs.forEach((input) => expect(ownershipLinkBasis(input)).not.toBe('VERIFIED'));
   });
 });
 
