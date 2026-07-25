@@ -21,10 +21,13 @@ import {
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import {
   LocalBridgeClient,
+  LocalBridgeError,
   type LocalAssetDetail,
   type LocalDecision,
   type LocalDecisionType,
   type LocalIntendedExperience,
+  type LocalOwnershipVerification,
+  type OwnershipIdentityType,
   type LocalProjectRecord,
   type LocalProjectSummary,
   type LocalRelease,
@@ -32,7 +35,7 @@ import {
   type LocalScanEvent,
   type LocalScanRun,
 } from '../bridge/localBridge';
-import { decisionBasis, OWNERSHIP_BASIS, sourceBasis, verificationBasis } from '../bridge/evidenceBasis';
+import { decisionBasis, ownershipBasis, sourceBasis, verificationBasis, type EvidenceBasis } from '../bridge/evidenceBasis';
 import { EvidenceBasisMark } from './EvidenceBasisMark';
 import { formatBytes, titleCaseManifestValue } from '../manifest/manifest';
 
@@ -90,6 +93,132 @@ export function resolveRollbackTargetLabel(previousReleaseId: string, releases: 
   if (!prior) return previousReleaseId;
   const name = prior.release ?? prior.releaseName ?? prior.id;
   return `${name} (v${prior.id.slice(0, 8)})`;
+}
+
+export type ParsedRobloxAssetId =
+  | { ok: true; value: number }
+  | { ok: false; error: string };
+
+/**
+ * Pure validation for the "Roblox animation asset ID" field a person types before verifying
+ * ownership: a positive integer. Extracted so it is unit-testable without a DOM/render harness
+ * (mirrors {@link parsePublishedPlaceVersionInput}).
+ */
+export function parseRobloxAssetIdInput(input: string): ParsedRobloxAssetId {
+  const value = Number(input.trim());
+  if (!Number.isInteger(value) || value < 1) {
+    return { ok: false, error: 'Roblox animation asset ID must be a positive whole number.' };
+  }
+  return { ok: true, value };
+}
+
+export type OwnershipDisplayTone = 'match' | 'review-lead' | 'unverifiable';
+
+export interface OwnershipDisplay {
+  basis: EvidenceBasis;
+  tone: OwnershipDisplayTone;
+  headline: string;
+  detail: string;
+  /** True only for a MISMATCH — the one outcome that asks a person to make a call. */
+  isReviewLead: boolean;
+}
+
+/**
+ * Turns one persisted ownership verification into honest display copy. Pure — no DOM. Load-bearing
+ * honesty: a MATCH is positive evidence (VERIFIED = "we obtained the facts", never "you have the
+ * right to use this"); a MISMATCH is a *review lead* for a human, worded without accusation (never
+ * "infringement"/"stolen"); an UNVERIFIABLE stays NOT_VERIFIED — an honest "could not check", never
+ * a false verified. The basis mirrors {@link ownershipBasis} so this UI and the export classifier
+ * never diverge.
+ */
+export function describeOwnershipOutcome(verification: LocalOwnershipVerification): OwnershipDisplay {
+  const basis = ownershipBasis(verification);
+  switch (verification.outcome) {
+    case 'MATCH':
+      return {
+        basis,
+        tone: 'match',
+        isReviewLead: false,
+        headline: 'Creator matches the experience owner',
+        detail: 'Roblox confirms the animation’s creator is the owner of this project’s bound experience. '
+          + 'This confirms who created it and who owns the experience — not your right to use the asset.',
+      };
+    case 'MISMATCH':
+      return {
+        basis,
+        tone: 'review-lead',
+        isReviewLead: true,
+        headline: 'Review lead: creator is not the experience owner',
+        detail: 'Roblox reports the animation’s creator is not the owner of this project’s bound experience, '
+          + 'and no decision is on record. This is a lead for a person to confirm the team has the right to ship it '
+          + '— not an accusation. Record a decision below once you’ve checked.',
+      };
+    default:
+      return {
+        basis,
+        tone: 'unverifiable',
+        isReviewLead: false,
+        headline: 'Could not verify ownership',
+        detail: 'CreatorFlow could not obtain the ownership facts from Roblox for this check, so ownership stays not '
+          + 'verified. The asset id may not exist or may not be readable with the configured key.',
+      };
+  }
+}
+
+/**
+ * Point-in-time staleness phrasing for a verification's `checkedAt`. Pure and deterministic given
+ * `now` (so it is unit-testable): "checked today" / "checked yesterday" / "checked N days ago". A
+ * future/clock-skewed stamp is clamped to "today" rather than reporting a negative age.
+ */
+export function formatCheckedAt(checkedAt: string, now: Date = new Date()): string {
+  const then = Date.parse(checkedAt);
+  if (Number.isNaN(then)) return 'checked at an unknown time';
+  const days = Math.floor((now.getTime() - then) / 86_400_000);
+  if (days <= 0) return 'checked today';
+  if (days === 1) return 'checked yesterday';
+  return `checked ${days} days ago`;
+}
+
+export type OwnershipVerifyErrorKind = 'no-key' | 'rate-limited' | 'not-applicable' | 'error';
+
+/**
+ * Maps a failed verify-ownership request to the honest state the UI must show. 409 → the key is not
+ * configured (point at the desktop Settings card); 429 → rate-limited, surfaced *distinctly* so a
+ * transient throttle is not mistaken for a hard failure; 404 → the asset lacks an animation id or a
+ * bound experience (carry the server's own message); anything else → a generic error. Pure.
+ */
+export function ownershipVerifyError(error: unknown): { kind: OwnershipVerifyErrorKind; message: string } {
+  const status = error instanceof LocalBridgeError ? error.status : null;
+  if (status === 409) {
+    return { kind: 'no-key', message: 'Add a Roblox Open Cloud API key in the desktop Settings card, then verify ownership again.' };
+  }
+  if (status === 429) {
+    return { kind: 'rate-limited', message: 'Roblox Open Cloud is rate-limited, try again in a moment.' };
+  }
+  if (status === 404) {
+    return { kind: 'not-applicable', message: error instanceof Error && error.message ? error.message : 'This asset cannot be verified: it needs an animation id and a bound experience.' };
+  }
+  return { kind: 'error', message: error instanceof Error && error.message ? error.message : 'Could not verify ownership.' };
+}
+
+/**
+ * The reason the verify action is unavailable, or `null` when it is ready. Ownership is checked
+ * against the bound experience's owner, so an experience must be declared first; and a Roblox
+ * animation asset id must be entered. Pure.
+ */
+export function ownershipVerifyDisabledReason(robloxAssetIdInput: string, experienceBound: boolean): string | null {
+  if (!experienceBound) {
+    return 'Bind this project’s intended Roblox experience first — ownership is checked against its owner.';
+  }
+  if (!parseRobloxAssetIdInput(robloxAssetIdInput).ok) {
+    return 'Enter the Roblox animation asset ID to verify its creator.';
+  }
+  return null;
+}
+
+/** Renders an identity fact honestly: "User 123" when obtained, "Not obtained" when the check could not get it. */
+function formatOwnershipIdentity(type: OwnershipIdentityType | null, id: number | null): string {
+  return type && id !== null ? `${titleCaseManifestValue(type)} ${id}` : 'Not obtained';
 }
 
 const defaultExclusions = ['.git', '.gradle', '.idea', '.mvn', '.next', '.nuxt', '.turbo', 'build', 'coverage', 'dist', 'node_modules', 'out', 'target'];
@@ -310,6 +439,76 @@ export function LocalScanView({ client, project, onRunChange, onOpenEvidence }: 
   );
 }
 
+/**
+ * The per-animation ownership-verification panel. Renders the honest verdict for the latest
+ * verification (VERIFIED facts for a match/mismatch; a mismatch is framed as a review lead needing a
+ * human decision, never an accusation) with its point-in-time `checkedAt`, and a form to run a new
+ * check against Roblox Open Cloud. Failure modes are surfaced distinctly: no key → point at the
+ * desktop Settings card; rate-limited → "rate-limited, try again"; missing id/experience → the
+ * server's precondition message. The live call happens only when a person clicks Verify.
+ */
+export function LocalOwnershipPanel({ client, assetId, experienceBound, latest, onVerified }: {
+  client: LocalBridgeClient;
+  assetId: number;
+  experienceBound: boolean;
+  latest: LocalOwnershipVerification | null;
+  onVerified: (assetId: number) => Promise<void>;
+}) {
+  const [robloxAssetId, setRobloxAssetId] = useState('');
+  const [verifying, setVerifying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => { setRobloxAssetId(''); setError(null); }, [assetId]);
+
+  const disabledReason = ownershipVerifyDisabledReason(robloxAssetId, experienceBound);
+  const display = latest ? describeOwnershipOutcome(latest) : null;
+
+  async function submit(event: FormEvent) {
+    event.preventDefault();
+    const parsed = parseRobloxAssetIdInput(robloxAssetId);
+    if (!parsed.ok) { setError(parsed.error); return; }
+    setVerifying(true);
+    setError(null);
+    try {
+      await client.verifyOwnership(assetId, parsed.value);
+      await onVerified(assetId);
+      setRobloxAssetId('');
+    } catch (reason) {
+      setError(ownershipVerifyError(reason).message);
+    } finally {
+      setVerifying(false);
+    }
+  }
+
+  return (
+    <section className="local-ownership-verification">
+      <span>Ownership verification</span>
+      {latest && display ? (
+        <div className={`local-ownership-verdict tone-${display.tone}`}>
+          <strong>{display.isReviewLead ? <AlertTriangle size={14} /> : null}{display.headline}</strong> <EvidenceBasisMark basis={display.basis} />
+          <p>{display.detail}</p>
+          <dl className="local-ownership-facts">
+            <div><dt>Animation asset</dt><dd>{latest.robloxAssetId}{latest.assetType ? ` · ${latest.assetType}` : ''}</dd></div>
+            <div><dt>Creator</dt><dd>{formatOwnershipIdentity(latest.creatorType, latest.creatorId)}</dd></div>
+            <div><dt>Experience owner</dt><dd>{formatOwnershipIdentity(latest.ownerType, latest.ownerId)}</dd></div>
+            {latest.moderationState ? <div><dt>Moderation</dt><dd>{latest.moderationState}</dd></div> : null}
+            {latest.memberRank !== null ? <div><dt>Group membership</dt><dd>Rank {latest.memberRank}</dd></div> : null}
+          </dl>
+          <small>{formatCheckedAt(latest.checkedAt)} · point-in-time observation, not a standing guarantee</small>
+        </div>
+      ) : (
+        <p>No ownership verification yet. This checks a Roblox animation asset’s creator against this project’s bound experience owner — enter the animation’s Roblox asset ID below. Generic scanned files have no Roblox id and stay not verified.</p>
+      )}
+      <form className="local-decision-form local-ownership-form" onSubmit={submit}>
+        <label><span>Roblox animation asset ID</span><input inputMode="numeric" value={robloxAssetId} onChange={(event) => setRobloxAssetId(event.target.value)} placeholder="e.g. 507766388" /></label>
+        {disabledReason ? <small>{disabledReason}</small> : null}
+        {error ? <small role="alert">{error}</small> : null}
+        <button className="button button-secondary" type="submit" disabled={verifying || disabledReason !== null}>{verifying ? <LoaderCircle className="spin" size={14} /> : <ShieldCheck size={14} />} Verify ownership</button>
+      </form>
+    </section>
+  );
+}
+
 export function LocalEvidenceView({ client, project, initialSelectedAssetId = null, onSelectAsset }: { client: LocalBridgeClient; project: LocalProjectSummary; initialSelectedAssetId?: number | null; onSelectAsset?: (assetId: number | null) => void }) {
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<LocalScanAsset[]>([]);
@@ -317,6 +516,7 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
   const [selectedId, setSelectedId] = useState<number | null>(initialSelectedAssetId);
   const [detail, setDetail] = useState<LocalAssetDetail | null>(null);
   const [history, setHistory] = useState<LocalDecision[]>([]);
+  const [verifications, setVerifications] = useState<LocalOwnershipVerification[]>([]);
   const [query, setQuery] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -344,13 +544,14 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
 
   useEffect(() => {
     onSelectAsset?.(selectedId);
-    if (selectedId === null) { setDetail(null); setHistory([]); return; }
+    if (selectedId === null) { setDetail(null); setHistory([]); setVerifications([]); return; }
     let active = true;
     void client.saveWorkspaceState({ activeProjectId: project.projectId, activeScanRunId: scanRunId || null, selectedAssetId: selectedId }).catch(() => undefined);
-    void Promise.all([client.getAsset(selectedId), client.getDecisionHistory(selectedId)]).then(([nextDetail, nextHistory]) => {
+    void Promise.all([client.getAsset(selectedId), client.getDecisionHistory(selectedId), client.listOwnershipVerifications(selectedId)]).then(([nextDetail, nextHistory, nextVerifications]) => {
       if (!active) return;
       setDetail(nextDetail);
       setHistory(nextHistory.items);
+      setVerifications(nextVerifications.items);
     }).catch((reason) => { if (active) setError(reason instanceof Error ? reason.message : 'Could not open the asset record'); });
     return () => { active = false; };
   }, [client, onSelectAsset, project.projectId, scanRunId, selectedId]);
@@ -399,6 +600,13 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
     }
   }
 
+  async function reloadVerifications(assetId: number) {
+    const refreshed = await client.listOwnershipVerifications(assetId);
+    setVerifications(refreshed.items);
+  }
+
+  const latestVerification = verifications[0] ?? null;
+
   return (
     <section className="local-evidence-workspace" aria-labelledby="local-evidence-title">
       <header className="local-scan-heading"><div><span>Persisted local evidence</span><h2 id="local-evidence-title">Reopen what the scanner actually stored.</h2><p>These immutable records come from SQLite. Selecting an asset loads its findings, source evidence, and append-only decision history.</p></div><div className="local-bridge-badge"><HardDrive size={16} /><span><strong>{project.name}</strong><small>{scanRunId ? `Run ${scanRunId.slice(0, 12)}…` : 'No persisted run'}</small></span></div></header>
@@ -410,7 +618,7 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
           <footer><button type="button" disabled={offset === 0} onClick={() => setOffset((current) => Math.max(0, current - limit))}><ChevronLeft size={14} /> Previous</button><span>Records {offset + 1}–{offset + page.length}</span><button type="button" disabled={page.length < limit} onClick={() => setOffset((current) => current + limit)}>Next <ChevronRight size={14} /></button></footer>
         </div>
         <aside className="local-asset-inspector">
-          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={OWNERSHIP_BASIS} /> <small>No Roblox ownership or permission API is called.</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} /></form><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small></div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section><form className="local-decision-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
+          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={ownershipBasis(latestVerification)} /> <small>{latestVerification ? 'From an on-demand Roblox Open Cloud check — see below.' : 'Not checked yet — verify below (Roblox animation assets only).'}</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} /></form><LocalOwnershipPanel client={client} assetId={detail.asset.id} experienceBound={Boolean(project.experience)} latest={latestVerification} onVerified={reloadVerifications} /><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small></div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section><form className="local-decision-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
         </aside>
       </div>
     </section>

@@ -224,6 +224,36 @@ export interface LocalDecision {
   createdAt: string;
 }
 
+export type OwnershipIdentityType = 'USER' | 'GROUP';
+/** `MATCH`/`MISMATCH` both mean facts were obtained; `UNVERIFIABLE` means they could not be. Mirrors the core `OwnershipOutcome`. */
+export type OwnershipOutcome = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE';
+
+/**
+ * One persisted point-in-time Open Cloud ownership observation for a scan asset, as the bridge
+ * serves it (the API key and the raw upstream JSON are never included). `verified` is `true` for
+ * `MATCH`/`MISMATCH` (authoritative facts were obtained) and `false` for `UNVERIFIABLE`.
+ *
+ * Honesty (load-bearing): a populated record never means "you have the right to use this asset" — it
+ * means CreatorFlow observed these facts at `checkedAt`. A `MISMATCH` is a review lead for a human,
+ * never proof of wrongdoing. Mirrors `OwnershipVerificationRecord` on the desktop side.
+ */
+export interface LocalOwnershipVerification {
+  id: string;
+  scanAssetId: number;
+  robloxAssetId: number;
+  universeId: number;
+  creatorType: OwnershipIdentityType | null;
+  creatorId: number | null;
+  assetType: string | null;
+  moderationState: string | null;
+  ownerType: OwnershipIdentityType | null;
+  ownerId: number | null;
+  memberRank: number | null;
+  outcome: OwnershipOutcome;
+  verified: boolean;
+  checkedAt: string;
+}
+
 export interface LocalAssetDetail {
   asset: LocalScanAsset;
   findings: LocalScanFinding[];
@@ -417,6 +447,25 @@ export class LocalBridgeClient {
       method: 'POST',
       body: { type, reason, ...(supersedesDecisionId ? { supersedesDecisionId } : {}) },
     });
+  }
+
+  /**
+   * The single live Open Cloud call: verifies the animation `robloxAssetId`'s creator against the
+   * project's bound experience owner and persists the observation. Resolves the new record on
+   * success (`MATCH`/`MISMATCH`/`UNVERIFIABLE`). Rejects with a {@link LocalBridgeError} whose
+   * `status` distinguishes the failure modes the UI must handle honestly: 409 (no key configured),
+   * 429 (rate-limited), 404 (no animation id / no bound experience).
+   */
+  verifyOwnership(assetId: number, robloxAssetId: number) {
+    return this.request<LocalOwnershipVerification>(`/api/v1/assets/${assetId}/verify-ownership`, {
+      method: 'POST',
+      body: { robloxAssetId },
+    });
+  }
+
+  /** The append-only ownership-verification history for an asset, newest first (never the API key). */
+  listOwnershipVerifications(assetId: number) {
+    return this.request<{ items: LocalOwnershipVerification[] }>(`/api/v1/assets/${assetId}/ownership-verifications`);
   }
 
   subscribeToScanEvents(runId: string, onEvent: (event: LocalScanEvent) => void, onDisconnect?: () => void) {

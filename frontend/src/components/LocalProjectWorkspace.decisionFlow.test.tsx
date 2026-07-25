@@ -62,7 +62,8 @@ const detailWithPriorDecision: LocalAssetDetail = {
 
 /** A plain object implementing only what LocalEvidenceView actually calls, matching real signatures. */
 function makeMockClient(overrides: Partial<Record<
-  'listProjectAssets' | 'saveWorkspaceState' | 'getAsset' | 'getDecisionHistory' | 'recordDecision',
+  'listProjectAssets' | 'saveWorkspaceState' | 'getAsset' | 'getDecisionHistory' | 'recordDecision'
+  | 'listOwnershipVerifications',
   ReturnType<typeof vi.fn>
 >> = {}) {
   const client = {
@@ -74,6 +75,8 @@ function makeMockClient(overrides: Partial<Record<
     getAsset: vi.fn().mockResolvedValue(detailWithPriorDecision),
     getDecisionHistory: vi.fn().mockResolvedValue({ items: [priorDecision] }),
     recordDecision: vi.fn(),
+    // The evidence view loads ownership verifications alongside the asset detail (Phase A, Task 10).
+    listOwnershipVerifications: vi.fn().mockResolvedValue({ items: [] }),
     ...overrides,
   };
   return client as unknown as LocalBridgeClient;

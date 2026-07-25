@@ -207,6 +207,76 @@ describe('LocalBridgeClient request wrapper (exercised via public methods)', () 
   });
 });
 
+describe('LocalBridgeClient ownership verification', () => {
+  const VERIFICATION = {
+    id: 'own-1',
+    scanAssetId: 42,
+    robloxAssetId: 507766388,
+    universeId: 90110,
+    creatorType: 'USER',
+    creatorId: 1,
+    assetType: 'Animation',
+    moderationState: 'Approved',
+    ownerType: 'USER',
+    ownerId: 1,
+    memberRank: null,
+    outcome: 'MATCH',
+    verified: true,
+    checkedAt: '2026-07-24T00:00:00Z',
+  };
+
+  it('verifyOwnership POSTs the robloxAssetId with CSRF and round-trips the 201 record', async () => {
+    const client = await createClient();
+    fetchMock.mockResolvedValueOnce(fakeResponse(201, VERIFICATION));
+
+    const result = await client.verifyOwnership(42, 507766388);
+
+    expect(result).toEqual(VERIFICATION);
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/v1/assets/42/verify-ownership');
+    expect(options.method).toBe('POST');
+    expect(options.credentials).toBe('same-origin');
+    expect(options.headers).toEqual({
+      Accept: 'application/json',
+      'X-CreatorFlow-CSRF': CSRF_TOKEN,
+      'Content-Type': 'application/json',
+    });
+    expect(JSON.parse(options.body)).toEqual({ robloxAssetId: 507766388 });
+  });
+
+  it('verifyOwnership surfaces the 409 no-key envelope as a LocalBridgeError carrying status 409', async () => {
+    const client = await createClient();
+    fetchMock.mockResolvedValueOnce(fakeResponse(409, { error: 'Add a Roblox Open Cloud API key in Settings before verifying ownership.' }));
+
+    await expect(client.verifyOwnership(42, 507766388)).rejects.toMatchObject(
+      new LocalBridgeError('Add a Roblox Open Cloud API key in Settings before verifying ownership.', 409),
+    );
+  });
+
+  it('verifyOwnership surfaces the 429 rate-limit envelope as a LocalBridgeError carrying status 429', async () => {
+    const client = await createClient();
+    fetchMock.mockResolvedValueOnce(fakeResponse(429, { error: 'Roblox Open Cloud is rate-limiting requests. Wait a moment and try again.' }));
+
+    await expect(client.verifyOwnership(42, 507766388)).rejects.toMatchObject(
+      new LocalBridgeError('Roblox Open Cloud is rate-limiting requests. Wait a moment and try again.', 429),
+    );
+  });
+
+  it('listOwnershipVerifications GETs the history with no CSRF header and round-trips the items', async () => {
+    const client = await createClient();
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { items: [VERIFICATION] }));
+
+    const result = await client.listOwnershipVerifications(42);
+
+    expect(result).toEqual({ items: [VERIFICATION] });
+    const [path, options] = fetchMock.mock.calls[0];
+    expect(path).toBe('/api/v1/assets/42/ownership-verifications');
+    expect(options.method).toBe('GET');
+    expect(options.headers).toEqual({ Accept: 'application/json' });
+    expect(options.body).toBeUndefined();
+  });
+});
+
 describe('LocalBridgeClient.subscribeToScanEvents', () => {
   class FakeEventSource {
     static instances: FakeEventSource[] = [];

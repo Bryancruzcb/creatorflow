@@ -1,6 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { parseExperienceFormInput, parsePublishedPlaceVersionInput, resolveRollbackTargetLabel } from './LocalProjectWorkspace';
-import type { LocalRelease } from '../bridge/localBridge';
+import {
+  describeOwnershipOutcome,
+  formatCheckedAt,
+  ownershipVerifyDisabledReason,
+  ownershipVerifyError,
+  parseExperienceFormInput,
+  parsePublishedPlaceVersionInput,
+  parseRobloxAssetIdInput,
+  resolveRollbackTargetLabel,
+} from './LocalProjectWorkspace';
+import { LocalBridgeError, type LocalOwnershipVerification, type LocalRelease } from '../bridge/localBridge';
+
+function verification(overrides: Partial<LocalOwnershipVerification> = {}): LocalOwnershipVerification {
+  return {
+    id: 'own-1',
+    scanAssetId: 42,
+    robloxAssetId: 507766388,
+    universeId: 90110,
+    creatorType: 'USER',
+    creatorId: 1,
+    assetType: 'Animation',
+    moderationState: 'Approved',
+    ownerType: 'USER',
+    ownerId: 1,
+    memberRank: null,
+    outcome: 'MATCH',
+    verified: true,
+    checkedAt: '2026-07-24T00:00:00Z',
+    ...overrides,
+  };
+}
 
 describe('parseExperienceFormInput', () => {
   it('accepts a fully specified positive-integer declaration and trims the name', () => {
@@ -43,6 +72,109 @@ describe('parsePublishedPlaceVersionInput', () => {
 
   it('carries a human-readable error message', () => {
     expect(parsePublishedPlaceVersionInput('0')).toEqual({ ok: false, error: 'Place version must be a positive whole number.' });
+  });
+});
+
+describe('parseRobloxAssetIdInput', () => {
+  it('accepts a positive integer and trims whitespace', () => {
+    expect(parseRobloxAssetIdInput('507766388')).toEqual({ ok: true, value: 507766388 });
+    expect(parseRobloxAssetIdInput('  42  ')).toEqual({ ok: true, value: 42 });
+  });
+
+  it('rejects zero, negative, non-integer, or non-numeric input', () => {
+    expect(parseRobloxAssetIdInput('0').ok).toBe(false);
+    expect(parseRobloxAssetIdInput('-3').ok).toBe(false);
+    expect(parseRobloxAssetIdInput('1.5').ok).toBe(false);
+    expect(parseRobloxAssetIdInput('abc').ok).toBe(false);
+    expect(parseRobloxAssetIdInput('').ok).toBe(false);
+  });
+});
+
+describe('describeOwnershipOutcome', () => {
+  it('classifies a MATCH as VERIFIED positive evidence, not a review lead', () => {
+    const display = describeOwnershipOutcome(verification({ outcome: 'MATCH' }));
+    expect(display.basis).toBe('VERIFIED');
+    expect(display.tone).toBe('match');
+    expect(display.isReviewLead).toBe(false);
+  });
+
+  it('classifies a MISMATCH as VERIFIED facts surfaced as a non-accusatory review lead', () => {
+    const display = describeOwnershipOutcome(verification({ outcome: 'MISMATCH', ownerId: 999 }));
+    expect(display.basis).toBe('VERIFIED');
+    expect(display.tone).toBe('review-lead');
+    expect(display.isReviewLead).toBe(true);
+    // A mismatch is a lead for a human, never an accusation.
+    const copy = `${display.headline} ${display.detail}`.toLowerCase();
+    expect(copy).toContain('review');
+    expect(copy).not.toContain('infringement');
+    expect(copy).not.toContain('stolen');
+  });
+
+  it('classifies an UNVERIFIABLE as NOT_VERIFIED, never a false verified', () => {
+    const display = describeOwnershipOutcome(verification({
+      outcome: 'UNVERIFIABLE', verified: false, creatorId: null, ownerId: null, moderationState: null,
+    }));
+    expect(display.basis).toBe('NOT_VERIFIED');
+    expect(display.tone).toBe('unverifiable');
+    expect(display.isReviewLead).toBe(false);
+  });
+});
+
+describe('formatCheckedAt', () => {
+  it('reports point-in-time staleness relative to now (today / yesterday / N days ago)', () => {
+    const now = new Date('2026-07-24T12:00:00Z');
+    expect(formatCheckedAt('2026-07-24T00:00:00Z', now)).toBe('checked today');
+    expect(formatCheckedAt('2026-07-23T00:00:00Z', now)).toBe('checked yesterday');
+    expect(formatCheckedAt('2026-07-21T00:00:00Z', now)).toBe('checked 3 days ago');
+  });
+
+  it('treats a future or clock-skewed stamp as today rather than a negative age', () => {
+    const now = new Date('2026-07-24T00:00:00Z');
+    expect(formatCheckedAt('2026-07-25T00:00:00Z', now)).toBe('checked today');
+  });
+});
+
+describe('ownershipVerifyError', () => {
+  it('maps a 409 to the no-key state pointing at the desktop Settings card', () => {
+    const result = ownershipVerifyError(new LocalBridgeError('Add a key in Settings', 409));
+    expect(result.kind).toBe('no-key');
+    expect(result.message.toLowerCase()).toContain('settings');
+  });
+
+  it('maps a 429 to a distinct rate-limited message', () => {
+    const result = ownershipVerifyError(new LocalBridgeError('slow down', 429));
+    expect(result.kind).toBe('rate-limited');
+    expect(result.message.toLowerCase()).toContain('rate-limited, try again');
+  });
+
+  it('maps a 404 to the not-applicable state carrying the server message', () => {
+    const result = ownershipVerifyError(new LocalBridgeError('This asset needs an animation id and a bound experience to verify ownership.', 404));
+    expect(result.kind).toBe('not-applicable');
+    expect(result.message).toBe('This asset needs an animation id and a bound experience to verify ownership.');
+  });
+
+  it('maps any other failure to a generic error state', () => {
+    expect(ownershipVerifyError(new LocalBridgeError('boom', 500)).kind).toBe('error');
+    expect(ownershipVerifyError(new Error('offline')).kind).toBe('error');
+    expect(ownershipVerifyError('weird').message.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ownershipVerifyDisabledReason', () => {
+  it('returns null (enabled) when an experience is bound and a valid id is entered', () => {
+    expect(ownershipVerifyDisabledReason('507766388', true)).toBeNull();
+  });
+
+  it('explains that an intended experience must be bound first', () => {
+    const reason = ownershipVerifyDisabledReason('507766388', false);
+    expect(reason).not.toBeNull();
+    expect(reason!.toLowerCase()).toContain('experience');
+  });
+
+  it('explains that a Roblox animation asset id is required', () => {
+    const reason = ownershipVerifyDisabledReason('', true);
+    expect(reason).not.toBeNull();
+    expect(reason!.toLowerCase()).toContain('id');
   });
 });
 
