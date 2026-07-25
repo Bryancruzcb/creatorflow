@@ -5,6 +5,14 @@ export type LocalDecisionType = 'APPROVED' | 'NEEDS_REVIEW' | 'BLOCKED' | 'EXCLU
 export interface LocalBridgeSession {
   csrfToken: string;
   origin: string;
+  /**
+   * Whether the desktop reports a Roblox Open Cloud API key configured — a **boolean only**. The key
+   * itself never crosses the bridge, and neither does any prefix or masked form of it.
+   *
+   * `null` means the bridge did not report the flag at all: the status is *unknown*, and the UI must
+   * not claim either way (it leaves the verify action available and lets the 409 answer instead).
+   */
+  openCloudKeyConfigured: boolean | null;
 }
 
 export interface LocalPluginPairing {
@@ -281,40 +289,90 @@ export interface LocalAssetsPage {
 }
 
 export class LocalBridgeError extends Error {
-  constructor(message: string, readonly status: number) {
+  /**
+   * @param retryAfterSeconds the server-reported wait from a 429 envelope, or `null` when the bridge
+   *   reported none. `null` is an honest *unknown*, never "retry immediately" — callers must phrase
+   *   it as such rather than inventing a number.
+   */
+  constructor(message: string, readonly status: number, readonly retryAfterSeconds: number | null = null) {
     super(message);
     this.name = 'LocalBridgeError';
   }
 }
 
-function isSession(value: unknown): value is LocalBridgeSession {
-  if (!value || typeof value !== 'object') return false;
-  const session = value as Partial<LocalBridgeSession>;
-  return typeof session.csrfToken === 'string' && session.csrfToken.length > 0
-    && typeof session.origin === 'string' && session.origin === window.location.origin;
+/**
+ * The bridge's `retryAfterSeconds` when it reported a usable one, else `null` (unknown stays
+ * unknown). Anything that is not a finite, non-negative number is discarded rather than rendered.
+ */
+function parseRetryAfterSeconds(value: unknown): number | null {
+  return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/**
+ * Builds the session from the `/api/v1/session` payload, or `null` when it is not a same-origin
+ * session. Only the three known fields are copied off the payload — a session is never spread
+ * wholesale, so nothing the bridge might add later leaks into client state by accident.
+ */
+function toSession(value: unknown): LocalBridgeSession | null {
+  if (!value || typeof value !== 'object') return null;
+  const payload = value as Record<string, unknown>;
+  if (typeof payload.csrfToken !== 'string' || payload.csrfToken.length === 0) return null;
+  if (typeof payload.origin !== 'string' || payload.origin !== window.location.origin) return null;
+  return {
+    csrfToken: payload.csrfToken,
+    origin: payload.origin,
+    // A missing or non-boolean flag is unknown, not "no key": an older/other bridge that does not
+    // report it must not make the UI assert a key state it was never told.
+    openCloudKeyConfigured: typeof payload.openCloudKeyConfigured === 'boolean'
+      ? payload.openCloudKeyConfigured
+      : null,
+  };
 }
 
 function terminal(state: ScanRunState) {
   return state === 'CANCELLED' || state === 'COMPLETED' || state === 'FAILED';
 }
 
+/**
+ * GETs and validates the session endpoint, or `null` when the bridge is absent, answers with
+ * something other than an ok JSON body, or is not this page's origin. Never throws.
+ */
+async function fetchSession(signal?: AbortSignal): Promise<LocalBridgeSession | null> {
+  try {
+    const response = await fetch('/api/v1/session', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal,
+    });
+    if (!response.ok || !response.headers.get('content-type')?.toLowerCase().includes('application/json')) return null;
+    return toSession(await response.json());
+  } catch {
+    return null;
+  }
+}
+
 export class LocalBridgeClient {
   private constructor(readonly session: LocalBridgeSession) {}
 
   static async detect(signal?: AbortSignal): Promise<LocalBridgeClient | null> {
-    try {
-      const response = await fetch('/api/v1/session', {
-        method: 'GET',
-        credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
-        signal,
-      });
-      if (!response.ok || !response.headers.get('content-type')?.toLowerCase().includes('application/json')) return null;
-      const value: unknown = await response.json();
-      return isSession(value) ? new LocalBridgeClient(value) : null;
-    } catch {
-      return null;
-    }
+    const session = await fetchSession(signal);
+    return session ? new LocalBridgeClient(session) : null;
+  }
+
+  /**
+   * Re-reads the desktop's Open Cloud key status — a **boolean only**, never the key. The status on
+   * {@link session} is point-in-time: a key can be added (or cleared) in the desktop Settings card
+   * while this page is open, so the UI re-checks rather than telling a person to add a key they
+   * already added.
+   *
+   * `null` is an honest *unknown* — the bridge did not report the flag, or the read failed — and
+   * callers must then leave the verify action available and let the 409 answer, rather than
+   * asserting "no key". Never writes back to {@link session}: that stays the record of what this
+   * page was told when it connected.
+   */
+  async refreshOpenCloudKeyStatus(signal?: AbortSignal): Promise<boolean | null> {
+    return (await fetchSession(signal))?.openCloudKeyConfigured ?? null;
   }
 
   async pickProject(): Promise<LocalProjectSummary | null> {
@@ -466,7 +524,8 @@ export class LocalBridgeClient {
    * project's bound experience owner and persists the observation. Resolves the new record on
    * success (`MATCH`/`MISMATCH`/`UNVERIFIABLE`). Rejects with a {@link LocalBridgeError} whose
    * `status` distinguishes the failure modes the UI must handle honestly: 409 (no key configured),
-   * 429 (rate-limited), 404 (no animation id / no bound experience).
+   * 429 (rate-limited — the error also carries `retryAfterSeconds` when the bridge reported one),
+   * 404 (no animation id / no bound experience).
    */
   verifyOwnership(assetId: number, robloxAssetId: number) {
     return this.request<LocalOwnershipVerification>(`/api/v1/assets/${assetId}/verify-ownership`, {
@@ -544,10 +603,15 @@ export class LocalBridgeClient {
     const contentType = response.headers.get('content-type')?.toLowerCase() ?? '';
     const payload: unknown = contentType.includes('application/json') ? await response.json() : null;
     if (!response.ok) {
-      const message = payload && typeof payload === 'object' && typeof (payload as { error?: unknown }).error === 'string'
-        ? (payload as { error: string }).error
+      const envelope = payload && typeof payload === 'object'
+        ? payload as { error?: unknown; retryAfterSeconds?: unknown }
+        : null;
+      const message = typeof envelope?.error === 'string'
+        ? envelope.error
         : `Local bridge request failed (${response.status})`;
-      throw new LocalBridgeError(message, response.status);
+      // A 429 envelope carries the upstream Retry-After the desktop observed. Carry it through:
+      // dropping it is why a rate-limited person could not be told how long to wait.
+      throw new LocalBridgeError(message, response.status, parseRetryAfterSeconds(envelope?.retryAfterSeconds));
     }
     if (!contentType.includes('application/json')) throw new LocalBridgeError('Local bridge returned an unexpected response', response.status);
     return payload as T;

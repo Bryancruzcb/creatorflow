@@ -131,6 +131,30 @@ export interface OwnershipDisplay {
 }
 
 /**
+ * The decision-aware tail of a MISMATCH review lead. The panel must never claim "no decision is on
+ * record" when one is — that misreads a file a person already ruled on, and it is the sentence the
+ * gate would contradict. Mirrors `ReleaseGate`'s rule that only APPROVED (or EXCLUDED, which leaves
+ * the file out of releases entirely) resolves an ownership lead: NEEDS_REVIEW is a person recording
+ * that review has *not* happened, so the lead keeps standing. Pure.
+ */
+function mismatchDecisionCopy(latestDecision: LocalDecision | null): string {
+  switch (latestDecision?.type) {
+    case 'APPROVED':
+      return 'A person has already recorded an Approved decision for this file, which is what clears this lead '
+        + 'for the release gate — that is their call about the team’s rights, not something CreatorFlow checked.';
+    case 'NEEDS_REVIEW':
+      return 'This file is marked Needs review, which records that the review has not happened yet, so the lead '
+        + 'still stands. Approve or exclude it once a person has confirmed the team can ship it.';
+    case 'BLOCKED':
+      return 'This file already carries a Blocked decision, so it will not ship in a release.';
+    case 'EXCLUDED':
+      return 'This file is marked Excluded, so releases leave it out.';
+    default:
+      return 'No decision is on record. Record one below once you have checked.';
+  }
+}
+
+/**
  * Turns one persisted ownership verification into honest display copy. Pure — no DOM. Load-bearing
  * honesty: a MATCH is positive evidence (VERIFIED = "we obtained the facts", never "you have the
  * right to use this"); a MISMATCH is a *review lead* for a human, worded without accusation (never
@@ -143,8 +167,15 @@ export interface OwnershipDisplay {
  * file-to-animation claim is the user's (DECLARED), and every headline and detail speaks about that
  * ID rather than about the file. A verified fact about a declared ID is not a verified fact about
  * the file, and this copy must never let the two read as one.
+ *
+ * `latestDecision` is required rather than defaulted, because the wrong default is exactly the bug:
+ * a MISMATCH lead that assumes "no decision is on record" would overwrite a call a person already
+ * made. Pass the asset's latest append-only decision, or an explicit `null` when there is none.
  */
-export function describeOwnershipOutcome(verification: LocalOwnershipVerification): OwnershipDisplay {
+export function describeOwnershipOutcome(
+  verification: LocalOwnershipVerification,
+  latestDecision: LocalDecision | null,
+): OwnershipDisplay {
   const basis = ownershipBasis(verification);
   const linkBasis = ownershipLinkBasis(verification);
   const linkage = `You entered animation ID ${verification.robloxAssetId} for this file. CreatorFlow checked `
@@ -172,8 +203,8 @@ export function describeOwnershipOutcome(verification: LocalOwnershipVerificatio
         isReviewLead: true,
         headline: 'Review lead: creator is not the experience owner',
         detail: 'Roblox reports the creator of the animation ID you entered is not the owner of this project’s bound '
-          + 'experience, and no decision is on record. This is a lead for a person to confirm the team has the right '
-          + 'to ship it — not an accusation. Record a decision below once you’ve checked.',
+          + 'experience. This is a lead for a person to confirm the team has the right to ship it — not an '
+          + `accusation. ${mismatchDecisionCopy(latestDecision)}`,
       };
     default:
       return {
@@ -206,18 +237,38 @@ export function formatCheckedAt(checkedAt: string, now: Date = new Date()): stri
 export type OwnershipVerifyErrorKind = 'no-key' | 'rate-limited' | 'not-applicable' | 'error';
 
 /**
+ * How long to wait before retrying, in words, from a 429's server-reported `retryAfterSeconds`.
+ * `null` — the bridge reported no Retry-After — stays the honestly vague "in a moment" rather than
+ * an invented countdown, and so does a zero/negative/non-finite value the UI cannot use. A
+ * fractional wait rounds *up*, so nobody is told to retry sooner than the server asked. Pure.
+ */
+export function formatRetryAfter(retryAfterSeconds: number | null): string {
+  if (retryAfterSeconds === null || !Number.isFinite(retryAfterSeconds) || retryAfterSeconds <= 0) return 'in a moment';
+  const seconds = Math.ceil(retryAfterSeconds);
+  if (seconds < 60) return `in ${seconds} second${seconds === 1 ? '' : 's'}`;
+  const minutes = Math.ceil(seconds / 60);
+  return `in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+}
+
+/**
  * Maps a failed verify-ownership request to the honest state the UI must show. 409 → the key is not
  * configured (point at the desktop Settings card); 429 → rate-limited, surfaced *distinctly* so a
- * transient throttle is not mistaken for a hard failure; 404 → the asset lacks an animation id or a
- * bound experience (carry the server's own message); anything else → a generic error. Pure.
+ * transient throttle is not mistaken for a hard failure, and carrying the server-reported wait when
+ * there is one (an unreported wait stays "in a moment" — never an invented countdown); 404 → the
+ * asset lacks an animation id or a bound experience (carry the server's own message); anything else
+ * → a generic error. Pure.
  */
 export function ownershipVerifyError(error: unknown): { kind: OwnershipVerifyErrorKind; message: string } {
-  const status = error instanceof LocalBridgeError ? error.status : null;
+  const bridgeError = error instanceof LocalBridgeError ? error : null;
+  const status = bridgeError?.status ?? null;
   if (status === 409) {
     return { kind: 'no-key', message: 'Add a Roblox Open Cloud API key in the desktop Settings card, then verify ownership again.' };
   }
   if (status === 429) {
-    return { kind: 'rate-limited', message: 'Roblox Open Cloud is rate-limited, try again in a moment.' };
+    return {
+      kind: 'rate-limited',
+      message: `Roblox Open Cloud is rate-limited, try again ${formatRetryAfter(bridgeError?.retryAfterSeconds ?? null)}.`,
+    };
   }
   if (status === 404) {
     return { kind: 'not-applicable', message: error instanceof Error && error.message ? error.message : 'This asset cannot be verified: it needs an animation id and a bound experience.' };
@@ -227,12 +278,25 @@ export function ownershipVerifyError(error: unknown): { kind: OwnershipVerifyErr
 
 /**
  * The reason the verify action is unavailable, or `null` when it is ready. Ownership is checked
- * against the bound experience's owner, so an experience must be declared first; and a Roblox
- * animation asset id must be entered. Pure.
+ * against the bound experience's owner, so an experience must be declared first; nothing can be
+ * checked at all without an Open Cloud key; and a Roblox animation asset id must be entered. Pure.
+ *
+ * `openCloudKeyConfigured` is the desktop's own boolean answer (never the key, never a prefix), and
+ * its third state is load-bearing: `null` means the bridge did not report a key status, so the UI
+ * must not assert one — the action stays available and the post-click 409 answers honestly. Only an
+ * explicit `false` disables, which is what the friend test asks for: a clear reason up front rather
+ * than a failure discovered after the click.
  */
-export function ownershipVerifyDisabledReason(robloxAssetIdInput: string, experienceBound: boolean): string | null {
+export function ownershipVerifyDisabledReason(
+  robloxAssetIdInput: string,
+  experienceBound: boolean,
+  openCloudKeyConfigured: boolean | null,
+): string | null {
   if (!experienceBound) {
     return 'Bind this project’s intended Roblox experience first — ownership is checked against its owner.';
+  }
+  if (openCloudKeyConfigured === false) {
+    return 'Add a Roblox Open Cloud API key in the desktop Settings card first — without one CreatorFlow has nothing to ask Roblox with.';
   }
   if (!parseRobloxAssetIdInput(robloxAssetIdInput).ok) {
     return 'Enter the Roblox animation asset ID to verify its creator.';
@@ -468,24 +532,43 @@ export function LocalScanView({ client, project, onRunChange, onOpenEvidence }: 
  * verification (VERIFIED facts for a match/mismatch; a mismatch is framed as a review lead needing a
  * human decision, never an accusation) with its point-in-time `checkedAt`, and a form to run a new
  * check against Roblox Open Cloud. Failure modes are surfaced distinctly: no key → point at the
- * desktop Settings card; rate-limited → "rate-limited, try again"; missing id/experience → the
- * server's precondition message. The live call happens only when a person clicks Verify.
+ * desktop Settings card; rate-limited → "rate-limited, try again" with the server-reported wait when
+ * there is one; missing id/experience → the server's precondition message. The live call happens
+ * only when a person clicks Verify.
+ *
+ * The no-key case is answered *before* the click when the bridge reports its key status (a boolean
+ * only, never the key) — seeded from the connect-time session and re-read on open, because the key
+ * is configured in the desktop app and can appear while this page is up. Only an explicit `false`
+ * disables; an unknown status leaves the action available and lets the 409 answer. `latestDecision`
+ * feeds the MISMATCH copy so a review lead never claims a decision is missing when one exists.
  */
-export function LocalOwnershipPanel({ client, assetId, experienceBound, latest, onVerified }: {
+export function LocalOwnershipPanel({ client, assetId, experienceBound, latest, latestDecision, onVerified }: {
   client: LocalBridgeClient;
   assetId: number;
   experienceBound: boolean;
   latest: LocalOwnershipVerification | null;
+  latestDecision: LocalDecision | null;
   onVerified: (assetId: number) => Promise<void>;
 }) {
   const [robloxAssetId, setRobloxAssetId] = useState('');
   const [verifying, setVerifying] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Seeded from the status this page was told when it connected, then re-read: a key is configured
+  // in the *desktop* app, which can happen while this page is open. Trusting the connect-time value
+  // alone would keep telling a person to add a key they just added.
+  const [keyConfigured, setKeyConfigured] = useState<boolean | null>(client.session.openCloudKeyConfigured);
 
   useEffect(() => { setRobloxAssetId(''); setError(null); }, [assetId]);
 
-  const disabledReason = ownershipVerifyDisabledReason(robloxAssetId, experienceBound);
-  const display = latest ? describeOwnershipOutcome(latest) : null;
+  useEffect(() => {
+    let active = true;
+    const controller = new AbortController();
+    void client.refreshOpenCloudKeyStatus(controller.signal).then((status) => { if (active) setKeyConfigured(status); });
+    return () => { active = false; controller.abort(); };
+  }, [client, assetId]);
+
+  const disabledReason = ownershipVerifyDisabledReason(robloxAssetId, experienceBound, keyConfigured);
+  const display = latest ? describeOwnershipOutcome(latest, latestDecision) : null;
 
   async function submit(event: FormEvent) {
     event.preventDefault();
@@ -646,7 +729,7 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
           <footer><button type="button" disabled={offset === 0} onClick={() => setOffset((current) => Math.max(0, current - limit))}><ChevronLeft size={14} /> Previous</button><span>Records {offset + 1}–{offset + page.length}</span><button type="button" disabled={page.length < limit} onClick={() => setOffset((current) => current + limit)}>Next <ChevronRight size={14} /></button></footer>
         </div>
         <aside className="local-asset-inspector">
-          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={ownershipBasis(latestVerification)} /> <small>{latestVerification ? 'Facts obtained from Roblox for an animation ID a person entered for this file; the link between the two is declared, not verified — see below.' : 'Not checked yet — verify below by entering a Roblox animation ID.'}</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} /></form><LocalOwnershipPanel client={client} assetId={detail.asset.id} experienceBound={Boolean(project.experience)} latest={latestVerification} onVerified={reloadVerifications} /><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small></div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section><form className="local-decision-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
+          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={ownershipBasis(latestVerification)} /> <small>{latestVerification ? 'Facts obtained from Roblox for an animation ID a person entered for this file; the link between the two is declared, not verified — see below.' : 'Not checked yet — verify below by entering a Roblox animation ID.'}</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} /></form><LocalOwnershipPanel client={client} assetId={detail.asset.id} experienceBound={Boolean(project.experience)} latest={latestVerification} latestDecision={detail.latestDecision ?? null} onVerified={reloadVerifications} /><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small></div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section><form className="local-decision-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
         </aside>
       </div>
     </section>

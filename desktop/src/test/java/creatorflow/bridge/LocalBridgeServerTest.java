@@ -608,6 +608,30 @@ class LocalBridgeServerTest {
     }
 
     @Test
+    void sessionReportsWhetherAnOpenCloudKeyIsConfiguredAndNeverTheKeyItself() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+
+        // Before a key is saved the session says so plainly, so the workspace can disable the verify
+        // action with an honest reason instead of only failing after the click.
+        HttpResponse<String> before = get("/api/v1/session", cookie);
+        assertEquals(200, before.statusCode());
+        assertFalse(json.readTree(before.body()).get("openCloudKeyConfigured").asBoolean());
+
+        openCloudSettings.save("oc-test-key-abc123");
+
+        HttpResponse<String> after = get("/api/v1/session", cookie);
+        assertEquals(200, after.statusCode());
+        assertTrue(json.readTree(after.body()).get("openCloudKeyConfigured").asBoolean());
+        // A boolean only: neither the key nor any prefix or masked form of it crosses the bridge.
+        assertFalse(after.body().contains("oc-test-key-abc123"));
+        assertFalse(after.body().contains("oc-test-key"));
+        assertFalse(after.body().toLowerCase(java.util.Locale.ROOT).contains("apikey"));
+
+        // And the status is still session-guarded like every other bridge read.
+        assertEquals(401, get("/api/v1/session", null).statusCode());
+    }
+
+    @Test
     void verifyOwnershipReturns404WhenTheExperienceIsUnbound() throws Exception {
         long assetId = seedUnboundAsset();
         openCloudSettings.save("oc-test-key-abc123");

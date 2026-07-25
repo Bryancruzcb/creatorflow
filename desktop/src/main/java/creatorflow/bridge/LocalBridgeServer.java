@@ -326,7 +326,14 @@ public final class LocalBridgeServer implements AutoCloseable {
     private void routeApi(HttpExchange exchange, String path) throws IOException {
         if ("/api/v1/session".equals(path)) {
             requireMethod(exchange, "GET");
-            sendJson(exchange, 200, Map.of("csrfToken", csrfToken.get(), "origin", origin.toString()));
+            // openCloudKeyConfigured is a BOOLEAN ONLY: whether a key exists, so the workspace can
+            // disable the verify action with an honest reason instead of only failing after the
+            // click (the 409 stays the fallback). The key itself never crosses this bridge — not
+            // masked, not prefixed, not length-hinted. Nothing here is derived from the key value.
+            sendJson(exchange, 200, Map.of(
+                    "csrfToken", csrfToken.get(),
+                    "origin", origin.toString(),
+                    "openCloudKeyConfigured", openCloudSettings.isConfigured()));
             return;
         }
         if ("/api/v1/projects".equals(path)) {

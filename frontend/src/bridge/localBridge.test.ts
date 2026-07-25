@@ -73,7 +73,8 @@ describe('LocalBridgeClient.detect', () => {
     const client = await LocalBridgeClient.detect();
 
     expect(client).not.toBeNull();
-    expect(client!.session).toEqual({ csrfToken: CSRF_TOKEN, origin: ORIGIN });
+    // A bridge that does not report the Open Cloud key status leaves it unknown (null), never false.
+    expect(client!.session).toEqual({ csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: null });
     expect(fetchMock).toHaveBeenCalledWith('/api/v1/session', {
       method: 'GET',
       credentials: 'same-origin',
@@ -106,6 +107,87 @@ describe('LocalBridgeClient.detect', () => {
 
     fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: 'http://evil.example' }));
     expect(await LocalBridgeClient.detect()).toBeNull();
+  });
+
+  it('carries the Open Cloud key status the bridge reports, so the UI can disable verification honestly', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: false }));
+    expect((await LocalBridgeClient.detect())!.session.openCloudKeyConfigured).toBe(false);
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: true }));
+    expect((await LocalBridgeClient.detect())!.session.openCloudKeyConfigured).toBe(true);
+  });
+
+  it('leaves the key status unknown (null) when the flag is absent or not a boolean — never a guessed false', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN }));
+    expect((await LocalBridgeClient.detect())!.session.openCloudKeyConfigured).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: 'yes' }));
+    expect((await LocalBridgeClient.detect())!.session.openCloudKeyConfigured).toBeNull();
+  });
+
+  it('copies only the three known session fields — no key material can ride along on the payload', async () => {
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, {
+      csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: true,
+      openCloudApiKey: 'oc-should-never-be-here', openCloudKeyPrefix: 'oc-sho',
+    }));
+
+    const client = await LocalBridgeClient.detect();
+
+    expect(Object.keys(client!.session).sort()).toEqual(['csrfToken', 'openCloudKeyConfigured', 'origin']);
+    expect(JSON.stringify(client!.session)).not.toContain('oc-sho');
+  });
+});
+
+describe('LocalBridgeClient.refreshOpenCloudKeyStatus', () => {
+  it('re-reads the current key status, so a key added in the desktop app after this page loaded is seen', async () => {
+    const client = await createClient();
+    expect(client.session.openCloudKeyConfigured).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: true }));
+    expect(await client.refreshOpenCloudKeyStatus()).toBe(true);
+    expect(fetchMock).toHaveBeenCalledWith('/api/v1/session', {
+      method: 'GET',
+      credentials: 'same-origin',
+      headers: { Accept: 'application/json' },
+      signal: undefined,
+    });
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: false }));
+    expect(await client.refreshOpenCloudKeyStatus()).toBe(false);
+  });
+
+  it('answers unknown (null) rather than throwing or guessing when the status cannot be read', async () => {
+    const client = await createClient();
+
+    // Flag absent, wrong type, non-JSON, an error status, a foreign origin, and a dead bridge all
+    // mean the same honest thing: this page was not told, so it must not claim either way.
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN }));
+    expect(await client.refreshOpenCloudKeyStatus()).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: 'yes' }));
+    expect(await client.refreshOpenCloudKeyStatus()).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, 'not json', 'text/html'));
+    expect(await client.refreshOpenCloudKeyStatus()).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(503, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: true }));
+    expect(await client.refreshOpenCloudKeyStatus()).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: 'http://evil.example', openCloudKeyConfigured: true }));
+    expect(await client.refreshOpenCloudKeyStatus()).toBeNull();
+
+    fetchMock.mockRejectedValueOnce(new Error('bridge is gone'));
+    expect(await client.refreshOpenCloudKeyStatus()).toBeNull();
+  });
+
+  it('leaves the captured session untouched — the refreshed status is returned, not written back', async () => {
+    const client = await createClient();
+    fetchMock.mockResolvedValueOnce(fakeResponse(200, { csrfToken: CSRF_TOKEN, origin: ORIGIN, openCloudKeyConfigured: true }));
+
+    await client.refreshOpenCloudKeyStatus();
+
+    expect(client.session.openCloudKeyConfigured).toBeNull();
+    expect(client.session.csrfToken).toBe(CSRF_TOKEN);
   });
 });
 
@@ -260,6 +342,35 @@ describe('LocalBridgeClient ownership verification', () => {
     await expect(client.verifyOwnership(42, 507766388)).rejects.toMatchObject(
       new LocalBridgeError('Roblox Open Cloud is rate-limiting requests. Wait a moment and try again.', 429),
     );
+  });
+
+  it('carries the 429 retryAfterSeconds through to the error, so the UI can say how long to wait', async () => {
+    const client = await createClient();
+    fetchMock.mockResolvedValueOnce(fakeResponse(429, {
+      error: 'Roblox Open Cloud is rate-limiting requests. Wait a moment and try again.',
+      retryAfterSeconds: 30,
+    }));
+
+    const rejection = await client.verifyOwnership(42, 507766388).catch((error: unknown) => error);
+
+    expect(rejection).toBeInstanceOf(LocalBridgeError);
+    expect((rejection as LocalBridgeError).status).toBe(429);
+    expect((rejection as LocalBridgeError).retryAfterSeconds).toBe(30);
+  });
+
+  it('leaves retryAfterSeconds null when the bridge reported none, or reported a value it cannot use', async () => {
+    const client = await createClient();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(429, { error: 'Rate limited.' }));
+    const noneReported = await client.verifyOwnership(42, 1).catch((error: unknown) => error);
+    expect((noneReported as LocalBridgeError).retryAfterSeconds).toBeNull();
+
+    // A negative, non-finite, or non-numeric wait is discarded rather than rendered as a countdown.
+    fetchMock.mockResolvedValueOnce(fakeResponse(429, { error: 'Rate limited.', retryAfterSeconds: -5 }));
+    expect(((await client.verifyOwnership(42, 1).catch((error: unknown) => error)) as LocalBridgeError).retryAfterSeconds).toBeNull();
+
+    fetchMock.mockResolvedValueOnce(fakeResponse(429, { error: 'Rate limited.', retryAfterSeconds: 'soon' }));
+    expect(((await client.verifyOwnership(42, 1).catch((error: unknown) => error)) as LocalBridgeError).retryAfterSeconds).toBeNull();
   });
 
   it('listOwnershipVerifications GETs the history with no CSRF header and round-trips the items', async () => {
