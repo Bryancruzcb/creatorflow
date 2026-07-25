@@ -163,9 +163,7 @@ public final class SettingsPage {
         storage.getStyleClass().add("field-note");
         storage.setWrapText(true);
 
-        Label status = new Label(settings.isConfigured()
-                ? "Configured — ownership can be verified for animations with a Roblox id."
-                : "Not configured — add a key to verify who owns an animation and its experience.");
+        Label status = new Label(OpenCloudCardText.configurationStatus(settings.isConfigured()));
         status.getStyleClass().add("field-note");
         status.setWrapText(true);
 
@@ -176,10 +174,11 @@ public final class SettingsPage {
         test.setTooltip(new Tooltip("Checks that Roblox accepts your saved key."));
         test.setOnAction(e -> {
             if (!settings.isConfigured()) {
-                status.setText("Save a key first, then test the connection.");
+                status.setText(OpenCloudCardText.SAVE_BEFORE_TESTING);
                 return;
             }
-            status.setText(connectionMessage(new OpenCloudClient(settings).testConnection()));
+            status.setText(OpenCloudCardText.connectionMessage(
+                    new OpenCloudClient(settings).testConnection()));
         });
 
         Button save = new Button("Save");
@@ -188,9 +187,8 @@ public final class SettingsPage {
             settings.save(key.getText());
             key.setText(settings.apiKey());
             storage.setText(storageLine(settings));
-            status.setText(settings.isConfigured()
-                    ? "Saved — key stored, " + settings.storageMode().label() + "."
-                    : "Cleared — no key stored.");
+            status.setText(OpenCloudCardText.savedStatus(
+                    settings.isConfigured(), settings.storageMode()));
         });
 
         Button clear = new Button("Clear");
@@ -199,7 +197,7 @@ public final class SettingsPage {
             settings.clear();
             key.clear();
             storage.setText(storageLine(settings));
-            status.setText("Cleared — no key stored.");
+            status.setText(OpenCloudCardText.CLEARED);
         });
 
         VBox fields = new VBox(8,
@@ -218,18 +216,7 @@ public final class SettingsPage {
     }
 
     private static String storageLine(OpenCloudSettings settings) {
-        return "Key storage: " + settings.storageMode().label() + ".";
-    }
-
-    /** Honest, plain-language mapping of a connectivity probe outcome for the Settings status line. */
-    private static String connectionMessage(OpenCloudClient.ConnectionStatus status) {
-        return switch (status) {
-            case OK -> "Open Cloud reachable — your key is accepted.";
-            case KEY_REJECTED -> "Roblox rejected the key. Check the value and that it has asset, "
-                    + "universe, and group read scopes.";
-            case RATE_LIMITED -> "Rate-limited by Roblox — the key works; wait a moment and try again.";
-            case UNREACHABLE -> "Could not reach Roblox Open Cloud. Check your connection and try again.";
-        };
+        return OpenCloudCardText.storageLine(settings.storageMode());
     }
 
     private static Label fieldLabel(String text) {

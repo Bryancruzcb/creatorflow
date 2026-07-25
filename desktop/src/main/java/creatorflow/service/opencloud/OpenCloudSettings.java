@@ -71,10 +71,17 @@ public final class OpenCloudSettings {
             }
             apiKey = ApiKeyProtector.forMode(storedMode.get()).unprotect(stored).strip();
             mode = storedMode.get();
-        } catch (IOException | RuntimeException e) {
+        } catch (IOException | RuntimeException | LinkageError e) {
             // Unreadable or undecryptable settings (e.g. DPAPI ciphertext copied from another
             // user/machine, or a truncated file) mean "not configured"; the user can re-save from
             // Settings. The key, if any, is never surfaced in the swallowed exception.
+            //
+            // LinkageError is deliberate, not defensive noise: decoding a DPAPI-labeled value calls
+            // a native Windows API, so on a platform without it (a data dir carried to Linux/macOS,
+            // or a build missing JNA) the failure arrives as an Error — ExceptionInInitializerError
+            // from Native.load, or NoClassDefFoundError — which an exception-only catch lets escape
+            // the constructor and take app startup down with it. A backend this platform cannot run
+            // means the same thing as ciphertext it cannot decrypt: not configured.
             apiKey = "";
         }
     }

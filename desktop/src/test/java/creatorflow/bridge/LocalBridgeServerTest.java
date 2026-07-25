@@ -661,6 +661,36 @@ class LocalBridgeServerTest {
         assertEquals(0, json.readTree(history.body()).get("items").size());
     }
 
+    /**
+     * Roblox is not obliged to send a {@code Retry-After}, and the spike note records that a 429 was
+     * never provoked live. With no hint the route must still be a plain 429 with its message — and
+     * must omit {@code retryAfterSeconds} entirely rather than emit a zero, which the UI would render
+     * as "try again in 0 seconds": a wait CreatorFlow was never told.
+     */
+    @Test
+    void verifyOwnershipSurfaces429WithNoRetryHintWhenRobloxSendsNone() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long assetId = seedBoundAsset(90110L);
+        openCloudSettings.save("oc-test-key-abc123");
+        fakeVerifier.set((robloxAssetId, universeId, now) -> {
+            throw new RateLimitedException("slow down", null);
+        });
+
+        HttpResponse<String> limited = postJson("/api/v1/assets/" + assetId + "/verify-ownership",
+                cookie, origin.toString(), csrf, "{\"robloxAssetId\":507766388}");
+
+        assertEquals(429, limited.statusCode(), limited.body());
+        JsonNode body = json.readTree(limited.body());
+        assertFalse(body.has("retryAfterSeconds"),
+                "with no Retry-After header the response must carry no invented wait");
+        assertTrue(body.get("error").asText().contains("rate-limiting"), limited.body());
+
+        // Still transient: an unhinted rate limit persists nothing either.
+        HttpResponse<String> history = get(
+                "/api/v1/assets/" + assetId + "/ownership-verifications", cookie);
+        assertEquals(0, json.readTree(history.body()).get("items").size());
+    }
+
     private long seedBoundAsset(long universeId) {
         long projectId = localProjects.adopt(directory).projectId();
         localProjects.bindExperience(projectId, universeId, 1818L, "Test Experience");

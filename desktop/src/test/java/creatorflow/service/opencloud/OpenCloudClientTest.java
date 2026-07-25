@@ -12,6 +12,7 @@ import creatorflow.ownership.GroupMembership;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.List;
@@ -167,6 +168,30 @@ class OpenCloudClientTest {
             }
             """;
 
+    /** A page token with characters that would corrupt the URL if it were not encoded. */
+    private static final String ROLES_PAGE_TOKEN = "tok/en+2";
+
+    // page 1 of the roles listing: the member's role (98765) is not here, but a token is.
+    // The token below must stay in sync with ROLES_PAGE_TOKEN (a text block cannot interpolate).
+    private static final String GROUP_ROLES_PAGE_1 = """
+            {
+              "groupRoles": [
+                {"path":"groups/295182/roles/12","id":"12","displayName":"Guest","rank":0,"memberCount":100}
+              ],
+              "nextPageToken": "tok/en+2"
+            }
+            """;
+
+    // page 2: the member's role, with the rank the client must return
+    private static final String GROUP_ROLES_PAGE_2 = """
+            {
+              "groupRoles": [
+                {"path":"groups/295182/roles/98765","id":"98765","displayName":"Builder","rank":150,"memberCount":5}
+              ],
+              "nextPageToken": ""
+            }
+            """;
+
     @BeforeEach
     void startStub() throws IOException {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
@@ -253,6 +278,43 @@ class OpenCloudClientTest {
         assertEquals(Optional.of(java.time.Duration.ofSeconds(30)), Optional.ofNullable(thrown.retryAfter()));
     }
 
+    // The spike note (line 50) records that a 429 was never provoked live, so the Retry-After header
+    // is an unobserved shape: absent and non-numeric forms must both degrade to "no hint", never to
+    // an invented wait and never to a crash that would hide the rate limit behind a generic failure.
+
+    @Test
+    void rateLimitWithNoRetryAfterHeaderCarriesNoRetryHint() {
+        stub("/assets/v1/assets/4", 429, "{\"code\":\"RESOURCE_EXHAUSTED\",\"message\":\"slow down\"}");
+
+        RateLimitedException thrown = assertThrows(RateLimitedException.class, () -> client().getAsset(4L));
+        assertEquals(429, thrown.status());
+        assertNull(thrown.retryAfter(), "no header means no hint — a wait must never be invented");
+    }
+
+    @Test
+    void rateLimitWithAnUnparseableRetryAfterCarriesNoRetryHintInsteadOfFailing() {
+        // The HTTP-date form of Retry-After is legal and is not a number of seconds.
+        server.createContext("/assets/v1/assets/5", exchange -> {
+            exchange.getResponseHeaders().add("Retry-After", "Wed, 21 Oct 2015 07:28:00 GMT");
+            respond(exchange, 429, "{\"code\":\"RESOURCE_EXHAUSTED\",\"message\":\"slow down\"}");
+        });
+
+        RateLimitedException thrown = assertThrows(RateLimitedException.class, () -> client().getAsset(5L));
+        assertEquals(429, thrown.status(), "a garbled hint must not downgrade the rate limit itself");
+        assertNull(thrown.retryAfter());
+    }
+
+    @Test
+    void rateLimitRetryAfterIsReadThroughSurroundingWhitespace() {
+        server.createContext("/assets/v1/assets/6", exchange -> {
+            exchange.getResponseHeaders().add("Retry-After", "  45  ");
+            respond(exchange, 429, "{\"code\":\"RESOURCE_EXHAUSTED\",\"message\":\"slow down\"}");
+        });
+
+        RateLimitedException thrown = assertThrows(RateLimitedException.class, () -> client().getAsset(6L));
+        assertEquals(java.time.Duration.ofSeconds(45), thrown.retryAfter());
+    }
+
     // ---- getUniverse ------------------------------------------------------------------------
 
     @Test
@@ -286,6 +348,34 @@ class OpenCloudClientTest {
 
         assertEquals(GroupMembership.Status.MEMBER_RANK_KNOWN, membership.status());
         assertEquals(150, membership.rank());
+    }
+
+    /**
+     * A group can hold up to 40 roles, so the member's role can sit past the first page. Stopping at
+     * page 1 would report MEMBER_RANK_UNKNOWN for a rank the API was willing to hand over — and the
+     * page token has to be URL-encoded or a token containing {@code /} or {@code +} silently
+     * corrupts the next request.
+     */
+    @Test
+    void groupMembershipFollowsRolePaginationToFindTheMembersRank() throws IOException {
+        stub("/cloud/v2/groups/295182/memberships", 200, MEMBERSHIP_IS_MEMBER);
+        List<String> roleQueries = new CopyOnWriteArrayList<>();
+        server.createContext("/cloud/v2/groups/295182/roles", exchange -> {
+            String rawQuery = exchange.getRequestURI().getRawQuery();
+            roleQueries.add(rawQuery == null ? "" : rawQuery);
+            boolean firstPage = rawQuery == null || !rawQuery.contains("pageToken=");
+            respond(exchange, 200, firstPage ? GROUP_ROLES_PAGE_1 : GROUP_ROLES_PAGE_2);
+        });
+
+        GroupMembership membership = client().groupMembership(295182L, 82914L);
+
+        assertEquals(GroupMembership.Status.MEMBER_RANK_KNOWN, membership.status(),
+                "a rank on page 2 is still a known rank");
+        assertEquals(150, membership.rank());
+        assertEquals(2, roleQueries.size(), "the client must follow nextPageToken to the next page");
+        assertEquals(URLEncoder.encode(ROLES_PAGE_TOKEN, StandardCharsets.UTF_8),
+                queryParam(roleQueries.get(1), "pageToken"),
+                "the page token must be URL-encoded, or a token with / or + breaks the request");
     }
 
     @Test
@@ -411,6 +501,39 @@ class OpenCloudClientTest {
     }
 
     @Test
+    void testConnectionReportsKeyRejectedOn403() {
+        stub("/assets/v1/assets/507766388", 403,
+                "{\"code\":\"PERMISSION_DENIED\",\"message\":\"key lacks the asset read scope\"}");
+        assertEquals(OpenCloudClient.ConnectionStatus.KEY_REJECTED, client().testConnection());
+    }
+
+    // UNREACHABLE is the honest catch-all: the probe learned nothing about the key. It must never be
+    // reported as KEY_REJECTED (which would tell the user their key is bad on a Roblox outage), and
+    // testConnection() must never throw — a "Test connection" button that blows up is not a test.
+
+    @Test
+    void testConnectionReportsUnreachableOnAServerError() {
+        stub("/assets/v1/assets/507766388", 503, "{\"code\":\"UNAVAILABLE\",\"message\":\"try later\"}");
+        assertEquals(OpenCloudClient.ConnectionStatus.UNREACHABLE, client().testConnection(),
+                "a Roblox outage says nothing about the key, so it must not read as a rejected key");
+    }
+
+    @Test
+    void testConnectionReportsUnreachableWhenTheProbeAssetIsGone() {
+        // The probe asset is a ROBLOX-owned default animation; if it ever 404s, the key is not the
+        // thing that failed.
+        stub("/assets/v1/assets/507766388", 404, ASSET_NOT_FOUND);
+        assertEquals(OpenCloudClient.ConnectionStatus.UNREACHABLE, client().testConnection());
+    }
+
+    @Test
+    void testConnectionReportsUnreachableWhenTheHostRefusesTheConnection() throws IOException {
+        OpenCloudClient offline = clientAt(closedPortBaseUrl());
+        assertEquals(OpenCloudClient.ConnectionStatus.UNREACHABLE, offline.testConnection(),
+                "a transport failure must be reported, not thrown out of the button handler");
+    }
+
+    @Test
     void unknownUniverseOwnerYieldsNullOwner() throws IOException {
         stub("/cloud/v2/universes/5", 200, "{\"path\":\"universes/5\",\"id\":\"5\"}");
 
@@ -423,9 +546,33 @@ class OpenCloudClientTest {
     // ---- helpers ----------------------------------------------------------------------------
 
     private OpenCloudClient client() {
+        return clientAt(baseUrl);
+    }
+
+    private OpenCloudClient clientAt(String url) {
         OpenCloudSettings settings = new OpenCloudSettings(dir, new PlaintextApiKeyProtector());
         settings.save(API_KEY);
-        return new OpenCloudClient(settings, baseUrl);
+        return new OpenCloudClient(settings, url);
+    }
+
+    /** A loopback URL nothing is listening on: bind a port, learn it, release it. */
+    private static String closedPortBaseUrl() throws IOException {
+        HttpServer throwaway = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        throwaway.start();
+        int port = throwaway.getAddress().getPort();
+        throwaway.stop(0);
+        return "http://127.0.0.1:" + port;
+    }
+
+    /** The raw (still percent-encoded) value of {@code name} in a raw query string. */
+    private static String queryParam(String rawQuery, String name) {
+        for (String pair : rawQuery.split("&")) {
+            int equals = pair.indexOf('=');
+            if (equals > 0 && pair.substring(0, equals).equals(name)) {
+                return pair.substring(equals + 1);
+            }
+        }
+        return null;
     }
 
     private void stub(String path, int status, String body) {

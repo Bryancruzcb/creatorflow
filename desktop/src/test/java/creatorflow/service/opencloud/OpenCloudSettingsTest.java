@@ -4,9 +4,12 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -134,6 +137,92 @@ class OpenCloudSettingsTest {
 
         assertTrue(settings.isConfigured());
         assertEquals(SAMPLE_KEY, settings.apiKey());
+    }
+
+    // ---- cross-mode reload: a data dir that moves between platforms ------------------------
+
+    /**
+     * The "carried away from Windows" direction: a data dir written on Windows, opened where DPAPI
+     * does not exist. The DPAPI backend is a native call; where it is unavailable it fails with a
+     * {@link LinkageError} — {@code NoClassDefFoundError} when the JNA jar is absent,
+     * {@code ExceptionInInitializerError} on Linux/macOS where {@code Native.load("Crypt32")} throws
+     * — and an Error is not an exception, so it used to escape the store's constructor and take
+     * app startup down with it ({@code AppContext} builds this store eagerly).
+     *
+     * <p>Simulated by reloading the store in a classloader that cannot see JNA, which is exactly what
+     * the classpath looks like off-Windows. The honest outcome is the one every other undecodable
+     * value already gets: not configured, and never the at-rest value handed back as a key.
+     */
+    @Test
+    void aDpapiKeyIsNotConfiguredWhereTheDpapiBackendIsUnavailable() throws Exception {
+        writeStoredSettings(CIPHERTEXT_SHAPED, KeyStorageMode.DPAPI_WINDOWS.name());
+        URL classes = OpenCloudSettings.class.getProtectionDomain().getCodeSource().getLocation();
+        assumeTrue(classes != null, "needs a locatable code source to build an isolated classloader");
+
+        try (URLClassLoader withoutJna =
+                     new URLClassLoader("no-jna", new URL[] {classes}, ClassLoader.getPlatformClassLoader())) {
+            Class<?> storeClass = withoutJna.loadClass(OpenCloudSettings.class.getName());
+            Object store = storeClass.getConstructor(Path.class).newInstance(dir);
+
+            assertEquals(false, storeClass.getMethod("isConfigured").invoke(store),
+                    "an undecodable key must degrade to not configured, not crash the app");
+            assertEquals("", storeClass.getMethod("apiKey").invoke(store),
+                    "ciphertext must never be handed out as the key");
+        }
+    }
+
+    /**
+     * The "carried onto Windows" direction: a key saved as plaintext elsewhere still loads on
+     * Windows, and the label keeps telling the truth — the key on disk is <em>not</em> encrypted,
+     * even though this OS could encrypt one. Reporting DPAPI here would claim protection that was
+     * never applied to the stored value.
+     */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void aPlaintextSavedKeyLoadsOnWindowsAndStillReportsItIsNotEncrypted() throws Exception {
+        writeStoredSettings(SAMPLE_KEY, KeyStorageMode.PLAINTEXT.name());
+
+        OpenCloudSettings reloaded = new OpenCloudSettings(dir); // default protector = DPAPI here
+
+        assertTrue(reloaded.isConfigured());
+        assertEquals(SAMPLE_KEY, reloaded.apiKey());
+        assertEquals(KeyStorageMode.PLAINTEXT, reloaded.storageMode(),
+                "the stored key's own mode wins over what this OS could have applied");
+        assertEquals("not encrypted on this OS", reloaded.storageMode().label());
+        assertEquals(SAMPLE_KEY, rawApiKeyProperty(dir), "loading must not silently rewrite the file");
+    }
+
+    /** Re-saving that carried-in key on Windows is what actually upgrades it to encrypted at rest. */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void resavingAPlaintextKeyOnWindowsUpgradesItToEncryptedAtRest() throws Exception {
+        writeStoredSettings(SAMPLE_KEY, KeyStorageMode.PLAINTEXT.name());
+
+        OpenCloudSettings reloaded = new OpenCloudSettings(dir);
+        reloaded.save(SAMPLE_KEY);
+
+        assertEquals(KeyStorageMode.DPAPI_WINDOWS, reloaded.storageMode());
+        assertEquals("encrypted (Windows DPAPI)", reloaded.storageMode().label());
+        assertNotEquals(SAMPLE_KEY, rawApiKeyProperty(dir), "the re-saved key must be ciphertext");
+        assertEquals(SAMPLE_KEY, new OpenCloudSettings(dir).apiKey());
+    }
+
+    /**
+     * A DPAPI-written key opened through a store whose own protector is the plaintext fallback: the
+     * <em>stored</em> mode decides how the value is decoded and what the label says, not the
+     * protector this store would use for a new key.
+     */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void aDpapiSavedKeyIsDecodedByItsStoredModeNotTheStoresOwnProtector() {
+        new OpenCloudSettings(dir).save(SAMPLE_KEY); // written with DPAPI
+
+        OpenCloudSettings reloaded = new OpenCloudSettings(dir, new PlaintextApiKeyProtector());
+
+        assertTrue(reloaded.isConfigured());
+        assertEquals(SAMPLE_KEY, reloaded.apiKey());
+        assertEquals(KeyStorageMode.DPAPI_WINDOWS, reloaded.storageMode(),
+                "the label must describe how the stored key is actually protected");
     }
 
     // ---- Windows DPAPI path: encryption-at-rest, real native round-trip --------------------
