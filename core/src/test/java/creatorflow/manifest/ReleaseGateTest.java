@@ -9,6 +9,7 @@ import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.model.VerificationStatus;
+import creatorflow.ownership.OwnershipOutcome;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -18,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -56,6 +58,61 @@ class ReleaseGateTest {
 
         assertTrue(report.passed());
         assertTrue(report.violations().isEmpty());
+    }
+
+    @Test
+    void ownershipMismatchWithoutADecisionBlocksAsAReviewLead() {
+        CreativeManifest manifest = manifest(List.of(
+                assetWithOwnership("anim.rbxm", ReleaseDecision.PENDING,
+                        ownership(OwnershipOutcome.MISMATCH))));
+
+        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+
+        assertFalse(report.passed());
+        assertEquals(1, report.violations().size());
+        ReleaseGate.Violation violation = report.violations().get(0);
+        assertEquals(ReleaseGate.Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION, violation.code());
+        assertEquals(1, report.summary().ownershipMismatchWithoutDecision());
+
+        // A mismatch is a review lead, never an accusation of wrongdoing.
+        String message = violation.message().toLowerCase(Locale.ROOT);
+        assertFalse(message.contains("infring"), "message must not allege infringement");
+        assertFalse(message.contains("stolen"), "message must not allege theft");
+        assertFalse(message.contains("steal"), "message must not allege theft");
+        assertFalse(message.contains("illegal"), "message must not allege illegality");
+        // ...but it must clearly prompt a human to record a decision.
+        assertTrue(message.contains("no decision"), "message must surface the missing decision");
+        assertTrue(message.contains("confirm"), "message must prompt a human confirmation");
+    }
+
+    @Test
+    void ownershipMismatchWithAHumanDecisionIsClearedLikeAnApprovedFlag() {
+        CreativeManifest manifest = manifest(List.of(
+                assetWithOwnership("approved.rbxm", ReleaseDecision.APPROVED,
+                        ownership(OwnershipOutcome.MISMATCH)),
+                assetWithOwnership("excluded.rbxm", ReleaseDecision.EXCLUDED,
+                        ownership(OwnershipOutcome.MISMATCH))));
+
+        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+
+        assertTrue(report.passed());
+        assertTrue(report.violations().isEmpty());
+        assertEquals(0, report.summary().ownershipMismatchWithoutDecision());
+    }
+
+    @Test
+    void matchAndUnverifiableOwnershipNeverBlockEvenWhilePending() {
+        CreativeManifest manifest = manifest(List.of(
+                assetWithOwnership("match.rbxm", ReleaseDecision.PENDING,
+                        ownership(OwnershipOutcome.MATCH)),
+                assetWithOwnership("unknown.rbxm", ReleaseDecision.PENDING,
+                        OwnershipEvidence.unchecked())));
+
+        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+
+        assertTrue(report.passed());
+        assertTrue(report.violations().isEmpty());
+        assertEquals(0, report.summary().ownershipMismatchWithoutDecision());
     }
 
     @Test
@@ -154,6 +211,22 @@ class ReleaseGateTest {
         return new AssetEntry(path, path, "png", 1,
                 "a".repeat(64), 1, 1, new Fingerprints(null, null, null), verification,
                 source, decision, List.of(), List.of());
+    }
+
+    /** A CLEAR, source-resolved animation asset carrying a persisted ownership observation. */
+    private static AssetEntry assetWithOwnership(String path, ReleaseDecision decision,
+                                                 OwnershipEvidence ownership) {
+        return new AssetEntry(path, path, "rbxm", 1, "a".repeat(64), 1, 1,
+                new Fingerprints(null, null, null), VerificationStatus.CLEAR,
+                new SourceEvidence("Studio archive", "Owned", "https://example.test/evidence/" + path),
+                decision, List.of(), List.of(), null, ownership);
+    }
+
+    private static OwnershipEvidence ownership(OwnershipOutcome outcome) {
+        long creatorId = 100L;
+        long ownerId = outcome == OwnershipOutcome.MATCH ? 100L : 200L;
+        return new OwnershipEvidence(1234L, "USER", creatorId, "Animation", "Approved",
+                "USER", ownerId, null, outcome, Instant.parse("2026-07-20T00:00:00Z"));
     }
 
     private static CreativeManifest manifest(List<AssetEntry> assets) {
