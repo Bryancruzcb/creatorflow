@@ -1,5 +1,7 @@
 package creatorflow.manifest;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import creatorflow.ownership.OwnershipOutcome;
 import java.time.Instant;
 
@@ -36,6 +38,9 @@ import java.time.Instant;
  * @param outcome the computed {@link OwnershipOutcome}
  * @param checkedAt when this verification was performed; {@code null} for {@link #unchecked()}
  */
+@JsonInclude(JsonInclude.Include.NON_NULL)
+@JsonPropertyOrder({"robloxAssetId", "creatorType", "creatorId", "assetType", "moderationState",
+        "ownerType", "ownerId", "memberRank", "outcome", "checkedAt"})
 public record OwnershipEvidence(
         Long robloxAssetId,
         String creatorType,

@@ -253,6 +253,78 @@ describe('CreatorFlow manifest validation', () => {
     const result = validate(manifest);
     expect(result.ok).toBe(false);
   });
+
+  it('accepts a v0.2 asset with a fully populated optional ownership block', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 507766388,
+      creatorType: 'USER',
+      creatorId: 1,
+      assetType: 'Animation',
+      moderationState: 'Approved',
+      ownerType: 'GROUP',
+      ownerId: 295182,
+      memberRank: 12,
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('accepts a facts-less UNVERIFIABLE ownership block carrying only the required fields', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 999999999,
+      outcome: 'UNVERIFIABLE',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('still accepts a v0.2 manifest whose assets omit ownership entirely (backward compat)', () => {
+    const manifest = validManifestV2();
+    expect('ownership' in manifest.assets[0]).toBe(false);
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('rejects an ownership block with an invalid outcome enum value', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = { robloxAssetId: 1, outcome: 'STOLEN', checkedAt: '2026-07-23T18:30:00Z' };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('rejects an ownership block missing a required field (outcome)', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = { robloxAssetId: 1, checkedAt: '2026-07-23T18:30:00Z' };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('rejects an ownership block with an unknown extra property', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = {
+      robloxAssetId: 1, outcome: 'MATCH', checkedAt: '2026-07-23T18:30:00Z', apiKey: 'leak',
+    };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('rejects an ownership identity type outside USER/GROUP', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = {
+      robloxAssetId: 1, creatorType: 'ROBOT', outcome: 'MATCH', checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('does not allow ownership on a v0.1 asset (the field is v0.2-only)', () => {
+    const manifest = validManifest() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = { robloxAssetId: 1, outcome: 'MATCH', checkedAt: '2026-07-23T18:30:00Z' };
+    expect(validate(manifest).ok).toBe(false);
+  });
 });
 
 // The desktop app serves the built frontend under a strict CSP (`script-src 'self'`,

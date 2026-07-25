@@ -24,8 +24,12 @@ import java.util.Objects;
  *   <li>{@code decision} is {@code DECLARED} once a human decision is present (any value other than
  *       the {@code PENDING} default), otherwise {@code null} (absent) — a decision is a human act,
  *       never inferred, so "no decision yet" is represented as absence rather than a basis.</li>
- *   <li>{@code ownership} is always {@code NOT_VERIFIED} — nothing in CreatorFlow calls a Roblox
- *       ownership or permission API. This must be shown explicitly, never omitted.</li>
+ *   <li>{@code ownership} is {@code VERIFIED} exactly when the asset carries an ownership evidence
+ *       whose facts were obtained from Roblox's Open Cloud API — i.e. {@link OwnershipEvidence#verified()}
+ *       is true (outcome {@code MATCH} or {@code MISMATCH}, both authoritative facts). It is
+ *       {@code NOT_VERIFIED} when no verification exists or the verification was {@code UNVERIFIABLE}.
+ *       {@code VERIFIED} here means "we obtained the facts", never "you have the right to use this".
+ *       The frontend classifier ({@code evidenceBasis.ts}'s {@code ownershipBasis}) mirrors this rule.</li>
  * </ul>
  */
 @JsonPropertyOrder({"verification", "source", "ownership", "decision"})
@@ -34,9 +38,6 @@ public record EvidenceBases(
         EvidenceBasis source,
         @JsonInclude(JsonInclude.Include.NON_NULL) EvidenceBasis decision,
         EvidenceBasis ownership) {
-
-    /** Ownership is a constant this increment: no code calls a Roblox ownership/permission API. */
-    public static final EvidenceBasis OWNERSHIP = EvidenceBasis.NOT_VERIFIED;
 
     public EvidenceBases {
         Objects.requireNonNull(verification, "verification");
@@ -52,6 +53,15 @@ public record EvidenceBases(
         Objects.requireNonNull(asset, "asset");
         EvidenceBasis source = asset.source().resolved() ? EvidenceBasis.DECLARED : EvidenceBasis.NOT_VERIFIED;
         EvidenceBasis decision = asset.decision() == ReleaseDecision.PENDING ? null : EvidenceBasis.DECLARED;
-        return new EvidenceBases(EvidenceBasis.VERIFIED, source, decision, OWNERSHIP);
+        return new EvidenceBases(EvidenceBasis.VERIFIED, source, decision, ownershipBasis(asset.ownership()));
+    }
+
+    /**
+     * The ownership basis: {@code VERIFIED} only when a verification obtained authoritative facts
+     * (a {@code MATCH} or {@code MISMATCH}), else {@code NOT_VERIFIED}. Mirrored verbatim by
+     * {@code evidenceBasis.ts}'s {@code ownershipBasis} — the two classifiers must not diverge.
+     */
+    private static EvidenceBasis ownershipBasis(OwnershipEvidence ownership) {
+        return ownership != null && ownership.verified() ? EvidenceBasis.VERIFIED : EvidenceBasis.NOT_VERIFIED;
     }
 }

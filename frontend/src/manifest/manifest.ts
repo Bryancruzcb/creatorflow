@@ -29,6 +29,36 @@ export interface ManifestEvidenceBases {
   decision?: ManifestEvidenceBasis;
 }
 
+/**
+ * The outcome of one Roblox Open Cloud ownership verification. `MATCH`/`MISMATCH` both mean facts
+ * were obtained (a mismatch is a review lead, never proof of infringement); `UNVERIFIABLE` is an
+ * honest "could not obtain the facts". Mirrors the core `OwnershipOutcome` enum.
+ */
+export type ManifestOwnershipOutcome = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE';
+
+/** The asset-creator / experience-owner identity kind. Mirrors `OwnershipEvidence.TYPE_*`. */
+export type ManifestOwnershipIdentityType = 'USER' | 'GROUP';
+
+/**
+ * Raw facts from one ownership verification of an animation asset: who created it, who owns the
+ * target experience, and (on the user-creator/group-owner path) the creator's group rank. Serialized
+ * with null facts omitted, so only `robloxAssetId`, `outcome`, and `checkedAt` are guaranteed
+ * present. Honesty constraint: a populated block never means "you have the right to use this" — it
+ * means CreatorFlow observed these facts at `checkedAt` (a point-in-time observation).
+ */
+export interface ManifestOwnershipEvidence {
+  robloxAssetId: number;
+  creatorType?: ManifestOwnershipIdentityType;
+  creatorId?: number;
+  assetType?: string;
+  moderationState?: string;
+  ownerType?: ManifestOwnershipIdentityType;
+  ownerId?: number;
+  memberRank?: number;
+  outcome: ManifestOwnershipOutcome;
+  checkedAt: string;
+}
+
 export interface ManifestFingerprints {
   dHash: string | null;
   pHash: string | null;
@@ -63,6 +93,8 @@ export interface ManifestAsset {
   decision: ManifestDecision;
   /** OPTIONAL (v0.2, no schema bump): present when the export path has computed it. */
   evidenceBases?: ManifestEvidenceBases;
+  /** OPTIONAL (v0.2, no schema bump): present only when a persisted ownership verification exists. */
+  ownership?: ManifestOwnershipEvidence;
   matches: ManifestMatch[];
   findings: string[];
 }

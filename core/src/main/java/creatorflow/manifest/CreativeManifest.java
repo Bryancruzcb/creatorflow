@@ -195,7 +195,8 @@ public record CreativeManifest(
     }
 
     @JsonPropertyOrder({"path", "fileName", "fileType", "sizeBytes", "sha256", "width", "height",
-            "fingerprints", "verification", "source", "decision", "evidenceBases", "matches", "findings"})
+            "fingerprints", "verification", "source", "decision", "evidenceBases", "ownership",
+            "matches", "findings"})
     public record AssetEntry(
             String path,
             String fileName,
@@ -210,19 +211,21 @@ public record CreativeManifest(
             ReleaseDecision decision,
             List<Match> matches,
             List<String> findings,
-            @JsonInclude(JsonInclude.Include.NON_NULL) EvidenceBases evidenceBases) {
+            @JsonInclude(JsonInclude.Include.NON_NULL) EvidenceBases evidenceBases,
+            @JsonInclude(JsonInclude.Include.NON_NULL) OwnershipEvidence ownership) {
 
         /**
-         * Convenience constructor for the common case where {@code evidenceBases} has not been
-         * computed yet. {@code evidenceBases} is an OPTIONAL v0.2 manifest field (schema version is
-         * not bumped); the export path should populate it via {@link EvidenceBases#of(AssetEntry)}
-         * and {@link #withEvidenceBases(EvidenceBases)}.
+         * Convenience constructor for the common case where neither {@code evidenceBases} nor
+         * {@code ownership} has been computed yet. Both are OPTIONAL additive v0.2 manifest fields
+         * (the schema version is not bumped); the export path populates {@code evidenceBases} via
+         * {@link EvidenceBases#of(AssetEntry)}/{@link #withEvidenceBases(EvidenceBases)} and
+         * {@code ownership} from a persisted verification via {@link #withOwnershipEvidence(OwnershipEvidence)}.
          */
         public AssetEntry(String path, String fileName, String fileType, long sizeBytes, String sha256,
                 int width, int height, Fingerprints fingerprints, VerificationStatus verification,
                 SourceEvidence source, ReleaseDecision decision, List<Match> matches, List<String> findings) {
             this(path, fileName, fileType, sizeBytes, sha256, width, height, fingerprints, verification,
-                    source, decision, matches, findings, null);
+                    source, decision, matches, findings, null, null);
         }
 
         public AssetEntry {
@@ -244,10 +247,20 @@ public record CreativeManifest(
             findings = List.copyOf(findings);
         }
 
-        /** Returns a copy of this entry with its {@code evidenceBases} replaced. */
+        /** Returns a copy of this entry with its {@code evidenceBases} replaced, keeping ownership. */
         public AssetEntry withEvidenceBases(EvidenceBases bases) {
             return new AssetEntry(path, fileName, fileType, sizeBytes, sha256, width, height,
-                    fingerprints, verification, source, decision, matches, findings, bases);
+                    fingerprints, verification, source, decision, matches, findings, bases, ownership);
+        }
+
+        /**
+         * Returns a copy of this entry with its {@code ownership} evidence replaced, keeping
+         * {@code evidenceBases}. The export path stamps this from a persisted verification row (never
+         * a live call); a {@code null} argument clears it (the asset was never verified).
+         */
+        public AssetEntry withOwnershipEvidence(OwnershipEvidence ownership) {
+            return new AssetEntry(path, fileName, fileType, sizeBytes, sha256, width, height,
+                    fingerprints, verification, source, decision, matches, findings, evidenceBases, ownership);
         }
     }
 
