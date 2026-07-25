@@ -8,8 +8,13 @@ import java.time.Instant;
  * A persisted row from the insert-only {@code ownership_verifications} ledger: one point-in-time
  * Open Cloud ownership observation for an immutable scan asset. Carries the raw facts (creator and
  * experience-owner identities, the group-membership rank when that path applied, moderation state)
- * next to the computed {@link OwnershipOutcome}, plus the raw response JSON and the {@code checkedAt}
- * stamp so downstream reads facts rather than re-deriving them.
+ * next to the computed {@link OwnershipOutcome} and the {@code checkedAt} stamp, so downstream reads
+ * facts rather than re-deriving them.
+ *
+ * <p>These parsed facts are the whole record — no raw upstream response body is kept. Storing one
+ * would have to be a real audit trail (written on every call, including the failed ones this record
+ * never sees), not an optional field a single writer happens to leave null; until something needs
+ * that, claiming it would be a promise the ledger does not keep.
  *
  * <p><strong>Honesty:</strong> {@code outcome == MATCH || outcome == MISMATCH} means authoritative
  * facts were obtained (the basis for {@code VERIFIED}); it never means "you have rights to this
@@ -29,7 +34,6 @@ import java.time.Instant;
  * @param ownerId the experience owner's id; {@code null} if unknown
  * @param memberRank the creator-user's rank in the owning group, when that path applied; else {@code null}
  * @param outcome the computed {@link OwnershipOutcome}
- * @param rawResponseJson the raw upstream response(s) captured for audit; may be {@code null}
  * @param checkedAt when this verification was performed
  */
 public record OwnershipVerificationRecord(
@@ -45,7 +49,6 @@ public record OwnershipVerificationRecord(
         Long ownerId,
         Integer memberRank,
         OwnershipOutcome outcome,
-        String rawResponseJson,
         Instant checkedAt) {
 
     /** {@code true} when authoritative facts were obtained (outcome {@code MATCH} or {@code MISMATCH}). */

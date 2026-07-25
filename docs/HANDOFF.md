@@ -146,11 +146,16 @@ persisted rows only — export never touches the network, so manifests stay byte
   `VERIFIED`, for any input); and the panel says in words that you entered the id and that only
   that id's ownership was checked. `evidenceBases.ownership = VERIFIED` is a statement about the
   animation id, never about the file.
-- **What stays NOT_VERIFIED.** Any failure — no key, a 4xx/5xx, a 429 rate-limit, an
-  unreadable/deleted id — is `UNVERIFIABLE`, never a false `VERIFIED`. A file nobody has entered
-  an id for has no ownership block at all and stays `NOT_VERIFIED`. A verification is a
-  **point-in-time observation**: CreatorFlow surfaces `checkedAt` ("checked N days ago") and does
-  not expire or auto-re-check.
+- **What stays NOT_VERIFIED.** A lookup that *ran* but could not obtain the facts — a 4xx/5xx, a
+  network error, an unreadable/deleted id, an id that is not an `Animation` — is `UNVERIFIABLE`,
+  never a false `VERIFIED`. Two paths persist **nothing at all** rather than an `UNVERIFIABLE`
+  row: **no key** (the bridge route rejects with 409 before any call, and the panel disables the
+  Verify button up front so the click never happens) and a **429 rate-limit** (surfaced distinctly
+  as "rate-limited, try again"; a transient throttle is not an observation about ownership). In
+  both, the asset keeps whatever ownership state it already had. A file nobody has entered an id
+  for has no ownership block at all and stays `NOT_VERIFIED`. A verification is a **point-in-time
+  observation**: CreatorFlow surfaces `checkedAt` ("checked N days ago") and does not expire or
+  auto-re-check.
 
 ## Two Studio-plugin paths (hard rule)
 

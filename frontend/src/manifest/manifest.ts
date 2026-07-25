@@ -19,8 +19,19 @@ export type ManifestEvidenceBasis = 'VERIFIED' | 'DECLARED' | 'NOT_VERIFIED';
 
 /**
  * Per-facet evidence provenance for one asset. `decision` is omitted until a human records a
- * decision. `ownership` is always `NOT_VERIFIED` — nothing in CreatorFlow calls a Roblox ownership
- * or permission API.
+ * decision.
+ *
+ * `ownership` is `NOT_VERIFIED` by default and becomes `VERIFIED` only when the asset carries an
+ * `ownership` block whose outcome is `MATCH` or `MISMATCH` — i.e. CreatorFlow obtained the
+ * creator/owner facts from Roblox Open Cloud itself. It stays `NOT_VERIFIED` when nothing was
+ * checked and when a check ran but could not obtain the facts (`UNVERIFIABLE`). Mirrors the Java
+ * `EvidenceBases` rule verbatim.
+ *
+ * Two things it never means: that anyone has the right to use the asset, and that this asset entry
+ * *is* the animation that was checked. The verified facts are about a `robloxAssetId` a person
+ * typed in (see `ManifestOwnershipEvidence.assetIdSource`); that file-to-animation link is a human
+ * declaration, classified separately by `ownershipLinkBasis` in `bridge/evidenceBasis.ts` and never
+ * `VERIFIED`.
  */
 export interface ManifestEvidenceBases {
   verification: ManifestEvidenceBasis;

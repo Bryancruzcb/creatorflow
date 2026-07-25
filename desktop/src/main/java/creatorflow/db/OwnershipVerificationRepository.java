@@ -38,20 +38,19 @@ public final class OwnershipVerificationRepository {
         this.connection = database.connection();
     }
 
-    /** Convenience insert without a captured raw response body. */
-    public OwnershipVerificationRecord insert(long scanAssetId, long universeId, OwnershipEvidence evidence) {
-        return insert(scanAssetId, universeId, evidence, null);
-    }
-
     /**
      * Append one verification for a scan asset. {@code universeId} is passed alongside the evidence
      * because it identifies which experience the creator was checked against and is not carried on
      * {@link OwnershipEvidence} itself. The evidence must be an actual observation — a non-null
      * {@code robloxAssetId} (something was checked) and a non-null {@code checkedAt} (a point in
-     * time). {@code rawResponseJson} is optional and may be {@code null}.
+     * time).
+     *
+     * <p>Only the parsed facts are persisted. The ledger keeps no raw upstream response body: it
+     * never had a writer, and an audit trail that is only written on the calls that happened to
+     * succeed would be worse than none.
      */
     public OwnershipVerificationRecord insert(long scanAssetId, long universeId,
-                                              OwnershipEvidence evidence, String rawResponseJson) {
+                                              OwnershipEvidence evidence) {
         Objects.requireNonNull(evidence, "evidence");
         if (evidence.robloxAssetId() == null) {
             throw new IllegalArgumentException(
@@ -67,14 +66,14 @@ public final class OwnershipVerificationRepository {
                 UUID.randomUUID().toString(), scanAssetId, evidence.robloxAssetId(), universeId,
                 evidence.creatorType(), evidence.creatorId(), evidence.assetType(),
                 evidence.moderationState(), evidence.ownerType(), evidence.ownerId(),
-                evidence.memberRank(), evidence.outcome(), rawResponseJson, evidence.checkedAt());
+                evidence.memberRank(), evidence.outcome(), evidence.checkedAt());
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO ownership_verifications(
                       id, scan_asset_id, roblox_asset_id, universe_id, creator_type, creator_id,
                       asset_type, moderation_state, owner_type, owner_id, member_rank, outcome,
-                      raw_response_json, checked_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+                      checked_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
                 statement.setString(1, record.id());
                 statement.setLong(2, record.scanAssetId());
                 statement.setLong(3, record.robloxAssetId());
@@ -87,8 +86,7 @@ public final class OwnershipVerificationRepository {
                 setNullableLong(statement, 10, record.ownerId());
                 setNullableInt(statement, 11, record.memberRank());
                 statement.setString(12, record.outcome().name());
-                statement.setString(13, record.rawResponseJson());
-                statement.setString(14, record.checkedAt().toString());
+                statement.setString(13, record.checkedAt().toString());
                 statement.executeUpdate();
             } catch (SQLException error) {
                 throw new IllegalStateException("Could not persist ownership verification", error);
@@ -101,7 +99,7 @@ public final class OwnershipVerificationRepository {
      * The full verification history for one scan asset, newest first (the same
      * {@code checked_at DESC, rowid DESC} ordering {@link #latestForAsset(long)} uses, so the first
      * element is always the current answer). Empty when the asset was never verified. This backs the
-     * bridge's history route, which never exposes the raw response body or the API key.
+     * bridge's history route, which never exposes the API key.
      */
     public java.util.List<OwnershipVerificationRecord> historyForAsset(long scanAssetId) {
         synchronized (connection) {
@@ -187,7 +185,6 @@ public final class OwnershipVerificationRepository {
                 nullableLong(result, "owner_id"),
                 nullableInt(result, "member_rank"),
                 OwnershipOutcome.valueOf(result.getString("outcome")),
-                result.getString("raw_response_json"),
                 Instant.parse(result.getString("checked_at")));
     }
 

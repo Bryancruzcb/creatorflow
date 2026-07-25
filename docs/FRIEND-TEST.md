@@ -118,14 +118,21 @@ published version. Do it in order; capture results in the template at the end.
      framed as a lead for a person to confirm the team has rights, never an
      accusation (the words "infringement"/"stolen" must not appear), prompting the
      required-reason decision flow;
-   - **NOT_VERIFIED — could not verify** (UNVERIFIABLE): no key, an
-     unreadable/deleted id, or a rate-limit — an honest "could not check", never a
-     false VERIFIED.
-   Confirm the verdict shows the point-in-time facts (creator, experience owner,
-   moderation) and a **checked today / N days ago** stamp. Then check the honesty
-   boundaries: with **no key configured** the button is disabled with a clear
-   reason; a file nobody has entered an id for stays **NOT_VERIFIED** with nothing
-   to check. Most important — confirm the panel does **not** claim it verified
+   - **NOT_VERIFIED — could not verify** (UNVERIFIABLE): the lookup ran but could
+     not obtain the facts — an unreadable/deleted id, an id that is not an
+     Animation, or an Open Cloud/network error. An honest "could not check", never
+     a false VERIFIED.
+   Two of the failure paths record **nothing at all** — don't expect an
+   UNVERIFIABLE row from either. With **no key configured** the Verify button is
+   disabled with a clear reason pointing at the Settings card, so no call is made
+   and nothing is stored. A **rate-limit (429)** shows a distinct "rate-limited,
+   try again" message (with the wait when Roblox reports one); a throttle is not an
+   observation about ownership, so the asset keeps exactly the ownership state it
+   already had. Confirm the verdict shows the point-in-time facts (creator,
+   experience owner, moderation) and a **checked today / N days ago** stamp. Then
+   check the honesty boundaries: a file nobody has entered an id for stays
+   **NOT_VERIFIED** with nothing to check. Most important — confirm the panel does
+   **not** claim it verified
    *this file's* ownership: the **Animation ID you entered** row must read
    **DECLARED** next to the VERIFIED facts, and the panel must say in words that
    you entered the id and that CreatorFlow cannot check that this file is that
@@ -177,7 +184,7 @@ Part 2:
   tri-state badges ........ VERIFIED/DECLARED/NOT_VERIFIED shown correctly? Y/N ; ownership NOT_VERIFIED before verify? Y/N
   ownership verify ........ key accepted? Y/N ; storage line: "encrypted (Windows DPAPI)" / "not encrypted on this OS"
                             outcome: MATCH/MISMATCH/UNVERIFIABLE ; checkedAt shown? Y/N
-                            no-key disables button? Y/N ; un-checked file stays NOT_VERIFIED? Y/N
+                            no-key disables button (and records nothing)? Y/N ; un-checked file stays NOT_VERIFIED? Y/N
                             entered-id row reads DECLARED, not VERIFIED? Y/N
                             mismatch worded as a lead, not an accusation? Y/N
   required-reason gate .... blocked on empty reason? Y/N

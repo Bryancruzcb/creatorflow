@@ -1,5 +1,7 @@
 package creatorflow.service.opencloud;
 
+import java.util.Optional;
+
 /**
  * How an Open Cloud API key is protected where it is stored on disk.
  *
@@ -33,16 +35,21 @@ public enum KeyStorageMode {
     }
 
     /**
-     * Resolve a persisted mode id back to an enum, tolerating an unknown or missing value by
-     * assuming {@link #PLAINTEXT} — the safe reading, since it never claims encryption that
-     * wasn't applied.
+     * Resolve a persisted mode id back to an enum, or {@link Optional#empty()} when the id is
+     * missing or not one this build knows.
+     *
+     * <p><strong>Never defaults to {@link #PLAINTEXT}.</strong> The mode is how the stored value is
+     * <em>decoded</em>, so assuming plaintext for an unknown label would read DPAPI ciphertext back
+     * as the key itself and send it to Roblox verbatim as an {@code x-api-key}. An unidentifiable
+     * mode means the value cannot be decoded at all; the caller must degrade to "not configured"
+     * (see {@link OpenCloudSettings}) rather than invent a key.
      */
-    static KeyStorageMode fromId(String id) {
+    static Optional<KeyStorageMode> fromId(String id) {
         for (KeyStorageMode mode : values()) {
             if (mode.name().equals(id)) {
-                return mode;
+                return Optional.of(mode);
             }
         }
-        return PLAINTEXT;
+        return Optional.empty();
     }
 }

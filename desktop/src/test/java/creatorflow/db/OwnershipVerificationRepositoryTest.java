@@ -29,6 +29,29 @@ class OwnershipVerificationRepositoryTest {
     @TempDir
     Path directory;
 
+    /**
+     * The ledger may only carry columns production code actually writes. {@code raw_response_json}
+     * was a column (and a record component) whose javadoc claimed the upstream body was "captured
+     * for audit" while no writer ever populated it — an audit promise the schema could not back.
+     * A column with no writer is a false claim waiting to be believed, so the shape is pinned here.
+     */
+    @Test
+    void theLedgerCarriesOnlyColumnsProductionCodeActuallyWrites() throws Exception {
+        try (Database database = new Database(directory.resolve("columns.db"))) {
+            List<String> columns = new java.util.ArrayList<>();
+            try (var statement = database.connection().createStatement();
+                 var result = statement.executeQuery("PRAGMA table_info(ownership_verifications)")) {
+                while (result.next()) {
+                    columns.add(result.getString("name"));
+                }
+            }
+            assertEquals(List.of("id", "scan_asset_id", "roblox_asset_id", "universe_id",
+                            "creator_type", "creator_id", "asset_type", "moderation_state",
+                            "owner_type", "owner_id", "member_rank", "outcome", "checked_at"),
+                    columns);
+        }
+    }
+
     @Test
     void insertAndLatestForAssetRoundTripEveryFactIncludingNulls() {
         try (Database database = new Database(directory.resolve("ownership.db"))) {
@@ -41,8 +64,7 @@ class OwnershipVerificationRepositoryTest {
             OwnershipEvidence match = new OwnershipEvidence(507766388L, OwnershipEvidence.TYPE_USER, 42L,
                     "Animation", "Approved", OwnershipEvidence.TYPE_USER, 42L, null,
                     OwnershipOutcome.MATCH, checkedAt);
-            OwnershipVerificationRecord inserted =
-                    verifications.insert(scanAssetId, UNIVERSE_ID, match, "{\"assetId\":\"507766388\"}");
+            OwnershipVerificationRecord inserted = verifications.insert(scanAssetId, UNIVERSE_ID, match);
 
             OwnershipVerificationRecord loaded = verifications.latestForAsset(scanAssetId).orElseThrow();
             assertEquals(inserted.id(), loaded.id());
@@ -57,7 +79,6 @@ class OwnershipVerificationRepositoryTest {
             assertEquals(42L, loaded.ownerId());
             assertNull(loaded.memberRank());
             assertEquals(OwnershipOutcome.MATCH, loaded.outcome());
-            assertEquals("{\"assetId\":\"507766388\"}", loaded.rawResponseJson());
             assertEquals(checkedAt, loaded.checkedAt());
         }
     }
@@ -72,7 +93,7 @@ class OwnershipVerificationRepositoryTest {
 
             Instant early = Instant.parse("2026-07-24T09:00:00Z");
             verifications.insert(scanAssetId, UNIVERSE_ID, new OwnershipEvidence(123L, null, null, null, null,
-                    null, null, null, OwnershipOutcome.UNVERIFIABLE, early), null);
+                    null, null, null, OwnershipOutcome.UNVERIFIABLE, early));
             OwnershipVerificationRecord unverifiable = verifications.latestForAsset(scanAssetId).orElseThrow();
             assertEquals(OwnershipOutcome.UNVERIFIABLE, unverifiable.outcome());
             assertNull(unverifiable.creatorType());
@@ -82,12 +103,11 @@ class OwnershipVerificationRepositoryTest {
             assertNull(unverifiable.memberRank());
             assertNull(unverifiable.assetType());
             assertNull(unverifiable.moderationState());
-            assertNull(unverifiable.rawResponseJson());
 
             Instant later = Instant.parse("2026-07-24T10:00:00Z");
             verifications.insert(scanAssetId, UNIVERSE_ID, new OwnershipEvidence(999L, OwnershipEvidence.TYPE_USER,
                     7L, "Animation", "Approved", OwnershipEvidence.TYPE_GROUP, 295182L, 12,
-                    OwnershipOutcome.MATCH, later), null);
+                    OwnershipOutcome.MATCH, later));
 
             OwnershipVerificationRecord latest = verifications.latestForAsset(scanAssetId).orElseThrow();
             assertEquals(OwnershipOutcome.MATCH, latest.outcome());
@@ -111,10 +131,10 @@ class OwnershipVerificationRepositoryTest {
             Instant tied = Instant.parse("2026-07-24T00:00:00Z");
             verifications.insert(scanAssetId, UNIVERSE_ID, new OwnershipEvidence(500L, OwnershipEvidence.TYPE_USER,
                     1L, "Animation", "Approved", OwnershipEvidence.TYPE_USER, 2L, null,
-                    OwnershipOutcome.MISMATCH, tied), null);
+                    OwnershipOutcome.MISMATCH, tied));
             verifications.insert(scanAssetId, UNIVERSE_ID, new OwnershipEvidence(500L, OwnershipEvidence.TYPE_USER,
                     2L, "Animation", "Approved", OwnershipEvidence.TYPE_USER, 2L, null,
-                    OwnershipOutcome.MATCH, tied), null);
+                    OwnershipOutcome.MATCH, tied));
 
             assertEquals(OwnershipOutcome.MATCH, verifications.latestForAsset(scanAssetId).orElseThrow().outcome());
         }
@@ -132,14 +152,14 @@ class OwnershipVerificationRepositoryTest {
 
             // Asset A: verified twice (older UNVERIFIABLE, newer MATCH) — the newer must win.
             verifications.insert(assetA, UNIVERSE_ID, new OwnershipEvidence(11L, null, null, null, null,
-                    null, null, null, OwnershipOutcome.UNVERIFIABLE, Instant.parse("2026-07-24T08:00:00Z")), null);
+                    null, null, null, OwnershipOutcome.UNVERIFIABLE, Instant.parse("2026-07-24T08:00:00Z")));
             verifications.insert(assetA, UNIVERSE_ID, new OwnershipEvidence(11L, OwnershipEvidence.TYPE_USER,
                     5L, "Animation", "Approved", OwnershipEvidence.TYPE_USER, 5L, null,
-                    OwnershipOutcome.MATCH, Instant.parse("2026-07-24T09:00:00Z")), null);
+                    OwnershipOutcome.MATCH, Instant.parse("2026-07-24T09:00:00Z")));
             // Asset B: verified once.
             verifications.insert(assetB, UNIVERSE_ID, new OwnershipEvidence(22L, OwnershipEvidence.TYPE_USER,
                     6L, "Animation", "Approved", OwnershipEvidence.TYPE_USER, 7L, null,
-                    OwnershipOutcome.MISMATCH, Instant.parse("2026-07-24T09:30:00Z")), null);
+                    OwnershipOutcome.MISMATCH, Instant.parse("2026-07-24T09:30:00Z")));
 
             Map<Long, OwnershipVerificationRecord> latest = verifications.latestForRun(runId);
             assertEquals(2, latest.size());
@@ -159,12 +179,12 @@ class OwnershipVerificationRepositoryTest {
 
             // unchecked() has a null roblox asset id — there is nothing that was actually checked to persist.
             assertThrows(IllegalArgumentException.class,
-                    () -> verifications.insert(scanAssetId, UNIVERSE_ID, OwnershipEvidence.unchecked(), null));
+                    () -> verifications.insert(scanAssetId, UNIVERSE_ID, OwnershipEvidence.unchecked()));
             // A verification with no timestamp cannot be a point-in-time observation.
             OwnershipEvidence noTimestamp = new OwnershipEvidence(1L, OwnershipEvidence.TYPE_USER, 1L,
                     "Animation", "Approved", OwnershipEvidence.TYPE_USER, 1L, null, OwnershipOutcome.MATCH, null);
             assertThrows(IllegalArgumentException.class,
-                    () -> verifications.insert(scanAssetId, UNIVERSE_ID, noTimestamp, null));
+                    () -> verifications.insert(scanAssetId, UNIVERSE_ID, noTimestamp));
         }
     }
 
@@ -182,14 +202,13 @@ class OwnershipVerificationRepositoryTest {
             scanAssetId = scans.listAssets(runId, 10, 0).getFirst().id();
             verifications.insert(scanAssetId, UNIVERSE_ID, new OwnershipEvidence(77L, OwnershipEvidence.TYPE_GROUP,
                     3L, "Animation", "Approved", OwnershipEvidence.TYPE_GROUP, 3L, null,
-                    OwnershipOutcome.MATCH, Instant.parse("2026-07-24T11:00:00Z")), "{\"kept\":true}");
+                    OwnershipOutcome.MATCH, Instant.parse("2026-07-24T11:00:00Z")));
         }
 
         try (Database reopened = new Database(file)) {
             var verifications = new OwnershipVerificationRepository(reopened);
             OwnershipVerificationRecord survived = verifications.latestForAsset(scanAssetId).orElseThrow();
             assertEquals(OwnershipOutcome.MATCH, survived.outcome());
-            assertEquals("{\"kept\":true}", survived.rawResponseJson());
 
             try (var statement = reopened.connection().prepareStatement("DELETE FROM projects WHERE id = ?")) {
                 statement.setLong(1, projectId);

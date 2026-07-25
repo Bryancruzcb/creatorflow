@@ -179,8 +179,16 @@ class ReleaseExportServiceTest {
         }
     }
 
+    /**
+     * Pins the bases derived for assets with <em>no</em> ownership verification row: source follows
+     * resolution, verification is always CreatorFlow's own computation, and ownership stays
+     * NOT_VERIFIED because nothing was checked. Since Phase A ownership is no longer unconditionally
+     * NOT_VERIFIED — a persisted MATCH/MISMATCH makes it VERIFIED, which
+     * {@link #stampsPersistedOwnershipOntoTheManifestFlippingTheBasisOnlyWhenFactsWereObtained()} covers. This test's subject
+     * is the un-checked default, not a global rule.
+     */
     @Test
-    void populatesEvidenceBasesConsistentlyWithSourceResolutionAndAlwaysMarksOwnershipUnverified()
+    void populatesEvidenceBasesFromSourceResolutionAndLeavesOwnershipNotVerifiedWhenNothingWasChecked()
             throws Exception {
         try (Database database = new Database(directory.resolve("evidence-bases.db"))) {
             Fixture fixture = new Fixture(database);
@@ -197,13 +205,15 @@ class ReleaseExportServiceTest {
             AssetEntry resolved = bundle.manifest().assets().stream()
                     .filter(entryAsset -> entryAsset.path().equals("audio/theme.wav")).findFirst().orElseThrow();
 
-            // BLOCKED/unresolved asset: source is honestly unknown, ownership is never checked.
+            // BLOCKED/unresolved asset: source is honestly unknown; nobody entered an animation id
+            // for it, so there is no verification row and ownership reads NOT_VERIFIED — an unknown.
             assertEquals(EvidenceBasis.NOT_VERIFIED, unresolved.evidenceBases().source());
             assertEquals(EvidenceBasis.NOT_VERIFIED, unresolved.evidenceBases().ownership());
             assertEquals(EvidenceBasis.VERIFIED, unresolved.evidenceBases().verification());
             assertEquals(null, unresolved.evidenceBases().decision());
 
-            // Resolved asset: a human recorded source/license, so it's DECLARED; ownership still unverified.
+            // Resolved asset: a human recorded source/license, so it's DECLARED. Ownership is still
+            // NOT_VERIFIED here for the same reason — unchecked, not checked-and-found-wanting.
             assertEquals(EvidenceBasis.DECLARED, resolved.evidenceBases().source());
             assertEquals(EvidenceBasis.NOT_VERIFIED, resolved.evidenceBases().ownership());
             assertEquals(EvidenceBasis.VERIFIED, resolved.evidenceBases().verification());

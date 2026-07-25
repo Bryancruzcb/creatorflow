@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Optional;
 import java.util.Properties;
 
 /**
@@ -20,8 +21,11 @@ import java.util.Properties;
  * </ul>
  *
  * <p>The mode used to write a key is persisted next to it, so a reload decodes it correctly even
- * if it was saved under a different mode. The key itself never appears in {@link #toString()},
- * logs, or exceptions.
+ * if it was saved under a different mode. That label is load-bearing: if it is missing or not one
+ * this build recognizes, the stored value is <em>undecodable</em> and the store reports itself as
+ * not configured. It is never assumed to be plaintext — doing so would hand DPAPI ciphertext out as
+ * the key and send it to Roblox as an {@code x-api-key}. The key itself never appears in
+ * {@link #toString()}, logs, or exceptions.
  */
 public final class OpenCloudSettings {
 
@@ -57,13 +61,20 @@ public final class OpenCloudSettings {
             if (stored.isBlank()) {
                 return;
             }
-            KeyStorageMode storedMode = KeyStorageMode.fromId(props.getProperty(MODE_PROPERTY, ""));
-            apiKey = ApiKeyProtector.forMode(storedMode).unprotect(stored).strip();
-            mode = storedMode;
+            Optional<KeyStorageMode> storedMode = KeyStorageMode.fromId(props.getProperty(MODE_PROPERTY, ""));
+            if (storedMode.isEmpty()) {
+                // A stored value whose protection mode is missing or unrecognized cannot be decoded:
+                // we do not know whether it is a key or ciphertext. Guessing PLAINTEXT here would hand
+                // DPAPI ciphertext out as apiKey() and send it to Roblox as an x-api-key, so an
+                // unlabeled value is "not configured" — the user re-saves the key from Settings.
+                return;
+            }
+            apiKey = ApiKeyProtector.forMode(storedMode.get()).unprotect(stored).strip();
+            mode = storedMode.get();
         } catch (IOException | RuntimeException e) {
             // Unreadable or undecryptable settings (e.g. DPAPI ciphertext copied from another
-            // user/machine) mean "not configured"; the user can re-save from Settings. The key,
-            // if any, is never surfaced in the swallowed exception.
+            // user/machine, or a truncated file) mean "not configured"; the user can re-save from
+            // Settings. The key, if any, is never surfaced in the swallowed exception.
             apiKey = "";
         }
     }

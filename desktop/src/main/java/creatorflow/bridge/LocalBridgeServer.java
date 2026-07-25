@@ -740,9 +740,9 @@ public final class LocalBridgeServer implements AutoCloseable {
     }
 
     /**
-     * The persisted verification as the UI sees it. Deliberately omits {@code rawResponseJson} (the
-     * captured upstream body) and, of course, never carries the API key — neither belongs in a
-     * history the frontend renders.
+     * The persisted verification as the UI sees it: the parsed facts and nothing else. It never
+     * carries the API key, and there is no raw upstream body to leak — the ledger stores only the
+     * facts it parsed.
      *
      * <p>Carries {@code assetIdSource} so the UI renders the file-to-animation link honestly: the
      * ownership facts are CreatorFlow's own, but the id they are about was typed in by a person.

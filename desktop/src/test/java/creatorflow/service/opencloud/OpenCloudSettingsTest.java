@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Properties;
@@ -25,6 +26,8 @@ class OpenCloudSettingsTest {
     Path dir;
 
     private static final String SAMPLE_KEY = "oc-secret-9f83a1b7c2d4e5f6";
+    /** Base64-shaped, i.e. exactly what DPAPI ciphertext looks like at rest. */
+    private static final String CIPHERTEXT_SHAPED = "AQAAANCMnd8BFdERjHoAwE/Cl+sBAAAA";
 
     // ---- fallback (plaintext) path: runs everywhere ----------------------------------------
 
@@ -80,7 +83,79 @@ class OpenCloudSettingsTest {
                 "toString must never leak the API key");
     }
 
+    // ---- an unusable at-rest form degrades to "not configured", never to a bogus key -------
+
+    /**
+     * Regression: a stored value whose {@code storageMode} label is unrecognized used to be decoded
+     * as if it were plaintext, so DPAPI ciphertext was handed back as {@link #apiKey()} and would be
+     * sent to Roblox verbatim as {@code x-api-key}. An unidentifiable protection mode means the
+     * stored value cannot be decoded at all — the honest reading is "not configured".
+     */
+    @Test
+    void anUnrecognizedStorageModeIsNotConfiguredRatherThanReadAsPlaintext() throws Exception {
+        writeStoredSettings(CIPHERTEXT_SHAPED, "OS_KEYCHAIN_MACOS");
+
+        OpenCloudSettings settings = new OpenCloudSettings(dir, new PlaintextApiKeyProtector());
+
+        assertFalse(settings.isConfigured(), "an undecodable stored key must read as not configured");
+        assertEquals("", settings.apiKey());
+        assertNotEquals(CIPHERTEXT_SHAPED, settings.apiKey(),
+                "the at-rest value must never be handed out as if it were the key");
+    }
+
+    /** Same defect via the other door: the mode property is absent entirely. */
+    @Test
+    void aMissingStorageModeWithAStoredValueIsNotConfigured() throws Exception {
+        writeStoredSettings(CIPHERTEXT_SHAPED, null);
+
+        OpenCloudSettings settings = new OpenCloudSettings(dir, new PlaintextApiKeyProtector());
+
+        assertFalse(settings.isConfigured(), "a stored value with no mode label cannot be decoded");
+        assertEquals("", settings.apiKey());
+    }
+
+    /** A DPAPI-labeled value that is not decodable ciphertext is also just "not configured". */
+    @Test
+    void corruptedCiphertextIsNotConfigured() throws Exception {
+        writeStoredSettings("!!! not base64 !!!", KeyStorageMode.DPAPI_WINDOWS.name());
+
+        OpenCloudSettings settings = new OpenCloudSettings(dir, new PlaintextApiKeyProtector());
+
+        assertFalse(settings.isConfigured());
+        assertEquals("", settings.apiKey());
+    }
+
+    /** A plaintext-labeled key still loads — the fix must not break the fallback platform. */
+    @Test
+    void anExplicitPlaintextModeStillLoadsTheKey() throws Exception {
+        writeStoredSettings(SAMPLE_KEY, KeyStorageMode.PLAINTEXT.name());
+
+        OpenCloudSettings settings = new OpenCloudSettings(dir, new PlaintextApiKeyProtector());
+
+        assertTrue(settings.isConfigured());
+        assertEquals(SAMPLE_KEY, settings.apiKey());
+    }
+
     // ---- Windows DPAPI path: encryption-at-rest, real native round-trip --------------------
+
+    /**
+     * The full-fidelity version of the regression above, with real DPAPI ciphertext: if the mode
+     * label is lost, the ciphertext must not come back as the key.
+     */
+    @Test
+    @EnabledOnOs(OS.WINDOWS)
+    void realDpapiCiphertextWithoutItsModeLabelIsNeverReadBackAsAKey() throws Exception {
+        new OpenCloudSettings(dir).save(SAMPLE_KEY);
+        String ciphertext = rawApiKeyProperty(dir);
+        writeStoredSettings(ciphertext, null); // the label is gone; the ciphertext is not
+
+        OpenCloudSettings reloaded = new OpenCloudSettings(dir);
+
+        assertFalse(reloaded.isConfigured(), "unlabeled ciphertext must degrade to not configured");
+        assertEquals("", reloaded.apiKey());
+        assertNotEquals(ciphertext, reloaded.apiKey(),
+                "ciphertext must never be handed to Open Cloud as an x-api-key");
+    }
 
     @Test
     @EnabledOnOs(OS.WINDOWS)
@@ -106,6 +181,18 @@ class OpenCloudSettingsTest {
     void defaultProtectorReportsDpapiOnWindows() {
         assertEquals(KeyStorageMode.DPAPI_WINDOWS,
                 new OpenCloudSettings(dir).storageMode());
+    }
+
+    /** Hand-write the at-rest file, so a hand-edited / truncated / foreign settings file can be pinned. */
+    private void writeStoredSettings(String storedKey, String storageMode) throws Exception {
+        Properties props = new Properties();
+        props.setProperty("apiKey", storedKey);
+        if (storageMode != null) {
+            props.setProperty("storageMode", storageMode);
+        }
+        try (OutputStream out = Files.newOutputStream(dir.resolve("opencloud.properties"))) {
+            props.store(out, "test fixture");
+        }
     }
 
     private static String rawApiKeyProperty(Path dir) throws Exception {
