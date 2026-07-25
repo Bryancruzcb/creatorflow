@@ -1,10 +1,10 @@
 package creatorflow.service.opencloud;
 
 import creatorflow.manifest.OwnershipEvidence;
+import creatorflow.ownership.GroupMembership;
 import creatorflow.ownership.OwnershipOutcome;
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Optional;
 
 /**
  * Orchestrates the raw Open Cloud lookups into one {@link OwnershipEvidence} for an animation asset:
@@ -25,6 +25,9 @@ import java.util.Optional;
  *       {@link IOException} network error) is folded into an {@code UNVERIFIABLE} evidence carrying
  *       whatever facts <em>were</em> obtained before the failure — never a thrown exception, never a
  *       false {@code VERIFIED}.</li>
+ *   <li>Group membership is a tri-state {@link GroupMembership}, never a nullable rank. A member
+ *       whose rank could not be resolved is a {@code MATCH} with an absent rank — only an
+ *       <em>observed</em> absence from the membership listing may yield a {@code MISMATCH}.</li>
  *   <li>A 429 {@link RateLimitedException} is transient and is <em>propagated</em> so the caller can
  *       surface a distinct "rate-limited, try again" rather than a generic unverifiable result.</li>
  *   <li>A non-{@code Animation} asset type never yields a {@code MATCH}: the id does not point at the
@@ -106,23 +109,27 @@ public final class OwnershipVerifier {
         Long ownerId = owner.ownerId();
 
         // ---- 3. group membership: ONLY when a user created an asset for a group-owned experience ----
-        Integer memberRank = null;
+        GroupMembership membership = null;
         if (OwnershipOutcome.TYPE_USER.equals(creatorType)
                 && OwnershipOutcome.TYPE_GROUP.equals(ownerType)
                 && creatorId != null && ownerId != null) {
             try {
-                memberRank = gateway.groupMemberRank(ownerId, creatorId).orElse(null);
+                membership = gateway.groupMembership(ownerId, creatorId);
             } catch (RateLimitedException e) {
                 throw e;
             } catch (IOException e) {
-                // A failed membership lookup is NOT proof of non-membership. If we let evaluate() read
-                // the null rank it would report MISMATCH — an accusation we cannot back. Stay honest.
+                // A failed membership lookup is NOT proof of non-membership. If we let evaluate() see
+                // no membership fact it would stay UNVERIFIABLE anyway; short-circuiting here keeps
+                // that explicit. Either way it must never read as MISMATCH.
                 return unverifiable(robloxAssetId, creatorType, creatorId, assetType, moderationState, ownerType, ownerId, now);
             }
         }
 
+        // The rank is a stored fact, not a gate: a member whose rank we could not resolve is still a
+        // MATCH, recorded with an absent rank rather than a fabricated one.
+        Integer memberRank = membership == null ? null : membership.rank();
         OwnershipOutcome outcome =
-                OwnershipOutcome.evaluate(creatorType, creatorId, ownerType, ownerId, memberRank);
+                OwnershipOutcome.evaluate(creatorType, creatorId, ownerType, ownerId, membership);
         return new OwnershipEvidence(robloxAssetId, creatorType, creatorId, assetType, moderationState,
                 ownerType, ownerId, memberRank, outcome, now);
     }
@@ -156,8 +163,8 @@ public final class OwnershipVerifier {
         }
 
         @Override
-        public Optional<Integer> groupMemberRank(long groupId, long userId) throws IOException {
-            return client.groupMemberRank(groupId, userId);
+        public GroupMembership groupMembership(long groupId, long userId) throws IOException {
+            return client.groupMembership(groupId, userId);
         }
     }
 }

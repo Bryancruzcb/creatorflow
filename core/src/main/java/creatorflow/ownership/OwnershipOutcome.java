@@ -6,10 +6,13 @@ package creatorflow.ownership;
  *
  * <ul>
  *   <li>{@code MATCH} — the creator identity equals the experience owner identity, OR the
- *       creator is a {@code USER} and is a member of the owning {@code GROUP} (any rank).</li>
+ *       creator is a {@code USER} and is a member of the owning {@code GROUP} — <em>any</em> rank,
+ *       including a rank that could not be resolved (see {@link GroupMembership}).</li>
  *   <li>{@code MISMATCH} — facts were obtained for both sides, but the creator is neither the
- *       owner nor a member of the owning group. This is a <strong>review lead</strong>, never a
- *       verdict — the team may legitimately license the asset.</li>
+ *       owner nor a member of the owning group — and non-membership must have been
+ *       <em>observed</em>, never inferred from an unresolved lookup. This is a
+ *       <strong>review lead</strong>, never a verdict — the team may legitimately license the
+ *       asset.</li>
  *   <li>{@code UNVERIFIABLE} — a required fact could not be obtained (missing id, unrecognized
  *       identity kind, API error upstream). The ownership evidence basis stays
  *       {@code NOT_VERIFIED}; this is an honest "unknown", never a false {@code MATCH} or
@@ -40,14 +43,17 @@ public enum OwnershipOutcome {
      * @param creatorId the creator's id; {@code null} if unknown
      * @param ownerType {@link #TYPE_USER} or {@link #TYPE_GROUP}; {@code null} if unknown
      * @param ownerId the experience owner's id; {@code null} if unknown
-     * @param memberRank the creator-user's rank in the owning group, when known; {@code null} when
-     *     not applicable or when the creator is not a member. Only consulted on the
-     *     {@code USER} creator / {@code GROUP} owner path — irrelevant on every other path,
-     *     including when the creator and owner already match directly.
+     * @param membership the tri-state group-membership fact, when one was obtained; {@code null}
+     *     when no membership lookup was performed. Only consulted on the {@code USER} creator /
+     *     {@code GROUP} owner path — irrelevant on every other path, including when the creator and
+     *     owner already match directly. A member with an unresolved rank
+     *     ({@link GroupMembership.Status#MEMBER_RANK_UNKNOWN}) is still a member and still a
+     *     {@code MATCH}; only an observed absence may contribute to a {@code MISMATCH}.
      * @return the computed outcome
      */
     public static OwnershipOutcome evaluate(String creatorType, Long creatorId,
-                                            String ownerType, Long ownerId, Integer memberRank) {
+                                            String ownerType, Long ownerId,
+                                            GroupMembership membership) {
         if (!isKnownType(creatorType) || creatorId == null || !isKnownType(ownerType) || ownerId == null) {
             return UNVERIFIABLE;
         }
@@ -60,7 +66,14 @@ public enum OwnershipOutcome {
         // "a member" of a user, so a GROUP-creator / USER-owner cross-type pair is always a
         // mismatch (facts were obtained; they just don't line up).
         if (TYPE_USER.equals(creatorType) && TYPE_GROUP.equals(ownerType)) {
-            return memberRank != null ? MATCH : MISMATCH;
+            if (membership == null) {
+                // No membership fact at all. Absence of evidence is not evidence of absence: a
+                // missing lookup must never be read as "provably not a member".
+                return UNVERIFIABLE;
+            }
+            // Any observed membership matches (locked decision) — including one whose rank we could
+            // not resolve. Only an observed absence justifies the MISMATCH review lead.
+            return membership.isMember() ? MATCH : MISMATCH;
         }
 
         return MISMATCH;

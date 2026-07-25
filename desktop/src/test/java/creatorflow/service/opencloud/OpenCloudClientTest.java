@@ -8,6 +8,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import creatorflow.ownership.GroupMembership;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
@@ -16,6 +17,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,6 +30,10 @@ import org.junit.jupiter.api.io.TempDir;
  * asymmetry, the empty-membership-list "not a member" shape, the 404 shape, 429 -> a dedicated
  * {@link RateLimitedException}, other 4xx -> {@link OpenCloudException} with the status, and the
  * {@code x-api-key} header.
+ *
+ * <p>The membership tests also pin the tri-state contract: the spike note (line 48) records that the
+ * membership-<em>entry</em> shape was never observed live, so every way the rank can fail to resolve
+ * is exercised and must yield {@code MEMBER_RANK_UNKNOWN} — only an empty list is "not a member".
  */
 class OpenCloudClientTest {
 
@@ -107,6 +113,34 @@ class OpenCloudClientTest {
             }
             """;
 
+    // a real member, but the entry carries no role reference at all
+    private static final String MEMBERSHIP_MEMBER_NO_ROLE_FIELD = """
+            {
+              "groupMemberships": [
+                {
+                  "path": "groups/295182/memberships/ABC",
+                  "user": "users/82914"
+                }
+              ],
+              "nextPageToken": ""
+            }
+            """;
+
+    // a real member, but "role" is an object rather than the documented resource-path string.
+    // The spike note (line 48) never observed this entry shape live, so a divergence is a live risk.
+    private static final String MEMBERSHIP_MEMBER_ROLE_OBJECT = """
+            {
+              "groupMemberships": [
+                {
+                  "path": "groups/295182/memberships/ABC",
+                  "user": "users/82914",
+                  "role": { "path": "groups/295182/roles/98765", "id": "98765" }
+                }
+              ],
+              "nextPageToken": ""
+            }
+            """;
+
     // empty list = NOT a member (a 200, not an error)
     private static final String MEMBERSHIP_NOT_MEMBER = """
             {"groupMemberships":[],"nextPageToken":""}
@@ -117,6 +151,17 @@ class OpenCloudClientTest {
               "groupRoles": [
                 {"path":"groups/295182/roles/12","id":"12","displayName":"Guest","rank":0,"memberCount":100},
                 {"path":"groups/295182/roles/98765","id":"98765","displayName":"Builder","rank":150,"memberCount":5}
+              ],
+              "nextPageToken": ""
+            }
+            """;
+
+    // the member's role id (98765) is NOT in this listing — e.g. the role was deleted between the
+    // memberships call and the roles call
+    private static final String GROUP_ROLES_WITHOUT_THE_MEMBERS_ROLE = """
+            {
+              "groupRoles": [
+                {"path":"groups/295182/roles/12","id":"12","displayName":"Guest","rank":0,"memberCount":100}
               ],
               "nextPageToken": ""
             }
@@ -230,25 +275,104 @@ class OpenCloudClientTest {
         assertEquals(295182L, owner.ownerId());
     }
 
-    // ---- groupMemberRank --------------------------------------------------------------------
+    // ---- groupMembership --------------------------------------------------------------------
 
     @Test
-    void groupMemberRankReturnsTheMembersRoleRank() throws IOException {
+    void groupMembershipReturnsTheMembersRoleRank() throws IOException {
         stub("/cloud/v2/groups/295182/memberships", 200, MEMBERSHIP_IS_MEMBER);
         stub("/cloud/v2/groups/295182/roles", 200, GROUP_ROLES);
 
-        Optional<Integer> rank = client().groupMemberRank(295182L, 82914L);
+        GroupMembership membership = client().groupMembership(295182L, 82914L);
 
-        assertEquals(Optional.of(150), rank);
+        assertEquals(GroupMembership.Status.MEMBER_RANK_KNOWN, membership.status());
+        assertEquals(150, membership.rank());
     }
 
     @Test
-    void groupMemberRankIsEmptyWhenNotAMemberAndDoesNotThrow() throws IOException {
+    void groupMembershipIsNotAMemberOnlyWhenTheMembershipListIsEmpty() throws IOException {
         stub("/cloud/v2/groups/295182/memberships", 200, MEMBERSHIP_NOT_MEMBER);
 
-        Optional<Integer> rank = client().groupMemberRank(295182L, 111L);
+        GroupMembership membership = client().groupMembership(295182L, 111L);
 
-        assertTrue(rank.isEmpty(), "an empty membership list means not-a-member, not an error");
+        assertEquals(GroupMembership.Status.NOT_A_MEMBER, membership.status(),
+                "an empty membership list means not-a-member, not an error");
+        assertFalse(membership.isMember());
+    }
+
+    @Test
+    void groupMembershipRefusesToCallAnUnreadableResponseNotAMember() {
+        // No groupMemberships field at all — NOT the 200-with-empty-list shape the spike note
+        // observed. We did not observe an absence, so we must not claim one; an unreadable response
+        // is a failed lookup, which OwnershipVerifier folds into UNVERIFIABLE.
+        stub("/cloud/v2/groups/295182/memberships", 200, "{\"nextPageToken\":\"\"}");
+
+        assertThrows(IOException.class, () -> client().groupMembership(295182L, 111L),
+                "a missing memberships array is an unreadable response, not a confirmed absence");
+    }
+
+    // An observed membership entry whose RANK cannot be resolved must degrade to MEMBER_RANK_UNKNOWN.
+    // Collapsing these into "not a member" would let CreatorFlow publish a VERIFIED MISMATCH against
+    // a real group member — a false accusation, the worst possible output.
+
+    @Test
+    void groupMembershipWithNoRoleFieldIsMemberWithUnknownRank() throws IOException {
+        stub("/cloud/v2/groups/295182/memberships", 200, MEMBERSHIP_MEMBER_NO_ROLE_FIELD);
+        stub("/cloud/v2/groups/295182/roles", 200, GROUP_ROLES);
+
+        GroupMembership membership = client().groupMembership(295182L, 82914L);
+
+        assertEquals(GroupMembership.Status.MEMBER_RANK_UNKNOWN, membership.status(),
+                "a missing role field hides the rank; it does not disprove membership");
+        assertTrue(membership.isMember());
+        assertNull(membership.rank());
+    }
+
+    @Test
+    void groupMembershipWithAnUnexpectedRoleShapeIsMemberWithUnknownRank() throws IOException {
+        stub("/cloud/v2/groups/295182/memberships", 200, MEMBERSHIP_MEMBER_ROLE_OBJECT);
+        stub("/cloud/v2/groups/295182/roles", 200, GROUP_ROLES);
+
+        GroupMembership membership = client().groupMembership(295182L, 82914L);
+
+        assertEquals(GroupMembership.Status.MEMBER_RANK_UNKNOWN, membership.status(),
+                "the entry shape was never observed live; a divergence must read as unknown, not absent");
+        assertTrue(membership.isMember());
+        assertNull(membership.rank());
+    }
+
+    @Test
+    void groupMembershipWithARoleMissingFromTheRolesListingIsMemberWithUnknownRank() throws IOException {
+        stub("/cloud/v2/groups/295182/memberships", 200, MEMBERSHIP_IS_MEMBER);
+        stub("/cloud/v2/groups/295182/roles", 200, GROUP_ROLES_WITHOUT_THE_MEMBERS_ROLE);
+
+        GroupMembership membership = client().groupMembership(295182L, 82914L);
+
+        assertEquals(GroupMembership.Status.MEMBER_RANK_UNKNOWN, membership.status(),
+                "a role deleted between the two calls hides the rank; membership was still observed");
+        assertTrue(membership.isMember());
+        assertNull(membership.rank());
+    }
+
+    @Test
+    void groupMembershipIsMemberWithUnknownRankWhenRolePagingHitsTheCap() throws IOException {
+        stub("/cloud/v2/groups/295182/memberships", 200, MEMBERSHIP_IS_MEMBER);
+        AtomicInteger rolePages = new AtomicInteger();
+        // every page hands back another token and never the member's role -> the cap is reached
+        server.createContext("/cloud/v2/groups/295182/roles", exchange -> {
+            rolePages.incrementAndGet();
+            respond(exchange, 200, """
+                    {"groupRoles":[{"path":"groups/295182/roles/12","id":"12","rank":0}],
+                     "nextPageToken":"more"}
+                    """);
+        });
+
+        GroupMembership membership = client().groupMembership(295182L, 82914L);
+
+        assertEquals(GroupMembership.Status.MEMBER_RANK_UNKNOWN, membership.status(),
+                "exhausting the paging cap hides the rank; it does not disprove membership");
+        assertTrue(membership.isMember());
+        assertNull(membership.rank());
+        assertEquals(OpenCloudClient.MAX_ROLE_PAGES, rolePages.get(), "the page loop stays bounded");
     }
 
     // ---- isConfigured -----------------------------------------------------------------------

@@ -1,7 +1,7 @@
 package creatorflow.service.opencloud;
 
+import creatorflow.ownership.GroupMembership;
 import java.io.IOException;
-import java.util.Optional;
 
 /**
  * The narrow subset of {@link OpenCloudClient} operations that {@link OwnershipVerifier} depends on.
@@ -23,5 +23,5 @@ interface OpenCloudGateway {
 
     OpenCloudClient.UniverseOwner getUniverse(long universeId) throws IOException;
 
-    Optional<Integer> groupMemberRank(long groupId, long userId) throws IOException;
+    GroupMembership groupMembership(long groupId, long userId) throws IOException;
 }

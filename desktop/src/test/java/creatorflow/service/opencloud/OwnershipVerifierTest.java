@@ -10,17 +10,18 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import creatorflow.manifest.OwnershipEvidence;
+import creatorflow.ownership.GroupMembership;
 import java.io.IOException;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.Optional;
 import org.junit.jupiter.api.Test;
 
 /**
  * {@link OwnershipVerifier} orchestrates the raw Open Cloud calls into one {@link OwnershipEvidence}.
  * These tests inject an in-memory fake {@link OpenCloudGateway} (never a live API, never an HTTP
  * stub) and walk the full decision tree: user/user MATCH, group/group MATCH, user-in-owning-group
- * MATCH (with rank), user-not-in-group MISMATCH, cross-user MISMATCH, and every honesty guard —
+ * MATCH (with rank), member-with-unresolvable-rank MATCH (no rank), user-observed-absent-from-group
+ * MISMATCH, cross-user MISMATCH, and every honesty guard —
  * a getAsset error, a getUniverse error, a membership error, a not-an-Animation asset, and a 429 —
  * must NEVER produce a false VERIFIED/MATCH. 429 propagates distinctly; every other failure folds
  * to UNVERIFIABLE while keeping whatever facts were obtained.
@@ -86,7 +87,7 @@ class OwnershipVerifierTest {
     void userCreatorInsideOwningGroupMatchesAndPersistsRank() throws Exception {
         gateway.asset = animationBy("USER", USER);
         gateway.universe = new OpenCloudClient.UniverseOwner("GROUP", GROUP);
-        gateway.membership = Optional.of(150);
+        gateway.membership = GroupMembership.rankKnown(150);
 
         OwnershipEvidence e = verifier().verify(ASSET_ID, UNIVERSE_ID, NOW);
 
@@ -98,18 +99,36 @@ class OwnershipVerifierTest {
         assertEquals(USER, gateway.membershipUserId, "membership is checked for the creating user");
     }
 
+    @Test
+    void userCreatorIsAMemberWithAnUnresolvedRankStillMatchesWithNoRankRecorded() throws Exception {
+        gateway.asset = animationBy("USER", USER);
+        gateway.universe = new OpenCloudClient.UniverseOwner("GROUP", GROUP);
+        // membership WAS observed; only the rank could not be resolved (unexpected entry shape,
+        // deleted role, paging cap...). Any membership matches; the rank is merely stored.
+        gateway.membership = GroupMembership.rankUnknown();
+
+        OwnershipEvidence e = verifier().verify(ASSET_ID, UNIVERSE_ID, NOW);
+
+        assertEquals(MATCH, e.outcome(),
+                "a real member with an unresolvable rank must never be reported as a MISMATCH");
+        assertTrue(e.verified());
+        assertNull(e.memberRank(), "no rank may be fabricated when it could not be resolved");
+        assertEquals(1, gateway.membershipCalls);
+    }
+
     // ---- MISMATCH paths (facts obtained, they just don't line up) ---------------------------
 
     @Test
-    void userCreatorNotInOwningGroupIsMismatchNotUnverifiable() throws Exception {
+    void userCreatorObservedAbsentFromOwningGroupIsMismatchNotUnverifiable() throws Exception {
         gateway.asset = animationBy("USER", USER);
         gateway.universe = new OpenCloudClient.UniverseOwner("GROUP", GROUP);
-        gateway.membership = Optional.empty(); // confirmed NOT a member (an empty list, not an error)
+        // the ONLY non-membership fact: the memberships list was read and came back empty
+        gateway.membership = GroupMembership.notAMember();
 
         OwnershipEvidence e = verifier().verify(ASSET_ID, UNIVERSE_ID, NOW);
 
         assertEquals(MISMATCH, e.outcome());
-        assertTrue(e.verified(), "a confirmed non-membership is still an obtained fact");
+        assertTrue(e.verified(), "an observed absence from the membership list is an obtained fact");
         assertNull(e.memberRank());
         assertEquals(1, gateway.membershipCalls);
     }
@@ -256,7 +275,7 @@ class OwnershipVerifierTest {
         IOException assetError;
         OpenCloudClient.UniverseOwner universe;
         IOException universeError;
-        Optional<Integer> membership = Optional.empty();
+        GroupMembership membership = GroupMembership.notAMember();
         IOException membershipError;
 
         int assetCalls;
@@ -284,7 +303,7 @@ class OwnershipVerifierTest {
         }
 
         @Override
-        public Optional<Integer> groupMemberRank(long groupId, long userId) throws IOException {
+        public GroupMembership groupMembership(long groupId, long userId) throws IOException {
             membershipCalls++;
             membershipGroupId = groupId;
             membershipUserId = userId;

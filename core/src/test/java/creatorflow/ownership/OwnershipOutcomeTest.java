@@ -5,6 +5,7 @@ import static creatorflow.ownership.OwnershipOutcome.TYPE_USER;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import creatorflow.manifest.OwnershipEvidence;
@@ -12,8 +13,12 @@ import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
 /**
- * Full truth table for the pure {@link OwnershipOutcome#evaluate} evaluator, plus the
- * {@link OwnershipEvidence} value type's {@code verified()} rule and {@code unchecked()} factory.
+ * Full truth table for the pure {@link OwnershipOutcome#evaluate} evaluator, the tri-state
+ * {@link GroupMembership} it consumes, plus the {@link OwnershipEvidence} value type's
+ * {@code verified()} rule and {@code unchecked()} factory.
+ *
+ * <p>The load-bearing row: a member whose rank could not be resolved is a {@code MATCH}, never the
+ * {@code MISMATCH} that an observed absence produces.
  *
  * <p>No I/O anywhere in this test — the evaluator is a pure function of its inputs.
  */
@@ -52,9 +57,9 @@ class OwnershipOutcomeTest {
     @Test
     void userCreatorInOwningGroupIsMatchRegardlessOfRank() {
         assertEquals(OwnershipOutcome.MATCH,
-                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, 255));
+                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, GroupMembership.rankKnown(255)));
         assertEquals(OwnershipOutcome.MATCH,
-                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, 1));
+                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, GroupMembership.rankKnown(1)));
     }
 
     @Test
@@ -62,12 +67,29 @@ class OwnershipOutcomeTest {
         // Rank 0 (e.g. the default "Guest" role) is a real membership fact, not an absent one.
         // Integer 0 must not be treated as falsy/absent.
         assertEquals(OwnershipOutcome.MATCH,
-                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, 0));
+                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, GroupMembership.rankKnown(0)));
     }
 
     @Test
-    void userCreatorNotInOwningGroupIsMismatch() {
+    void userCreatorIsMemberWithUnresolvedRankIsMatchNeverMismatch() {
+        // The membership entry was observed; only its RANK could not be resolved. Reporting that as
+        // a MISMATCH would be a false, authoritative accusation against a real group member.
+        assertEquals(OwnershipOutcome.MATCH,
+                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, GroupMembership.rankUnknown()));
+    }
+
+    @Test
+    void userCreatorObservedAbsentFromOwningGroupIsMismatch() {
+        // Only an OBSERVED absence (an empty memberships list) may lead to the MISMATCH review lead.
         assertEquals(OwnershipOutcome.MISMATCH,
+                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, GroupMembership.notAMember()));
+    }
+
+    @Test
+    void noMembershipFactOnTheGroupPathIsUnverifiableNotMismatch() {
+        // No lookup happened at all, so nothing is known. Absence of evidence must not become
+        // evidence of absence.
+        assertEquals(OwnershipOutcome.UNVERIFIABLE,
                 OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_GROUP, 295182L, null));
     }
 
@@ -123,9 +145,41 @@ class OwnershipOutcomeTest {
 
     @Test
     void memberRankIsIgnoredWhenTypesAlreadyMatchDirectly() {
-        // A stray non-null memberRank must not flip a same-type mismatch into a match.
+        // A stray membership fact must not flip a same-type mismatch into a match.
         assertEquals(OwnershipOutcome.MISMATCH,
-                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_USER, 2L, 5));
+                OwnershipOutcome.evaluate(TYPE_USER, 1L, TYPE_USER, 2L, GroupMembership.rankKnown(5)));
+    }
+
+    // --- GroupMembership: the tri-state itself ---
+
+    @Test
+    void groupMembershipDistinguishesAbsenceFromAnUnresolvedRank() {
+        GroupMembership absent = GroupMembership.notAMember();
+        GroupMembership unresolved = GroupMembership.rankUnknown();
+        GroupMembership known = GroupMembership.rankKnown(150);
+
+        assertFalse(absent.isMember(), "an observed absence is the only non-membership");
+        assertTrue(unresolved.isMember(), "an unresolved rank is still an observed membership");
+        assertTrue(known.isMember());
+
+        assertNull(absent.rank());
+        assertNull(unresolved.rank(), "no rank may be fabricated when it could not be resolved");
+        assertEquals(150, known.rank());
+
+        assertEquals(GroupMembership.Status.NOT_A_MEMBER, absent.status());
+        assertEquals(GroupMembership.Status.MEMBER_RANK_UNKNOWN, unresolved.status());
+        assertEquals(GroupMembership.Status.MEMBER_RANK_KNOWN, known.status());
+    }
+
+    @Test
+    void groupMembershipRejectsIncoherentStatusAndRankCombinations() {
+        assertThrows(IllegalArgumentException.class,
+                () -> new GroupMembership(GroupMembership.Status.MEMBER_RANK_KNOWN, null));
+        assertThrows(IllegalArgumentException.class,
+                () -> new GroupMembership(GroupMembership.Status.MEMBER_RANK_UNKNOWN, 7));
+        assertThrows(IllegalArgumentException.class,
+                () -> new GroupMembership(GroupMembership.Status.NOT_A_MEMBER, 7));
+        assertThrows(NullPointerException.class, () -> new GroupMembership(null, null));
     }
 
     // --- OwnershipEvidence.verified() ---

@@ -132,7 +132,11 @@ export never touches the network, so manifests stay byte-deterministic.
   never an accusation or an auto-block; only a mismatch with no recorded decision blocks the
   gate, and a human APPROVED/EXCLUDED decision clears it. Group policy: *any* membership in the
   owning group is a MATCH, and the member's rank is persisted so the policy can tighten later
-  without re-verifying.
+  without re-verifying. Membership is a **tri-state** fact and only the memberships listing
+  decides it: a member whose *rank* could not be resolved (unexpected entry shape, a role deleted
+  mid-check, the role-paging cap) is still a MATCH, recorded with no rank. Only an **observed**
+  absence — a 200 with an empty memberships list — can produce a MISMATCH, so a shape divergence
+  can never turn a real group member into a published accusation of non-membership.
 - **What stays NOT_VERIFIED.** Any failure — no key, a 4xx/5xx, a 429 rate-limit, an
   unreadable/deleted id — is `UNVERIFIABLE`, never a false `VERIFIED`. Generic scanned files that
   carry only a `sha256`/path have no Roblox id to check, so they stay `NOT_VERIFIED` by design.

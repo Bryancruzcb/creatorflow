@@ -2,6 +2,7 @@ package creatorflow.service.opencloud;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import creatorflow.ownership.GroupMembership;
 import creatorflow.ownership.OwnershipOutcome;
 import java.io.IOException;
 import java.net.URI;
@@ -11,7 +12,6 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
-import java.util.Optional;
 
 /**
  * The one and only component that talks to Roblox Open Cloud. Mirrors
@@ -36,8 +36,11 @@ public final class OpenCloudClient {
             .build();
     private static final Duration REQUEST_TIMEOUT = Duration.ofSeconds(4);
 
-    /** A group can have up to 40 roles; a small paging bound keeps a runaway token loop finite. */
-    private static final int MAX_ROLE_PAGES = 20;
+    /**
+     * A group can have up to 40 roles; a small paging bound keeps a runaway token loop finite.
+     * Hitting the bound means the rank is unknown — it never means "not a member".
+     */
+    static final int MAX_ROLE_PAGES = 20;
 
     /**
      * A stable, publicly-readable ROBLOX default animation ("R15Idle", from the Task 0 spike note).
@@ -130,27 +133,46 @@ public final class OpenCloudClient {
     }
 
     /**
-     * The creator-user's rank in the owning group, or {@link Optional#empty()} if they are not a
-     * member.
+     * The creator-user's membership in the owning group as a tri-state {@link GroupMembership} —
+     * observed-absent, member-with-rank, or member-with-unresolved-rank.
      *
      * <p>Two calls per the spike note: the memberships filter endpoint
      * ({@code GET /cloud/v2/groups/{g}/memberships?filter=user=='users/{u}'}) — an <strong>empty
      * {@code groupMemberships} list is "not a member", a 200, never an error</strong> — followed by
      * the roles lookup ({@code GET /cloud/v2/groups/{g}/roles}) to resolve the membership entry's
      * role resource path to its numeric {@code rank}.
+     *
+     * <p><strong>The rank lookup never decides membership.</strong> Once a membership entry is
+     * observed the user <em>is</em> a member; if the role reference is missing/blank/an unexpected
+     * shape, the role id is absent from the roles listing, or {@link #MAX_ROLE_PAGES} is hit, the
+     * result is {@code MEMBER_RANK_UNKNOWN} — never "not a member". The spike note (line 48) records
+     * that the membership-entry shape was never observed live, so a shape divergence must degrade to
+     * an honest unknown instead of a false accusation of non-membership. For the same reason a
+     * response carrying no {@code groupMemberships} array at all is treated as a failed lookup
+     * ({@link IOException}) rather than as an observed absence.
      */
-    public Optional<Integer> groupMemberRank(long groupId, long userId) throws IOException {
+    public GroupMembership groupMembership(long groupId, long userId) throws IOException {
         String filter = URLEncoder.encode("user == 'users/" + userId + "'", StandardCharsets.UTF_8);
         JsonNode memberships = get("/cloud/v2/groups/" + groupId
                 + "/memberships?maxPageSize=1&filter=" + filter);
 
         JsonNode list = memberships.path("groupMemberships");
-        if (!list.isArray() || list.isEmpty()) {
-            return Optional.empty(); // empty list == not a member (NOT an error)
+        if (!list.isArray()) {
+            // NOT the 200-with-empty-list shape the spike note observed. We did not observe an
+            // absence, so we must not report one — an unreadable response is a failed lookup, which
+            // the verifier folds into UNVERIFIABLE.
+            throw new IOException("Unrecognized memberships response: no groupMemberships array");
+        }
+        if (list.isEmpty()) {
+            return GroupMembership.notAMember(); // empty list == not a member (NOT an error)
         }
 
-        String roleId = lastSegment(list.get(0).path("role").asText(""));
-        return Optional.ofNullable(rankForRole(groupId, roleId));
+        // A membership entry exists: from here on the only honest answers are "member, rank R" and
+        // "member, rank unknown".
+        JsonNode role = list.get(0).path("role");
+        String roleId = role.isTextual() ? lastSegment(role.asText()) : "";
+        Integer rank = rankForRole(groupId, roleId);
+        return rank == null ? GroupMembership.rankUnknown() : GroupMembership.rankKnown(rank);
     }
 
     /** Resolve a role id to its numeric rank via the paginated roles endpoint; {@code null} if unresolved. */
