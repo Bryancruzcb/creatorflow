@@ -57,20 +57,27 @@ public final class ReleaseGate {
                         "SIMILAR and DUPLICATE assets require APPROVED or EXCLUDED"));
             }
 
-            // Ownership mismatch is a REVIEW LEAD, mirroring FLAGGED_WITHOUT_APPROVAL: it blocks only
-            // while no human decision has been recorded (PENDING). A MATCH never blocks, and an
-            // UNVERIFIABLE never blocks — absence of proof is not proof. Any human decision resolves
-            // it: APPROVED/EXCLUDED clear it here (EXCLUDED already skipped above; BLOCKED already
-            // handled above), never the Open Cloud result itself. The message stays a lead, not an
-            // accusation of infringement.
+            // Ownership mismatch is a REVIEW LEAD, mirroring FLAGGED_WITHOUT_APPROVAL exactly: it
+            // keeps standing until a human RESOLVES it, and only APPROVED or EXCLUDED resolve it
+            // (EXCLUDED already skipped above; BLOCKED already handled above — so the test here is
+            // "not APPROVED"). NEEDS_REVIEW does NOT clear it: that is a human recording that review
+            // has *not* happened yet, so treating it as a resolution would let a release pass
+            // carrying a mismatch nobody ever looked at. A MATCH never blocks, and an UNVERIFIABLE
+            // never blocks — absence of proof is not proof. Only a human clears this, never the Open
+            // Cloud result itself. The message stays a lead, not an accusation of infringement, and
+            // it states the standing decision truthfully rather than claiming none was recorded.
             if (asset.ownership() != null
                     && asset.ownership().outcome() == OwnershipOutcome.MISMATCH
-                    && asset.decision() == ReleaseDecision.PENDING) {
+                    && asset.decision() != ReleaseDecision.APPROVED) {
                 ownershipMismatchUndecided++;
                 violations.add(violation(asset, Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION,
                         "The Roblox animation ID entered for this file has a creator who is not the "
-                                + "owner of the target experience, and no decision has been recorded — "
-                                + "confirm the team has rights to ship it."));
+                                + "owner of the target experience, and "
+                                + (asset.decision() == ReleaseDecision.NEEDS_REVIEW
+                                        ? "it is still marked Needs review"
+                                        : "no decision has been recorded")
+                                + " — confirm the team has rights to ship it, then approve or "
+                                + "exclude it."));
             }
         }
 
@@ -88,6 +95,12 @@ public final class ReleaseGate {
         BLOCKED_DECISION,
         UNRESOLVED_SOURCE,
         FLAGGED_WITHOUT_APPROVAL,
+        /**
+         * An ownership {@code MISMATCH} review lead carrying no <em>resolving</em> decision. The
+         * name is historical: both {@code PENDING} (nothing recorded) and {@code NEEDS_REVIEW}
+         * (recorded, but it states review has not happened) count here. Only {@code APPROVED} or
+         * {@code EXCLUDED} clear it.
+         */
         OWNERSHIP_MISMATCH_WITHOUT_DECISION
     }
 
@@ -111,6 +124,7 @@ public final class ReleaseGate {
             int blockedAssets,
             int unresolvedAssets,
             int flaggedWithoutApproval,
+            // Ownership mismatches with no RESOLVING decision — see Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION.
             int ownershipMismatchWithoutDecision) {
     }
 
