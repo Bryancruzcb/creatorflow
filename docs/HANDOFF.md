@@ -88,6 +88,10 @@ npm --prefix frontend run build
   records without retaining raw joint curves.
 - The source-first Studio desktop bridge reads two permitted Animation IDs and rejects
   non-loopback endpoints.
+- With an optional Roblox Open Cloud API key, an explicit action verifies an animation's creator
+  and the target experience's owner through Roblox's own API, records the facts point-in-time,
+  and surfaces a match as positive evidence or a mismatch as a non-accusatory review lead (see
+  *Ownership verification* below).
 
 ## Important product semantics
 
@@ -100,8 +104,40 @@ npm --prefix frontend run build
   root-path scores are not meaningful, so those buttons are visual focus only in this mode.
 - Similarity is a review lead, never an authorship, copying, or copyright verdict — this
   honesty won the SJ Hacks judge question and it's all over the docs; keep it.
+- Ownership `VERIFIED` means CreatorFlow obtained the creator/owner facts from Roblox, **not**
+  that the team has the right to use the asset; a mismatch is a review lead, never an accusation,
+  and a scanned file with only a `sha256`/path stays `NOT_VERIFIED` (no Roblox id to check). See
+  *Ownership verification* below.
 - "Publish" in CreatorFlow currently means prepare and record a Roblox Studio handoff. It is
   not a direct Roblox upload.
+
+## Ownership verification (Phase A — shipped 2026-07-24)
+
+The always-`NOT_VERIFIED` ownership row is now *verified where Roblox's Open Cloud API allows
+it*. On an animation asset that carries a real Roblox animation id and whose project has a bound
+experience, an explicit **Verify ownership** action calls Open Cloud once (desktop-side — the
+only live-call site), confirms who created the asset and who owns the target experience, and
+persists the raw facts to an insert-only ledger (`V010`). Downstream reads persisted rows only —
+export never touches the network, so manifests stay byte-deterministic.
+
+- **Key setup.** Add a user-scoped Open Cloud API key (asset + universe + group read) under
+  **Settings → Roblox Open Cloud**. The key stays on the machine — never in the manifest,
+  frontend, logs, or VCS. It is protected at rest: **DPAPI-encrypted on Windows**
+  (`Crypt32Util.protectData`, base64 ciphertext bound to the Windows user, via JNA); on other
+  OSes it falls back to plaintext and the Settings card says so plainly (*encrypted (Windows
+  DPAPI)* vs *not encrypted on this OS*) — it never claims protection the platform can't back.
+- **The honesty ceiling.** `VERIFIED` means *facts were obtained* — a MATCH (creator == owner,
+  or the creator-user is a member of the owning group) and a MISMATCH both qualify. It never
+  means "you have the right to use this asset". A MISMATCH is a **review lead** for a human,
+  never an accusation or an auto-block; only a mismatch with no recorded decision blocks the
+  gate, and a human APPROVED/EXCLUDED decision clears it. Group policy: *any* membership in the
+  owning group is a MATCH, and the member's rank is persisted so the policy can tighten later
+  without re-verifying.
+- **What stays NOT_VERIFIED.** Any failure — no key, a 4xx/5xx, a 429 rate-limit, an
+  unreadable/deleted id — is `UNVERIFIABLE`, never a false `VERIFIED`. Generic scanned files that
+  carry only a `sha256`/path have no Roblox id to check, so they stay `NOT_VERIFIED` by design.
+  A verification is a **point-in-time observation**: CreatorFlow surfaces `checkedAt` ("checked
+  N days ago") and does not expire or auto-re-check.
 
 ## Two Studio-plugin paths (hard rule)
 
@@ -256,7 +292,9 @@ Bryan's call on integration).
 3. **Team registries**: the server API is per-account; a shared account works for demos, real
    teams need memberships.
 4. From GPT's original build order: creator/group/experience ownership and permission context
-   per Animation ID; last-known-good and last-published immutable animation snapshots; a
+   per Animation ID *(the creator/owner/group-ownership match shipped 2026-07-24 — see
+   Ownership verification above; a fuller permission graph remains)*; last-known-good and
+   last-published immutable animation snapshots; a
    runtime probe for intended rig, priority, loop, markers, duration, and load errors; Release
    Flow as a Roblox checklist (version note, audience/eligibility, asset permission diff,
    rollback target, Studio publish confirmation, rollout, smoke test); Stress Lab as a device

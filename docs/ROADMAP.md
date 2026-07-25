@@ -20,6 +20,35 @@ Issue #20, closed. Shipped as reviewed, merged PRs:
 Old motion-engine Phases 2 (public cloud registry) and 3 (mirror
 normalization) are **superseded/deferred** by the redirect — see #15/#16/#17.
 
+## Done — Phase A: real ownership verification (2026-07-24)
+
+The feasibility spike passed — Roblox Open Cloud `GetAsset` returns
+creator/type/moderation for assets the key owner does *not* own, so cross-creator
+verification is real (contract note:
+[`superpowers/plans/2026-07-23-phaseA-task0-spike-note.md`](superpowers/plans/2026-07-23-phaseA-task0-spike-note.md)).
+Shipped across the plan's tasks:
+
+- Pure `OwnershipOutcome` evaluator + `OwnershipEvidence` value type (creator vs
+  owner vs group-membership → MATCH / MISMATCH / UNVERIFIABLE).
+- Opt-in Open Cloud key store, **DPAPI-encrypted at rest on Windows** (plaintext
+  fallback elsewhere, labelled honestly) + a Settings card with a
+  Test-connection probe.
+- `OpenCloudClient` (the only component that calls Roblox) + `OwnershipVerifier`
+  orchestration; an insert-only `V010` ledger + repository; a single bridge
+  verify route (the only live-call site) with history.
+- Optional additive `ownership` on the manifest AssetEntry (schema stays v0.2),
+  the classifier reading it in lockstep (Java + TS), deterministic stamping into
+  the export, and a gate rule that treats a mismatch-without-decision as a review
+  lead (never an auto-block).
+- Frontend verify action with an honest verdict (VERIFIED facts / non-accusatory
+  mismatch lead / NOT_VERIFIED) and a point-in-time `checkedAt` stamp.
+
+**Honesty ceiling (locked):** `VERIFIED` = the facts were obtained, never "the
+team has the right to use this"; a mismatch is a review lead, never an accusation
+or auto-block; generic scanned files with only a `sha256`/path have no Roblox id
+and stay `NOT_VERIFIED`; export never calls the network. Completes redirect
+milestone item 6.
+
 ## The gate before more building: validate
 
 The redirect's own final instruction is to **validate with a real Roblox dev
@@ -29,19 +58,18 @@ everything below.
 
 ## Next phases
 
-Ordered from "completes the core" to "expands scope". Only Phase A is
-recommended to build before the friend test — it *finishes* a promise the tool
-already makes rather than adding new scope.
+Ordered from "completes the core" to "expands scope". Phase A (below) shipped
+2026-07-24 ahead of the friend test — it *finished* a promise the tool already
+made rather than adding new scope; the friend test now exercises it.
 
-### Phase A — Real ownership & permission verification  ← planned, ready to build
-Turn the always-`NOT_VERIFIED` ownership evidence into *verified where Roblox's
-Open Cloud API allows*: confirm an animation's creator and the target
-experience's owner, and whether they match. Completes redirect milestone item 6.
-Plan: [`superpowers/plans/2026-07-17-phaseA-ownership-verification.md`](superpowers/plans/2026-07-17-phaseA-ownership-verification.md).
-**Starts with a feasibility spike** — the feature's reach depends on what Open
-Cloud genuinely exposes to a third party (creator/owner/group = yes; a direct
-"can X publish to Y" check = no, must be inferred; anything above the API's
-ceiling stays NOT_VERIFIED).
+### Phase A — Real ownership & permission verification  ✓ shipped 2026-07-24
+Turned the always-`NOT_VERIFIED` ownership evidence into *verified where Roblox's
+Open Cloud API allows*: confirms an animation's creator and the target
+experience's owner, and whether they match. What Open Cloud genuinely exposes to
+a third party set the ceiling (creator/owner/group = yes; a direct "can X publish
+to Y" check = no; anything above the ceiling stays NOT_VERIFIED). Details under
+[Done — Phase A](#done--phase-a-real-ownership-verification-2026-07-24). Plan:
+[`superpowers/plans/2026-07-17-phaseA-ownership-verification.md`](superpowers/plans/2026-07-17-phaseA-ownership-verification.md).
 
 ### Phase B — Runtime playability probe  *(validation-gated)*
 Before "ready to ship", check the animation actually plays on the target rig
