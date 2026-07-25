@@ -73,9 +73,9 @@ public final class AppContext implements AutoCloseable {
         this.animationComparisons = new AnimationComparisonRepository(database);
         this.motionSnapshots = new MotionSnapshotRepository(database);
         this.pluginPairings = new PluginPairingService(new PluginPairingRepository(database));
-        this.releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
-                releases, audit);
         this.ownershipVerifications = new OwnershipVerificationRepository(database);
+        this.releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
+                releases, audit, ownershipVerifications);
     }
 
     public static AppContext create() {

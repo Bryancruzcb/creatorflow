@@ -96,10 +96,10 @@ class LocalBridgeServerTest {
         var pluginPairings = new PluginPairingService(new PluginPairingRepository(database));
         var audit = new AuditRepository(database);
         var coordinator = new ScanCoordinator(scans, localProjects, audit);
-        var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
-                releases, audit);
-        openCloudSettings = new OpenCloudSettings(directory);
         ownershipVerifications = new OwnershipVerificationRepository(database);
+        var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
+                releases, audit, ownershipVerifications);
+        openCloudSettings = new OpenCloudSettings(directory);
         // Delegate to whatever the current test installed; never a live call.
         OwnershipVerification verifier = (robloxAssetId, universeId, now) -> {
             OwnershipVerification delegate = fakeVerifier.get();
