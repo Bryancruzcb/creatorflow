@@ -1,6 +1,16 @@
 # CreatorFlow: product decision and build strategy
 
-## Recommendation
+> **Historical — this recommendation was accepted and executed on 2026-07-17, then narrowed
+> further.** The pivot below (gallery → local-first release preflight) happened; the shipped
+> product is narrower still: release preflight **for small Roblox teams**, not for creative assets
+> in general. Two consequences worth noting before reading on: the "creative asset bill of
+> materials" framing was superseded, and this file's later Phase 3 (Unity/Godot adapters and a
+> public fingerprint registry) was explicitly **deferred** — a public registry leans back toward the
+> copied/not-copied product the redirect demoted. Current definition:
+> [`docs/STRATEGIC-REDIRECT.md`](../docs/STRATEGIC-REDIRECT.md); current plan:
+> [`docs/ROADMAP.md`](../docs/ROADMAP.md).
+
+## Recommendation (accepted 2026-07-17)
 
 Pivot CreatorFlow from a community gallery with originality checks into a **local-first release preflight for creative assets**.
 

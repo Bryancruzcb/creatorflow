@@ -1,6 +1,7 @@
 package creatorflow.motion;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
@@ -32,5 +33,42 @@ class MotionSnapshotsTest {
     void classifyRequiresTheNextFingerprint() {
         assertThrows(MotionValidationException.class, () -> MotionSnapshots.classify("abc", null));
         assertThrows(MotionValidationException.class, () -> MotionSnapshots.classify("abc", " "));
+    }
+
+    @Test
+    void aFlippedLoopFlagIsAChangeEvenWhenTheCurveDataIsIdentical() {
+        String sameCurves = "a".repeat(64);
+        // The bug: classify compared curve fingerprints only, so a clip republished with Looped
+        // flipped came back UNCHANGED from a tool whose job is reporting what changed.
+        assertEquals(MotionSnapshotStatus.CHANGED,
+                MotionSnapshots.classify(sameCurves, PlaybackSettings.of(true, "Movement"),
+                        sameCurves, PlaybackSettings.of(false, "Movement")));
+        assertEquals(MotionSnapshotStatus.CHANGED,
+                MotionSnapshots.classify(sameCurves, PlaybackSettings.of(true, "Movement"),
+                        sameCurves, PlaybackSettings.of(true, "Action")));
+        assertEquals(MotionSnapshotStatus.UNCHANGED,
+                MotionSnapshots.classify(sameCurves, PlaybackSettings.of(true, "Movement"),
+                        sameCurves, PlaybackSettings.of(true, "Movement")));
+    }
+
+    @Test
+    void settingsRecordedOnOnlyOneSideAreNeverReportedAsDrift() {
+        String sameCurves = "b".repeat(64);
+        // A snapshot taken before playback settings were recorded must not read as CHANGED just
+        // because the newer one knows more -- that would be a change the tool never observed.
+        assertEquals(MotionSnapshotStatus.UNCHANGED,
+                MotionSnapshots.classify(sameCurves, PlaybackSettings.unknown(),
+                        sameCurves, PlaybackSettings.of(false, "Action")));
+        assertEquals(MotionSnapshotStatus.UNCHANGED,
+                MotionSnapshots.classify(sameCurves, PlaybackSettings.of(false, "Action"),
+                        sameCurves, PlaybackSettings.unknown()));
+        assertFalse(PlaybackSettings.unknown().isKnown());
+    }
+
+    @Test
+    void differingCurvesStayChangedRegardlessOfPlaybackSettings() {
+        assertEquals(MotionSnapshotStatus.CHANGED,
+                MotionSnapshots.classify("c".repeat(64), PlaybackSettings.of(true, "Movement"),
+                        "d".repeat(64), PlaybackSettings.of(true, "Movement")));
     }
 }

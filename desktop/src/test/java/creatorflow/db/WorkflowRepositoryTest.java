@@ -11,6 +11,7 @@ import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.model.VerificationStatus;
+import creatorflow.motion.PlaybackSettings;
 import creatorflow.workflow.DecisionType;
 import creatorflow.workflow.ScanAccounting;
 import creatorflow.workflow.ScanState;
@@ -42,7 +43,7 @@ class WorkflowRepositoryTest {
             try (var statement = database.connection().createStatement();
                  var result = statement.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(result.next());
-                assertEquals(10, result.getInt(1));
+                assertEquals(12, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }
@@ -130,7 +131,8 @@ class WorkflowRepositoryTest {
             var record = repository.insert(projectId, "1001", "1002", "Walk A", "Walk B",
                     1.25, 1.18, "a".repeat(64), "b".repeat(64),
                     88, 91, 76, 100, false,
-                    "{\"verdict\":\"MODERATE_SIMILARITY\"}", "creatorflow.motion-compare/v0.1");
+                    "{\"verdict\":\"MODERATE_SIMILARITY\"}", "creatorflow.motion-compare/v0.1",
+                    PlaybackSettings.of(true, "Movement"), PlaybackSettings.of(false, "Action"));
             comparisonId = record.id();
             assertEquals(1, repository.forProject(projectId, 25, 0).size());
             assertEquals("1002", repository.findById(comparisonId).orElseThrow().candidateAssetId());
@@ -288,6 +290,59 @@ class WorkflowRepositoryTest {
             assertEquals(42L, reloadedRelease.publishedPlaceVersion());
             assertEquals(1234567890L, reloadedRelease.universeId());
             assertEquals("Restart Experience", reloadedRelease.experienceName());
+        }
+    }
+
+    @Test
+    void v011NormalizesLegacyTimestampsSoLatestWinsQueriesStayChronological() throws Exception {
+        // The bug V011 repairs: Instant.toString() omits trailing zeros, so rows written by older
+        // builds have variable width. SQLite compares TEXT lexicographically and '.' (0x2E) sorts
+        // before 'Z' (0x5A), so '…:21.500Z' sorted BEFORE '…:21Z' despite being half a second
+        // later — "the current decision on this asset" could resolve to a superseded row.
+        Path file = directory.resolve("legacy-timestamps.db");
+        long assetId;
+        try (Database database = new Database(file)) {
+            var project = new LocalProjectRepository(database).adopt(directory);
+            var scans = new ScanRepository(database);
+            var run = scans.create(project.projectId(), project.root(), "1.0.0", List.of(), List.of("png"));
+            scans.markStarted(run.id());
+            AssetEntry asset = new AssetEntry("art/hero.png", "hero.png", "png", 128,
+                    "a".repeat(64), 64, 64, new Fingerprints("01", "02", null),
+                    VerificationStatus.CLEAR,
+                    new SourceEvidence("Studio archive", "CC-BY-4.0", null),
+                    ReleaseDecision.PENDING, List.of(), List.of());
+            scans.complete(run.id(), new CreativeManifest(CreativeManifest.SCHEMA_V1,
+                    new CreativeManifest.Project(project.name(), "1.0.0"), Instant.now(),
+                    new CreativeManifest.Summary(1, 1, 0, 0, 0, 1), List.of(asset)),
+                    ScanAccounting.empty(), List.of());
+            assetId = scans.listAssets(run.id(), 10, 0).getFirst().id();
+
+            // Two decisions in legacy shapes: the LATER one carries the shorter-sorting text.
+            try (var statement = database.connection().createStatement()) {
+                statement.executeUpdate("INSERT INTO decisions(id, scan_asset_id, decision_type, reason, created_at) "
+                        + "VALUES ('11111111-1111-1111-1111-111111111111', " + assetId
+                        + ", 'NEEDS_REVIEW', 'earlier', '2026-07-21T02:35:21Z')");
+                statement.executeUpdate("INSERT INTO decisions(id, scan_asset_id, decision_type, reason, created_at) "
+                        + "VALUES ('22222222-2222-2222-2222-222222222222', " + assetId
+                        + ", 'APPROVED', 'later, supersedes', '2026-07-21T02:35:21.5Z')");
+                // Re-arm V011 so reopening applies it to these legacy rows.
+                statement.executeUpdate("DELETE FROM schema_migrations WHERE version = 11");
+            }
+        }
+
+        try (Database migrated = new Database(file)) {
+            try (var statement = migrated.connection().createStatement();
+                 var result = statement.executeQuery(
+                         "SELECT created_at FROM decisions ORDER BY created_at ASC")) {
+                assertTrue(result.next());
+                assertEquals("2026-07-21T02:35:21.000000000Z", result.getString(1));
+                assertTrue(result.next());
+                assertEquals("2026-07-21T02:35:21.500000000Z", result.getString(1),
+                        "the later decision must also sort later as text after normalization");
+            }
+            assertEquals(DecisionType.APPROVED,
+                    new DecisionRepository(migrated).latestFor(assetId).orElseThrow().type(),
+                    "latest-wins must return the chronologically later decision");
         }
     }
 }

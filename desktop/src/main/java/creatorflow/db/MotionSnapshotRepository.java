@@ -3,6 +3,7 @@ package creatorflow.db;
 import creatorflow.motion.MotionSnapshotKind;
 import creatorflow.motion.MotionSnapshotStatus;
 import creatorflow.motion.MotionSnapshots;
+import creatorflow.motion.PlaybackSettings;
 import creatorflow.workflow.MotionSnapshotRecord;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -31,7 +32,8 @@ public final class MotionSnapshotRepository {
 
     public MotionSnapshotRecord capture(long projectId, String assetId, MotionSnapshotKind kind,
                                         String sourceComparisonId, String name, double duration,
-                                        String fingerprint, String algorithmVersion) {
+                                        String fingerprint, String algorithmVersion,
+                                        PlaybackSettings settings) {
         String asset = requireText(assetId, "asset ID");
         if (kind == null) throw new IllegalArgumentException("snapshot kind is required");
         String print = requireText(fingerprint, "fingerprint");
@@ -40,17 +42,23 @@ public final class MotionSnapshotRepository {
                 blankToNull(sourceComparisonId), displayName(name, asset),
                 finiteNonNegative(duration, "duration"), print,
                 requireText(algorithmVersion, "algorithm version"),
-                null, MotionSnapshotStatus.FIRST_SNAPSHOT, Instant.now());
+                null, MotionSnapshotStatus.FIRST_SNAPSHOT,
+                settings == null ? PlaybackSettings.unknown() : settings, Instant.now());
         synchronized (connection) {
             // Find-current and insert must be atomic so two captures can't both supersede the
             // same prior snapshot; the bridge serializes on this connection.
             Optional<MotionSnapshotRecord> previous = currentLocked(projectId, asset, kind);
+            // Compare playback settings as well as curve data: a flipped Looped changes how the
+            // clip plays without touching a single curve value, and drift detection must see it.
             MotionSnapshotStatus status = MotionSnapshots.classify(
-                    previous.map(MotionSnapshotRecord::fingerprint).orElse(null), print);
+                    previous.map(MotionSnapshotRecord::fingerprint).orElse(null),
+                    previous.map(MotionSnapshotRecord::settings).orElse(PlaybackSettings.unknown()),
+                    print, record.settings());
             MotionSnapshotRecord toInsert = new MotionSnapshotRecord(
                     record.id(), projectId, asset, kind, record.sourceComparisonId(), record.name(),
                     record.duration(), print, record.algorithmVersion(),
-                    previous.map(MotionSnapshotRecord::id).orElse(null), status, record.createdAt());
+                    previous.map(MotionSnapshotRecord::id).orElse(null), status,
+                    record.settings(), record.createdAt());
             insertLocked(toInsert);
             return toInsert;
         }
@@ -145,8 +153,9 @@ public final class MotionSnapshotRepository {
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO motion_snapshots(
                   id, project_id, asset_id, kind, source_comparison_id, name, duration,
-                  fingerprint, algorithm_version, supersedes_snapshot_id, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+                  fingerprint, algorithm_version, supersedes_snapshot_id, status, created_at,
+                  looped, priority)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
             statement.setString(1, record.id());
             statement.setLong(2, record.projectId());
             statement.setString(3, record.assetId());
@@ -158,7 +167,14 @@ public final class MotionSnapshotRepository {
             statement.setString(9, record.algorithmVersion());
             statement.setString(10, record.supersedesSnapshotId());
             statement.setString(11, record.status().name());
-            statement.setString(12, record.createdAt().toString());
+            statement.setString(12, Timestamps.text(record.createdAt()));
+            Boolean looped = record.settings().looped();
+            if (looped == null) {
+                statement.setNull(13, java.sql.Types.INTEGER);
+            } else {
+                statement.setInt(13, looped ? 1 : 0);
+            }
+            statement.setString(14, record.settings().priority());
             statement.executeUpdate();
         } catch (SQLException error) {
             throw new IllegalStateException("Could not persist motion snapshot", error);
@@ -173,7 +189,15 @@ public final class MotionSnapshotRepository {
                 result.getDouble("duration"), result.getString("fingerprint"),
                 result.getString("algorithm_version"), result.getString("supersedes_snapshot_id"),
                 MotionSnapshotStatus.valueOf(result.getString("status")),
+                readSettings(result),
                 Instant.parse(result.getString("created_at")));
+    }
+
+    /** Reads the tri-state playback settings; SQL NULL means "not recorded", never "false". */
+    private static PlaybackSettings readSettings(ResultSet result) throws SQLException {
+        int looped = result.getInt("looped");
+        Boolean loopedOrNull = result.wasNull() ? null : looped != 0;
+        return new PlaybackSettings(loopedOrNull, result.getString("priority"));
     }
 
     private static String requireText(String value, String label) {

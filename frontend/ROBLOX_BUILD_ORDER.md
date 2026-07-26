@@ -1,5 +1,14 @@
 # CreatorFlow: Roblox-first build order
 
+> **Historical — this plan was executed. Kept for the reasoning, not as a to-do list.**
+> The loop described below (Studio dock widget → two Animation IDs → normalized `KeyframeSequence`
+> → authenticated loopback request → fingerprints, evidence, and a recorded decision) **shipped**:
+> see `roblox-plugin/desktop-bridge/`, `desktop/src/main/java/creatorflow/bridge/`, and the pairing
+> lifecycle (persisted, hashed at rest, revocable). Ownership/permission context shipped later via
+> Roblox Open Cloud. For what is actually next, read [`docs/ROADMAP.md`](../docs/ROADMAP.md); for
+> the current product definition, [`docs/STRATEGIC-REDIRECT.md`](../docs/STRATEGIC-REDIRECT.md).
+> Where this file and those disagree, those win.
+
 ## Product decision
 
 Build **animation evidence for Roblox teams first**. Do not turn CreatorFlow into another animation editor, asset marketplace, or one-click publisher.

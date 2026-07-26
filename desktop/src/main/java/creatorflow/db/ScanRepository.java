@@ -49,7 +49,7 @@ public final class ScanRepository {
                 statement.setString(5, SqlJson.strings(exclusions));
                 statement.setString(6, SqlJson.strings(supportedFormats));
                 statement.setString(7, ScanState.QUEUED.name());
-                statement.setString(8, now.toString());
+                statement.setString(8, Timestamps.text(now));
                 statement.executeUpdate();
                 return findByIdInternal(id).orElseThrow();
             } catch (SQLException e) {
@@ -63,7 +63,7 @@ public final class ScanRepository {
             try (PreparedStatement statement = connection.prepareStatement("""
                     UPDATE scan_runs SET state = ?, started_at = ? WHERE id = ? AND state = 'QUEUED'""")) {
                 statement.setString(1, ScanState.RUNNING.name());
-                statement.setString(2, Instant.now().toString());
+                statement.setString(2, Timestamps.text(Instant.now()));
                 statement.setString(3, runId);
                 statement.executeUpdate();
                 if (findByIdInternal(runId).isEmpty()) throw unknownRun(runId);
@@ -156,7 +156,7 @@ public final class ScanRepository {
                     statement.setInt(9, accounting.missingDependencies());
                     statement.setInt(10, accounting.failed());
                     statement.setString(11, SqlJson.strings(warnings));
-                    statement.setString(12, Instant.now().toString());
+                    statement.setString(12, Timestamps.text(Instant.now()));
                     statement.setString(13, runId);
                     if (statement.executeUpdate() != 1) throw new SQLException("Scan run cannot be finished " + runId);
                 }
@@ -177,7 +177,7 @@ public final class ScanRepository {
                     WHERE id = ? AND state IN ('QUEUED', 'RUNNING', 'CANCELLATION_REQUESTED')""")) {
                 statement.setString(1, ScanState.CANCELLED.name());
                 statement.setString(2, SqlJson.strings(warnings));
-                statement.setString(3, Instant.now().toString());
+                statement.setString(3, Timestamps.text(Instant.now()));
                 statement.setString(4, runId);
                 statement.executeUpdate();
                 if (findByIdInternal(runId).isEmpty()) throw unknownRun(runId);
@@ -195,7 +195,7 @@ public final class ScanRepository {
                 statement.setString(1, ScanState.FAILED.name());
                 statement.setString(2, requireText(errorMessage, "error message"));
                 statement.setString(3, SqlJson.strings(warnings));
-                statement.setString(4, Instant.now().toString());
+                statement.setString(4, Timestamps.text(Instant.now()));
                 statement.setString(5, runId);
                 statement.executeUpdate();
                 if (findByIdInternal(runId).isEmpty()) throw unknownRun(runId);
@@ -404,7 +404,7 @@ public final class ScanRepository {
                 statement.setString(3, evidence.license());
                 statement.setString(4, evidence.evidenceUrl());
                 statement.setInt(5, evidence.resolved() ? 1 : 0);
-                statement.setString(6, recordedAt.toString());
+                statement.setString(6, Timestamps.text(recordedAt));
                 statement.executeUpdate();
                 try (ResultSet keys = statement.getGeneratedKeys()) {
                     if (!keys.next()) throw new SQLException("Source evidence insert did not return an id");
@@ -507,7 +507,7 @@ public final class ScanRepository {
             statement.setString(3, asset.source().license());
             statement.setString(4, asset.source().evidenceUrl());
             statement.setInt(5, asset.source().resolved() ? 1 : 0);
-            statement.setString(6, recordedAt.toString());
+            statement.setString(6, Timestamps.text(recordedAt));
             statement.executeUpdate();
         }
     }

@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import creatorflow.motion.MotionSnapshotKind;
+import creatorflow.motion.PlaybackSettings;
 import creatorflow.motion.MotionSnapshotStatus;
 import java.nio.file.Path;
 import java.util.List;
@@ -29,20 +30,20 @@ class MotionSnapshotRepositoryTest {
             var snapshots = new MotionSnapshotRepository(database);
 
             var first = snapshots.capture(projectId, "1001", MotionSnapshotKind.LAST_PUBLISHED,
-                    "cmp-1", "Walk", 1.2, "a".repeat(64), ALGO);
+                    "cmp-1", "Walk", 1.2, "a".repeat(64), ALGO, PlaybackSettings.unknown());
             firstId = first.id();
             assertEquals(MotionSnapshotStatus.FIRST_SNAPSHOT, first.status());
             assertNull(first.supersedesSnapshotId());
 
             // Re-capture an identical fingerprint: UNCHANGED, supersedes the first.
             var same = snapshots.capture(projectId, "1001", MotionSnapshotKind.LAST_PUBLISHED,
-                    "cmp-2", "Walk", 1.2, "a".repeat(64), ALGO);
+                    "cmp-2", "Walk", 1.2, "a".repeat(64), ALGO, PlaybackSettings.unknown());
             assertEquals(MotionSnapshotStatus.UNCHANGED, same.status());
             assertEquals(firstId, same.supersedesSnapshotId());
 
             // A different fingerprint: CHANGED.
             var drifted = snapshots.capture(projectId, "1001", MotionSnapshotKind.LAST_PUBLISHED,
-                    "cmp-3", "Walk", 1.3, "b".repeat(64), ALGO);
+                    "cmp-3", "Walk", 1.3, "b".repeat(64), ALGO, PlaybackSettings.unknown());
             assertEquals(MotionSnapshotStatus.CHANGED, drifted.status());
             assertEquals(same.id(), drifted.supersedesSnapshotId());
 
@@ -54,7 +55,7 @@ class MotionSnapshotRepositoryTest {
 
             // A different kind for the same asset is tracked independently.
             var good = snapshots.capture(projectId, "1001", MotionSnapshotKind.LAST_KNOWN_GOOD,
-                    null, "Walk", 1.3, "b".repeat(64), ALGO);
+                    null, "Walk", 1.3, "b".repeat(64), ALGO, PlaybackSettings.unknown());
             assertEquals(MotionSnapshotStatus.FIRST_SNAPSHOT, good.status());
         }
 
@@ -80,11 +81,45 @@ class MotionSnapshotRepositoryTest {
             long projectId = new LocalProjectRepository(database).adopt(directory).projectId();
             var snapshots = new MotionSnapshotRepository(database);
             assertThrows(IllegalArgumentException.class, () -> snapshots.capture(projectId, " ",
-                    MotionSnapshotKind.LAST_PUBLISHED, null, "Walk", 1.0, "a".repeat(64), ALGO));
+                    MotionSnapshotKind.LAST_PUBLISHED, null, "Walk", 1.0, "a".repeat(64), ALGO, PlaybackSettings.unknown()));
             assertThrows(IllegalArgumentException.class, () -> snapshots.capture(projectId, "1001",
-                    MotionSnapshotKind.LAST_PUBLISHED, null, "Walk", 1.0, " ", ALGO));
+                    MotionSnapshotKind.LAST_PUBLISHED, null, "Walk", 1.0, " ", ALGO, PlaybackSettings.unknown()));
             assertThrows(IllegalArgumentException.class, () -> snapshots.capture(projectId, "1001",
-                    MotionSnapshotKind.LAST_PUBLISHED, null, "Walk", -1.0, "a".repeat(64), ALGO));
+                    MotionSnapshotKind.LAST_PUBLISHED, null, "Walk", -1.0, "a".repeat(64), ALGO, PlaybackSettings.unknown()));
+        }
+    }
+
+    @Test
+    void reCapturingWithAFlippedLoopFlagIsRecordedAsChanged() {
+        try (Database database = new Database(directory.resolve("playback.db"))) {
+            long projectId = new LocalProjectRepository(database).adopt(directory).projectId();
+            var repository = new MotionSnapshotRepository(database);
+            String sameCurves = "f".repeat(64);
+
+            var first = repository.capture(projectId, "1001", MotionSnapshotKind.LAST_KNOWN_GOOD,
+                    null, "Walk", 1.0, sameCurves, "creatorflow.motion-compare/v0.1",
+                    PlaybackSettings.of(true, "Movement"));
+            assertEquals(MotionSnapshotStatus.FIRST_SNAPSHOT, first.status());
+
+            // Identical curve data, Looped flipped: the clip plays differently in a live
+            // experience, so drift detection must not report UNCHANGED.
+            var flipped = repository.capture(projectId, "1001", MotionSnapshotKind.LAST_KNOWN_GOOD,
+                    null, "Walk", 1.0, sameCurves, "creatorflow.motion-compare/v0.1",
+                    PlaybackSettings.of(false, "Movement"));
+            assertEquals(MotionSnapshotStatus.CHANGED, flipped.status());
+            assertEquals(Boolean.FALSE, flipped.settings().looped());
+
+            var same = repository.capture(projectId, "1001", MotionSnapshotKind.LAST_KNOWN_GOOD,
+                    null, "Walk", 1.0, sameCurves, "creatorflow.motion-compare/v0.1",
+                    PlaybackSettings.of(false, "Movement"));
+            assertEquals(MotionSnapshotStatus.UNCHANGED, same.status());
+
+            // Settings survive the round trip through SQLite, including the tri-state unknown.
+            var unknown = repository.capture(projectId, "2002", MotionSnapshotKind.LAST_KNOWN_GOOD,
+                    null, "NoSettings", 1.0, sameCurves, "creatorflow.motion-compare/v0.1",
+                    PlaybackSettings.unknown());
+            assertEquals(null, repository.findById(unknown.id()).orElseThrow().settings().looped());
+            assertEquals(Boolean.FALSE, repository.findById(same.id()).orElseThrow().settings().looped());
         }
     }
 }

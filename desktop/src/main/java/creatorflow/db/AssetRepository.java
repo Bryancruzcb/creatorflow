@@ -51,7 +51,7 @@ public final class AssetRepository {
                 ps.setInt(13, asset.ownershipDeclared() ? 1 : 0);
                 ps.setString(14, asset.status().name());
                 ps.setString(15, asset.findings());
-                ps.setString(16, asset.addedAt().toString());
+                ps.setString(16, Timestamps.text(asset.addedAt()));
                 ps.executeUpdate();
                 try (ResultSet keys = ps.getGeneratedKeys()) {
                     keys.next();
