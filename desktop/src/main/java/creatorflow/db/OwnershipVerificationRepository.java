@@ -86,7 +86,7 @@ public final class OwnershipVerificationRepository {
                 setNullableLong(statement, 10, record.ownerId());
                 setNullableInt(statement, 11, record.memberRank());
                 statement.setString(12, record.outcome().name());
-                statement.setString(13, record.checkedAt().toString());
+                statement.setString(13, Timestamps.text(record.checkedAt()));
                 statement.executeUpdate();
             } catch (SQLException error) {
                 throw new IllegalStateException("Could not persist ownership verification", error);

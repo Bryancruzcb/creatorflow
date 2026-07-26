@@ -633,7 +633,11 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
           void client.listProjectAssets(stored.projectId, 1, 0).then(async (page) => {
             if (controller.signal.aborted) return;
             setLocalProject({ projectId: stored.projectId!, name: stored.name!, experience: stored.experience ?? null });
-            if (page.scanRunId) setLocalRun(await client.getScanRun(page.scanRunId));
+            if (!page.scanRunId) return;
+            const run = await client.getScanRun(page.scanRunId);
+            // Re-check after the await: the effect can be torn down while it is in flight.
+            if (controller.signal.aborted) return;
+            setLocalRun(run);
           }).catch(() => localStorage.removeItem('creatorflow:local-project:v1'));
         } catch {
           localStorage.removeItem('creatorflow:local-project:v1');
@@ -652,7 +656,11 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
           setLocalSelectedAssetId(workspace.selectedAssetId);
         }
         const runId = workspace.activeScanRunId ?? restored.activeScanRunId;
-        if (runId) setLocalRun(await client.getScanRun(runId));
+        if (!runId) return;
+        const run = await client.getScanRun(runId);
+        // Re-check after the await: the effect can be torn down while it is in flight.
+        if (controller.signal.aborted) return;
+        setLocalRun(run);
       }).catch(restoreFallback);
     });
     return () => controller.abort();

@@ -42,7 +42,7 @@ public final class LocalProjectRepository {
                         Statement.RETURN_GENERATED_KEYS)) {
                     statement.setString(1, name);
                     statement.setString(2, "Local project selected through CreatorFlow");
-                    statement.setString(3, now.toString());
+                    statement.setString(3, Timestamps.text(now));
                     statement.executeUpdate();
                     try (ResultSet keys = statement.getGeneratedKeys()) {
                         if (!keys.next()) throw new SQLException("Project insert did not return an id");
@@ -54,7 +54,7 @@ public final class LocalProjectRepository {
                         VALUES (?, ?, ?, '{}')""")) {
                     statement.setLong(1, projectId);
                     statement.setString(2, root.toString());
-                    statement.setString(3, now.toString());
+                    statement.setString(3, Timestamps.text(now));
                     statement.executeUpdate();
                 }
                 connection.commit();

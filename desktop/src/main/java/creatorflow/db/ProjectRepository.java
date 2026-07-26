@@ -35,7 +35,7 @@ public final class ProjectRepository {
         try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, name);
             ps.setString(2, description);
-            ps.setString(3, now.toString());
+            ps.setString(3, Timestamps.text(now));
             ps.executeUpdate();
             try (ResultSet keys = ps.getGeneratedKeys()) {
                 keys.next();
