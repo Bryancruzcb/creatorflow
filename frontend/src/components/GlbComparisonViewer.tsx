@@ -17,6 +17,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
+import { assetUrl } from '../assetUrl';
 
 interface GlbComparisonViewerProps {
   split: number;
@@ -269,7 +270,7 @@ export function GlbComparisonViewer({ split, mode, projectUrl, sourceUrl, projec
       {state === 'loading' ? <div className="model-state"><span />Loading real GLB assets…</div> : null}
       {state === 'error' ? (
         <div className="model-fallback">
-          <img src={fallbackUrl ?? '/assets/avocado-source.jpg'} alt={`${sourceLabel} source preview`} />
+          <img src={fallbackUrl ?? assetUrl('/assets/avocado-source.jpg')} alt={`${sourceLabel} source preview`} />
           <span>WebGL preview unavailable. The licensed GLB files remain attached to this record.</span>
         </div>
       ) : null}

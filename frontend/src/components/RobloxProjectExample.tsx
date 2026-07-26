@@ -25,6 +25,7 @@ import {
   type RobloxProjectNode,
 } from '../fixtures/robloxProjectExample';
 import { MetadataInspector, type MetadataSection } from './MetadataInspector';
+import { assetUrl } from '../assetUrl';
 
 function evidenceLabel(state: ProjectEvidenceState) {
   if (state === 'clear') return 'Evidence clear';
@@ -197,7 +198,7 @@ export function RobloxProjectExample({ onOpenPair }: { onOpenPair: (clipName: st
           <nav aria-label="Selected project path">{breadcrumbs.map((item, index) => <Fragment key={item.id}>{index ? <ChevronRight size={11} /> : null}<button type="button" onClick={() => selectNode(item.id)}>{item.name}</button></Fragment>)}</nav>
           <header><span><NodeIcon node={selected} /></span><div><small>{selected.className}</small><h3>{selected.name}</h3><p>{selected.note ?? 'Select a child record to inspect its project role, evidence state, and references.'}</p></div><em data-evidence={selected.evidenceState}>{evidenceLabel(selected.evidenceState)}</em></header>
 
-          {selected.id === 'project' ? <div className="roblox-project-preview"><article><img src="/assets/dutch-ship-large-01.png" alt="Harbor exhibit preview" /><span>Harbor exhibit</span></article><article><img src="/assets/beautiful-game.jpg" alt="Chess hall preview" /><span>Grand gallery</span></article><article><img src="/assets/mosquito-in-amber.jpg" alt="Amber case preview" /><span>Amber case</span></article><article><img src="/assets/corset.jpg" alt="Wardrobe exhibit preview" /><span>Wardrobe study</span></article></div> : selected.previewUrl ? <div className="roblox-selection-preview"><img src={selected.previewUrl} alt={`${selected.name} preview`} /><span><Sparkles size={14} /> Licensed fixture preview</span></div> : null}
+          {selected.id === 'project' ? <div className="roblox-project-preview"><article><img src={assetUrl('/assets/dutch-ship-large-01.png')} alt="Harbor exhibit preview" /><span>Harbor exhibit</span></article><article><img src={assetUrl('/assets/beautiful-game.jpg')} alt="Chess hall preview" /><span>Grand gallery</span></article><article><img src={assetUrl('/assets/mosquito-in-amber.jpg')} alt="Amber case preview" /><span>Amber case</span></article><article><img src={assetUrl('/assets/corset.jpg')} alt="Wardrobe exhibit preview" /><span>Wardrobe study</span></article></div> : selected.previewUrl ? <div className="roblox-selection-preview"><img src={selected.previewUrl} alt={`${selected.name} preview`} /><span><Sparkles size={14} /> Licensed fixture preview</span></div> : null}
 
           {selected.animation ? <section className="roblox-animation-selection"><div><span>Animation evidence</span><strong>{selected.animation.fixtureClipName} · {selected.animation.rigType}</strong><small>{selected.animation.durationSeconds.toFixed(2)}s · {selected.animation.trackCount} tracks · {selected.animation.keyCount.toLocaleString()} keys</small></div><button className="button button-primary" type="button" onClick={() => onOpenPair(selected.animation!.fixtureClipName)}><Play size={14} /> Open in pair compare</button></section> : null}
 
