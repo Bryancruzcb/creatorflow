@@ -1003,6 +1003,17 @@ code {
   color: var(--ink-muted);
 }
 
+/* The simulation disclosure is the honesty boundary of this stage — it must not read as fine print,
+   so it keeps full ink while the rest of the stage copy stays muted. Mirrors the treatment given to
+   .local-ownership-linkage. */
+.scan-stage-copy p.scan-simulated-note {
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  color: var(--ink);
+  background: color-mix(in srgb, var(--review) 5%, var(--graphite));
+  border-left: 2px solid var(--review);
+}
+
 .scan-readout > strong {
   display: block;
   margin-bottom: var(--space-4);
@@ -1103,7 +1114,9 @@ code {
 
 .asset-ledger {
   width: 100%;
-  min-width: 70rem;
+  /* 48rem keeps all five columns inside the ledger at common desktop widths. At 70rem the two
+     verdict columns were pushed outside .ledger-scroll and were never seen without scrolling. */
+  min-width: 48rem;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -1116,11 +1129,14 @@ code {
   border-bottom: 1px solid var(--hairline);
 }
 
+/* Column order is Asset · Automated evidence · Release state · Origin · License. The verdict sits
+   next to the asset so that when the ledger does scroll, what leaves the viewport is the supporting
+   detail rather than the finding. */
 .asset-ledger th:nth-child(1) { width: 27%; }
-.asset-ledger th:nth-child(2) { width: 17%; }
-.asset-ledger th:nth-child(3) { width: 19%; }
-.asset-ledger th:nth-child(4) { width: 21%; }
-.asset-ledger th:nth-child(5) { width: 16%; }
+.asset-ledger th:nth-child(2) { width: 21%; }
+.asset-ledger th:nth-child(3) { width: 16%; }
+.asset-ledger th:nth-child(4) { width: 17%; }
+.asset-ledger th:nth-child(5) { width: 19%; }
 
 .asset-ledger td {
   height: 4.8rem;
@@ -2850,8 +2866,10 @@ code {
     margin-bottom: var(--space-16);
   }
 
+  /* Held at 21rem so the ledger keeps enough width for all five columns inside the workspace
+     shell, which already spends 14rem on the nav rail. */
   .preflight-layout {
-    grid-template-columns: minmax(0, 1fr) 23rem;
+    grid-template-columns: minmax(0, 1fr) 21rem;
   }
 
   .match-workbench-grid {
