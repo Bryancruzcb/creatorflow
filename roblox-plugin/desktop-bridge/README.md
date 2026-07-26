@@ -50,7 +50,7 @@ To update the local copy later, paste the new source into the plugin under `Plug
 6. Click **Read, normalize & compare**.
 7. Return to CreatorFlow to inspect the saved comparison, fingerprints, joint scores, and evidence record.
 
-The endpoint, token, and most recent IDs are saved with `Plugin:SetSetting()` for convenience. The pairing token is local but is not encrypted in Studio's plugin settings; CreatorFlow should rotate it whenever the desktop bridge restarts. Paste the fresh token if an old one returns `401 Unauthorized`.
+The endpoint, token, and most recent IDs are saved with `Plugin:SetSetting()` for convenience. The pairing token is local but is not encrypted in Studio's plugin settings; treat it as short-lived. Pairings persist across desktop restarts (stored hashed in SQLite) and stay valid until their 8-hour expiry or until revoked from the desktop app's pairing panel. Paste a fresh token if an old one returns `401 Unauthorized` (expired or revoked).
 
 If Studio refuses all requests, also check **Game Settings → Security → Allow HTTP Requests**. Roblox's `RequestAsync()` setup and response behavior are documented here: <https://create.roblox.com/docs/reference/engine/classes/HttpService#RequestAsync>
 
@@ -127,7 +127,7 @@ Run these before handing the plugin to another developer:
 - [ ] **Different pair:** comparing two accessible motion clips creates a record with fingerprints and component scores.
 - [ ] **Permissions:** an inaccessible or deleted asset produces a Roblox permission/loading error and creates no evidence record.
 - [ ] **Clip type:** a `CurveAnimation` is rejected with the v0.1 limitation instead of being treated as empty data.
-- [ ] **Restart:** restarting CreatorFlow invalidates the old token; pasting the fresh token reconnects.
+- [ ] **Restart:** restarting CreatorFlow keeps the pairing valid — the SAME token still connects after relaunch (until its 8-hour expiry). Revoking the pairing from the desktop app makes the plugin's next request fail with the pairing-required error.
 - [ ] **HTTP denial:** denying the Studio network prompt results in a useful recovery message.
 - [ ] **Persistence:** close and reopen the dock widget; the URL, token, and recent IDs remain filled in.
 

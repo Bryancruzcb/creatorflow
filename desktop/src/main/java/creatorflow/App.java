@@ -31,6 +31,7 @@ public final class App extends Application {
         if (bridgeEnabled && !screenshotMode) {
             try {
                 var bridge = context.startLocalBridge(() -> stage);
+                System.out.println("CreatorFlow workspace: " + bridge.launchUri());
                 if (Boolean.getBoolean("creatorflow.web.open")) {
                     getHostServices().showDocument(bridge.launchUri().toString());
                 }
