@@ -125,3 +125,60 @@ export function formatScorecard(scorecard: Scorecard, title: string): string {
   }
   return lines.join('\n');
 }
+
+/**
+ * Precision/recall across the whole decision threshold, rather than at the single operating point
+ * the product happens to ship (85).
+ *
+ * A single pair of numbers ("92% recall, 4% false positives") describes one setting of one dial and
+ * says nothing about how the engine behaves either side of it — whether the operating point sits on
+ * a plateau or on a cliff, and what a stricter or looser product decision would actually cost. That
+ * matters here more than usual: the product's stated priority is precision over recall, because a
+ * false accusation is the worst output it can produce, so the cost of moving the dial is a product
+ * question that needs a curve to answer.
+ *
+ * Cases whose engine score is null (no comparable data) are excluded — they are not decidable at
+ * any threshold, so counting them would smear the curve with a constant.
+ */
+export interface SweepPoint {
+  threshold: number;
+  truePositives: number;
+  falsePositives: number;
+  falseNegatives: number;
+  precision: number;
+  recall: number;
+  f1: number;
+}
+
+export function runThresholdSweep(rows: ScorecardRow[], thresholds: number[]): SweepPoint[] {
+  const scored = rows.filter((row) => row.score !== null && row.caseClass !== 'variant');
+  const positives = scored.filter((row) => row.kind === 'positive');
+  const negatives = scored.filter((row) => row.kind === 'negative');
+  return thresholds.map((threshold) => {
+    const truePositives = positives.filter((row) => (row.score as number) >= threshold).length;
+    const falsePositives = negatives.filter((row) => (row.score as number) >= threshold).length;
+    const falseNegatives = positives.length - truePositives;
+    const precision = truePositives + falsePositives === 0 ? 1 : truePositives / (truePositives + falsePositives);
+    const recall = positives.length === 0 ? 0 : truePositives / positives.length;
+    const f1 = precision + recall === 0 ? 0 : (2 * precision * recall) / (precision + recall);
+    return {
+      threshold,
+      truePositives,
+      falsePositives,
+      falseNegatives,
+      precision: Math.round(precision * 1000) / 1000,
+      recall: Math.round(recall * 1000) / 1000,
+      f1: Math.round(f1 * 1000) / 1000,
+    };
+  });
+}
+
+export function formatSweep(points: SweepPoint[]): string {
+  const header = 'threshold  TP   FP   FN   precision  recall  F1';
+  const lines = points.map((p) => (
+    `${String(p.threshold).padStart(9)}  ${String(p.truePositives).padStart(3)}  `
+    + `${String(p.falsePositives).padStart(3)}  ${String(p.falseNegatives).padStart(3)}  `
+    + `${p.precision.toFixed(3).padStart(9)}  ${p.recall.toFixed(3).padStart(6)}  ${p.f1.toFixed(3)}`
+  ));
+  return [header, ...lines].join('\n');
+}

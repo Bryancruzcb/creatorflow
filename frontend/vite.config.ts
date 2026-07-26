@@ -2,6 +2,13 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
 export default defineConfig({
+  // Where the built assets will be served from. Two consumers need different answers:
+  // the desktop bridge serves this bundle at the site root ("/"), while a GitHub Pages
+  // project site serves it under "/<repo>/". Hardcoding either one breaks the other —
+  // a Pages-shaped base makes the desktop app request assets that do not exist, and a
+  // root base makes Pages 404 every asset and render a blank page. So the deploy
+  // workflow sets VITE_BASE_PATH and everything else keeps the root default.
+  base: process.env.VITE_BASE_PATH ?? '/',
   plugins: [react()],
   build: {
     target: 'es2022',

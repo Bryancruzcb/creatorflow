@@ -100,6 +100,14 @@ export function buildMirrorNameSwapper(nodes: string[]): (trackName: string) => 
       const swapped = trailing[1] + (trailing[2] === 'L' ? 'R' : 'L');
       if (nodeSet.has(swapped)) { map.set(node, swapped); continue; }
     }
+    // Style C (Cesium rigs): an infix side marker between underscores, e.g. leg_joint_R_1 <->
+    // leg_joint_L_1. Unlike style B the numeric suffix is the SAME on both sides, so the swap is a
+    // direct name substitution.
+    const infix = node.match(/^(.*_)([LR])(_.*)$/);
+    if (infix) {
+      const swapped = `${infix[1]}${infix[2] === 'L' ? 'R' : 'L'}${infix[3]}`;
+      if (nodeSet.has(swapped)) { map.set(node, swapped); continue; }
+    }
     // Style B (fox): Left/Right inside the name; the numeric suffix differs per side, so pair by core.
     if (/Left|Right/.test(node)) {
       const targetCore = core(node).replace(/Left|Right/, (side) => (side === 'Left' ? 'Right' : 'Left'));
