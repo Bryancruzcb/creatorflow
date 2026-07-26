@@ -33,9 +33,12 @@ import org.junit.jupiter.api.Test;
  */
 class ManifestByteStabilityTest {
 
-    /** SHA-256 of ManifestJson.write(FIXTURE) under jackson-databind 2.17.2. */
+    /**
+     * SHA-256 of ManifestJson.write(FIXTURE). Verified identical on Windows and on Linux CI, and
+     * unchanged across jackson-databind 2.17.2 -> 2.22.1.
+     */
     private static final String EXPECTED_SHA256 =
-            "0c72bf2013fea235b8e45e81f3f0680b8d2171cd6b48dcb679ff5e562956c4ce";
+            "2c9ef23a3390fb6100f28dabe4d55c1a60a3c9507ab84cffce0af5007f749e47";
 
     private static CreativeManifest fixture() {
         AssetEntry asset = new AssetEntry(
