@@ -1,14 +1,22 @@
 // frontend/src/motion/testset/copyDetectionCases.test.ts
 import { describe, expect, it } from 'vitest';
-import { buildCases } from './copyDetectionCases';
+import { buildCases, isGradableRig } from './copyDetectionCases';
 import { buildMirrorNameSwapper } from './derivations';
-import { loadRigFixture } from './fixtureLoader';
+import { loadRigFixture, loadAllRigFixtures } from './fixtureLoader';
+
+// Derived from the fixtures rather than hardcoded: every clip yields one positive per
+// derivation class, so adding a rig widens these automatically instead of failing on a
+// number someone then edits without checking.
+const CLIP_COUNT = loadAllRigFixtures().filter(isGradableRig).reduce((sum, rig) => sum + rig.clips.length, 0);
+const POSITIVE_CLASSES = 7;
+const EXPECTED_POSITIVES = CLIP_COUNT * POSITIVE_CLASSES;
+
 
 describe('copy-detection case builder', () => {
-  const cases = buildCases([loadRigFixture('robot'), loadRigFixture('fox')]);
+  const cases = buildCases(loadAllRigFixtures());
 
-  it('produces 7 labeled positives per clip (17 clips → 119)', () => {
-    expect(cases.filter((entry) => entry.kind === 'positive')).toHaveLength(119);
+  it('produces one labeled positive per clip per derivation class', () => {
+    expect(cases.filter((entry) => entry.kind === 'positive')).toHaveLength(EXPECTED_POSITIVES);
     const classes = new Set(cases.filter((entry) => entry.kind === 'positive').map((entry) => entry.caseClass));
     expect([...classes].sort()).toEqual(['hold', 'mirror', 'relocate', 'rescale', 'retime-fast', 'retime-slow', 'reupload']);
   });

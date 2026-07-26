@@ -126,3 +126,43 @@ For every model, the three records shown in CreatorFlow form one evidence chain:
 - Payload: 12,105,252 bytes; 71.8% smaller than the 42,977,928-byte uncompressed GLB
 
 The stress assets are never fetched on workspace entry. Their screenshots, metrics, and component-match records render first; binaries are transferred and decoded only after the user requests an interactive preview or cross-file component comparison.
+
+## Cesium Man
+
+- Source: `Models/CesiumMan/glTF-Binary/CesiumMan.glb`
+- Source record: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan
+- Source SHA-256: `b7001eaeea8254bd44773bcd247e78696d94169388fbb2a1800fc69434e777d9`
+- Vendored unmodified as `cesium-man.glb` (no derivative); license record in `CESIUM-MAN-LICENSE.md`
+- Licence: **CC BY 4.0** — © 2017, Cesium. Attribution required.
+- Used for: copy-detection test-set rig fixtures (`src/motion/testset/fixtures/`)
+
+## Rigged Figure
+
+- Source: `Models/RiggedFigure/glTF-Binary/RiggedFigure.glb`
+- Source record: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/RiggedFigure
+- Source SHA-256: `d6be85417d3e256861ee733eea6916093a7af7c79c16366181fd8abcaeb38cf5`
+- Vendored unmodified as `rigged-figure.glb` (no derivative); license record in `RIGGED-FIGURE-LICENSE.md`
+- Licence: **CC BY 4.0** — © 2017, Cesium. Attribution required.
+- Used for: copy-detection test-set rig fixtures (`src/motion/testset/fixtures/`)
+
+## Rigged Simple
+
+- Source: `Models/RiggedSimple/glTF-Binary/RiggedSimple.glb`
+- Source record: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/RiggedSimple
+- Source SHA-256: `3a79dabb67bb0cd598a18d08b954d9d357c27c30672f82ef5d3f4e7fe6ca3401`
+- Vendored unmodified as `rigged-simple.glb` (no derivative); license record in `RIGGED-SIMPLE-LICENSE.md`
+- Licence: **CC BY 4.0** — © 2017, Cesium. Attribution required.
+- Used for: copy-detection test-set rig fixtures (`src/motion/testset/fixtures/`)
+
+### Why these three, and why not others
+
+Added 2026-07-26 to widen the copy-detection test set beyond two rigs. Two candidates were
+deliberately **rejected on licence grounds**, which is worth recording in a tool about provenance:
+
+- **BrainStem** (Khronos sample assets) carries a **Poser EULA** (© Smith Micro Software), not an
+  open licence, despite sitting in an otherwise-open sample repository.
+- **Xbot / Soldier** (three.js examples) are **Mixamo-derived**. They have the multi-clip animation
+  sets this test set actually wants, but Mixamo's terms restrict redistributing the animations as
+  assets, so they are not vendored here.
+
+The three above are CC BY 4.0 and are redistributed unmodified with their upstream licence files.

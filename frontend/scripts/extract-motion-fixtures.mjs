@@ -10,6 +10,12 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 const RIGS = [
   { rigId: 'robot', file: 'robot-expressive.glb' },
   { rigId: 'fox', file: 'fox-animated.glb' },
+  // Added 2026-07-26 to widen the test set past two rigs. Each carries a single clip, so they
+  // add positives (transformation robustness across skeleton topologies) but no negatives —
+  // negatives need two distinct clips on one rig. See src/motion/testset/README.md.
+  { rigId: 'cesiumMan', file: 'cesium-man.glb' },
+  { rigId: 'riggedFigure', file: 'rigged-figure.glb' },
+  { rigId: 'riggedSimple', file: 'rigged-simple.glb' },
 ];
 
 function stripRenderSections(buffer) {

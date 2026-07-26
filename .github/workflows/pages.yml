@@ -1,0 +1,66 @@
+# Publishes the CreatorFlow web workspace to GitHub Pages on every push to main.
+#
+# What visitors get is the real frontend running without the desktop bridge: the landing
+# page in full, plus the workspace on its built-in sample dataset. Local-project features
+# correctly report that they need the desktop app — nothing here talks to a scanner, and
+# no local data is involved.
+#
+# One-time setup: repository Settings → Pages → Source: "GitHub Actions". Until that is
+# selected the deploy step fails with a "Pages site not found" style error.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Least privilege: read the repo, mint the Pages deploy token, nothing else.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; let an in-flight one finish rather than cancelling it.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install
+        run: npm ci
+        working-directory: frontend
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+        env:
+          # A project site lives at https://<user>.github.io/<repo>/, so assets must be
+          # requested from that subpath. vite.config.ts defaults to "/" for the desktop
+          # bridge, which serves the same bundle at the root.
+          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

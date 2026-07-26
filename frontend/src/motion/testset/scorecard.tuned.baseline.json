@@ -217,11 +217,25 @@
     "fox:neg:Run-vs-Walk": false,
     "fox:neg:Survey-vs-Walk": false,
     "fox:neg-partial:low:Walk": false,
-    "fox:neg-partial:half:Walk": false
+    "fox:neg-partial:half:Walk": false,
+    "cesiumMan:reupload:animation_0": true,
+    "cesiumMan:retime-fast:animation_0": true,
+    "cesiumMan:retime-slow:animation_0": true,
+    "cesiumMan:hold:animation_0": true,
+    "cesiumMan:rescale:animation_0": true,
+    "cesiumMan:relocate:animation_0": true,
+    "cesiumMan:mirror:animation_0": false,
+    "riggedFigure:reupload:animation_0": true,
+    "riggedFigure:retime-fast:animation_0": true,
+    "riggedFigure:retime-slow:animation_0": true,
+    "riggedFigure:hold:animation_0": true,
+    "riggedFigure:rescale:animation_0": true,
+    "riggedFigure:relocate:animation_0": true,
+    "riggedFigure:mirror:animation_0": false
   },
   "recall": {
-    "hit": 107,
-    "total": 119
+    "hit": 119,
+    "total": 133
   },
   "falsePositives": {
     "hit": 1,
