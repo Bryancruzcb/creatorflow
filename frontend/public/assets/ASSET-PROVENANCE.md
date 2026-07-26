@@ -132,7 +132,7 @@ The stress assets are never fetched on workspace entry. Their screenshots, metri
 - Source: `Models/CesiumMan/glTF-Binary/CesiumMan.glb`
 - Source record: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/CesiumMan
 - Source SHA-256: `b7001eaeea8254bd44773bcd247e78696d94169388fbb2a1800fc69434e777d9`
-- Vendored unmodified as `cesium-man.glb` (no derivative); license record in `CESIUM-MAN-LICENSE.md`
+- Vendored unmodified as `cesium-man.glb` (no derivative); license record in `CESIUM-MAN-LICENSE.md`. Allowlisted in `frontend/.gitignore`, which otherwise excludes `public/assets/*.glb`.
 - Licence: **CC BY 4.0** — © 2017, Cesium. Attribution required.
 - Used for: copy-detection test-set rig fixtures (`src/motion/testset/fixtures/`)
 
@@ -141,7 +141,7 @@ The stress assets are never fetched on workspace entry. Their screenshots, metri
 - Source: `Models/RiggedFigure/glTF-Binary/RiggedFigure.glb`
 - Source record: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/RiggedFigure
 - Source SHA-256: `d6be85417d3e256861ee733eea6916093a7af7c79c16366181fd8abcaeb38cf5`
-- Vendored unmodified as `rigged-figure.glb` (no derivative); license record in `RIGGED-FIGURE-LICENSE.md`
+- Vendored unmodified as `rigged-figure.glb` (no derivative); license record in `RIGGED-FIGURE-LICENSE.md`. Allowlisted in `frontend/.gitignore`.
 - Licence: **CC BY 4.0** — © 2017, Cesium. Attribution required.
 - Used for: copy-detection test-set rig fixtures (`src/motion/testset/fixtures/`)
 
@@ -150,7 +150,7 @@ The stress assets are never fetched on workspace entry. Their screenshots, metri
 - Source: `Models/RiggedSimple/glTF-Binary/RiggedSimple.glb`
 - Source record: https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/RiggedSimple
 - Source SHA-256: `3a79dabb67bb0cd598a18d08b954d9d357c27c30672f82ef5d3f4e7fe6ca3401`
-- Vendored unmodified as `rigged-simple.glb` (no derivative); license record in `RIGGED-SIMPLE-LICENSE.md`
+- Vendored unmodified as `rigged-simple.glb` (no derivative); license record in `RIGGED-SIMPLE-LICENSE.md`. Allowlisted in `frontend/.gitignore`.
 - Licence: **CC BY 4.0** — © 2017, Cesium. Attribution required.
 - Used for: copy-detection test-set rig fixtures (`src/motion/testset/fixtures/`)
 
