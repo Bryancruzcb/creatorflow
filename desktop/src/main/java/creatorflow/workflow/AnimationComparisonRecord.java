@@ -1,5 +1,6 @@
 package creatorflow.workflow;
 
+import creatorflow.motion.PlaybackSettings;
 import java.time.Instant;
 
 /** Immutable local evidence produced by one Roblox animation comparison. */
@@ -21,5 +22,7 @@ public record AnimationComparisonRecord(
         boolean exactCurveData,
         String resultJson,
         String algorithmVersion,
+        PlaybackSettings sourceSettings,
+        PlaybackSettings candidateSettings,
         Instant createdAt) {
 }

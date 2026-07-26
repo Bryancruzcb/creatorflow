@@ -25,6 +25,7 @@ import creatorflow.motion.MotionComparisonEngine;
 import creatorflow.motion.MotionComparisonRequest;
 import creatorflow.motion.MotionSnapshotKind;
 import creatorflow.motion.NormalizedAnimation;
+import creatorflow.motion.PlaybackSettings;
 import creatorflow.workflow.AnimationComparisonRecord;
 import creatorflow.workflow.MotionSnapshotRecord;
 import creatorflow.workflow.DecisionType;
@@ -277,7 +278,9 @@ public final class LocalBridgeServer implements AutoCloseable {
                     result.sourceFingerprint(), result.candidateFingerprint(),
                     roundedPercent(result.overallPercent()), roundedPercent(result.posePercent()),
                     roundedPercent(result.timingPercent()), roundedPercent(result.coveragePercent()),
-                    result.exactCurveData(), json.writeValueAsString(result), result.algorithmVersion());
+                    result.exactCurveData(), json.writeValueAsString(result), result.algorithmVersion(),
+                    PlaybackSettings.of(source.looped(), source.priority()),
+                    PlaybackSettings.of(candidate.looped(), candidate.priority()));
             sendJson(exchange, 201, animationComparisonView(stored));
             return;
         }
@@ -484,10 +487,12 @@ public final class LocalBridgeServer implements AutoCloseable {
                 MotionSnapshotRecord snapshot = switch (side.toLowerCase(java.util.Locale.ROOT)) {
                     case "source" -> motionSnapshots.capture(projectId, comparison.sourceAssetId(), kind,
                             comparisonId, comparison.sourceName(), comparison.sourceDuration(),
-                            comparison.sourceFingerprint(), comparison.algorithmVersion());
+                            comparison.sourceFingerprint(), comparison.algorithmVersion(),
+                            comparison.sourceSettings());
                     case "candidate" -> motionSnapshots.capture(projectId, comparison.candidateAssetId(), kind,
                             comparisonId, comparison.candidateName(), comparison.candidateDuration(),
-                            comparison.candidateFingerprint(), comparison.algorithmVersion());
+                            comparison.candidateFingerprint(), comparison.algorithmVersion(),
+                            comparison.candidateSettings());
                     default -> throw new IllegalArgumentException("side must be \"source\" or \"candidate\"");
                 };
                 sendJson(exchange, 201, snapshotView(snapshot));

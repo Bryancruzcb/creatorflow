@@ -25,7 +25,8 @@ final class SchemaMigrator {
             new Migration(8, "published_place_version", "/creatorflow/db/migrations/V008__published_place_version.sql"),
             new Migration(9, "plugin_pairings", "/creatorflow/db/migrations/V009__plugin_pairings.sql"),
             new Migration(10, "ownership_verifications", "/creatorflow/db/migrations/V010__ownership_verifications.sql"),
-            new Migration(11, "sortable_timestamps", "/creatorflow/db/migrations/V011__sortable_timestamps.sql"));
+            new Migration(11, "sortable_timestamps", "/creatorflow/db/migrations/V011__sortable_timestamps.sql"),
+            new Migration(12, "playback_settings", "/creatorflow/db/migrations/V012__playback_settings.sql"));
 
     private final Connection connection;
 
@@ -43,20 +44,28 @@ final class SchemaMigrator {
                     )""");
         }
 
-        int current = currentVersion();
+        // Apply every migration this database has not recorded, in ascending order — rather than
+        // only those above the highest recorded version. Those are the same thing for a database
+        // migrated normally, but not for one with a gap (a migration rolled back by hand, or two
+        // branches adding versions independently), where "above the max" would silently skip the
+        // missing one and leave the schema subtly wrong.
+        java.util.Set<Integer> applied = appliedVersions();
         for (Migration migration : MIGRATIONS) {
-            if (migration.version() > current) {
+            if (!applied.contains(migration.version())) {
                 apply(migration);
             }
         }
     }
 
-    private int currentVersion() throws SQLException {
+    private java.util.Set<Integer> appliedVersions() throws SQLException {
+        java.util.Set<Integer> versions = new java.util.HashSet<>();
         try (Statement statement = connection.createStatement();
-             ResultSet result = statement.executeQuery(
-                     "SELECT COALESCE(MAX(version), 0) FROM schema_migrations")) {
-            return result.next() ? result.getInt(1) : 0;
+             ResultSet result = statement.executeQuery("SELECT version FROM schema_migrations")) {
+            while (result.next()) {
+                versions.add(result.getInt(1));
+            }
         }
+        return versions;
     }
 
     private void apply(Migration migration) throws SQLException {

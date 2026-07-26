@@ -2,6 +2,7 @@ package creatorflow.workflow;
 
 import creatorflow.motion.MotionSnapshotKind;
 import creatorflow.motion.MotionSnapshotStatus;
+import creatorflow.motion.PlaybackSettings;
 import java.time.Instant;
 
 /**
@@ -22,5 +23,6 @@ public record MotionSnapshotRecord(
         String algorithmVersion,
         String supersedesSnapshotId,
         MotionSnapshotStatus status,
+        PlaybackSettings settings,
         Instant createdAt) {
 }

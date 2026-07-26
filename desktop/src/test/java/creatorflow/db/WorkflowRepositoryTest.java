@@ -11,6 +11,7 @@ import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.model.VerificationStatus;
+import creatorflow.motion.PlaybackSettings;
 import creatorflow.workflow.DecisionType;
 import creatorflow.workflow.ScanAccounting;
 import creatorflow.workflow.ScanState;
@@ -42,7 +43,7 @@ class WorkflowRepositoryTest {
             try (var statement = database.connection().createStatement();
                  var result = statement.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(result.next());
-                assertEquals(11, result.getInt(1));
+                assertEquals(12, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }
@@ -130,7 +131,8 @@ class WorkflowRepositoryTest {
             var record = repository.insert(projectId, "1001", "1002", "Walk A", "Walk B",
                     1.25, 1.18, "a".repeat(64), "b".repeat(64),
                     88, 91, 76, 100, false,
-                    "{\"verdict\":\"MODERATE_SIMILARITY\"}", "creatorflow.motion-compare/v0.1");
+                    "{\"verdict\":\"MODERATE_SIMILARITY\"}", "creatorflow.motion-compare/v0.1",
+                    PlaybackSettings.of(true, "Movement"), PlaybackSettings.of(false, "Action"));
             comparisonId = record.id();
             assertEquals(1, repository.forProject(projectId, 25, 0).size());
             assertEquals("1002", repository.findById(comparisonId).orElseThrow().candidateAssetId());

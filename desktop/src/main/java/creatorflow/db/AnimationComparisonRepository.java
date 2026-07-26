@@ -1,5 +1,6 @@
 package creatorflow.db;
 
+import creatorflow.motion.PlaybackSettings;
 import creatorflow.workflow.AnimationComparisonRecord;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -27,7 +28,9 @@ public final class AnimationComparisonRepository {
                                             String sourceFingerprint, String candidateFingerprint,
                                             int overallScore, int poseScore, int timingScore,
                                             int coverageScore, boolean exactCurveData,
-                                            String resultJson, String algorithmVersion) {
+                                            String resultJson, String algorithmVersion,
+                                            PlaybackSettings sourceSettings,
+                                            PlaybackSettings candidateSettings) {
         AnimationComparisonRecord record = new AnimationComparisonRecord(
                 UUID.randomUUID().toString(), projectId,
                 requireText(sourceAssetId, "source asset ID"),
@@ -40,15 +43,19 @@ public final class AnimationComparisonRepository {
                 score(overallScore, "overall score"), score(poseScore, "pose score"),
                 score(timingScore, "timing score"), score(coverageScore, "coverage score"),
                 exactCurveData, requireText(resultJson, "comparison result"),
-                requireText(algorithmVersion, "algorithm version"), Instant.now());
+                requireText(algorithmVersion, "algorithm version"),
+                sourceSettings == null ? PlaybackSettings.unknown() : sourceSettings,
+                candidateSettings == null ? PlaybackSettings.unknown() : candidateSettings,
+                Instant.now());
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO animation_comparisons(
                       id, project_id, source_asset_id, candidate_asset_id, source_name, candidate_name,
                       source_duration, candidate_duration, source_fingerprint, candidate_fingerprint,
                       overall_score, pose_score, timing_score, coverage_score, exact_curve_data,
-                      result_json, algorithm_version, created_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+                      result_json, algorithm_version, created_at,
+                      source_looped, source_priority, candidate_looped, candidate_priority)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
                 statement.setString(1, record.id());
                 statement.setLong(2, record.projectId());
                 statement.setString(3, record.sourceAssetId());
@@ -67,12 +74,33 @@ public final class AnimationComparisonRepository {
                 statement.setString(16, record.resultJson());
                 statement.setString(17, record.algorithmVersion());
                 statement.setString(18, Timestamps.text(record.createdAt()));
+                setNullableBoolean(statement, 19, record.sourceSettings().looped());
+                statement.setString(20, record.sourceSettings().priority());
+                setNullableBoolean(statement, 21, record.candidateSettings().looped());
+                statement.setString(22, record.candidateSettings().priority());
                 statement.executeUpdate();
                 return record;
             } catch (SQLException error) {
                 throw new IllegalStateException("Could not persist animation comparison", error);
             }
         }
+    }
+
+    /** Writes a tri-state boolean: null stays SQL NULL, meaning "not recorded". */
+    private static void setNullableBoolean(PreparedStatement statement, int index, Boolean value)
+            throws SQLException {
+        if (value == null) {
+            statement.setNull(index, java.sql.Types.INTEGER);
+        } else {
+            statement.setInt(index, value ? 1 : 0);
+        }
+    }
+
+    private static PlaybackSettings settingsFrom(java.sql.ResultSet result, String loopedColumn,
+                                                 String priorityColumn) throws SQLException {
+        int looped = result.getInt(loopedColumn);
+        Boolean loopedOrNull = result.wasNull() ? null : looped != 0;
+        return new PlaybackSettings(loopedOrNull, result.getString(priorityColumn));
     }
 
     public Optional<AnimationComparisonRecord> findById(String id) {
@@ -120,7 +148,10 @@ public final class AnimationComparisonRepository {
                 result.getInt("overall_score"), result.getInt("pose_score"),
                 result.getInt("timing_score"), result.getInt("coverage_score"),
                 result.getInt("exact_curve_data") != 0, result.getString("result_json"),
-                result.getString("algorithm_version"), Instant.parse(result.getString("created_at")));
+                result.getString("algorithm_version"),
+                settingsFrom(result, "source_looped", "source_priority"),
+                settingsFrom(result, "candidate_looped", "candidate_priority"),
+                Instant.parse(result.getString("created_at")));
     }
 
     private static String requireText(String value, String label) {
