@@ -107,6 +107,8 @@ Mirror the existing opt-in registry settings exactly.
 - [ ] **Step 4 — tests green. Commit.**
 
 > **Security note (carry into review):** the registry precedent stores the key in a plaintext properties file. Open Cloud keys are higher-privilege. For v1, keep the file pattern for parity but **mask the input field**; file an issue to move to the OS credential store as a follow-up. Do not silently inherit the plaintext-and-unmasked precedent.
+>
+> **RESOLVED (owner decision, shipped Task 2 2026-07-24):** the OS-protection follow-up is **done, not deferred** — the key is DPAPI-encrypted at rest on Windows (`Crypt32Util.protectData` via JNA, base64 ciphertext bound to the Windows user), with a labelled plaintext fallback on other OSes and the field masked. No separate follow-up issue is needed.
 
 ---
 
@@ -256,5 +258,5 @@ CREATE INDEX IF NOT EXISTS idx_ownership_verifications_asset ON ownership_verifi
 ## Open questions for the owner (decide before or during Task 0)
 
 1. **Group-rank sufficiency policy.** Roblox has no "can publish" flag per role. Is *any* membership in the owning group enough for MATCH, or must the rank clear a threshold? (Recommendation: any membership → MATCH for v1, and store the rank so the policy can tighten later without re-verifying.)
-2. **API key privilege / storage.** OK to store the key in a masked-but-plaintext properties file for v1 (parity with the existing registry key), with an OS-credential-store follow-up issue? (Recommendation: yes, with the issue filed.)
+2. **API key privilege / storage.** OK to store the key in a masked-but-plaintext properties file for v1 (parity with the existing registry key), with an OS-credential-store follow-up issue? (Recommendation: yes, with the issue filed.) — **DECIDED:** go further than the recommendation — OS-protect at rest *now*. On Windows the key is DPAPI-encrypted (`Crypt32Util.protectData` via JNA); non-Windows falls back to labelled plaintext. The store reports which mode is active and the UI says *encrypted (Windows DPAPI)* vs *not encrypted on this OS*. The OS-credential-store follow-up is therefore **done via DPAPI**, not an open issue.
 3. **Staleness policy.** Surface `checkedAt` only (v1), or also warn/require re-check after N days? (Recommendation: surface only for v1.)

@@ -62,10 +62,16 @@ const detailWithPriorDecision: LocalAssetDetail = {
 
 /** A plain object implementing only what LocalEvidenceView actually calls, matching real signatures. */
 function makeMockClient(overrides: Partial<Record<
-  'listProjectAssets' | 'saveWorkspaceState' | 'getAsset' | 'getDecisionHistory' | 'recordDecision',
+  'listProjectAssets' | 'saveWorkspaceState' | 'getAsset' | 'getDecisionHistory' | 'recordDecision'
+  | 'listOwnershipVerifications',
   ReturnType<typeof vi.fn>
 >> = {}) {
   const client = {
+    // The ownership panel inside the evidence view reads the session's key status (a boolean only)
+    // to decide whether it can honestly offer the verify action, and re-reads it on open because a
+    // key is added in the desktop app, possibly while this page is up.
+    session: { csrfToken: 'csrf-token', origin: 'http://localhost:3000', openCloudKeyConfigured: true },
+    refreshOpenCloudKeyStatus: vi.fn().mockResolvedValue(true),
     listProjectAssets: vi.fn().mockResolvedValue({ scanRunId: 'run-abc', items: [asset], limit: 100, offset: 0 }),
     saveWorkspaceState: vi.fn().mockResolvedValue({
       activeProjectId: project.projectId, activeScanRunId: 'run-abc', selectedAssetId: asset.id,
@@ -74,6 +80,8 @@ function makeMockClient(overrides: Partial<Record<
     getAsset: vi.fn().mockResolvedValue(detailWithPriorDecision),
     getDecisionHistory: vi.fn().mockResolvedValue({ items: [priorDecision] }),
     recordDecision: vi.fn(),
+    // The evidence view loads ownership verifications alongside the asset detail (Phase A, Task 10).
+    listOwnershipVerifications: vi.fn().mockResolvedValue({ items: [] }),
     ...overrides,
   };
   return client as unknown as LocalBridgeClient;

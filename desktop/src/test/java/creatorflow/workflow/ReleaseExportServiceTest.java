@@ -2,6 +2,8 @@ package creatorflow.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -9,6 +11,7 @@ import creatorflow.db.AuditRepository;
 import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
+import creatorflow.db.OwnershipVerificationRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
 import creatorflow.manifest.CreativeManifest;
@@ -16,9 +19,12 @@ import creatorflow.manifest.CreativeManifest.AssetEntry;
 import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.manifest.EvidenceBases;
 import creatorflow.manifest.EvidenceBasis;
 import creatorflow.manifest.ManifestJson;
+import creatorflow.manifest.OwnershipEvidence;
 import creatorflow.model.VerificationStatus;
+import creatorflow.ownership.OwnershipOutcome;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -173,8 +179,16 @@ class ReleaseExportServiceTest {
         }
     }
 
+    /**
+     * Pins the bases derived for assets with <em>no</em> ownership verification row: source follows
+     * resolution, verification is always CreatorFlow's own computation, and ownership stays
+     * NOT_VERIFIED because nothing was checked. Since Phase A ownership is no longer unconditionally
+     * NOT_VERIFIED — a persisted MATCH/MISMATCH makes it VERIFIED, which
+     * {@link #stampsPersistedOwnershipOntoTheManifestFlippingTheBasisOnlyWhenFactsWereObtained()} covers. This test's subject
+     * is the un-checked default, not a global rule.
+     */
     @Test
-    void populatesEvidenceBasesConsistentlyWithSourceResolutionAndAlwaysMarksOwnershipUnverified()
+    void populatesEvidenceBasesFromSourceResolutionAndLeavesOwnershipNotVerifiedWhenNothingWasChecked()
             throws Exception {
         try (Database database = new Database(directory.resolve("evidence-bases.db"))) {
             Fixture fixture = new Fixture(database);
@@ -191,13 +205,15 @@ class ReleaseExportServiceTest {
             AssetEntry resolved = bundle.manifest().assets().stream()
                     .filter(entryAsset -> entryAsset.path().equals("audio/theme.wav")).findFirst().orElseThrow();
 
-            // BLOCKED/unresolved asset: source is honestly unknown, ownership is never checked.
+            // BLOCKED/unresolved asset: source is honestly unknown; nobody entered an animation id
+            // for it, so there is no verification row and ownership reads NOT_VERIFIED — an unknown.
             assertEquals(EvidenceBasis.NOT_VERIFIED, unresolved.evidenceBases().source());
             assertEquals(EvidenceBasis.NOT_VERIFIED, unresolved.evidenceBases().ownership());
             assertEquals(EvidenceBasis.VERIFIED, unresolved.evidenceBases().verification());
             assertEquals(null, unresolved.evidenceBases().decision());
 
-            // Resolved asset: a human recorded source/license, so it's DECLARED; ownership still unverified.
+            // Resolved asset: a human recorded source/license, so it's DECLARED. Ownership is still
+            // NOT_VERIFIED here for the same reason — unchecked, not checked-and-found-wanting.
             assertEquals(EvidenceBasis.DECLARED, resolved.evidenceBases().source());
             assertEquals(EvidenceBasis.NOT_VERIFIED, resolved.evidenceBases().ownership());
             assertEquals(EvidenceBasis.VERIFIED, resolved.evidenceBases().verification());
@@ -225,6 +241,116 @@ class ReleaseExportServiceTest {
             assertEquals(List.of("changed.png"), second.comparison().changedPaths());
             assertEquals(List.of("removed.png"), second.comparison().removedPaths());
         }
+    }
+
+    @Test
+    void stampsPersistedOwnershipOntoTheManifestFlippingTheBasisOnlyWhenFactsWereObtained()
+            throws Exception {
+        try (Database database = new Database(directory.resolve("ownership-stamp.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "scan-1", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.CLEAR, resolved()),
+                    asset("art/villain.png", "b", VerificationStatus.CLEAR, resolved()),
+                    asset("audio/theme.wav", "c", VerificationStatus.CLEAR, resolved())));
+            long heroId = assetId(fixture, run, "art/hero.png");
+            long villainId = assetId(fixture, run, "art/villain.png");
+
+            // A MATCH: authoritative facts obtained. Persisted at the Task-6 verify route, read here.
+            Instant checkedAt = Instant.parse("2026-07-24T12:00:00Z");
+            OwnershipEvidence match = new OwnershipEvidence(507766388L, OwnershipEvidence.TYPE_USER, 42L,
+                    "Animation", "Approved", OwnershipEvidence.TYPE_USER, 42L, null,
+                    OwnershipOutcome.MATCH, checkedAt);
+            fixture.ownershipVerifications.insert(heroId, 90110L, match);
+            // A real observation that obtained NO facts (e.g. GetAsset 404): a row exists, outcome
+            // UNVERIFIABLE — it must never masquerade as a false VERIFIED.
+            OwnershipEvidence unverifiable = new OwnershipEvidence(507777826L, null, null, null, null,
+                    null, null, null, OwnershipOutcome.UNVERIFIABLE, Instant.parse("2026-07-24T13:00:00Z"));
+            fixture.ownershipVerifications.insert(villainId, 90110L, unverifiable);
+            // audio/theme.wav is never verified — no row at all.
+
+            ReleaseBundle bundle = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+
+            AssetEntry hero = entryFor(bundle, "art/hero.png");
+            AssetEntry villain = entryFor(bundle, "art/villain.png");
+            AssetEntry theme = entryFor(bundle, "audio/theme.wav");
+
+            // Facts obtained: ownership stamped verbatim, checkedAt exactly as persisted, basis VERIFIED.
+            assertEquals(match, hero.ownership());
+            assertEquals(checkedAt, hero.ownership().checkedAt());
+            assertEquals(EvidenceBasis.VERIFIED, hero.evidenceBases().ownership());
+
+            // A row exists but no facts were obtained: the observation is carried, yet the basis stays
+            // NOT_VERIFIED — absence of proof is never a false VERIFIED.
+            assertNotNull(villain.ownership());
+            assertEquals(OwnershipOutcome.UNVERIFIABLE, villain.ownership().outcome());
+            assertEquals(EvidenceBasis.NOT_VERIFIED, villain.evidenceBases().ownership());
+
+            // Never verified: no ownership block at all, basis NOT_VERIFIED.
+            assertNull(theme.ownership());
+            assertEquals(EvidenceBasis.NOT_VERIFIED, theme.evidenceBases().ownership());
+
+            // The stamped ownership survives serialization into the persisted manifest JSON.
+            assertTrue(bundle.release().manifestJson().contains("\"robloxAssetId\" : 507766388"));
+            assertTrue(bundle.release().manifestJson().contains("\"checkedAt\" : \"2026-07-24T12:00:00Z\""));
+
+            // The export records WHICH animation id was checked and that a person supplied it. The
+            // ownership FACTS are CreatorFlow's (VERIFIED); the file-to-animation link is the user's
+            // (DECLARED) — an exported manifest must never let the two read as one verified claim.
+            assertEquals(507766388L, hero.ownership().robloxAssetId());
+            assertEquals(OwnershipEvidence.ASSET_ID_DECLARED_BY_USER, hero.ownership().assetIdSource());
+            assertEquals(EvidenceBasis.DECLARED, EvidenceBases.ownershipLinkBasis(hero.ownership()));
+            assertEquals(EvidenceBasis.NOT_VERIFIED, EvidenceBases.ownershipLinkBasis(theme.ownership()));
+            assertTrue(bundle.release().manifestJson().contains("\"assetIdSource\" : \"DECLARED_BY_USER\""));
+        }
+    }
+
+    @Test
+    void recreatingAReleaseWithPersistedOwnershipRowsIsByteIdentical() throws Exception {
+        try (Database database = new Database(directory.resolve("ownership-determinism.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "scan-1", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.CLEAR, resolved()),
+                    asset("audio/theme.wav", "b", VerificationStatus.CLEAR, resolved())));
+            long heroId = assetId(fixture, run, "art/hero.png");
+            long themeId = assetId(fixture, run, "audio/theme.wav");
+
+            fixture.ownershipVerifications.insert(heroId, 90110L, new OwnershipEvidence(507766388L,
+                    OwnershipEvidence.TYPE_USER, 42L, "Animation", "Approved", OwnershipEvidence.TYPE_USER,
+                    42L, null, OwnershipOutcome.MATCH, Instant.parse("2026-07-24T12:00:00Z")));
+            // A MISMATCH is still "facts obtained": creator is a user, owner is a group they don't belong to.
+            fixture.ownershipVerifications.insert(themeId, 90110L, new OwnershipEvidence(507777826L,
+                    OwnershipEvidence.TYPE_USER, 7L, "Animation", "Approved", OwnershipEvidence.TYPE_GROUP,
+                    295182L, null, OwnershipOutcome.MISMATCH, Instant.parse("2026-07-24T12:30:00Z")));
+
+            ReleaseBundle first = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+            ReleaseBundle second = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+
+            // Determinism holds WITH ownership rows present: no wall-clock/random enters the manifest —
+            // the persisted checkedAt is stamped as-is, so two exports of the same scan+evidence state
+            // are byte-identical.
+            assertEquals(first.manifest(), second.manifest());
+            assertEquals(first.release().manifestJson(), second.release().manifestJson());
+            assertTrue(first.release().manifestJson().contains("\"checkedAt\""));
+
+            // Facts were obtained on both sides, so both bases are VERIFIED — a MISMATCH is authoritative
+            // facts too, never demoted to NOT_VERIFIED.
+            assertEquals(EvidenceBasis.VERIFIED, entryFor(first, "art/hero.png").evidenceBases().ownership());
+            AssetEntry theme = entryFor(first, "audio/theme.wav");
+            assertEquals(EvidenceBasis.VERIFIED, theme.evidenceBases().ownership());
+            assertEquals(OwnershipOutcome.MISMATCH, theme.ownership().outcome());
+        }
+    }
+
+    private static AssetEntry entryFor(ReleaseBundle bundle, String path) {
+        return bundle.manifest().assets().stream()
+                .filter(entry -> entry.path().equals(path)).findFirst().orElseThrow();
+    }
+
+    private static long assetId(Fixture fixture, ScanRun run, String relativePath) {
+        return fixture.scans.listAllAssets(run.id()).stream()
+                .filter(asset -> asset.relativePath().equals(relativePath)).findFirst().orElseThrow().id();
     }
 
     private static SourceEvidence resolved() {
@@ -257,6 +383,7 @@ class ReleaseExportServiceTest {
         private final DecisionRepository decisions;
         private final ReleaseRepository releases;
         private final AuditRepository audit;
+        private final OwnershipVerificationRepository ownershipVerifications;
         private final ReleaseExportService service;
 
         private Fixture(Database database) {
@@ -265,7 +392,9 @@ class ReleaseExportServiceTest {
             decisions = new DecisionRepository(database);
             releases = new ReleaseRepository(database);
             audit = new AuditRepository(database);
-            service = new ReleaseExportService(database, projects, scans, decisions, releases, audit);
+            ownershipVerifications = new OwnershipVerificationRepository(database);
+            service = new ReleaseExportService(database, projects, scans, decisions, releases, audit,
+                    ownershipVerifications);
         }
 
         private ScanRun persistScan(LocalProject project, String name, List<AssetEntry> assets) {

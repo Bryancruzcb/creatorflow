@@ -19,14 +19,69 @@ export type ManifestEvidenceBasis = 'VERIFIED' | 'DECLARED' | 'NOT_VERIFIED';
 
 /**
  * Per-facet evidence provenance for one asset. `decision` is omitted until a human records a
- * decision. `ownership` is always `NOT_VERIFIED` — nothing in CreatorFlow calls a Roblox ownership
- * or permission API.
+ * decision.
+ *
+ * `ownership` is `NOT_VERIFIED` by default and becomes `VERIFIED` only when the asset carries an
+ * `ownership` block whose outcome is `MATCH` or `MISMATCH` — i.e. CreatorFlow obtained the
+ * creator/owner facts from Roblox Open Cloud itself. It stays `NOT_VERIFIED` when nothing was
+ * checked and when a check ran but could not obtain the facts (`UNVERIFIABLE`). Mirrors the Java
+ * `EvidenceBases` rule verbatim.
+ *
+ * Two things it never means: that anyone has the right to use the asset, and that this asset entry
+ * *is* the animation that was checked. The verified facts are about a `robloxAssetId` a person
+ * typed in (see `ManifestOwnershipEvidence.assetIdSource`); that file-to-animation link is a human
+ * declaration, classified separately by `ownershipLinkBasis` in `bridge/evidenceBasis.ts` and never
+ * `VERIFIED`.
  */
 export interface ManifestEvidenceBases {
   verification: ManifestEvidenceBasis;
   source: ManifestEvidenceBasis;
   ownership: ManifestEvidenceBasis;
   decision?: ManifestEvidenceBasis;
+}
+
+/**
+ * The outcome of one Roblox Open Cloud ownership verification. `MATCH`/`MISMATCH` both mean facts
+ * were obtained (a mismatch is a review lead, never proof of infringement); `UNVERIFIABLE` is an
+ * honest "could not obtain the facts". Mirrors the core `OwnershipOutcome` enum.
+ */
+export type ManifestOwnershipOutcome = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE';
+
+/** The asset-creator / experience-owner identity kind. Mirrors `OwnershipEvidence.TYPE_*`. */
+export type ManifestOwnershipIdentityType = 'USER' | 'GROUP';
+
+/**
+ * Where the checked `robloxAssetId` came from. `DECLARED_BY_USER` is the only value CreatorFlow can
+ * produce: nothing in a scanned file identifies a Roblox asset, so a person types the id in. Absent
+ * means the provenance is unknown (an ownership block exported before this field existed) — and
+ * unknown is never back-filled into a claim. Mirrors `OwnershipEvidence.ASSET_ID_DECLARED_BY_USER`.
+ */
+export type ManifestOwnershipAssetIdSource = 'DECLARED_BY_USER';
+
+/**
+ * Raw facts from one ownership verification of an animation asset: who created it, who owns the
+ * target experience, and (on the user-creator/group-owner path) the creator's group rank. Serialized
+ * with null facts omitted, so only `robloxAssetId`, `outcome`, and `checkedAt` are guaranteed
+ * present. Honesty constraint: a populated block never means "you have the right to use this" — it
+ * means CreatorFlow observed these facts at `checkedAt` (a point-in-time observation).
+ *
+ * Honesty constraint #2: these facts are about `robloxAssetId`, which a person supplied
+ * (`assetIdSource`). The block therefore never states that the *asset entry it hangs off* is that
+ * animation — that link is a human declaration, classified by `ownershipLinkBasis`.
+ */
+export interface ManifestOwnershipEvidence {
+  robloxAssetId: number;
+  /** OPTIONAL (v0.2, no schema bump): absent on blocks exported before the field existed. */
+  assetIdSource?: ManifestOwnershipAssetIdSource;
+  creatorType?: ManifestOwnershipIdentityType;
+  creatorId?: number;
+  assetType?: string;
+  moderationState?: string;
+  ownerType?: ManifestOwnershipIdentityType;
+  ownerId?: number;
+  memberRank?: number;
+  outcome: ManifestOwnershipOutcome;
+  checkedAt: string;
 }
 
 export interface ManifestFingerprints {
@@ -63,6 +118,8 @@ export interface ManifestAsset {
   decision: ManifestDecision;
   /** OPTIONAL (v0.2, no schema bump): present when the export path has computed it. */
   evidenceBases?: ManifestEvidenceBases;
+  /** OPTIONAL (v0.2, no schema bump): present only when a persisted ownership verification exists. */
+  ownership?: ManifestOwnershipEvidence;
   matches: ManifestMatch[];
   findings: string[];
 }

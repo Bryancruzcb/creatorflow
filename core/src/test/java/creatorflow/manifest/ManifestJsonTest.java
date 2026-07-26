@@ -12,6 +12,7 @@ import creatorflow.manifest.CreativeManifest.IntendedExperience;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.model.VerificationStatus;
+import creatorflow.ownership.OwnershipOutcome;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
@@ -274,6 +275,147 @@ class ManifestJsonTest {
                 """;
         CreativeManifest manifest = new ManifestJson().read(olderV2);
         assertEquals(null, manifest.assets().getFirst().evidenceBases());
+    }
+
+    @Test
+    void anAssetWithOwnershipEvidenceRoundTripsAndOneWithoutStillValidates() throws Exception {
+        ManifestJson json = new ManifestJson();
+        // A consistent MATCH via the membership path: a USER creator who belongs (rank 12) to the
+        // GROUP that owns the target experience.
+        OwnershipEvidence ownership = new OwnershipEvidence(507766388L, OwnershipEvidence.TYPE_USER, 1L,
+                "Animation", "Approved", OwnershipEvidence.TYPE_GROUP, 295182L, 12,
+                OwnershipOutcome.MATCH, Instant.parse("2026-07-23T18:30:00Z"));
+        AssetEntry withOwnership = new AssetEntry("art/hero.png", "hero.png", "png", 10, "a".repeat(64), 0, 0,
+                new Fingerprints(null, null, null), VerificationStatus.CLEAR,
+                new SourceEvidence("Studio", "Owned", "https://example.test/evidence"),
+                ReleaseDecision.APPROVED, List.of(), List.of()).withOwnershipEvidence(ownership);
+        AssetEntry withoutOwnership = new AssetEntry("art/other.png", "other.png", "png", 10, "b".repeat(64), 0, 0,
+                new Fingerprints(null, null, null), VerificationStatus.CLEAR, SourceEvidence.unresolved(),
+                ReleaseDecision.PENDING, List.of(), List.of());
+        assertEquals(null, withoutOwnership.ownership());
+
+        CreativeManifest.Summary summary = new CreativeManifest.Summary(2, 2, 0, 0, 1, 1);
+        CreativeManifest.Gate gate = new CreativeManifest.Gate("BLOCKED", List.of());
+        CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V2,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                summary, List.of(withOwnership, withoutOwnership), null, gate);
+
+        String written = json.write(manifest);
+        assertTrue(written.contains("\"ownership\""));
+        assertTrue(written.contains("\"outcome\" : \"MATCH\""));
+        assertTrue(written.contains("\"robloxAssetId\" : 507766388"));
+        assertTrue(written.contains("\"memberRank\" : 12"));
+        // The id that was checked came from a person typing it — the manifest says so out loud, so a
+        // reader never mistakes an obtained ownership fact for a verified file-to-animation linkage.
+        assertTrue(written.contains("\"assetIdSource\" : \"DECLARED_BY_USER\""),
+                "the manifest must record that the checked animation id was human-declared");
+
+        // Determinism: re-serializing the same manifest is byte-identical even with ownership present.
+        assertEquals(written, json.write(manifest));
+
+        CreativeManifest parsed = json.read(written);
+        assertEquals(manifest, parsed);
+        assertEquals(ownership, parsed.assets().get(0).ownership());
+        assertEquals(null, parsed.assets().get(1).ownership());
+    }
+
+    @Test
+    void anUnverifiableOwnershipRecordOmitsTheFactsItCouldNotObtain() throws Exception {
+        ManifestJson json = new ManifestJson();
+        // A 404 on the asset yields facts-less UNVERIFIABLE: only the checked id, the outcome, and
+        // the timestamp survive; every fact field is null and (NON_NULL) omitted from the JSON.
+        OwnershipEvidence unverifiable = new OwnershipEvidence(999999999L, null, null, null, null,
+                null, null, null, OwnershipOutcome.UNVERIFIABLE, Instant.parse("2026-07-23T18:30:00Z"));
+        AssetEntry asset = new AssetEntry("art/hero.png", "hero.png", "png", 10, "a".repeat(64), 0, 0,
+                new Fingerprints(null, null, null), VerificationStatus.CLEAR, SourceEvidence.unresolved(),
+                ReleaseDecision.PENDING, List.of(), List.of()).withOwnershipEvidence(unverifiable);
+        CreativeManifest.Summary summary = new CreativeManifest.Summary(1, 1, 0, 0, 1, 1);
+        CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V2,
+                new CreativeManifest.Project("X", "1"), Instant.parse("2026-07-12T20:00:00Z"),
+                summary, List.of(asset), null, new CreativeManifest.Gate("PASS", List.of()));
+
+        String written = json.write(manifest);
+        assertTrue(written.contains("\"outcome\" : \"UNVERIFIABLE\""));
+        assertFalse(written.contains("\"creatorType\""), "null facts must be omitted, not written as null");
+        assertFalse(written.contains("\"ownerId\""));
+        assertEquals(unverifiable, json.read(written).assets().getFirst().ownership());
+    }
+
+    @Test
+    void anOlderV2ManifestWithoutOwnershipOnAnyAssetStillValidates() throws Exception {
+        // Backward compat: ownership is an OPTIONAL additive v0.2 field (no schema version bump). A
+        // v0.2 manifest written before this task (no ownership anywhere) must still read cleanly.
+        String olderV2 = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 1, "clear": 1, "similar": 0, "duplicate": 0, "unresolvedSources": 1, "pendingDecisions": 1},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": [{
+                    "path": "asset.png", "fileName": "asset.png", "fileType": "png", "sizeBytes": 1,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "width": 1, "height": 1,
+                    "fingerprints": {"dHash": null, "pHash": null, "audio": null}, "verification": "CLEAR",
+                    "source": {"source": null, "license": null, "evidenceUrl": null},
+                    "decision": "PENDING", "matches": [], "findings": []
+                  }]
+                }
+                """;
+        CreativeManifest manifest = new ManifestJson().read(olderV2);
+        assertEquals(null, manifest.assets().getFirst().ownership());
+    }
+
+    @Test
+    void anOwnershipBlockWrittenBeforeAssetIdSourceExistedStillReadsWithAnUnknownLinkage() throws Exception {
+        // Backward compat #2: assetIdSource is additive and OPTIONAL (no schema version bump), so a
+        // v0.2 manifest exported before it existed must still validate. Its linkage provenance is
+        // simply unknown — and unknown must never be back-filled into a claim we did not record.
+        String olderOwnership = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 1, "clear": 1, "similar": 0, "duplicate": 0, "unresolvedSources": 1, "pendingDecisions": 1},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": [{
+                    "path": "asset.png", "fileName": "asset.png", "fileType": "png", "sizeBytes": 1,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "width": 1, "height": 1,
+                    "fingerprints": {"dHash": null, "pHash": null, "audio": null}, "verification": "CLEAR",
+                    "source": {"source": null, "license": null, "evidenceUrl": null},
+                    "decision": "PENDING", "matches": [], "findings": [],
+                    "ownership": {"robloxAssetId": 507766388, "outcome": "MATCH", "checkedAt": "2026-07-23T18:30:00Z"}
+                  }]
+                }
+                """;
+        OwnershipEvidence ownership = new ManifestJson().read(olderOwnership).assets().getFirst().ownership();
+        assertEquals(507766388L, ownership.robloxAssetId());
+        assertEquals(null, ownership.assetIdSource());
+        assertEquals(EvidenceBasis.NOT_VERIFIED, EvidenceBases.ownershipLinkBasis(ownership));
+    }
+
+    @Test
+    void rejectsAnOwnershipBlockClaimingAnUnknownAssetIdSource() {
+        // The only linkage provenance this build can honestly produce is DECLARED_BY_USER. A manifest
+        // asserting some other (e.g. self-congratulatory "verified") source must be rejected outright.
+        String bogusSource = """
+                {
+                  "$schema": "creatorflow.manifest/v0.2",
+                  "project": {"name": "X", "release": "1"},
+                  "generatedAt": "2026-07-12T20:00:00Z",
+                  "summary": {"total": 1, "clear": 1, "similar": 0, "duplicate": 0, "unresolvedSources": 1, "pendingDecisions": 1},
+                  "gate": {"result": "PASS", "reasons": []},
+                  "assets": [{
+                    "path": "asset.png", "fileName": "asset.png", "fileType": "png", "sizeBytes": 1,
+                    "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "width": 1, "height": 1,
+                    "fingerprints": {"dHash": null, "pHash": null, "audio": null}, "verification": "CLEAR",
+                    "source": {"source": null, "license": null, "evidenceUrl": null},
+                    "decision": "PENDING", "matches": [], "findings": [],
+                    "ownership": {"robloxAssetId": 1, "assetIdSource": "VERIFIED_BY_CREATORFLOW",
+                                  "outcome": "MATCH", "checkedAt": "2026-07-23T18:30:00Z"}
+                  }]
+                }
+                """;
+        assertThrows(Exception.class, () -> new ManifestJson().read(bogusSource));
     }
 
     @Test

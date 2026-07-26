@@ -72,6 +72,27 @@
     "nullableHex": { "type": ["string", "null"], "pattern": "^[0-9a-f]{16}$" },
     "nullableString": { "type": ["string", "null"] },
     "evidenceBasis": { "enum": ["VERIFIED", "DECLARED", "NOT_VERIFIED"] },
+    "ownershipOutcome": { "enum": ["MATCH", "MISMATCH", "UNVERIFIABLE"] },
+    "ownershipIdentityType": { "enum": ["USER", "GROUP"] },
+    "ownershipAssetIdSource": { "enum": ["DECLARED_BY_USER"] },
+    "ownership": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["robloxAssetId", "outcome", "checkedAt"],
+      "properties": {
+        "robloxAssetId": { "type": "integer", "minimum": 1 },
+        "assetIdSource": { "$ref": "#/$defs/ownershipAssetIdSource" },
+        "creatorType": { "$ref": "#/$defs/ownershipIdentityType" },
+        "creatorId": { "type": "integer", "minimum": 1 },
+        "assetType": { "type": "string" },
+        "moderationState": { "type": "string" },
+        "ownerType": { "$ref": "#/$defs/ownershipIdentityType" },
+        "ownerId": { "type": "integer", "minimum": 1 },
+        "memberRank": { "type": "integer", "minimum": 0 },
+        "outcome": { "$ref": "#/$defs/ownershipOutcome" },
+        "checkedAt": { "type": "string", "format": "date-time" }
+      }
+    },
     "evidenceBases": {
       "type": "object",
       "additionalProperties": false,
@@ -123,6 +144,7 @@
         },
         "decision": { "enum": ["PENDING", "APPROVED", "NEEDS_REVIEW", "BLOCKED", "EXCLUDED"] },
         "evidenceBases": { "$ref": "#/$defs/evidenceBases" },
+        "ownership": { "$ref": "#/$defs/ownership" },
         "matches": {
           "type": "array",
           "items": {

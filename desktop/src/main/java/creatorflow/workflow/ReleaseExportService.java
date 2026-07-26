@@ -9,6 +9,7 @@ import creatorflow.db.AuditRepository;
 import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
+import creatorflow.db.OwnershipVerificationRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
 import creatorflow.manifest.CreativeManifest;
@@ -19,6 +20,7 @@ import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.manifest.EvidenceBases;
 import creatorflow.manifest.ManifestJson;
+import creatorflow.manifest.OwnershipEvidence;
 import creatorflow.manifest.ReleaseGate;
 import creatorflow.model.VerificationStatus;
 import java.io.IOException;
@@ -41,6 +43,7 @@ public final class ReleaseExportService {
     private final DecisionRepository decisions;
     private final ReleaseRepository releases;
     private final AuditRepository audit;
+    private final OwnershipVerificationRepository ownershipVerifications;
     private final ManifestJson manifests = new ManifestJson();
     private final ObjectMapper json = JsonMapper.builder()
             .addModule(new JavaTimeModule())
@@ -51,13 +54,16 @@ public final class ReleaseExportService {
 
     public ReleaseExportService(Database database, LocalProjectRepository projects,
                                 ScanRepository scans, DecisionRepository decisions,
-                                ReleaseRepository releases, AuditRepository audit) {
+                                ReleaseRepository releases, AuditRepository audit,
+                                OwnershipVerificationRepository ownershipVerifications) {
         this.database = Objects.requireNonNull(database, "database");
         this.projects = Objects.requireNonNull(projects, "projects");
         this.scans = Objects.requireNonNull(scans, "scans");
         this.decisions = Objects.requireNonNull(decisions, "decisions");
         this.releases = Objects.requireNonNull(releases, "releases");
         this.audit = Objects.requireNonNull(audit, "audit");
+        this.ownershipVerifications =
+                Objects.requireNonNull(ownershipVerifications, "ownershipVerifications");
     }
 
     public ReleaseBundle create(long projectId, String scanRunId, String releaseName) {
@@ -82,6 +88,10 @@ public final class ReleaseExportService {
         Map<Long, List<ScanFinding>> findings = scans.findingsForRun(scanRunId);
         Map<Long, SourceEvidenceRecord> evidence = scans.latestEvidenceForRun(scanRunId);
         Map<Long, DecisionRecord> latestDecisions = decisions.latestForRun(scanRunId);
+        // Ownership comes from the PERSISTED Task-5 ledger only — a repository read, never an Open
+        // Cloud call. Export must not depend on OpenCloudClient/OwnershipVerifier: the sole live-call
+        // site is the Task-6 verify route, and its result is stamped here from what it persisted.
+        Map<Long, OwnershipVerificationRecord> owners = ownershipVerifications.latestForRun(scanRunId);
 
         List<AssetEntry> entries = new ArrayList<>(persistedAssets.size());
         for (ScanAsset asset : persistedAssets) {
@@ -102,9 +112,17 @@ public final class ReleaseExportService {
                     asset.sizeBytes(), asset.sha256(), asset.width(), asset.height(),
                     new Fingerprints(asset.dHash(), asset.pHash(), asset.audioFingerprint()),
                     asset.verification(), source, releaseDecision, matches, asset.findings());
+            // Stamp the latest persisted ownership observation (if any) BEFORE classifying, so the
+            // classifier sees it. checkedAt is carried through exactly as persisted; nothing here reads
+            // a clock or the network, so re-exporting the same scan+evidence state stays byte-identical.
+            OwnershipVerificationRecord ownership = owners.get(asset.id());
+            if (ownership != null) {
+                entry = entry.withOwnershipEvidence(toEvidence(ownership));
+            }
             // The classifier is the single source of truth for evidence provenance (verification is
-            // always tool-computed, source/decision are DECLARED once present, ownership is always
-            // NOT_VERIFIED) — pure, so it does not affect the manifest's byte-determinism.
+            // always tool-computed, source/decision are DECLARED once present, ownership is VERIFIED
+            // only when authoritative facts were obtained — MATCH or MISMATCH — else NOT_VERIFIED).
+            // Pure, so it does not affect the manifest's byte-determinism.
             entries.add(entry.withEvidenceBases(EvidenceBases.of(entry)));
         }
 
@@ -164,6 +182,24 @@ public final class ReleaseExportService {
                         violation.verification().name(), violation.decision().name(), violation.message()))
                 .toList();
         return new CreativeManifest.Gate(report.passed() ? "PASS" : "BLOCKED", reasons);
+    }
+
+    /**
+     * Maps a persisted ownership ledger row into the manifest's {@link OwnershipEvidence} value type,
+     * reading only stored facts — no Open Cloud call happens on the export path. {@code checkedAt} is
+     * carried through exactly as persisted so a check's staleness stays visible and re-exports remain
+     * byte-identical. This never fabricates a fact the ledger did not record; a row whose outcome is
+     * {@code UNVERIFIABLE} keeps its null facts and the classifier leaves the basis {@code NOT_VERIFIED}.
+     *
+     * <p>The checked {@code robloxAssetId} and its provenance ({@link OwnershipVerificationRecord#assetIdSource()}
+     * — a person typed it) are both carried into the manifest, so an exported ownership block always
+     * says which animation was checked and who claimed the file is that animation. Without that, a
+     * VERIFIED ownership fact about a declared id would read as a verified fact about the file.
+     */
+    private static OwnershipEvidence toEvidence(OwnershipVerificationRecord record) {
+        return new OwnershipEvidence(record.robloxAssetId(), record.assetIdSource(), record.creatorType(),
+                record.creatorId(), record.assetType(), record.moderationState(), record.ownerType(),
+                record.ownerId(), record.memberRank(), record.outcome(), record.checkedAt());
     }
 
     private static Match toMatch(ScanFinding finding, Map<Integer, ScanAsset> byOrdinal) {

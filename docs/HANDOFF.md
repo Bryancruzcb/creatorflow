@@ -88,6 +88,10 @@ npm --prefix frontend run build
   records without retaining raw joint curves.
 - The source-first Studio desktop bridge reads two permitted Animation IDs and rejects
   non-loopback endpoints.
+- With an optional Roblox Open Cloud API key, an explicit action verifies an animation's creator
+  and the target experience's owner through Roblox's own API, records the facts point-in-time,
+  and surfaces a match as positive evidence or a mismatch as a non-accusatory review lead (see
+  *Ownership verification* below).
 
 ## Important product semantics
 
@@ -100,8 +104,58 @@ npm --prefix frontend run build
   root-path scores are not meaningful, so those buttons are visual focus only in this mode.
 - Similarity is a review lead, never an authorship, copying, or copyright verdict — this
   honesty won the SJ Hacks judge question and it's all over the docs; keep it.
+- Ownership `VERIFIED` means CreatorFlow obtained the creator/owner facts from Roblox, **not**
+  that the team has the right to use the asset; a mismatch is a review lead, never an accusation.
+  Those facts are about an **animation id a person typed in** — the link between the scanned file
+  and that id is `DECLARED`, never verified. See *Ownership verification* below.
 - "Publish" in CreatorFlow currently means prepare and record a Roblox Studio handoff. It is
   not a direct Roblox upload.
+
+## Ownership verification (Phase A — shipped 2026-07-24)
+
+The always-`NOT_VERIFIED` ownership row is now *verified where Roblox's Open Cloud API allows
+it*. In a project with a bound experience, a person enters a Roblox animation id for the file
+they are looking at and an explicit **Verify ownership** action calls Open Cloud once
+(desktop-side — the only live-call site), confirms who created *that animation* and who owns the
+target experience, and persists the raw facts to an insert-only ledger (`V010`). Downstream reads
+persisted rows only — export never touches the network, so manifests stay byte-deterministic.
+
+- **Key setup.** Add a user-scoped Open Cloud API key (asset + universe + group read) under
+  **Settings → Roblox Open Cloud**. The key stays on the machine — never in the manifest,
+  frontend, logs, or VCS. It is protected at rest: **DPAPI-encrypted on Windows**
+  (`Crypt32Util.protectData`, base64 ciphertext bound to the Windows user, via JNA); on other
+  OSes it falls back to plaintext and the Settings card says so plainly (*encrypted (Windows
+  DPAPI)* vs *not encrypted on this OS*) — it never claims protection the platform can't back.
+- **The honesty ceiling.** `VERIFIED` means *facts were obtained* — a MATCH (creator == owner,
+  or the creator-user is a member of the owning group) and a MISMATCH both qualify. It never
+  means "you have the right to use this asset". A MISMATCH is a **review lead** for a human,
+  never an accusation or an auto-block; only a mismatch with no recorded decision blocks the
+  gate, and a human APPROVED/EXCLUDED decision clears it. Group policy: *any* membership in the
+  owning group is a MATCH, and the member's rank is persisted so the policy can tighten later
+  without re-verifying. Membership is a **tri-state** fact and only the memberships listing
+  decides it: a member whose *rank* could not be resolved (unexpected entry shape, a role deleted
+  mid-check, the role-paging cap) is still a MATCH, recorded with no rank. Only an **observed**
+  absence — a 200 with an empty memberships list — can produce a MISMATCH, so a shape divergence
+  can never turn a real group member into a published accusation of non-membership.
+- **The linkage is DECLARED, the facts are VERIFIED.** Nothing in a scanned file identifies a
+  Roblox asset — CreatorFlow cannot derive an animation id from a `sha256`/path, so the id always
+  comes from a person typing it into the ownership panel. The two claims are therefore kept
+  apart everywhere: the manifest's `ownership` block records the id that was actually checked
+  plus `assetIdSource: "DECLARED_BY_USER"`; `EvidenceBases.ownershipLinkBasis` /
+  `evidenceBasis.ts`'s `ownershipLinkBasis` classify that linkage as `DECLARED` (never
+  `VERIFIED`, for any input); and the panel says in words that you entered the id and that only
+  that id's ownership was checked. `evidenceBases.ownership = VERIFIED` is a statement about the
+  animation id, never about the file.
+- **What stays NOT_VERIFIED.** A lookup that *ran* but could not obtain the facts — a 4xx/5xx, a
+  network error, an unreadable/deleted id, an id that is not an `Animation` — is `UNVERIFIABLE`,
+  never a false `VERIFIED`. Two paths persist **nothing at all** rather than an `UNVERIFIABLE`
+  row: **no key** (the bridge route rejects with 409 before any call, and the panel disables the
+  Verify button up front so the click never happens) and a **429 rate-limit** (surfaced distinctly
+  as "rate-limited, try again"; a transient throttle is not an observation about ownership). In
+  both, the asset keeps whatever ownership state it already had. A file nobody has entered an id
+  for has no ownership block at all and stays `NOT_VERIFIED`. A verification is a **point-in-time
+  observation**: CreatorFlow surfaces `checkedAt` ("checked N days ago") and does not expire or
+  auto-re-check.
 
 ## Two Studio-plugin paths (hard rule)
 
@@ -256,7 +310,9 @@ Bryan's call on integration).
 3. **Team registries**: the server API is per-account; a shared account works for demos, real
    teams need memberships.
 4. From GPT's original build order: creator/group/experience ownership and permission context
-   per Animation ID; last-known-good and last-published immutable animation snapshots; a
+   per Animation ID *(the creator/owner/group-ownership match shipped 2026-07-24 — see
+   Ownership verification above; a fuller permission graph remains)*; last-known-good and
+   last-published immutable animation snapshots; a
    runtime probe for intended rig, priority, loop, markers, duration, and load errors; Release
    Flow as a Roblox checklist (version note, audience/eligibility, asset permission diff,
    rollback target, Studio publish confirmation, rollout, smoke test); Stress Lab as a device

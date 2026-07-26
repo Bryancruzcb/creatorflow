@@ -13,11 +13,23 @@ import creatorflow.db.Database;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.MotionSnapshotRepository;
+import creatorflow.db.OwnershipVerificationRepository;
 import creatorflow.db.PluginPairingRepository;
 import creatorflow.db.ReleaseRepository;
 import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
+import creatorflow.manifest.CreativeManifest;
+import creatorflow.manifest.CreativeManifest.AssetEntry;
+import creatorflow.manifest.CreativeManifest.Fingerprints;
+import creatorflow.manifest.CreativeManifest.ReleaseDecision;
+import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.manifest.OwnershipEvidence;
+import creatorflow.model.VerificationStatus;
+import creatorflow.ownership.OwnershipOutcome;
+import creatorflow.service.opencloud.OpenCloudSettings;
+import creatorflow.service.opencloud.RateLimitedException;
 import creatorflow.workflow.ReleaseExportService;
+import creatorflow.workflow.ScanAccounting;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -29,8 +41,12 @@ import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,6 +70,11 @@ class LocalBridgeServerTest {
     private DecisionRepository decisions;
     private ReleaseRepository releases;
     private WorkspaceStateRepository workspaceState;
+    private OpenCloudSettings openCloudSettings;
+    private OwnershipVerificationRepository ownershipVerifications;
+    // The fake the verify-ownership route calls — swapped per test to return a MATCH, a MISMATCH,
+    // or to throw a RateLimitedException, all without a live Open Cloud call.
+    private final AtomicReference<OwnershipVerification> fakeVerifier = new AtomicReference<>();
 
     @BeforeEach
     void start() throws Exception {
@@ -75,11 +96,22 @@ class LocalBridgeServerTest {
         var pluginPairings = new PluginPairingService(new PluginPairingRepository(database));
         var audit = new AuditRepository(database);
         var coordinator = new ScanCoordinator(scans, localProjects, audit);
+        ownershipVerifications = new OwnershipVerificationRepository(database);
         var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
-                releases, audit);
+                releases, audit, ownershipVerifications);
+        openCloudSettings = new OpenCloudSettings(directory);
+        // Delegate to whatever the current test installed; never a live call.
+        OwnershipVerification verifier = (robloxAssetId, universeId, now) -> {
+            OwnershipVerification delegate = fakeVerifier.get();
+            if (delegate == null) {
+                throw new IllegalStateException("no fake OwnershipVerification installed for this test");
+            }
+            return delegate.verify(robloxAssetId, universeId, now);
+        };
         server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,
-                pluginPairings, releaseExports, coordinator, webRoot).start();
+                pluginPairings, releaseExports, openCloudSettings, verifier, ownershipVerifications,
+                coordinator, webRoot).start();
     }
 
     private void authenticate() throws Exception {
@@ -508,6 +540,179 @@ class LocalBridgeServerTest {
                 cookie, origin.toString(), csrf,
                 "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"candidate\",\"kind\":\"whenever\"}")
                 .statusCode());
+    }
+
+    @Test
+    void verifyOwnershipGatesOnKeyAndCsrfThenPersistsAndListsHistory() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long assetId = seedBoundAsset(90110L);
+        String verify = "/api/v1/assets/" + assetId + "/verify-ownership";
+        String history = "/api/v1/assets/" + assetId + "/ownership-verifications";
+
+        // A mutation: without CSRF it is 403 before any key or body is even considered.
+        assertEquals(403, postJson(verify, cookie, origin.toString(), null,
+                "{\"robloxAssetId\":507766388}").statusCode());
+
+        // No Open Cloud key configured -> 409; the single live-call site refuses to invent a result.
+        HttpResponse<String> noKey = postJson(verify, cookie, origin.toString(), csrf,
+                "{\"robloxAssetId\":507766388}");
+        assertEquals(409, noKey.statusCode(), noKey.body());
+
+        openCloudSettings.save("oc-test-key-abc123");
+
+        // Key present but no animation id in the body -> a 404 precondition, not a crash.
+        assertEquals(404, postJson(verify, cookie, origin.toString(), csrf, "{}").statusCode());
+
+        // A MATCH from the fake verifier is persisted and echoed back as the stored view.
+        fakeVerifier.set((robloxAssetId, universeId, now) -> new OwnershipEvidence(robloxAssetId,
+                OwnershipEvidence.TYPE_USER, 42L, "Animation", "Approved",
+                OwnershipEvidence.TYPE_USER, 42L, null, OwnershipOutcome.MATCH, now));
+        HttpResponse<String> verified = postJson(verify, cookie, origin.toString(), csrf,
+                "{\"robloxAssetId\":507766388}");
+        assertEquals(201, verified.statusCode(), verified.body());
+        JsonNode view = json.readTree(verified.body());
+        assertEquals("MATCH", view.get("outcome").asText());
+        assertTrue(view.get("verified").asBoolean());
+        assertEquals(507766388L, view.get("robloxAssetId").asLong());
+        assertEquals(90110L, view.get("universeId").asLong());
+        assertEquals("USER", view.get("creatorType").asText());
+        assertEquals(42L, view.get("ownerId").asLong());
+        assertFalse(view.get("checkedAt").isNull());
+        // The id came out of the request body — a person typed it. The view says so, so the UI can
+        // render the file-to-animation link as DECLARED instead of implying CreatorFlow found it.
+        assertEquals("DECLARED_BY_USER", view.get("assetIdSource").asText());
+        // The API key and the raw upstream body must never appear in a rendered view.
+        assertFalse(verified.body().contains("oc-test-key-abc123"));
+        assertFalse(verified.body().toLowerCase(java.util.Locale.ROOT).contains("rawresponse"));
+
+        HttpResponse<String> firstHistory = get(history, cookie);
+        assertEquals(200, firstHistory.statusCode());
+        assertEquals(1, json.readTree(firstHistory.body()).get("items").size());
+
+        // A second verification appends; the newest observation is listed first.
+        fakeVerifier.set((robloxAssetId, universeId, now) -> new OwnershipEvidence(robloxAssetId,
+                OwnershipEvidence.TYPE_USER, 42L, "Animation", "Approved",
+                OwnershipEvidence.TYPE_GROUP, 99L, null, OwnershipOutcome.MISMATCH, now));
+        assertEquals(201, postJson(verify, cookie, origin.toString(), csrf,
+                "{\"robloxAssetId\":507766388}").statusCode());
+
+        HttpResponse<String> listed = get(history, cookie);
+        assertEquals(200, listed.statusCode());
+        JsonNode items = json.readTree(listed.body()).get("items");
+        assertEquals(2, items.size());
+        assertEquals("MISMATCH", items.get(0).get("outcome").asText());
+        assertEquals("MATCH", items.get(1).get("outcome").asText());
+        assertFalse(listed.body().contains("oc-test-key-abc123"));
+        // Reading history still needs a session.
+        assertEquals(401, get(history, null).statusCode());
+    }
+
+    @Test
+    void sessionReportsWhetherAnOpenCloudKeyIsConfiguredAndNeverTheKeyItself() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+
+        // Before a key is saved the session says so plainly, so the workspace can disable the verify
+        // action with an honest reason instead of only failing after the click.
+        HttpResponse<String> before = get("/api/v1/session", cookie);
+        assertEquals(200, before.statusCode());
+        assertFalse(json.readTree(before.body()).get("openCloudKeyConfigured").asBoolean());
+
+        openCloudSettings.save("oc-test-key-abc123");
+
+        HttpResponse<String> after = get("/api/v1/session", cookie);
+        assertEquals(200, after.statusCode());
+        assertTrue(json.readTree(after.body()).get("openCloudKeyConfigured").asBoolean());
+        // A boolean only: neither the key nor any prefix or masked form of it crosses the bridge.
+        assertFalse(after.body().contains("oc-test-key-abc123"));
+        assertFalse(after.body().contains("oc-test-key"));
+        assertFalse(after.body().toLowerCase(java.util.Locale.ROOT).contains("apikey"));
+
+        // And the status is still session-guarded like every other bridge read.
+        assertEquals(401, get("/api/v1/session", null).statusCode());
+    }
+
+    @Test
+    void verifyOwnershipReturns404WhenTheExperienceIsUnbound() throws Exception {
+        long assetId = seedUnboundAsset();
+        openCloudSettings.save("oc-test-key-abc123");
+        HttpResponse<String> unbound = postJson("/api/v1/assets/" + assetId + "/verify-ownership",
+                cookie, origin.toString(), csrf, "{\"robloxAssetId\":507766388}");
+        assertEquals(404, unbound.statusCode(), unbound.body());
+        assertTrue(unbound.body().contains("bound experience"));
+    }
+
+    @Test
+    void verifyOwnershipSurfacesRateLimitAsADistinct429() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long assetId = seedBoundAsset(90110L);
+        openCloudSettings.save("oc-test-key-abc123");
+        fakeVerifier.set((robloxAssetId, universeId, now) -> {
+            throw new RateLimitedException("slow down", Duration.ofSeconds(30));
+        });
+
+        HttpResponse<String> limited = postJson("/api/v1/assets/" + assetId + "/verify-ownership",
+                cookie, origin.toString(), csrf, "{\"robloxAssetId\":507766388}");
+        assertEquals(429, limited.statusCode(), limited.body());
+        assertEquals(30, json.readTree(limited.body()).get("retryAfterSeconds").asInt());
+
+        // A rate limit is transient: nothing is persisted, so no false record lingers.
+        HttpResponse<String> history = get(
+                "/api/v1/assets/" + assetId + "/ownership-verifications", cookie);
+        assertEquals(0, json.readTree(history.body()).get("items").size());
+    }
+
+    /**
+     * Roblox is not obliged to send a {@code Retry-After}, and the spike note records that a 429 was
+     * never provoked live. With no hint the route must still be a plain 429 with its message — and
+     * must omit {@code retryAfterSeconds} entirely rather than emit a zero, which the UI would render
+     * as "try again in 0 seconds": a wait CreatorFlow was never told.
+     */
+    @Test
+    void verifyOwnershipSurfaces429WithNoRetryHintWhenRobloxSendsNone() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long assetId = seedBoundAsset(90110L);
+        openCloudSettings.save("oc-test-key-abc123");
+        fakeVerifier.set((robloxAssetId, universeId, now) -> {
+            throw new RateLimitedException("slow down", null);
+        });
+
+        HttpResponse<String> limited = postJson("/api/v1/assets/" + assetId + "/verify-ownership",
+                cookie, origin.toString(), csrf, "{\"robloxAssetId\":507766388}");
+
+        assertEquals(429, limited.statusCode(), limited.body());
+        JsonNode body = json.readTree(limited.body());
+        assertFalse(body.has("retryAfterSeconds"),
+                "with no Retry-After header the response must carry no invented wait");
+        assertTrue(body.get("error").asText().contains("rate-limiting"), limited.body());
+
+        // Still transient: an unhinted rate limit persists nothing either.
+        HttpResponse<String> history = get(
+                "/api/v1/assets/" + assetId + "/ownership-verifications", cookie);
+        assertEquals(0, json.readTree(history.body()).get("items").size());
+    }
+
+    private long seedBoundAsset(long universeId) {
+        long projectId = localProjects.adopt(directory).projectId();
+        localProjects.bindExperience(projectId, universeId, 1818L, "Test Experience");
+        return seedAsset(projectId);
+    }
+
+    private long seedUnboundAsset() {
+        return seedAsset(localProjects.adopt(directory).projectId());
+    }
+
+    private long seedAsset(long projectId) {
+        var run = scans.create(projectId, directory, "1.0.0", List.of("node_modules"), List.of("rbxm"));
+        scans.markStarted(run.id());
+        List<AssetEntry> assets = List.of(new AssetEntry("art/walk.rbxm", "walk.rbxm", "rbxm", 128,
+                "a".repeat(64), 64, 64, new Fingerprints("01", "02", null),
+                VerificationStatus.CLEAR, new SourceEvidence(null, null, null),
+                ReleaseDecision.PENDING, List.of(), List.of()));
+        CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V1,
+                new CreativeManifest.Project("proj", "1.0.0"), Instant.now(),
+                new CreativeManifest.Summary(1, 1, 0, 0, 1, 1), assets);
+        scans.complete(run.id(), manifest, new ScanAccounting(1, 0, 0, 0, 0, 0, 128), List.of());
+        return scans.listAssets(run.id(), 10, 0).getFirst().id();
     }
 
     private HttpResponse<String> get(String path, String requestCookie) throws Exception {
