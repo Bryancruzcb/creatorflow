@@ -1,3 +1,4 @@
+import { assetUrl } from './assetUrl';
 export type EvidenceStatus = 'clear' | 'review' | 'blocked';
 export type ReleaseDecision = 'approved' | 'needs-review' | 'blocked' | 'pending' | 'excluded';
 export type AssetKind = 'model' | 'mesh' | 'mountain' | 'sprite' | 'wave' | 'texture' | 'icons' | 'font' | 'video' | 'receipt';
@@ -194,7 +195,7 @@ function khronosModelRecords(config: KhronosModelRecords): SourceMatch[] {
       hash: config.projectHash,
       variant: 'derivative',
       modelUrl: config.projectModelUrl,
-      sourceUrl: '/assets/ASSET-PROVENANCE.md',
+      sourceUrl: assetUrl('/assets/ASSET-PROVENANCE.md'),
       licenseUrl: cc0LicenseUrl,
     },
   ];
@@ -217,16 +218,16 @@ export const initialAssets: AssetRecord[] = [
     owner: 'M. Chen',
     firstSeen: 'May 08, 2026 · 10:32',
     hash: '5D36EDD89E44331DA003F181B6FB3A2A98303922600E3093B213E78913415AF7',
-    modelUrl: '/assets/avocado-project-derivative.glb',
-    previewUrl: '/assets/avocado-source.jpg',
+    modelUrl: assetUrl('/assets/avocado-project-derivative.glb'),
+    previewUrl: assetUrl('/assets/avocado-source.jpg'),
     matches: khronosModelRecords({
       slug: 'avocado',
       displayName: 'Avocado.glb',
       localName: 'avocado_foodstudy_v02.glb',
       sourceHash: 'CCC9C3CE56423720B09399C2351537207CD5A65F859F9E6E2F30922762F3ABD4',
       projectHash: '5D36EDD89E44331DA003F181B6FB3A2A98303922600E3093B213E78913415AF7',
-      sourceModelUrl: '/assets/avocado-source.glb',
-      projectModelUrl: '/assets/avocado-project-derivative.glb',
+      sourceModelUrl: assetUrl('/assets/avocado-source.glb'),
+      projectModelUrl: assetUrl('/assets/avocado-project-derivative.glb'),
       sourcePageUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Avocado',
       firstSeen: 'May 08, 2026 · 10:32',
       visualDelta: {
@@ -252,16 +253,16 @@ export const initialAssets: AssetRecord[] = [
     owner: 'M. Chen',
     firstSeen: 'May 09, 2026 · 14:06',
     hash: '1AA49E3FE779E292D39BCC0A71B0D297A098CCFBBA5094FB46A162E59CE4F9A4',
-    modelUrl: '/assets/boombox-project-derivative.glb',
-    previewUrl: '/assets/boombox-source.jpg',
+    modelUrl: assetUrl('/assets/boombox-project-derivative.glb'),
+    previewUrl: assetUrl('/assets/boombox-source.jpg'),
     matches: khronosModelRecords({
       slug: 'boombox',
       displayName: 'BoomBox.glb',
       localName: 'radio_safehouse_v04.glb',
       sourceHash: 'F8B918445EBDD006768232205A62F5182D2208CA57F84C6CCC084943C0BC8F15',
       projectHash: '1AA49E3FE779E292D39BCC0A71B0D297A098CCFBBA5094FB46A162E59CE4F9A4',
-      sourceModelUrl: '/assets/boombox-source.glb',
-      projectModelUrl: '/assets/boombox-project-derivative.glb',
+      sourceModelUrl: assetUrl('/assets/boombox-source.glb'),
+      projectModelUrl: assetUrl('/assets/boombox-project-derivative.glb'),
       sourcePageUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BoomBox',
       firstSeen: 'May 09, 2026 · 14:06',
       visualDelta: {
@@ -287,8 +288,8 @@ export const initialAssets: AssetRecord[] = [
     owner: 'R. Avery',
     firstSeen: 'May 11, 2026 · 09:44',
     hash: '1A4F497E657DCC33FC55C02FCBD7B5D610AB72B8F8B7AE8764EF69D9E20ED477',
-    modelUrl: '/assets/barramundi-project-derivative.glb',
-    previewUrl: '/assets/barramundi-source.jpg',
+    modelUrl: assetUrl('/assets/barramundi-project-derivative.glb'),
+    previewUrl: assetUrl('/assets/barramundi-source.jpg'),
     modelRotation: -1.5,
     matches: khronosModelRecords({
       slug: 'barramundi',
@@ -296,8 +297,8 @@ export const initialAssets: AssetRecord[] = [
       localName: 'barramundi_market_v03.glb',
       sourceHash: 'ECC3BAFB6B00F2C8B810863C388E3768A7B7EA0D0335E8CB8C574C266E571F4A',
       projectHash: '1A4F497E657DCC33FC55C02FCBD7B5D610AB72B8F8B7AE8764EF69D9E20ED477',
-      sourceModelUrl: '/assets/barramundi-source.glb',
-      projectModelUrl: '/assets/barramundi-project-derivative.glb',
+      sourceModelUrl: assetUrl('/assets/barramundi-source.glb'),
+      projectModelUrl: assetUrl('/assets/barramundi-project-derivative.glb'),
       sourcePageUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/BarramundiFish',
       firstSeen: 'May 11, 2026 · 09:44',
       visualDelta: {
@@ -323,16 +324,16 @@ export const initialAssets: AssetRecord[] = [
     owner: 'R. Avery',
     firstSeen: 'May 12, 2026 · 08:21',
     hash: 'C56C3CC4960E746E59B7E2E5900AE168308B263C5A0EB384365F4BCE3FCC1480',
-    modelUrl: '/assets/waterbottle-project-derivative.glb',
-    previewUrl: '/assets/waterbottle-source.jpg',
+    modelUrl: assetUrl('/assets/waterbottle-project-derivative.glb'),
+    previewUrl: assetUrl('/assets/waterbottle-source.jpg'),
     matches: khronosModelRecords({
       slug: 'waterbottle',
       displayName: 'WaterBottle.glb',
       localName: 'water_bottle_camp_v02.glb',
       sourceHash: 'B337E526FD6A162013C2984AEEC163F5FBB4F717252724DFC3F3458BD51DF94B',
       projectHash: 'C56C3CC4960E746E59B7E2E5900AE168308B263C5A0EB384365F4BCE3FCC1480',
-      sourceModelUrl: '/assets/waterbottle-source.glb',
-      projectModelUrl: '/assets/waterbottle-project-derivative.glb',
+      sourceModelUrl: assetUrl('/assets/waterbottle-source.glb'),
+      projectModelUrl: assetUrl('/assets/waterbottle-project-derivative.glb'),
       sourcePageUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/WaterBottle',
       firstSeen: 'May 12, 2026 · 08:21',
       visualDelta: {
@@ -358,8 +359,8 @@ export const initialAssets: AssetRecord[] = [
     owner: 'M. Chen',
     firstSeen: 'May 12, 2026 · 16:47',
     hash: '82C28632E61CE14A173515E69B6F1C22B77092BE817FEEE5548E530B30393515',
-    modelUrl: '/assets/lantern-project-derivative.glb',
-    previewUrl: '/assets/lantern-source.jpg',
+    modelUrl: assetUrl('/assets/lantern-project-derivative.glb'),
+    previewUrl: assetUrl('/assets/lantern-source.jpg'),
     modelRotation: -0.2,
     matches: khronosModelRecords({
       slug: 'lantern',
@@ -367,8 +368,8 @@ export const initialAssets: AssetRecord[] = [
       localName: 'lantern_dock_v03.glb',
       sourceHash: 'A79458C4B02D695187A952F23A63B8BF278E7BC3D316A3C2A314F2D6974181F1',
       projectHash: '82C28632E61CE14A173515E69B6F1C22B77092BE817FEEE5548E530B30393515',
-      sourceModelUrl: '/assets/lantern-source.glb',
-      projectModelUrl: '/assets/lantern-project-derivative.glb',
+      sourceModelUrl: assetUrl('/assets/lantern-source.glb'),
+      projectModelUrl: assetUrl('/assets/lantern-project-derivative.glb'),
       sourcePageUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Lantern',
       firstSeen: 'May 12, 2026 · 16:47',
       visualDelta: {

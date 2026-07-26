@@ -1,3 +1,4 @@
+import { assetUrl } from './assetUrl';
 export interface MotionFixture {
   id: string;
   name: string;
@@ -15,8 +16,8 @@ export const motionFixtures: MotionFixture[] = [
     id: 'fox-rig',
     name: 'Fox — rig and clip switching',
     subtitle: 'One skeleton · Survey, Walk, and Run clips',
-    url: '/assets/fox-animated.glb',
-    previewUrl: '/assets/fox-animated.jpg',
+    url: assetUrl('/assets/fox-animated.glb'),
+    previewUrl: assetUrl('/assets/fox-animated.jpg'),
     sourceUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/Fox',
     license: 'CC0 model · CC BY 4.0 rig, animation, and conversion',
     payload: '162.9 KB',
@@ -26,8 +27,8 @@ export const motionFixtures: MotionFixture[] = [
     id: 'morph-stress',
     name: 'Morph Stress Test — eight targets',
     subtitle: '18 requested vertex attributes · Individuals, TheWave, and Pulse',
-    url: '/assets/morph-stress-test.glb',
-    previewUrl: '/assets/morph-stress-test.png',
+    url: assetUrl('/assets/morph-stress-test.glb'),
+    previewUrl: assetUrl('/assets/morph-stress-test.png'),
     sourceUrl: 'https://github.com/KhronosGroup/glTF-Sample-Assets/tree/main/Models/MorphStressTest',
     license: 'CC BY 4.0 · Analytical Graphics / Ed Mackey',
     payload: '575.9 KB',

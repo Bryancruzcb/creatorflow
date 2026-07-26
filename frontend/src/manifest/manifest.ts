@@ -1,5 +1,6 @@
 import { type ErrorObject } from 'ajv/dist/2020';
 import { validateManifestV1 as validateSchemaV1, validateManifestV2 as validateSchemaV2 } from './validators.generated.js';
+import { assetUrl } from '../assetUrl';
 
 export const CREATORFLOW_MANIFEST_SCHEMA = 'creatorflow.manifest/v0.1' as const;
 export const CREATORFLOW_MANIFEST_SCHEMA_V2 = 'creatorflow.manifest/v0.2' as const;
@@ -214,7 +215,7 @@ function semanticIssues(manifest: CreatorFlowManifest): ManifestValidationIssue[
   const paths = new Map<string, number>();
 
   manifest.assets.forEach((asset, index) => {
-    const path = `/assets/${index}`;
+    const path = assetUrl(`/assets/${index}`);
     verification[asset.verification] += 1;
     if (!isResolvedSource(asset)) unresolvedSources += 1;
     if (asset.decision === 'PENDING') pendingDecisions += 1;
