@@ -18,6 +18,11 @@ import { AssetArtwork } from './components/AssetArtwork';
 import { BrandMark } from './components/BrandMark';
 import { EvidenceAtlas } from './components/EvidenceAtlas';
 import { HeroWorkspace } from './components/HeroWorkspace';
+import { MotionField } from './components/MotionField';
+import { KineticHeading } from './components/KineticHeading';
+import { useScrollReveal } from './useScrollReveal';
+import './components/MotionField.css';
+import './components/LandingReveal.css';
 import { PreflightWorkspace } from './components/PreflightWorkspace';
 import { ProductWorkspace } from './components/ProductWorkspace';
 import { StatusMark } from './components/StatusMark';
@@ -175,6 +180,8 @@ function LandingApp({ onOpenWorkspace }: { onOpenWorkspace: (view?: WorkspaceEnt
   const { scrollYProgress } = useScroll();
   const scrollProgress = useSpring(scrollYProgress, { stiffness: 100, damping: 25, restDelta: 0.001 });
 
+  useScrollReveal(!reduceMotion);
+
   function openSample() {
     setStartSignal((value) => value + 1);
     window.setTimeout(() => scrollTo('sample-preflight'), 30);
@@ -186,9 +193,12 @@ function LandingApp({ onOpenWorkspace }: { onOpenWorkspace: (view?: WorkspaceEnt
       <Navigation onOpenSample={openSample} onOpenWorkspace={onOpenWorkspace} />
       <main id="main">
         <section className="hero-section" aria-labelledby="hero-title">
+          <MotionField />
           <div className="hero-copy">
             <motion.p className="hero-kicker" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45 }}>Local-first release preflight</motion.p>
-            <motion.h1 id="hero-title" initial={reduceMotion ? false : { opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.65, ease: [0.16, 1, 0.3, 1] }}>Know what<br />can ship.</motion.h1>
+            <h1 id="hero-title">
+              {reduceMotion ? <>Know what<br />can ship.</> : <KineticHeading lines={['Know what', 'can ship.']} />}
+            </h1>
             <motion.p className="hero-lead" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.12 }}>CreatorFlow scans a game or creative project, traces suspicious assets back to real source records, guides human resolution, and exports the evidence behind the release.</motion.p>
             <motion.div className="hero-actions" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.22 }}>
               <button className="button button-primary" type="button" onClick={() => onOpenWorkspace('motion')}><Fingerprint size={16} /> Compare two Roblox animations</button>
