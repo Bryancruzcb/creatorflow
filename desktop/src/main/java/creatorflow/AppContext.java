@@ -104,8 +104,8 @@ public final class AppContext implements AutoCloseable {
 
     public synchronized LocalBridgeServer startLocalBridge(Supplier<Window> owner) {
         if (bridge != null) return bridge;
-        Path webRoot = System.getProperty(LocalBridgeServer.WEB_ROOT_PROPERTY) == null
-                ? null : Path.of(System.getProperty(LocalBridgeServer.WEB_ROOT_PROPERTY));
+        String webRootValue = System.getProperty(LocalBridgeServer.WEB_ROOT_PROPERTY);
+        Path webRoot = webRootValue == null || webRootValue.isBlank() ? null : Path.of(webRootValue);
         ScanCoordinator coordinator = new ScanCoordinator(scans, localProjects, audit);
         bridge = new LocalBridgeServer(new JavaFxProjectPicker(owner), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,

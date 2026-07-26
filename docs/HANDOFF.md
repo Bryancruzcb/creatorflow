@@ -59,8 +59,12 @@ npm --prefix frontend run build
   ```bash
   npm --prefix frontend run build
   mvn -pl desktop javafx:run \
-    -Djavafx.options="-Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true"
+    -Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true
   ```
+
+  The workspace URL is printed to the console at startup. (The old
+  `-Djavafx.options="..."` form silently failed to forward these properties —
+  verified 2026-07-20; the desktop pom now forwards them itself.)
 
 - Luau/Rojo aren't installed globally; grab `luau-compile` and `rojo` from their GitHub
   releases to syntax-check plugins / build the registry plugin
