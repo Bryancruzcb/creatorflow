@@ -108,9 +108,24 @@ function rewriteRequiresAsImports(source) {
   // correctly under plain `node`, too (see scripts/check-manifest-schema.mjs, which loads
   // this file directly with Node during schema:check to compare it byte-for-byte).
   const importStatements = [...bindingsByKey.values()]
-    .map(({ modulePath, exportedName, localIdent }) => {
+    .map(({ modulePath, exportedName, localIdent }, index) => {
       const specifier = /\.[a-zA-Z0-9]+$/.test(modulePath) ? modulePath : `${modulePath}.js`;
-      return `import { ${exportedName} as ${localIdent} } from "${specifier}";`;
+      if (exportedName !== 'default') {
+        return `import { ${exportedName} as ${localIdent} } from "${specifier}";`;
+      }
+      // `default` is the ONE binding where the named-import trick above does not hold:
+      // for a CJS module written as `exports.default = fn`, plain Node ESM binds
+      // `default` to the whole `module.exports` OBJECT (the function then sits at
+      // `.default.default`), while bundler "smart" interop binds it straight to `fn`.
+      // Importing the namespace and unwrapping at runtime is correct under BOTH — and
+      // getting this wrong is not a build error, it is a runtime "X is not a function"
+      // thrown from inside the validator, which only the built bundle reveals (the
+      // dev/vitest interop hides it). See e2e/manifest-import.spec.ts.
+      const nsIdent = `__ns_${index}`;
+      return (
+        `import * as ${nsIdent} from "${specifier}";\n` +
+        `const ${localIdent} = ${nsIdent}.default?.default ?? ${nsIdent}.default ?? ${nsIdent};`
+      );
     })
     .join('\n');
 
