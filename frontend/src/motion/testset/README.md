@@ -76,3 +76,58 @@ false accusations, no full-coverage inflation), position de-weighted 0.25/0.65/0
 composite. Baseline: `scorecard.tuned.baseline.json`, regenerated per graded stage
 (`UPDATE_MOTION_TUNED_BASELINE=1`). The parity-locked `compareNormalized` and its
 oracle test remain untouched as the Java-fidelity anchor.
+
+## Rig coverage and what these numbers do NOT prove (2026-07-26)
+
+The set ran on **two** rigs (robot, fox) until three CC BY 4.0 Cesium rigs were added, so it now
+grades **four**: robot (14 clips), fox (3), cesiumMan (1), riggedFigure (1) — 19 clips, 133
+positives, 97 negatives.
+
+Two candidates were **rejected on licence grounds**, worth recording in a tool about provenance:
+**BrainStem** carries a Poser EULA despite sitting in an open sample repository, and **Xbot /
+Soldier** (three.js) are Mixamo-derived, where redistributing the animations as assets is
+restricted. They had the multi-clip sets this test set most wants; they are still not vendored.
+
+`riggedSimple` is vendored but **not graded**: it animates a single joint, and `isGradableRig`
+skips rigs under `MIN_ANIMATED_JOINTS`. On a one-joint rig "relocated in space" and "a different
+animation" are indistinguishable from local transform data, and mirroring is near-identity — such
+a rig moves the headline percentages without exposing engine behaviour.
+
+**What widening the set revealed.** The old aggregate "mirror 47%" was carried entirely by one rig:
+
+| rig | mirror recall |
+| --- | --- |
+| robot | 8/14 |
+| fox | 0/3 |
+| cesiumMan | 0/1 |
+| riggedFigure | 0/1 |
+
+Mirrored animations are **effectively undetected on every rig except robot**. Treat mirror
+detection as unimplemented (see the deferred mirror-canonicalization work), not as "partial".
+
+**What the set still cannot tell you.** Positives are programmatic derivations of a clip against
+itself, so this measures *laundering resistance* — can the engine still recognise this exact clip
+after a re-upload, retime, hold, rescale, relocate or mirror. It does **not** measure whether two
+animators independently produced similar work, and cross-rig pairs are excluded by construction
+(different skeletons share no joints), which means **a copy retargeted onto a different rig is out
+of scope entirely**. Real accuracy against real Roblox animations remains uncollected.
+
+## Decision-threshold sweep
+
+`thresholdSweep.test.ts` characterises the engine across the whole threshold rather than at the one
+operating point the product ships, and commits the curve (`sweep.baseline.json`) so a tuning change
+has to show its cost. Regenerate with `UPDATE_MOTION_SWEEP_BASELINE=1 npm test`.
+
+At the time of writing, the shipped threshold (85) is **not** the precision-optimal choice on this
+set — 90 removes three of the four false positives for two true positives, and scores a slightly
+better F1:
+
+| threshold | precision | recall | F1 |
+| --- | --- | --- | --- |
+| 85 (shipped) | 0.968 | 0.917 | 0.942 |
+| 90 | **0.992** | 0.902 | **0.945** |
+
+Given the product's stated priority — a false accusation is the worst output it can produce — that
+is a live argument for moving the operating point. Deliberately not changed here: the threshold is
+a product decision, and the friend test may reprice it against real data.
+

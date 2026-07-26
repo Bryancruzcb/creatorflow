@@ -38,7 +38,13 @@ const HOLD_AT = 0.4;
 const HOLD_LENGTH = 0.3;
 const RESCALE = 1.25;
 const RELOCATE: [number, number, number] = [3, 0, 2];
-const ROOT_JOINT: Record<string, string> = { robot: 'Body', fox: 'b_Hip_01' };
+const ROOT_JOINT: Record<string, string> = {
+  robot: 'Body',
+  fox: 'b_Hip_01',
+  cesiumMan: 'Skeleton_torso_joint_1',
+  riggedFigure: 'torso_joint_1',
+  riggedSimple: 'Bone001',
+};
 const VARIANT_PAIRS = new Set(['robot:WalkJump-vs-Walking']);
 const FAMILY_PAIRS = new Set(['robot:Running-vs-Walking', 'fox:Run-vs-Walk']);
 
@@ -63,7 +69,30 @@ function partialCoverageCandidate(clip: MotionCurves, sharedCount: number): Moti
   return { ...clip, name: `${clip.name} (partial ${sharedCount})`, tracks };
 }
 
-export function buildCases(fixtures: RigMotionFixture[]): CopyDetectionCase[] {
+/**
+ * A rig needs enough independently animated joints for the derivations to mean anything. On a rig
+ * with a single animated joint, "relocated in space" and "a different animation" are genuinely
+ * indistinguishable from local transform data — there is no relative motion left to match — and
+ * mirroring is near-identity because there are no left/right pairs to swap. Such a rig does not
+ * expose engine behaviour; it just moves the headline percentages around. Skip it explicitly
+ * rather than letting it quietly flatter or depress the score.
+ */
+const MIN_ANIMATED_JOINTS = 3;
+
+function animatedJointCount(fixture: RigMotionFixture): number {
+  const joints = new Set<string>();
+  for (const clip of fixture.clips) {
+    for (const track of clip.tracks) joints.add(track.name.split('.')[0]);
+  }
+  return joints.size;
+}
+
+export function isGradableRig(fixture: RigMotionFixture): boolean {
+  return animatedJointCount(fixture) >= MIN_ANIMATED_JOINTS;
+}
+
+export function buildCases(allFixtures: RigMotionFixture[]): CopyDetectionCase[] {
+  const fixtures = allFixtures.filter(isGradableRig);
   const cases: CopyDetectionCase[] = [];
   for (const fixture of fixtures) {
     const swap = buildMirrorNameSwapper(fixture.nodes);
@@ -112,9 +141,18 @@ export function buildCases(fixtures: RigMotionFixture[]): CopyDetectionCase[] {
       }
     }
 
-    const partialSource = fixture.clips.find((clip) => clip.name === PARTIAL_SOURCE[fixture.rigId]);
-    if (!partialSource) throw new Error(`partial-coverage source clip missing for rig ${fixture.rigId}`);
-    for (const [label, sharedCount] of [['low', 2], ['half', Math.floor(partialSource.tracks.length / 2)]] as const) {
+    // Partial-coverage negatives need a nominated source clip. Rigs added purely to widen the
+    // skeleton topologies under test (the single-clip Cesium rigs) do not nominate one, and a rig
+    // that declares a name it does not have is a wiring mistake worth failing on — so distinguish
+    // the two rather than throwing for both.
+    const partialSourceName = PARTIAL_SOURCE[fixture.rigId];
+    const partialSource = partialSourceName
+      ? fixture.clips.find((clip) => clip.name === partialSourceName)
+      : undefined;
+    if (partialSourceName && !partialSource) {
+      throw new Error(`partial-coverage source clip "${partialSourceName}" missing for rig ${fixture.rigId}`);
+    }
+    if (partialSource) for (const [label, sharedCount] of [['low', 2], ['half', Math.floor(partialSource.tracks.length / 2)]] as const) {
       cases.push({
         id: `${fixture.rigId}:neg-partial:${label}:${partialSource.name}`,
         rigId: fixture.rigId,

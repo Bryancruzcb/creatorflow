@@ -12,15 +12,23 @@ import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { AnimationClip, NumberKeyframeTrack } from 'three';
 import { afterAll, describe, expect, it } from 'vitest';
-import { buildCases } from './copyDetectionCases';
-import { loadRigFixture } from './fixtureLoader';
+import { buildCases, isGradableRig } from './copyDetectionCases';
+import { loadRigFixture, loadAllRigFixtures } from './fixtureLoader';
 import { formatScorecard, portedEngineAdapter, runScorecard } from './scorecard';
+
+// Derived from the fixtures rather than hardcoded: every clip yields one positive per
+// derivation class, so adding a rig widens these automatically instead of failing on a
+// number someone then edits without checking.
+const CLIP_COUNT = loadAllRigFixtures().filter(isGradableRig).reduce((sum, rig) => sum + rig.clips.length, 0);
+const POSITIVE_CLASSES = 7;
+const EXPECTED_POSITIVES = CLIP_COUNT * POSITIVE_CLASSES;
+
 
 const ENGINE_TITLE = 'ported Java-parity engine (49 samples / flags at >=90 or exact)';
 const baselinePath = fileURLToPath(new URL('./scorecard.ported.baseline.json', import.meta.url));
 
 describe('ported-engine copy-detection scorecard', () => {
-  const cases = buildCases([loadRigFixture('robot'), loadRigFixture('fox')]);
+  const cases = buildCases(loadAllRigFixtures());
   const scorecard = runScorecard(cases, portedEngineAdapter());
 
   afterAll(() => {
@@ -28,7 +36,7 @@ describe('ported-engine copy-detection scorecard', () => {
   });
 
   it('covers the full labeled set', () => {
-    expect(scorecard.recall.overall.total).toBe(119);
+    expect(scorecard.recall.overall.total).toBe(EXPECTED_POSITIVES);
     expect(scorecard.falsePositives.overall.total).toBe(97);
     expect(scorecard.variants).toHaveLength(1);
     for (const row of scorecard.rows) {
@@ -37,7 +45,7 @@ describe('ported-engine copy-detection scorecard', () => {
   });
 
   it('always catches exact re-uploads through the adapter + ported core', () => {
-    expect(scorecard.recall.byClass.reupload).toMatchObject({ total: 17, hit: 17 });
+    expect(scorecard.recall.byClass.reupload).toMatchObject({ total: CLIP_COUNT, hit: CLIP_COUNT });
     for (const row of scorecard.rows.filter((entry) => entry.caseClass === 'reupload')) {
       expect(row.exact, `${row.id} lost exact-match through the ported path`).toBe(true);
     }
@@ -64,7 +72,7 @@ describe('ported-engine copy-detection scorecard', () => {
     };
     if (process.env.UPDATE_MOTION_PORTED_BASELINE === '1') {
       const reuploadRows = scorecard.rows.filter((row) => row.caseClass === 'reupload');
-      const anchorHolds = reuploadRows.length === 17 && reuploadRows.every((row) => row.flagged && row.exact);
+      const anchorHolds = reuploadRows.length === CLIP_COUNT && reuploadRows.every((row) => row.flagged && row.exact);
       if (!anchorHolds) throw new Error('refusing to write ported baseline: reupload anchor failing');
       writeFileSync(baselinePath, `${JSON.stringify(snapshot, null, 2)}\n`);
     }
