@@ -1,3 +1,4 @@
+import { assetUrl } from '../assetUrl';
 /**
  * The rigs the Motion Lab can load. Each is a self-contained data entry — a licensed animated
  * .glb plus its clips, Studio facts, and a few similarity scenarios — so adding another rig
@@ -44,7 +45,7 @@ export interface RigFixture {
 const ROBOT: RigFixture = {
   id: 'robot',
   name: 'RobotExpressive',
-  glbUrl: '/assets/robot-expressive.glb',
+  glbUrl: assetUrl('/assets/robot-expressive.glb'),
   license: 'CC0 1.0',
   attribution: 'RobotExpressive by Tomás Laulhé / Quaternius; glTF modifications by Don McCurdy',
   note: 'Stylised humanoid · 14 clips · lightweight rig',
@@ -76,7 +77,7 @@ const ROBOT: RigFixture = {
 const FOX: RigFixture = {
   id: 'fox',
   name: 'Fox',
-  glbUrl: '/assets/fox-animated.glb',
+  glbUrl: assetUrl('/assets/fox-animated.glb'),
   license: 'CC-BY 4.0',
   attribution: 'Fox mesh by PixelMannen (CC0); rig and animation by @tomkranis / Norgeotloic (CC-BY 4.0)',
   note: 'Non-humanoid quadruped · different skeleton · 3 gait clips',

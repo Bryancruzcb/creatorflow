@@ -1,4 +1,5 @@
 import type { AssetKind } from '../data';
+import { assetUrl } from '../assetUrl';
 
 export function AssetArtwork({
   kind,
@@ -18,7 +19,7 @@ export function AssetArtwork({
   const lowConfidence = similarity < 60;
 
   if (kind === 'model') {
-    return <img className="asset-art asset-art-model" src={previewUrl ?? '/assets/avocado-source.jpg'} alt={label} />;
+    return <img className="asset-art asset-art-model" src={previewUrl ?? assetUrl('/assets/avocado-source.jpg')} alt={label} />;
   }
 
   if (kind === 'wave') {

@@ -23,6 +23,7 @@ import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
 import { capacityProfiles, executableFormats, failureFixtures, motionFixtures } from '../stressLabData';
 import type { MotionTelemetry } from './AnimatedAssetViewer';
 import './StressLab.clarity.css';
+import { assetUrl } from '../assetUrl';
 
 const AnimatedAssetViewer = lazy(() => import('./AnimatedAssetViewer').then((module) => ({ default: module.AnimatedAssetViewer })));
 const HeavyAssetViewer = lazy(() => import('./HeavyAssetViewer').then((module) => ({ default: module.HeavyAssetViewer })));
@@ -131,7 +132,7 @@ function DependencyExplorer({ result }: { result: ProbeResult }) {
   const [copied, setCopied] = useState(false);
   const selected = dependencyFixtures.find((fixture) => fixture.path === selectedPath) ?? dependencyFixtures[0];
   const selectedResult = result.details?.[selected.path];
-  const fixtureUrl = `/stress-fixtures/multi-file-package/${selected.path}`;
+  const fixtureUrl = assetUrl(`/stress-fixtures/multi-file-package/${selected.path}`);
 
   function toggleFolder(id: string) {
     setOpenFolders((current) => {
@@ -236,7 +237,7 @@ export function StressLab() {
     try {
       let result: ProbeResult;
       if (id === 'motion') {
-        const [fox, morph] = await Promise.all([fetchBuffer('/assets/fox-animated.glb'), fetchBuffer('/assets/morph-stress-test.glb')]);
+        const [fox, morph] = await Promise.all([fetchBuffer(assetUrl('/assets/fox-animated.glb')), fetchBuffer(assetUrl('/assets/morph-stress-test.glb'))]);
         const foxJson = glbJson(fox.buffer);
         const morphJson = glbJson(morph.buffer);
         const clips = (foxJson.animations?.length ?? 0) + (morphJson.animations?.length ?? 0);
@@ -244,7 +245,7 @@ export function StressLab() {
         const morphTargets = Math.max(...(morphJson.meshes ?? []).flatMap((mesh: { primitives?: Array<{ targets?: unknown[] }> }) => (mesh.primitives ?? []).map((primitive) => primitive.targets?.length ?? 0)), 0);
         result = { state: clips >= 6 && skins > 0 && morphTargets >= 8 ? 'passed' : 'warning', bytes: fox.bytes + morph.bytes, finding: `${clips} clips · ${skins} skin · ${morphTargets} simultaneous morph targets` };
       } else if (id === 'gpu') {
-        const texture = await fetchBuffer('/stress-fixtures/non3d/terrain_8k.png');
+        const texture = await fetchBuffer(assetUrl('/stress-fixtures/non3d/terrain_8k.png'));
         const data = new DataView(texture.buffer);
         const width = data.getUint32(16, false);
         const height = data.getUint32(20, false);
@@ -259,17 +260,17 @@ export function StressLab() {
         bitmap.close();
         result = { state: width === 8192 && height === 8192 ? 'passed' : 'failed', bytes: texture.bytes, finding: `${width} × ${height} · ${formatBytes(decoded)} estimated RGBA · ${decodeMs.toFixed(1)} ms decode · ${firstDrawMs.toFixed(1)} ms first draw` };
       } else if (id === 'compression') {
-        const [raw, compressed] = await Promise.all([fetchBuffer('/assets/beautiful-game.glb'), fetchBuffer('/assets/beautiful-game-ktx2-draco.glb')]);
+        const [raw, compressed] = await Promise.all([fetchBuffer(assetUrl('/assets/beautiful-game.glb')), fetchBuffer(assetUrl('/assets/beautiful-game-ktx2-draco.glb'))]);
         const savings = Math.round((1 - compressed.bytes / raw.bytes) * 1000) / 10;
         result = { state: savings > 60 ? 'passed' : 'warning', bytes: raw.bytes + compressed.bytes, finding: `${formatBytes(raw.bytes)} raw (${raw.durationMs.toFixed(1)} ms) → ${formatBytes(compressed.bytes)} Draco + KTX2 (${compressed.durationMs.toFixed(1)} ms) · ${savings}% smaller` };
       } else if (id === 'failures') {
-        const missing = await fetch('/stress-fixtures/broken/missing-texture/scene.gltf').then((response) => response.json());
-        const missingResponse = await fetch(`/stress-fixtures/broken/missing-texture/${missing.images[0].uri}`);
-        const corrupt = await fetch('/stress-fixtures/broken/corrupt.glb').then((response) => response.arrayBuffer());
-        const unsupported = await fetch('/stress-fixtures/broken/unsupported-extension.gltf').then((response) => response.json());
-        const invalid = await fetch('/stress-fixtures/broken/invalid-material.gltf').then((response) => response.json());
-        const embedded = await fetch('/stress-fixtures/broken/embedded-megabyte.gltf').then((response) => response.json());
-        const outside = await fetch('/stress-fixtures/broken/outside-folder.gltf').then((response) => response.json());
+        const missing = await fetch(assetUrl('/stress-fixtures/broken/missing-texture/scene.gltf')).then((response) => response.json());
+        const missingResponse = await fetch(assetUrl(`/stress-fixtures/broken/missing-texture/${missing.images[0].uri}`));
+        const corrupt = await fetch(assetUrl('/stress-fixtures/broken/corrupt.glb')).then((response) => response.arrayBuffer());
+        const unsupported = await fetch(assetUrl('/stress-fixtures/broken/unsupported-extension.gltf')).then((response) => response.json());
+        const invalid = await fetch(assetUrl('/stress-fixtures/broken/invalid-material.gltf')).then((response) => response.json());
+        const embedded = await fetch(assetUrl('/stress-fixtures/broken/embedded-megabyte.gltf')).then((response) => response.json());
+        const outside = await fetch(assetUrl('/stress-fixtures/broken/outside-folder.gltf')).then((response) => response.json());
         const missingTextureDetected = !missingResponse.ok || !missingResponse.headers.get('content-type')?.startsWith('image/');
         const detections = [
           missingTextureDetected,
@@ -283,12 +284,12 @@ export function StressLab() {
         const details = Object.fromEntries(failureFixtures.map((fixture, index) => [fixture.path, { ok: detections[index], finding: detections[index] ? `Built-in fixture caught: ${fixture.successCopy}` : 'Planted malformed condition was not identified' }])) as Record<string, ProbeDetail>;
         result = { state: identified === failureFixtures.length ? 'passed' : 'failed', bytes: corrupt.byteLength + embedded.buffers[0].uri.length, finding: `${identified}/${failureFixtures.length} planted conditions caught in built-in fixtures before preview`, details };
       } else if (id === 'package') {
-        const rootResponse = await fetch('/stress-fixtures/multi-file-package/world.gltf', { cache: 'no-store' });
+        const rootResponse = await fetch(assetUrl('/stress-fixtures/multi-file-package/world.gltf'), { cache: 'no-store' });
         if (!rootResponse.ok) throw new Error(`Root dependency returned ${rootResponse.status}`);
         const project = await rootResponse.json();
         const dependencies = [...project.buffers.map((item: { uri: string }) => item.uri), ...project.images.map((item: { uri: string }) => item.uri)];
         const checks = await Promise.all(dependencies.map(async (path: string) => {
-          const response = await fetch(`/stress-fixtures/multi-file-package/${path}`, { method: 'HEAD' });
+          const response = await fetch(assetUrl(`/stress-fixtures/multi-file-package/${path}`), { method: 'HEAD' });
           return { path, ok: response.ok, bytes: Number(response.headers.get('content-length') ?? 0), contentType: response.headers.get('content-type') };
         }));
         const available = checks.filter((check) => check.ok).length;
@@ -299,15 +300,15 @@ export function StressLab() {
         ]) as Record<string, ProbeDetail>;
         result = { state: available === dependencies.length ? 'passed' : 'warning', bytes: rootBytes + checks.reduce((total, check) => total + check.bytes, 0), finding: `1 root · 2 buffers · 24 textures · ${available}/${dependencies.length} dependencies resolved`, details };
       } else if (id === 'formats') {
-        const fontPaths = ['100', '300', '400', '500', '600', '700'].map((weight) => `/stress-fixtures/non3d/font-family/ibm-plex-sans-latin-${weight}-normal.woff2`);
+        const fontPaths = ['100', '300', '400', '500', '600', '700'].map((weight) => assetUrl(`/stress-fixtures/non3d/font-family/ibm-plex-sans-latin-${weight}-normal.woff2`));
         const [texture, psd, audio, video, fbx, fonts, profiles] = await Promise.all([
-          fetch('/stress-fixtures/non3d/terrain_8k.png', { method: 'HEAD' }),
-          fetch('/stress-fixtures/non3d/environment_master_8k.psd', { method: 'HEAD' }),
-          fetch('/stress-fixtures/non3d/ambisonic_6ch_96khz_24bit.wav', { method: 'HEAD' }),
-          fetch('/stress-fixtures/non3d/prores_4k_2s.mov', { method: 'HEAD' }),
-          fetch('/stress-fixtures/non3d/dense_environment_grid.fbx', { method: 'HEAD' }),
+          fetch(assetUrl('/stress-fixtures/non3d/terrain_8k.png'), { method: 'HEAD' }),
+          fetch(assetUrl('/stress-fixtures/non3d/environment_master_8k.psd'), { method: 'HEAD' }),
+          fetch(assetUrl('/stress-fixtures/non3d/ambisonic_6ch_96khz_24bit.wav'), { method: 'HEAD' }),
+          fetch(assetUrl('/stress-fixtures/non3d/prores_4k_2s.mov'), { method: 'HEAD' }),
+          fetch(assetUrl('/stress-fixtures/non3d/dense_environment_grid.fbx'), { method: 'HEAD' }),
           Promise.all(fontPaths.map((path) => fetch(path, { method: 'HEAD' }))),
-          fetch('/stress-fixtures/capacity-profiles.json').then((response) => response.json()),
+          fetch(assetUrl('/stress-fixtures/capacity-profiles.json')).then((response) => response.json()),
         ]);
         const responses = [texture, psd, audio, video, fbx, ...fonts];
         const bytes = responses.reduce((total, response) => total + Number(response.headers.get('content-length') ?? 0), 0);
@@ -415,7 +416,7 @@ export function StressLab() {
           <div className="compression-ledger"><div><span>Raw GLB</span><strong>43.0 MB</strong><small>PNG/JPEG textures · uncompressed geometry</small></div><i>→</i><div><span>Draco + KTX2</span><strong>12.1 MB</strong><small>ETC1S texture payload · compressed geometry</small></div><div className="compression-saving"><strong>71.8%</strong><small>smaller transfer payload</small></div></div>
           <div className="gpu-pressure-row"><div><span>Real 8K fixture</span><strong>8192 × 8192 PNG</strong><small>1.4 MB transfer expands to an estimated 256 MB RGBA texture before mipmaps.</small></div><button type="button" onClick={() => runProbe('gpu')}><StateMark state={results.gpu.state} /> Inspect PNG header</button></div>
           <div className="compressed-preview">
-            {loadCompressed ? <Suspense fallback={<div className="stress-load-placeholder">Loading local Draco and Basis decoders…</div>}><HeavyAssetViewer url="/assets/beautiful-game-ktx2-draco.glb" label="A Beautiful Game compressed" previewUrl="/assets/beautiful-game.jpg" size="12.1 MB" /></Suspense> : <><img src="/assets/beautiful-game.jpg" alt="Compressed chess scene preview" /><div><strong>Decoder path is opt-in.</strong><span>The initial workspace does not pay the Draco, Basis, or 12.1 MB model cost.</span><button className="button button-primary" type="button" onClick={() => setLoadCompressed(true)}><Play size={15} /> Decode compressed scene</button></div></>}
+            {loadCompressed ? <Suspense fallback={<div className="stress-load-placeholder">Loading local Draco and Basis decoders…</div>}><HeavyAssetViewer url={assetUrl('/assets/beautiful-game-ktx2-draco.glb')} label="A Beautiful Game compressed" previewUrl={assetUrl('/assets/beautiful-game.jpg')} size="12.1 MB" /></Suspense> : <><img src={assetUrl('/assets/beautiful-game.jpg')} alt="Compressed chess scene preview" /><div><strong>Decoder path is opt-in.</strong><span>The initial workspace does not pay the Draco, Basis, or 12.1 MB model cost.</span><button className="button button-primary" type="button" onClick={() => setLoadCompressed(true)}><Play size={15} /> Decode compressed scene</button></div></>}
           </div>
         </section>
       ) : null}

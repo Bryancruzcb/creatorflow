@@ -1,3 +1,4 @@
+import { assetUrl } from '../assetUrl';
 /**
  * A gallery of real low-poly 3D models, all from a single CC0 pack so the whole set carries one
  * clear, attribution-free license (see public/assets/gallery/LICENSE.txt). The viewer reads each
@@ -22,7 +23,7 @@ export const GALLERY_LICENSE = {
 } as const;
 
 function model(id: string, name: string, category: GalleryCategory): GalleryModel {
-  return { id, name, file: `/assets/gallery/${id}.glb`, category };
+  return { id, name, file: assetUrl(`/assets/gallery/${id}.glb`), category };
 }
 
 export const galleryModels: GalleryModel[] = [
