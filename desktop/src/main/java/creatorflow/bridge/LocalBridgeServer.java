@@ -767,13 +767,37 @@ public final class LocalBridgeServer implements AutoCloseable {
         return view;
     }
 
+    /**
+     * Where an event stream should resume from.
+     *
+     * <p>The stream labels every event with an {@code id:} line, which exists so a dropped
+     * connection can pick up where it left off. A browser's {@code EventSource} reconnects by
+     * re-requesting the <em>same URL</em> — so any {@code ?after=} it originally carried is stale —
+     * and puts its position in the {@code Last-Event-ID} header instead. Reading only the query
+     * parameter meant every reconnect restarted at 0 and replayed the whole buffer (capped at
+     * {@code MAX_REPLAY_EVENTS}), so the header wins when present.
+     */
+    private static long resumeFrom(HttpExchange exchange) {
+        String lastEventId = exchange.getRequestHeaders().getFirst("Last-Event-ID");
+        if (lastEventId != null && !lastEventId.isBlank()) {
+            try {
+                long parsed = Long.parseLong(lastEventId.strip());
+                if (parsed > 0) return parsed;
+            } catch (NumberFormatException ignored) {
+                // A malformed header is not worth failing the stream over: fall through to
+                // ?after=, and to a full replay if that is absent too.
+            }
+        }
+        return integer(query(exchange.getRequestURI().getRawQuery()).get("after"), 0);
+    }
+
     private void streamEvents(HttpExchange exchange, String runId) throws IOException {
         scans.findById(runId).orElseThrow(() -> new HttpError(404, "Scan run not found"));
         exchange.getResponseHeaders().set("Content-Type", "text/event-stream; charset=utf-8");
         exchange.getResponseHeaders().set("Cache-Control", "no-store");
         exchange.getResponseHeaders().set("X-Accel-Buffering", "no");
         exchange.sendResponseHeaders(200, 0);
-        long last = integer(query(exchange.getRequestURI().getRawQuery()).get("after"), 0);
+        long last = resumeFrom(exchange);
         try (OutputStream output = exchange.getResponseBody()) {
             while (true) {
                 List<ScanCoordinator.ProgressEvent> events = coordinator.awaitEvents(runId, last, 10_000);

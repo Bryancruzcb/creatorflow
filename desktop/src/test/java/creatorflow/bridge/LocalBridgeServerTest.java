@@ -764,4 +764,51 @@ class LocalBridgeServerTest {
             return reader.readLine();
         }
     }
+
+    @Test
+    void aReconnectingEventStreamResumesFromLastEventIdInsteadOfReplayingEverything() throws Exception {
+        TestMedia.writePng(directory, "hero.png", TestMedia.structuredImage(9));
+        ObjectMapper json = new ObjectMapper();
+        HttpResponse<String> picked = post("/api/v1/project-picker", cookie, origin.toString(), csrf);
+        long projectId = json.readTree(picked.body()).get("projectId").asLong();
+        HttpResponse<String> started = client.send(HttpRequest.newBuilder(
+                        origin.resolve("/api/v1/projects/" + projectId + "/scan-runs"))
+                .header("Cookie", cookie).header("Origin", origin.toString())
+                .header("X-CreatorFlow-CSRF", csrf).header("Content-Type", "application/json")
+                .POST(HttpRequest.BodyPublishers.ofString("{\"release\":\"resume-1\"}")).build(),
+                HttpResponse.BodyHandlers.ofString());
+        String runId = json.readTree(started.body()).get("id").asText();
+
+        String state = "QUEUED";
+        for (int attempt = 0; attempt < 200 && !"COMPLETED".equals(state); attempt++) {
+            Thread.sleep(25);
+            state = json.readTree(get("/api/v1/scan-runs/" + runId, cookie).body()).get("state").asText();
+        }
+        assertEquals("COMPLETED", state);
+
+        // A fresh subscriber gets the whole buffer and every event carries an id:.
+        String full = client.send(HttpRequest.newBuilder(
+                        origin.resolve("/api/v1/scan-runs/" + runId + "/events"))
+                .header("Cookie", cookie).GET().build(), HttpResponse.BodyHandlers.ofString()).body();
+        assertTrue(full.contains("id: 1"), "the stream must label events with an id to resume from");
+        long highest = full.lines().filter(line -> line.startsWith("id: "))
+                .mapToLong(line -> Long.parseLong(line.substring(4).strip())).max().orElseThrow();
+        assertTrue(highest >= 1);
+
+        // A browser EventSource reconnects to the SAME url (so no ?after=) and puts its position
+        // in Last-Event-ID. Before this was read, the server restarted at 0 and replayed the lot.
+        String resumed = client.send(HttpRequest.newBuilder(
+                        origin.resolve("/api/v1/scan-runs/" + runId + "/events"))
+                .header("Cookie", cookie).header("Last-Event-ID", Long.toString(highest))
+                .GET().build(), HttpResponse.BodyHandlers.ofString()).body();
+        assertFalse(resumed.contains("id: 1\n"), "a resumed stream must not replay from the start");
+        assertFalse(resumed.contains("\"sequence\":1,"), "no already-delivered event may be re-sent");
+
+        // A malformed header must not break the stream; it falls back to a full replay.
+        String malformed = client.send(HttpRequest.newBuilder(
+                        origin.resolve("/api/v1/scan-runs/" + runId + "/events"))
+                .header("Cookie", cookie).header("Last-Event-ID", "not-a-number")
+                .GET().build(), HttpResponse.BodyHandlers.ofString()).body();
+        assertTrue(malformed.contains("id: 1"), "a malformed Last-Event-ID falls back to replay");
+    }
 }
