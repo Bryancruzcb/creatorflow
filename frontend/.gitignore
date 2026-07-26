@@ -15,6 +15,12 @@ public/assets/*.glb
 !public/assets/robot-expressive.glb
 !public/assets/fox-animated.glb
 !public/assets/morph-stress-test.glb
+# Copy-detection test-set rigs (CC BY 4.0, ~491 KB total). These are the INPUT to
+# scripts/extract-motion-fixtures.mjs; without them the committed fixtures under
+# src/motion/testset/fixtures/ cannot be regenerated from a fresh clone.
+!public/assets/cesium-man.glb
+!public/assets/rigged-figure.glb
+!public/assets/rigged-simple.glb
 public/stress-fixtures/non3d/*.wav
 public/stress-fixtures/non3d/*.fbx
 public/stress-fixtures/non3d/*.mov
