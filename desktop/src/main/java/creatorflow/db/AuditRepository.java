@@ -28,7 +28,7 @@ public final class AuditRepository {
                 statement.setString(1, scanRunId);
                 statement.setString(2, requireText(eventType));
                 statement.setString(3, payloadJson == null ? "{}" : payloadJson);
-                statement.setString(4, now.toString());
+                statement.setString(4, Timestamps.text(now));
                 statement.executeUpdate();
                 try (ResultSet keys = statement.getGeneratedKeys()) {
                     if (!keys.next()) throw new SQLException("Audit insert did not return an id");

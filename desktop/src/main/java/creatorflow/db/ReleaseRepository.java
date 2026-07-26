@@ -53,7 +53,7 @@ public final class ReleaseRepository {
                 statement.setString(5, release.policyResult());
                 statement.setString(6, release.reportJson());
                 statement.setString(7, release.comparisonJson());
-                statement.setString(8, release.createdAt().toString());
+                statement.setString(8, Timestamps.text(release.createdAt()));
                 setNullableLong(statement, 9, release.universeId());
                 setNullableLong(statement, 10, release.placeId());
                 statement.setString(11, release.experienceName());

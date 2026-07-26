@@ -66,7 +66,7 @@ public final class AnimationComparisonRepository {
                 statement.setInt(15, record.exactCurveData() ? 1 : 0);
                 statement.setString(16, record.resultJson());
                 statement.setString(17, record.algorithmVersion());
-                statement.setString(18, record.createdAt().toString());
+                statement.setString(18, Timestamps.text(record.createdAt()));
                 statement.executeUpdate();
                 return record;
             } catch (SQLException error) {

@@ -24,7 +24,8 @@ final class SchemaMigrator {
             new Migration(7, "intended_experience", "/creatorflow/db/migrations/V007__intended_experience.sql"),
             new Migration(8, "published_place_version", "/creatorflow/db/migrations/V008__published_place_version.sql"),
             new Migration(9, "plugin_pairings", "/creatorflow/db/migrations/V009__plugin_pairings.sql"),
-            new Migration(10, "ownership_verifications", "/creatorflow/db/migrations/V010__ownership_verifications.sql"));
+            new Migration(10, "ownership_verifications", "/creatorflow/db/migrations/V010__ownership_verifications.sql"),
+            new Migration(11, "sortable_timestamps", "/creatorflow/db/migrations/V011__sortable_timestamps.sql"));
 
     private final Connection connection;
 
@@ -71,7 +72,7 @@ final class SchemaMigrator {
                     "INSERT INTO schema_migrations(version, description, applied_at) VALUES (?, ?, ?)")) {
                 statement.setInt(1, migration.version());
                 statement.setString(2, migration.description());
-                statement.setString(3, Instant.now().toString());
+                statement.setString(3, Timestamps.text(Instant.now()));
                 statement.executeUpdate();
             }
             connection.commit();

@@ -23,7 +23,30 @@ function sizeToBytes(size: string): number {
   return Math.round(value * (SIZE_UNIT_BYTES[unit ?? 'MB'] ?? SIZE_UNIT_BYTES.MB));
 }
 
-function toManifestAsset(asset: AssetRecord): ManifestAsset {
+/**
+ * `matchedAssetId` is a 1-based ordinal into this manifest's own `assets` array — that is what
+ * the validator enforces and what the Java export path emits (its matches are always
+ * intra-scan). The demo dataset's matches, by contrast, reference *external* registry records
+ * (upstream Khronos sample models), which have no ordinal here. Emitting the match's own array
+ * position, as this builder used to, produced a number that passed the range check purely
+ * because match arrays are short while asserting a relationship that does not exist.
+ *
+ * So: resolve a match to a real asset in this manifest by file name when one exists, and
+ * otherwise keep it out of `matches` entirely — an external reference is recorded as a finding
+ * instead, where it can be stated plainly rather than disguised as an in-manifest pointer.
+ */
+function resolveMatchedOrdinal(match: { title: string }, fileNames: readonly string[]): number | null {
+  const index = fileNames.findIndex((name) => name.toLowerCase() === match.title.toLowerCase());
+  return index === -1 ? null : index + 1;
+}
+
+function externalMatchFinding(match: { title: string; provider: string; similarity: number }): string {
+  return `EXTERNAL_MATCH: ${match.title} (${match.provider}) — ${match.similarity}% similar; `
+    + 'referenced record is outside this manifest, so it carries no asset ordinal.';
+}
+
+function toManifestAsset(asset: AssetRecord, fileNames: readonly string[]): ManifestAsset {
+  const resolved = (asset.matches ?? []).map((match) => ({ match, ordinal: resolveMatchedOrdinal(match, fileNames) }));
   return {
     path: `${asset.path}/${asset.name}`,
     fileName: asset.name,
@@ -40,14 +63,19 @@ function toManifestAsset(asset: AssetRecord): ManifestAsset {
       evidenceUrl: asset.matches?.[0]?.sourceUrl ?? null,
     },
     decision: asset.decision.replace('-', '_').toUpperCase() as ManifestAsset['decision'],
-    matches: asset.matches?.map((match, index) => ({
-      matchedAssetId: index + 1,
-      matchedFileName: match.title,
-      layer: match.method,
-      distance: 100 - match.similarity,
-      note: match.relationship,
-    })) ?? [],
-    findings: [asset.evidence],
+    matches: resolved
+      .filter((entry): entry is { match: (typeof resolved)[number]['match']; ordinal: number } => entry.ordinal !== null)
+      .map(({ match, ordinal }) => ({
+        matchedAssetId: ordinal,
+        matchedFileName: match.title,
+        layer: match.method,
+        distance: 100 - match.similarity,
+        note: match.relationship,
+      })),
+    findings: [
+      asset.evidence,
+      ...resolved.filter((entry) => entry.ordinal === null).map((entry) => externalMatchFinding(entry.match)),
+    ],
   };
 }
 
@@ -68,7 +96,8 @@ export function buildReleaseManifest(
   assets: AssetRecord[],
   options: ReleaseManifestOptions,
 ): CreatorFlowManifest {
-  const records = assets.map(toManifestAsset);
+  const fileNames = assets.map((asset) => asset.name);
+  const records = assets.map((asset) => toManifestAsset(asset, fileNames));
   const isResolvedSource = (asset: ManifestAsset) =>
     Boolean(asset.source.source?.trim() && asset.source.license?.trim());
 

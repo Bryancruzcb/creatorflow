@@ -36,8 +36,8 @@ public final class PluginPairingRepository {
                 statement.setString(1, pairingId);
                 statement.setLong(2, projectId);
                 statement.setString(3, hash);
-                statement.setString(4, issuedAt.toString());
-                statement.setString(5, expiresAt.toString());
+                statement.setString(4, Timestamps.text(issuedAt));
+                statement.setString(5, Timestamps.text(expiresAt));
                 statement.executeUpdate();
             } catch (SQLException error) {
                 throw new IllegalStateException("Could not persist plugin pairing", error);
@@ -54,7 +54,7 @@ public final class PluginPairingRepository {
                     SELECT * FROM plugin_pairings
                     WHERE token_hash = ? AND revoked_at IS NULL AND expires_at > ?""")) {
                 statement.setString(1, hash);
-                statement.setString(2, Instant.now().toString());
+                statement.setString(2, Timestamps.text(Instant.now()));
                 try (ResultSet result = statement.executeQuery()) {
                     return result.next() ? Optional.of(map(result)) : Optional.empty();
                 }
@@ -95,7 +95,7 @@ public final class PluginPairingRepository {
             try (PreparedStatement statement = connection.prepareStatement("""
                     UPDATE plugin_pairings SET revoked_at = ?
                     WHERE id = ? AND project_id = ? AND revoked_at IS NULL""")) {
-                statement.setString(1, revokedAt.toString());
+                statement.setString(1, Timestamps.text(revokedAt));
                 statement.setString(2, pairingId);
                 statement.setLong(3, projectId);
                 return statement.executeUpdate() > 0;

@@ -122,7 +122,7 @@ public final class DecisionRepository {
             statement.setString(3, record.type().name());
             statement.setString(4, record.reason());
             statement.setString(5, record.supersedesDecisionId());
-            statement.setString(6, record.createdAt().toString());
+            statement.setString(6, Timestamps.text(record.createdAt()));
             statement.executeUpdate();
             return record;
         } catch (SQLException e) {

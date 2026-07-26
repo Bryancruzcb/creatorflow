@@ -158,7 +158,7 @@ public final class MotionSnapshotRepository {
             statement.setString(9, record.algorithmVersion());
             statement.setString(10, record.supersedesSnapshotId());
             statement.setString(11, record.status().name());
-            statement.setString(12, record.createdAt().toString());
+            statement.setString(12, Timestamps.text(record.createdAt()));
             statement.executeUpdate();
         } catch (SQLException error) {
             throw new IllegalStateException("Could not persist motion snapshot", error);
