@@ -19,6 +19,26 @@ jobs:
       - name: Build and test
         run: mvn -B verify
 
+  # The Open Cloud key store encrypts at rest with Windows DPAPI, and its tests are
+  # @EnabledOnOs(WINDOWS): the ubuntu job above skips them silently, so encryption-at-rest was
+  # never actually exercised anywhere in CI. This job runs the desktop module on Windows so it is.
+  #
+  # Core is installed without running its suite — the ubuntu job already covers it, and
+  # ProjectScannerTest's followed-symlink case needs privileges a Windows runner does not grant.
+  desktop-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+      - name: Install core into the local repository
+        run: mvn -B -pl core -am install -DskipTests
+      - name: Desktop tests (includes the Windows-only DPAPI key store)
+        run: mvn -B -pl desktop test
+
   frontend:
     runs-on: ubuntu-latest
     defaults:

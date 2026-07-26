@@ -4,6 +4,7 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import creatorflow.manifest.CreativeManifest.AssetEntry;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.model.VerificationStatus;
+import creatorflow.ownership.OwnershipOutcome;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -31,6 +32,7 @@ public final class ReleaseGate {
         int blocked = 0;
         int unresolved = 0;
         int flaggedUnreviewed = 0;
+        int ownershipMismatchUndecided = 0;
 
         for (AssetEntry asset : manifest.assets()) {
             if (asset.decision() == ReleaseDecision.BLOCKED) {
@@ -54,10 +56,33 @@ public final class ReleaseGate {
                 violations.add(violation(asset, Code.FLAGGED_WITHOUT_APPROVAL,
                         "SIMILAR and DUPLICATE assets require APPROVED or EXCLUDED"));
             }
+
+            // Ownership mismatch is a REVIEW LEAD, mirroring FLAGGED_WITHOUT_APPROVAL exactly: it
+            // keeps standing until a human RESOLVES it, and only APPROVED or EXCLUDED resolve it
+            // (EXCLUDED already skipped above; BLOCKED already handled above — so the test here is
+            // "not APPROVED"). NEEDS_REVIEW does NOT clear it: that is a human recording that review
+            // has *not* happened yet, so treating it as a resolution would let a release pass
+            // carrying a mismatch nobody ever looked at. A MATCH never blocks, and an UNVERIFIABLE
+            // never blocks — absence of proof is not proof. Only a human clears this, never the Open
+            // Cloud result itself. The message stays a lead, not an accusation of infringement, and
+            // it states the standing decision truthfully rather than claiming none was recorded.
+            if (asset.ownership() != null
+                    && asset.ownership().outcome() == OwnershipOutcome.MISMATCH
+                    && asset.decision() != ReleaseDecision.APPROVED) {
+                ownershipMismatchUndecided++;
+                violations.add(violation(asset, Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION,
+                        "The Roblox animation ID entered for this file has a creator who is not the "
+                                + "owner of the target experience, and "
+                                + (asset.decision() == ReleaseDecision.NEEDS_REVIEW
+                                        ? "it is still marked Needs review"
+                                        : "no decision has been recorded")
+                                + " — confirm the team has rights to ship it, then approve or "
+                                + "exclude it."));
+            }
         }
 
         Summary summary = new Summary(manifest.assets().size(), violations.size(), blocked,
-                unresolved, flaggedUnreviewed);
+                unresolved, flaggedUnreviewed, ownershipMismatchUndecided);
         return new Report(REPORT_SCHEMA, manifest.schema(), manifest.project(), Instant.now(clock),
                 violations.isEmpty(), summary, violations);
     }
@@ -69,7 +94,14 @@ public final class ReleaseGate {
     public enum Code {
         BLOCKED_DECISION,
         UNRESOLVED_SOURCE,
-        FLAGGED_WITHOUT_APPROVAL
+        FLAGGED_WITHOUT_APPROVAL,
+        /**
+         * An ownership {@code MISMATCH} review lead carrying no <em>resolving</em> decision. The
+         * name is historical: both {@code PENDING} (nothing recorded) and {@code NEEDS_REVIEW}
+         * (recorded, but it states review has not happened) count here. Only {@code APPROVED} or
+         * {@code EXCLUDED} clear it.
+         */
+        OWNERSHIP_MISMATCH_WITHOUT_DECISION
     }
 
     @JsonPropertyOrder({"schema", "manifestSchema", "project", "evaluatedAt", "passed", "summary", "violations"})
@@ -91,7 +123,9 @@ public final class ReleaseGate {
             int violations,
             int blockedAssets,
             int unresolvedAssets,
-            int flaggedWithoutApproval) {
+            int flaggedWithoutApproval,
+            // Ownership mismatches with no RESOLVING decision — see Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION.
+            int ownershipMismatchWithoutDecision) {
     }
 
     public record Violation(

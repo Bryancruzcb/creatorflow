@@ -9,6 +9,7 @@ import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.model.VerificationStatus;
+import creatorflow.ownership.OwnershipOutcome;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -18,6 +19,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Locale;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -56,6 +58,104 @@ class ReleaseGateTest {
 
         assertTrue(report.passed());
         assertTrue(report.violations().isEmpty());
+    }
+
+    @Test
+    void ownershipMismatchWithoutADecisionBlocksAsAReviewLead() {
+        CreativeManifest manifest = manifest(List.of(
+                assetWithOwnership("anim.rbxm", ReleaseDecision.PENDING,
+                        ownership(OwnershipOutcome.MISMATCH))));
+
+        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+
+        assertFalse(report.passed());
+        assertEquals(1, report.violations().size());
+        ReleaseGate.Violation violation = report.violations().get(0);
+        assertEquals(ReleaseGate.Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION, violation.code());
+        assertEquals(1, report.summary().ownershipMismatchWithoutDecision());
+
+        assertNoAccusation(violation.message());
+        // ...but it must clearly prompt a human to record a decision.
+        String message = violation.message().toLowerCase(Locale.ROOT);
+        assertTrue(message.contains("no decision"), "message must surface the missing decision");
+        assertTrue(message.contains("confirm"), "message must prompt a human confirmation");
+        // ...and it must not present the file-to-animation link as CreatorFlow's own finding: the
+        // animation id was typed in by a person, and the lead is only as good as that declaration.
+        assertTrue(message.contains("entered"), "message must say the animation id was entered by a person");
+    }
+
+    /**
+     * "Needs review" is a human saying review has NOT happened yet. It must not silence the lead —
+     * otherwise a release passes carrying an ownership mismatch nobody ever looked at.
+     */
+    @Test
+    void ownershipMismatchStillBlocksWhenTheOnlyDecisionRecordedIsNeedsReview() {
+        CreativeManifest manifest = manifest(List.of(
+                assetWithOwnership("anim.rbxm", ReleaseDecision.NEEDS_REVIEW,
+                        ownership(OwnershipOutcome.MISMATCH))));
+
+        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+
+        assertFalse(report.passed(), "NEEDS_REVIEW must not clear an ownership mismatch");
+        assertEquals(1, report.violations().size());
+        ReleaseGate.Violation violation = report.violations().get(0);
+        assertEquals(ReleaseGate.Code.OWNERSHIP_MISMATCH_WITHOUT_DECISION, violation.code());
+        assertEquals(ReleaseDecision.NEEDS_REVIEW, violation.decision());
+        assertEquals(1, report.summary().ownershipMismatchWithoutDecision());
+
+        assertNoAccusation(violation.message());
+        String message = violation.message().toLowerCase(Locale.ROOT);
+        // The message must stay TRUE for this state: a decision *was* recorded, it just isn't one
+        // that resolves the lead. Claiming "no decision has been recorded" here would be a lie.
+        assertFalse(message.contains("no decision"),
+                "a decision was recorded — the message must not claim otherwise");
+        assertTrue(message.contains("needs review"), "message must name the standing state");
+        assertTrue(message.contains("confirm"), "message must prompt a human confirmation");
+        assertTrue(message.contains("entered"), "message must say the animation id was entered by a person");
+    }
+
+    @Test
+    void ownershipMismatchIsClearedOnlyByApprovedOrExcluded() {
+        CreativeManifest manifest = manifest(List.of(
+                assetWithOwnership("approved.rbxm", ReleaseDecision.APPROVED,
+                        ownership(OwnershipOutcome.MISMATCH)),
+                assetWithOwnership("excluded.rbxm", ReleaseDecision.EXCLUDED,
+                        ownership(OwnershipOutcome.MISMATCH))));
+
+        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+
+        assertTrue(report.passed());
+        assertTrue(report.violations().isEmpty());
+        assertEquals(0, report.summary().ownershipMismatchWithoutDecision());
+    }
+
+    @Test
+    void matchAndUnverifiableOwnershipNeverBlockWhateverTheDecision() {
+        CreativeManifest manifest = manifest(List.of(
+                assetWithOwnership("match.rbxm", ReleaseDecision.PENDING,
+                        ownership(OwnershipOutcome.MATCH)),
+                assetWithOwnership("match-needs-review.rbxm", ReleaseDecision.NEEDS_REVIEW,
+                        ownership(OwnershipOutcome.MATCH)),
+                assetWithOwnership("unknown.rbxm", ReleaseDecision.PENDING,
+                        OwnershipEvidence.unchecked()),
+                assetWithOwnership("unknown-needs-review.rbxm", ReleaseDecision.NEEDS_REVIEW,
+                        OwnershipEvidence.unchecked())));
+
+        ReleaseGate.Report report = new ReleaseGate().evaluate(manifest);
+
+        assertTrue(report.passed());
+        assertTrue(report.violations().isEmpty());
+        assertEquals(0, report.summary().ownershipMismatchWithoutDecision());
+    }
+
+    /** A mismatch is a review lead, never an accusation of wrongdoing — in every message branch. */
+    private static void assertNoAccusation(String raw) {
+        String message = raw.toLowerCase(Locale.ROOT);
+        assertFalse(message.contains("infring"), "message must not allege infringement");
+        assertFalse(message.contains("stolen"), "message must not allege theft");
+        assertFalse(message.contains("steal"), "message must not allege theft");
+        assertFalse(message.contains("illegal"), "message must not allege illegality");
+        assertFalse(message.contains("unauthoriz"), "message must not allege unauthorized use");
     }
 
     @Test
@@ -112,6 +212,35 @@ class ReleaseGateTest {
         assertTrue(output.toString(StandardCharsets.UTF_8).contains("\"passed\" : true"));
     }
 
+    /**
+     * A manifest exported before Phase A carries no ownership block at all. Tightening the
+     * ownership rule must not change how such a manifest recomputes — otherwise every archived
+     * v0.2 release would suddenly read as tampered (exit 4).
+     */
+    @Test
+    void cliRecomputesAPrePhaseAV2ManifestWithNoOwnershipBlockIdentically() throws Exception {
+        CreativeManifest.Gate embeddedPass = new CreativeManifest.Gate("PASS", List.of());
+        Path legacy = dir.resolve("v2-legacy-no-ownership.json");
+        new ManifestJson().write(legacy, manifestV2(List.of(
+                asset("clear-pending.png", VerificationStatus.CLEAR, ReleaseDecision.PENDING, true),
+                asset("clear-needs-review.png", VerificationStatus.CLEAR, ReleaseDecision.NEEDS_REVIEW, true),
+                asset("dupe-excluded.png", VerificationStatus.DUPLICATE, ReleaseDecision.EXCLUDED, false)),
+                embeddedPass));
+        ByteArrayOutputStream output = new ByteArrayOutputStream();
+        ByteArrayOutputStream errors = new ByteArrayOutputStream();
+
+        int code = ReleaseGateCli.run(new String[]{legacy.toString()},
+                new PrintStream(output, true, StandardCharsets.UTF_8),
+                new PrintStream(errors, true, StandardCharsets.UTF_8));
+
+        String out = output.toString(StandardCharsets.UTF_8);
+        assertEquals(0, code, "a pre-Phase-A v0.2 manifest must still recompute to its embedded PASS");
+        assertFalse(out.contains("does not match"), "no tamper cross-check failure expected");
+        assertTrue(out.contains("\"passed\" : true"));
+        assertEquals(0, new ReleaseGate().evaluate(new ManifestJson().read(legacy))
+                .summary().ownershipMismatchWithoutDecision());
+    }
+
     @Test
     void cliExitsWithADistinctCodeWhenTheEmbeddedGateIsTamperedOrStale() throws Exception {
         // The asset is BLOCKED (must recompute to BLOCKED), but the embedded gate falsely claims PASS.
@@ -154,6 +283,22 @@ class ReleaseGateTest {
         return new AssetEntry(path, path, "png", 1,
                 "a".repeat(64), 1, 1, new Fingerprints(null, null, null), verification,
                 source, decision, List.of(), List.of());
+    }
+
+    /** A CLEAR, source-resolved animation asset carrying a persisted ownership observation. */
+    private static AssetEntry assetWithOwnership(String path, ReleaseDecision decision,
+                                                 OwnershipEvidence ownership) {
+        return new AssetEntry(path, path, "rbxm", 1, "a".repeat(64), 1, 1,
+                new Fingerprints(null, null, null), VerificationStatus.CLEAR,
+                new SourceEvidence("Studio archive", "Owned", "https://example.test/evidence/" + path),
+                decision, List.of(), List.of(), null, ownership);
+    }
+
+    private static OwnershipEvidence ownership(OwnershipOutcome outcome) {
+        long creatorId = 100L;
+        long ownerId = outcome == OwnershipOutcome.MATCH ? 100L : 200L;
+        return new OwnershipEvidence(1234L, "USER", creatorId, "Animation", "Approved",
+                "USER", ownerId, null, outcome, Instant.parse("2026-07-20T00:00:00Z"));
     }
 
     private static CreativeManifest manifest(List<AssetEntry> assets) {

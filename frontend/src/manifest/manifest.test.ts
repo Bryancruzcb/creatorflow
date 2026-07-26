@@ -253,6 +253,149 @@ describe('CreatorFlow manifest validation', () => {
     const result = validate(manifest);
     expect(result.ok).toBe(false);
   });
+
+  it('accepts a v0.2 asset with a fully populated optional ownership block', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 507766388,
+      creatorType: 'USER',
+      creatorId: 1,
+      assetType: 'Animation',
+      moderationState: 'Approved',
+      ownerType: 'GROUP',
+      ownerId: 295182,
+      memberRank: 12,
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('accepts an ownership block declaring the checked animation id was entered by a person', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 507766388,
+      assetIdSource: 'DECLARED_BY_USER',
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('rejects an ownership block claiming a linkage provenance the schema does not define', () => {
+    // The file-to-animation link can only ever be a human declaration. A manifest asserting some
+    // other — implicitly stronger — provenance must be refused, not silently downgraded.
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = {
+      robloxAssetId: 507766388,
+      assetIdSource: 'VERIFIED_BY_CREATORFLOW',
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('still accepts an ownership block written before assetIdSource existed (backward compat)', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 507766388,
+      outcome: 'MATCH',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect('assetIdSource' in manifest.assets[0].ownership!).toBe(false);
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('accepts a facts-less UNVERIFIABLE ownership block carrying only the required fields', () => {
+    const manifest = validManifestV2();
+    manifest.assets[0].ownership = {
+      robloxAssetId: 999999999,
+      outcome: 'UNVERIFIABLE',
+      checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('still accepts a v0.2 manifest whose assets omit ownership entirely (backward compat)', () => {
+    const manifest = validManifestV2();
+    expect('ownership' in manifest.assets[0]).toBe(false);
+    expect(validate(manifest)).toMatchObject({ ok: true });
+  });
+
+  it('rejects an ownership block with an invalid outcome enum value', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = { robloxAssetId: 1, outcome: 'STOLEN', checkedAt: '2026-07-23T18:30:00Z' };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('rejects an ownership block missing a required field (outcome)', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = { robloxAssetId: 1, checkedAt: '2026-07-23T18:30:00Z' };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('rejects an ownership block with an unknown extra property', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = {
+      robloxAssetId: 1, outcome: 'MATCH', checkedAt: '2026-07-23T18:30:00Z', apiKey: 'leak',
+    };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('rejects an ownership identity type outside USER/GROUP', () => {
+    const manifest = validManifestV2() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = {
+      robloxAssetId: 1, creatorType: 'ROBOT', outcome: 'MATCH', checkedAt: '2026-07-23T18:30:00Z',
+    };
+    expect(validate(manifest).ok).toBe(false);
+  });
+
+  it('does not allow ownership on a v0.1 asset (the field is v0.2-only)', () => {
+    const manifest = validManifest() as unknown as Record<string, unknown>;
+    const assets = manifest.assets as Array<Record<string, unknown>>;
+    assets[0].ownership = { robloxAssetId: 1, outcome: 'MATCH', checkedAt: '2026-07-23T18:30:00Z' };
+    expect(validate(manifest).ok).toBe(false);
+  });
+});
+
+// The desktop app serves the built frontend under a strict CSP (`script-src 'self'`,
+// no `unsafe-eval`). Ajv's normal `ajv.compile()` generates validator code via
+// `new Function(...)` at runtime, which that CSP blocks outright — and because the
+// old code did this at module scope, importing manifest.ts threw during evaluation and
+// the whole app failed to mount (a blank page), not just manifest validation. These
+// tests pin the fix — build-time standalone Ajv compilation via
+// scripts/compile-manifest-validators.mjs — so a future edit can't silently regress
+// back to runtime compilation.
+describe('CSP-safe manifest validator compilation', () => {
+  it('manifest.ts imports the generated validators instead of compiling Ajv at runtime', () => {
+    const source = readFileSync(resolve(manifestDir, 'manifest.ts'), 'utf8');
+    expect(source).toMatch(/from ['"]\.\/validators\.generated(?:\.js)?['"]/);
+    expect(source).not.toMatch(/\bajv\.compile\b/i);
+    expect(source).not.toMatch(/new Ajv2020\(/);
+  });
+
+  it('validators.generated.js exists and contains no runtime code generation', () => {
+    const generatedPath = resolve(manifestDir, 'validators.generated.js');
+    expect(existsSync(generatedPath)).toBe(true);
+
+    const source = readFileSync(generatedPath, 'utf8');
+    expect(source).not.toMatch(/new Function\s*\(/);
+    expect(source).not.toMatch(/[^.\w]eval\s*\(/);
+    // The whole point of standalone compilation is that nothing gets `require()`d at
+    // runtime either (a bare `require` reference would throw in a browser bundle,
+    // trading an EvalError blank page for a ReferenceError blank page). See
+    // rewriteRequiresAsImports in compile-manifest-validators.mjs.
+    expect(source).not.toMatch(/\brequire\(/);
+  });
+
+  it('validators.generated.d.ts exists alongside the generated module', () => {
+    expect(existsSync(resolve(manifestDir, 'validators.generated.d.ts'))).toBe(true);
+  });
 });
 
 // The desktop app serves the built frontend under a strict CSP (`script-src 'self'`,

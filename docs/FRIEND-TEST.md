@@ -12,7 +12,9 @@ release-preflight walkthrough** added after the strategic-redirect increments
 rollback target, published-version handoff, pairing management). Run Part 1
 first; if it's smooth, run Part 2 to validate the whole product against a real
 release. Every step is tagged **[live-Studio]** (needs a signed-in Studio user +
-real Animation IDs) or **[offline]** (verifiable without Studio, on any machine).
+real Animation IDs), **[offline]** (verifiable without Studio, on any machine), or
+**[offline-ish]** (needs a Roblox Open Cloud API key + internet, but no Studio —
+just the ownership-verification step).
 
 ## The one constraint people miss
 
@@ -97,14 +99,50 @@ published version. Do it in order; capture results in the template at the end.
 3. **Read the evidence tri-state [offline].** In the evidence view, confirm each
    facet shows a consistent basis badge: a computed comparison/fingerprint reads
    **VERIFIED ("computed by CreatorFlow")**; a source/license you typed reads
-   **DECLARED**; and **ownership reads NOT_VERIFIED** with an explicit row. Sanity
-   check the honesty: nothing labeled VERIFIED should imply originality or
-   ownership.
-4. **Record a provenance decision [offline].** For a flagged/similar asset, try
+   **DECLARED**; and **ownership reads NOT_VERIFIED** — with an explicit row —
+   until you run the verification in the next step. Sanity check the honesty:
+   nothing labeled VERIFIED should imply originality or ownership.
+4. **Verify ownership where possible [offline-ish — needs a key + internet, no
+   Studio].** This step needs a Roblox Open Cloud API key and internet, but *not*
+   Studio. In the desktop **Settings → Roblox Open Cloud** card, paste a
+   user-scoped Open Cloud API key (asset + universe + group read) and press **Test
+   connection** — confirm it reports the key accepted, and that the storage line
+   reads *encrypted (Windows DPAPI)* on Windows (or *not encrypted on this OS*
+   elsewhere). Then, on a file you know the Roblox animation id for, in a project
+   with a bound experience (step 1), type that id into the ownership panel and
+   press **Verify ownership**. Confirm exactly one of three honest outcomes:
+   - **VERIFIED — creator matches the experience owner** (a MATCH): positive
+     evidence, worded as *who created it / who owns the experience*, never "you
+     have the right to use it";
+   - **VERIFIED — review lead: creator is not the experience owner** (a MISMATCH):
+     framed as a lead for a person to confirm the team has rights, never an
+     accusation (the words "infringement"/"stolen" must not appear), prompting the
+     required-reason decision flow;
+   - **NOT_VERIFIED — could not verify** (UNVERIFIABLE): the lookup ran but could
+     not obtain the facts — an unreadable/deleted id, an id that is not an
+     Animation, or an Open Cloud/network error. An honest "could not check", never
+     a false VERIFIED.
+   Two of the failure paths record **nothing at all** — don't expect an
+   UNVERIFIABLE row from either. With **no key configured** the Verify button is
+   disabled with a clear reason pointing at the Settings card, so no call is made
+   and nothing is stored. A **rate-limit (429)** shows a distinct "rate-limited,
+   try again" message (with the wait when Roblox reports one); a throttle is not an
+   observation about ownership, so the asset keeps exactly the ownership state it
+   already had. Confirm the verdict shows the point-in-time facts (creator,
+   experience owner, moderation) and a **checked today / N days ago** stamp. Then
+   check the honesty boundaries: a file nobody has entered an id for stays
+   **NOT_VERIFIED** with nothing to check. Most important — confirm the panel does
+   **not** claim it verified
+   *this file's* ownership: the **Animation ID you entered** row must read
+   **DECLARED** next to the VERIFIED facts, and the panel must say in words that
+   you entered the id and that CreatorFlow cannot check that this file is that
+   animation. A verification is a point-in-time observation — CreatorFlow surfaces
+   `checkedAt`; it does not expire or re-check.
+5. **Record a provenance decision [offline].** For a flagged/similar asset, try
    to save a decision with an EMPTY reason — the control must stay disabled /
    reject it. Enter a reason, save, and confirm it appears in the append-only
    history (a later decision supersedes, never overwrites).
-5. **Generate a release [offline].** Create a release. Confirm:
+6. **Generate a release [offline].** Create a release. Confirm:
    - it produces a **PASS or BLOCKED** result with the blocking reasons listed
      (unresolved sources, undecided flags, blocked decisions);
    - the exported **manifest** carries the gate block, the evidenceBases, and the
@@ -112,23 +150,23 @@ published version. Do it in order; capture results in the template at the end.
    - regenerating a release from the same scan yields a **byte-identical**
      manifest (determinism — diff the two downloads);
    - a PASS is never presented as an originality/copyright verdict.
-6. **Verify the manifest with the gate CLI [offline].** Run `ReleaseGateCli`
+7. **Verify the manifest with the gate CLI [offline].** Run `ReleaseGateCli`
    against the downloaded manifest and confirm its result matches what the UI
    showed. Then hand-edit the manifest's gate `result` to the opposite value and
    re-run — the CLI must exit non-zero on the tampered gate (integrity check).
-7. **Rollback target [offline].** Create a second release for the same project.
+8. **Rollback target [offline].** Create a second release for the same project.
    Confirm the newer release shows an explicit **rollback target** pointing at
    the prior release, with a link to that release's manifest, and wording that
    makes clear CreatorFlow does not perform the rollback (Studio does).
-8. **Close the handoff loop [live-Studio for the number, offline to record].**
+9. **Close the handoff loop [live-Studio for the number, offline to record].**
    Publish in Roblox Studio (that stays entirely in Studio — CreatorFlow never
    publishes). Take the Roblox place version you get back and record it on the
    release. Confirm it displays as *published as place version N (self-reported /
    not verified)*.
-9. **Pairing management [offline].** In the Studio bridge panel, confirm you can
-   list active/past pairings (id + issued/expires + status) with the token shown
-   only once at creation, and revoke one — after which that token no longer
-   authenticates.
+10. **Pairing management [offline].** In the Studio bridge panel, confirm you can
+    list active/past pairings (id + issued/expires + status) with the token shown
+    only once at creation, and revoke one — after which that token no longer
+    authenticates.
 
 ## Capture template (paste into the results doc)
 
@@ -143,7 +181,12 @@ Part 1:
   >2000-keyframe failure .. "____"
 Part 2:
   experience binding ...... persisted? Y/N ; labeled declared-not-verified? Y/N
-  tri-state badges ........ VERIFIED/DECLARED/NOT_VERIFIED shown correctly? Y/N ; ownership NOT_VERIFIED? Y/N
+  tri-state badges ........ VERIFIED/DECLARED/NOT_VERIFIED shown correctly? Y/N ; ownership NOT_VERIFIED before verify? Y/N
+  ownership verify ........ key accepted? Y/N ; storage line: "encrypted (Windows DPAPI)" / "not encrypted on this OS"
+                            outcome: MATCH/MISMATCH/UNVERIFIABLE ; checkedAt shown? Y/N
+                            no-key disables button (and records nothing)? Y/N ; un-checked file stays NOT_VERIFIED? Y/N
+                            entered-id row reads DECLARED, not VERIFIED? Y/N
+                            mismatch worded as a lead, not an accusation? Y/N
   required-reason gate .... blocked on empty reason? Y/N
   release PASS/BLOCKED .... result + reasons: ____
   manifest determinism .... two exports byte-identical? Y/N
@@ -159,6 +202,8 @@ Part 2:
 The friend can pair, compare, resolve findings, and produce a release they
 understand — and every failure message is clear without help. A five-minute
 small-project run should be achievable. Similarity is never presented as proof
-of copying; unknown states (ownership, published version) are shown as unknown,
-never as verified. Anything they stumble on is the next work item — resist
+of copying; unknown states are shown as unknown, never as verified — and where
+ownership *can* be verified, VERIFIED means the creator/owner facts were
+obtained, never that the team holds the right to ship the asset. Anything they
+stumble on is the next work item — resist
 adding features until this loop is smooth.
