@@ -42,7 +42,7 @@ import {
   type RootPathClipResult,
   trackMatchesJointScope,
 } from '../motion/motionAnalysis';
-import { SIMILARITY_RAMP, sampleRampCss } from '../motion/ramp';
+import { DEVIATION_RAMP, SIMILARITY_RAMP, sampleRamp, sampleRampCss } from '../motion/ramp';
 import { createStudioScene } from '../motion/sceneFoundation';
 import { useWorkspacePreferences } from '../preferences/workspacePreferences';
 import { MetadataInspector } from './MetadataInspector';
@@ -126,15 +126,46 @@ function makeOnionSkin(group: Group, tint: Color) {
   });
 }
 
-interface ScopeSkeleton {
+/**
+ * Joint separation treated as the top of the deviation ramp, in normalised rig units.
+ *
+ * The stage normalises every rig to roughly two units tall, so 0.35 is about a sixth of body
+ * height — far enough apart that the two poses are unmistakably different, close enough that
+ * ordinary walk-cycle phase differences still show gradient rather than saturating instantly.
+ */
+const JOINT_DEVIATION_CEILING = 0.35;
+
+export interface ScopeSkeleton {
   line: LineSegments<BufferGeometry, LineBasicMaterial>;
   position: Float32BufferAttribute;
+  /** Per-vertex colour, so a segment can carry its own deviation reading. */
+  color: Float32BufferAttribute;
   segments: Array<{ child: Bone; parent: Bone }>;
+  tint: Color;
   start: Vector3;
   end: Vector3;
+  peer: Vector3;
 }
 
-function makeScopeSkeleton(model: Group, tint: Color): ScopeSkeleton {
+/**
+ * What the candidate skeleton is being measured against.
+ *
+ * Deviation is per-BONE, not per-vertex. The analysis pipeline's atomic unit is the joint path,
+ * and there is no vertex-level quantity anywhere in it — so a per-vertex surface shading would be
+ * an interpolation of per-bone numbers presented as if it were measured. Per-bone is what is
+ * actually known.
+ *
+ * Both rigs are SkeletonUtils clones of the same glTF, so their segment arrays are index-for-index
+ * identical and no name matching is needed.
+ */
+export interface JointDeviation {
+  peerSegments: ScopeSkeleton['segments'];
+  peerAnimated: Set<string>;
+  /** Distance treated as the top of the ramp, in normalised rig units. */
+  ceiling: number;
+}
+
+export function makeScopeSkeleton(model: Group, tint: Color): ScopeSkeleton {
   const segments: ScopeSkeleton['segments'] = [];
   model.traverse((child) => {
     if (child instanceof Bone && child.parent instanceof Bone) segments.push({ child, parent: child.parent });
@@ -143,12 +174,17 @@ function makeScopeSkeleton(model: Group, tint: Color): ScopeSkeleton {
   const position = new Float32BufferAttribute(new Float32Array(Math.max(6, segments.length * 6)), 3);
   position.setUsage(DynamicDrawUsage);
   geometry.setAttribute('position', position);
+  const color = new Float32BufferAttribute(new Float32Array(Math.max(6, segments.length * 6)), 3);
+  color.setUsage(DynamicDrawUsage);
+  geometry.setAttribute('color', color);
   geometry.setDrawRange(0, 0);
-  const material = new LineBasicMaterial({ color: tint, transparent: true, opacity: 0.4, depthTest: false, depthWrite: false });
+  // vertexColors is always on; when no deviation is being shown every segment is written with the
+  // rig's own tint, so the default appearance is unchanged.
+  const material = new LineBasicMaterial({ vertexColors: true, transparent: true, opacity: 0.4, depthTest: false, depthWrite: false });
   const line = new LineSegments(geometry, material);
   line.frustumCulled = false;
   line.renderOrder = 6;
-  return { line, position, segments, start: new Vector3(), end: new Vector3() };
+  return { line, position, color, segments, tint: tint.clone(), start: new Vector3(), end: new Vector3(), peer: new Vector3() };
 }
 
 /** The uuids of the bones this clip actually animates, so the overlay can skip dead joints. */
@@ -161,10 +197,17 @@ function animatedBoneUuids(model: Object3D, clip: AnimationClip): Set<string> {
   return uuids;
 }
 
-function updateScopeSkeleton(skeleton: ScopeSkeleton, scope: MotionJointScope, animatedBones: Set<string>) {
+export function updateScopeSkeleton(
+  skeleton: ScopeSkeleton,
+  scope: MotionJointScope,
+  animatedBones: Set<string>,
+  deviation?: JointDeviation | null,
+) {
   const values = skeleton.position.array as Float32Array;
+  const colors = skeleton.color.array as Float32Array;
   let offset = 0;
-  for (const segment of skeleton.segments) {
+  for (let index = 0; index < skeleton.segments.length; index += 1) {
+    const segment = skeleton.segments[index];
     // Only draw joints this clip drives; a bone with no track sits in bind pose and its
     // static line reads as broken.
     if (!animatedBones.has(segment.child.uuid)) continue;
@@ -177,9 +220,33 @@ function updateScopeSkeleton(skeleton: ScopeSkeleton, scope: MotionJointScope, a
     values[offset + 3] = skeleton.end.x;
     values[offset + 4] = skeleton.end.y;
     values[offset + 5] = skeleton.end.z;
+
+    // Colour this segment by how far the matching joint on the other rig sits from this one.
+    // Only where BOTH clips actually drive the bone: against a bone left in bind pose the number
+    // would be a comparison with nothing, dressed up as a measurement.
+    let r = skeleton.tint.r;
+    let g = skeleton.tint.g;
+    let b = skeleton.tint.b;
+    const peerSegment = deviation?.peerSegments[index];
+    if (peerSegment && deviation && deviation.peerAnimated.has(peerSegment.child.uuid)) {
+      peerSegment.child.getWorldPosition(skeleton.peer);
+      const ratio = Math.min(1, skeleton.end.distanceTo(skeleton.peer) / deviation.ceiling);
+      const sample = sampleRamp(DEVIATION_RAMP, ratio);
+      r = sample.r / 255;
+      g = sample.g / 255;
+      b = sample.b / 255;
+    }
+    colors[offset] = r;
+    colors[offset + 1] = g;
+    colors[offset + 2] = b;
+    colors[offset + 3] = r;
+    colors[offset + 4] = g;
+    colors[offset + 5] = b;
+
     offset += 6;
   }
   skeleton.position.needsUpdate = true;
+  skeleton.color.needsUpdate = true;
   skeleton.line.geometry.setDrawRange(0, offset / 3);
   skeleton.line.material.opacity = scope === 'full' ? 0.34 : 0.92;
 }
@@ -452,8 +519,27 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
         runtime.candidate.setTime(candidateTime);
         runtime.sourceModel.updateMatrixWorld(true);
         runtime.candidateModel.updateMatrixWorld(true);
-        updateScopeSkeleton(runtime.sourceScope, selection.previewFocus, runtime.sourceAnimatedBones);
-        updateScopeSkeleton(runtime.candidateScope, selection.previewFocus, runtime.candidateAnimatedBones);
+        /**
+         * Deviation is only meaningful in overlay.
+         *
+         * In side-by-side the two rigs are placed 2.9 units apart, so a world-space joint distance
+         * would be dominated by the layout offset — a large, confident-looking number that is
+         * entirely an artefact of where the models were parked. Gated rather than "corrected",
+         * because the reading only means anything when the rigs are actually co-located.
+         */
+        const showDeviation = selection.previewLayout === 'overlay';
+        updateScopeSkeleton(
+          runtime.sourceScope,
+          selection.previewFocus,
+          runtime.sourceAnimatedBones,
+          showDeviation ? { peerSegments: runtime.candidateScope.segments, peerAnimated: runtime.candidateAnimatedBones, ceiling: JOINT_DEVIATION_CEILING } : null,
+        );
+        updateScopeSkeleton(
+          runtime.candidateScope,
+          selection.previewFocus,
+          runtime.candidateAnimatedBones,
+          showDeviation ? { peerSegments: runtime.sourceScope.segments, peerAnimated: runtime.sourceAnimatedBones, ceiling: JOINT_DEVIATION_CEILING } : null,
+        );
         const ghostProgress = trailProgress(selection.analysisMode, progressRef.current);
         runtime.sourceGhost.setTime(ghostProgress * runtime.sourceClip.duration);
         runtime.candidateGhost.setTime(ghostProgress * runtime.candidateClip.duration);
