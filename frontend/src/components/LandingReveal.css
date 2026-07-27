@@ -1,0 +1,40 @@
+/* Scroll-driven reveals for the landing page.
+   Before this, nothing on the page moved after the first viewport — sections 2 through 7 were
+   fully static on arrival, so the entire motion budget was spent above the fold. These only
+   animate opacity and transform, so they never affect layout or cause reflow.
+
+   Scoped file rather than an addition to the 11,771-line styles.css. */
+
+.cf-reveal {
+  opacity: 0;
+  transform: translate3d(0, 1.35rem, 0);
+  transition:
+    opacity 0.86s cubic-bezier(0.16, 1, 0.3, 1) var(--cf-reveal-delay, 0ms),
+    transform 0.86s cubic-bezier(0.16, 1, 0.3, 1) var(--cf-reveal-delay, 0ms);
+  will-change: opacity, transform;
+}
+
+.cf-reveal.cf-in {
+  opacity: 1;
+  transform: none;
+}
+
+/* Once it has arrived, drop the hint so long pages don't hold hundreds of promoted layers. */
+.cf-reveal.cf-settled {
+  will-change: auto;
+}
+
+/* The numbered workflow rows read as a sequence, so they arrive as one. */
+.workflow-list .cf-reveal {
+  transform: translate3d(0, 1.1rem, 0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-reveal,
+  .cf-reveal.cf-in {
+    opacity: 1;
+    transform: none;
+    transition: none;
+    will-change: auto;
+  }
+}

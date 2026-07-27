@@ -1,0 +1,80 @@
+/* Hero deviation field + kinetic headline.
+   Scoped to the landing hero on purpose — this does not go into the 11,771-line styles.css,
+   which is already the largest open cleanup in the frontend. */
+
+.hero-section {
+  position: relative;
+  isolation: isolate;
+}
+
+.cf-motion-field {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: 0;
+  opacity: 0.85;
+  pointer-events: none;
+  /* The canvas paints on black; screen lets the contours sit on the page surface without
+     boxing the hero into a visible rectangle. */
+  mix-blend-mode: screen;
+  animation: cf-field-in 1.6s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes cf-field-in {
+  from { opacity: 0; }
+  to   { opacity: 0.85; }
+}
+
+/* Everything in the hero sits above the field. */
+.hero-section > .hero-copy,
+.hero-section > .hero-workspace-wrap {
+  position: relative;
+  z-index: 1;
+}
+
+/* A soft scrim behind the copy column only, so contour lines never fight the headline. */
+.hero-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    var(--desk) 2%,
+    color-mix(in srgb, var(--desk) 78%, transparent) 26%,
+    color-mix(in srgb, var(--desk) 20%, transparent) 46%,
+    transparent 62%
+  );
+}
+
+/* ---- kinetic headline ---------------------------------------------------- */
+
+.cf-kinetic {
+  display: inline-block;
+}
+
+.cf-kinetic .cf-ch {
+  display: inline-block;
+  white-space: pre;
+  transform: translate3d(0, 0.72em, 0);
+  opacity: 0;
+  animation: cf-ch-rise 0.92s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation-delay: var(--d, 0ms);
+}
+
+@keyframes cf-ch-rise {
+  to { transform: none; opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-motion-field { animation: none; opacity: 0.6; }
+  .cf-kinetic .cf-ch {
+    animation: none;
+    transform: none;
+    opacity: 1;
+  }
+}
