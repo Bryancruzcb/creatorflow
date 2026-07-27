@@ -1,0 +1,53 @@
+/* Film treatment for the landing route only.
+   Deliberately NOT applied to the workspace: grain over an evidence ledger makes measured
+   values look noisy, and this product's whole argument is that its readouts are trustworthy.
+   Marketing surface can carry texture; the instrument cannot. */
+
+.cf-treatment {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+}
+
+/* Grain via SVG feTurbulence, inlined as a data URI — no image request, no canvas, no JS. */
+.cf-grain {
+  position: absolute;
+  inset: -60%;
+  opacity: 0.042;
+  mix-blend-mode: overlay;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='220' height='220'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.86' numOctaves='3' stitchTiles='stitch'/><feColorMatrix type='saturate' values='0'/></filter><rect width='220' height='220' filter='url(%23n)'/></svg>");
+  background-size: 220px 220px;
+  animation: cf-grain-drift 800ms steps(5) infinite;
+}
+
+@keyframes cf-grain-drift {
+  0%   { transform: translate3d(0, 0, 0); }
+  20%  { transform: translate3d(-1.5%, 1%, 0); }
+  40%  { transform: translate3d(1%, -1.5%, 0); }
+  60%  { transform: translate3d(-1%, -1%, 0); }
+  80%  { transform: translate3d(1.5%, 0.5%, 0); }
+  100% { transform: translate3d(0, 0, 0); }
+}
+
+/* Vignette — sits the page in a lens rather than on a flat plane. Very restrained; it must not
+   darken the copy column enough to change contrast. */
+.cf-vignette {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(
+    130% 95% at 50% 42%,
+    transparent 46%,
+    color-mix(in srgb, var(--desk) 62%, black) 100%
+  );
+  opacity: 0.55;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-grain { animation: none; }
+}
+
+/* Grain is a texture, not information. If the viewer has asked for higher contrast, drop it. */
+@media (prefers-contrast: more) {
+  .cf-treatment { display: none; }
+}
