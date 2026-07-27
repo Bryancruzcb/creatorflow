@@ -9065,12 +9065,14 @@ code {
 }
 
 /* The only legend in the product, and it was 0.44rem — 7px — with no intermediate ticks, so a
-   reader could tell "more" from "less" and nothing else. The gradient is written from the shared
-   deviation ramp stops, so the key cannot drift away from the data it describes. */
+   reader could tell "more" from "less" and nothing else.
+   The gradient itself is set inline from DEVIATION_RAMP via rampGradientCss(), NOT declared here:
+   a copy of the stops in CSS is exactly the drift that left the same blue at six different hue
+   angles elsewhere in this file. The fallback below only covers the pre-hydration frame. */
 .surface-heatmap-legend > i {
   position: relative;
   height: 0.5rem;
-  background: linear-gradient(90deg, #1a222c 0%, #3d5c72 35%, #8a7f5e 65%, #d29a3f 85%, #f6d089 100%);
+  background: var(--hairline-strong);
 }
 
 .surface-heatmap-legend > i::after {
