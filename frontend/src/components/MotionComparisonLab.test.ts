@@ -153,3 +153,27 @@ describe('motion comparison', () => {
     expect(Array.from(candidate.tracks[0].values)).toEqual(before[3]);
   });
 });
+
+describe('pose trail spacing', () => {
+  it('keeps the original two-argument contract', () => {
+    // The single ghost sat one spacing behind; the default must still do exactly that.
+    expect(trailProgress('shape', 0.5)).toBeCloseTo(0.425, 6);
+  });
+
+  it('spaces members evenly backwards in phase', () => {
+    const steps = [1, 2, 3].map((step) => trailProgress('shape', 0.9, step));
+    expect(steps).toEqual([0.825, 0.75, 0.675].map((v) => expect.closeTo(v, 6)));
+    // strictly receding
+    expect(steps[0]).toBeGreaterThan(steps[1]);
+    expect(steps[1]).toBeGreaterThan(steps[2]);
+  });
+
+  it('clamps at zero instead of running negative', () => {
+    expect(trailProgress('shape', 0.05, 3)).toBe(0);
+  });
+
+  it('pins every member to the start pose in loop mode', () => {
+    // Loop mode compares end against start; a lagging trail would answer a different question.
+    expect([1, 2, 3].map((step) => trailProgress('loop', 0.6, step))).toEqual([0, 0, 0]);
+  });
+});

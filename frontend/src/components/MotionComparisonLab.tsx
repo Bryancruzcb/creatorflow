@@ -70,8 +70,17 @@ export function compareClips(source: AnimationClip, candidate: AnimationClip, op
   return analyzeMotionClips(source, candidate, options);
 }
 
-export function trailProgress(mode: MotionAnalysisMode, progress: number) {
-  return mode === 'loop' ? 0 : Math.max(0, progress - 0.075);
+/**
+ * Phase for a trail member.
+ *
+ * `step` is how many spacings behind the live pose this member sits, so the default of 1 keeps
+ * the original single-ghost behaviour exactly: progress - 0.075.
+ *
+ * In loop mode every member pins to 0, because that mode compares the end pose against the start
+ * pose and a lagging trail would be answering a different question.
+ */
+export function trailProgress(mode: MotionAnalysisMode, progress: number, step = 1, spacing = TRAIL_SPACING) {
+  return mode === 'loop' ? 0 : Math.max(0, progress - step * spacing);
 }
 
 function dispose(group: Group) {
@@ -103,14 +112,14 @@ function tintClone(group: Group, tint: Color, amount: number) {
   });
 }
 
-function makeOnionSkin(group: Group, tint: Color) {
+function makeOnionSkin(group: Group, tint: Color, opacity = 0.34) {
   group.traverse((child) => {
     if (!(child instanceof Mesh)) return;
     const materials = Array.isArray(child.material) ? child.material : [child.material];
     const ghosts = materials.map((material) => {
       const next = material.clone();
       next.transparent = true;
-      next.opacity = 0.34;
+      next.opacity = opacity;
       next.depthTest = false;
       next.depthWrite = false;
       if ('wireframe' in next) next.wireframe = true;
@@ -134,6 +143,19 @@ function makeOnionSkin(group: Group, tint: Color) {
  * ordinary walk-cycle phase differences still show gradient rather than saturating instantly.
  */
 const JOINT_DEVIATION_CEILING = 0.35;
+
+/**
+ * Pose trail.
+ *
+ * There used to be exactly one ghost per side at a hard-coded 7.5% phase lag, which the UI called
+ * an onion skin. One lagging duplicate is not a pose history — and because the lag clamps at zero,
+ * for the first 7.5% of playback the ghost sat exactly on the live pose and the feature silently
+ * did nothing.
+ *
+ * Three members per side, evenly spaced backwards in phase, fading as they recede.
+ */
+const TRAIL_LENGTH = 3;
+const TRAIL_SPACING = 0.075;
 
 export interface ScopeSkeleton {
   line: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -284,12 +306,11 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
   const mixersRef = useRef<{
     source: AnimationMixer;
     candidate: AnimationMixer;
-    sourceGhost: AnimationMixer;
-    candidateGhost: AnimationMixer;
+    sourceTrail: Array<{ model: Group; mixer: AnimationMixer }>;
+    candidateTrail: Array<{ model: Group; mixer: AnimationMixer }>;
     sourceModel: Group;
     candidateModel: Group;
-    sourceModelGhost: Group;
-    candidateModelGhost: Group;
+
     baseX: number;
     sourceClip: AnimationClip;
     candidateClip: AnimationClip;
@@ -345,28 +366,37 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       if (stopped) return;
       const source = gltf.scene;
       const candidate = cloneSkeleton(gltf.scene) as Group;
-      const sourceGhost = cloneSkeleton(gltf.scene) as Group;
-      const candidateGhost = cloneSkeleton(gltf.scene) as Group;
       tintClone(source, new Color('#d6b273'), 0.14);
       tintClone(candidate, new Color('#7298b8'), 0.24);
-      makeOnionSkin(sourceGhost, new Color('#e4bd76'));
-      makeOnionSkin(candidateGhost, new Color('#75b9e6'));
+      // Trail members fade as they recede, so the reading is "which way is time running".
+      const makeTrail = (tint: string) => Array.from({ length: TRAIL_LENGTH }, (_unused, step) => {
+        const model = cloneSkeleton(gltf.scene) as Group;
+        makeOnionSkin(model, new Color(tint), 0.34 * (1 - step / (TRAIL_LENGTH + 1)));
+        return model;
+      });
+      const sourceGhosts = makeTrail('#e4bd76');
+      const candidateGhosts = makeTrail('#75b9e6');
       const box = new Box3().setFromObject(source);
       const center = box.getCenter(new Vector3());
       const size = box.getSize(new Vector3());
       const scale = 2.45 / Math.max(size.x, size.y, size.z, 0.001);
-      for (const [index, model] of [source, candidate, sourceGhost, candidateGhost].entries()) {
+      const place = (model: Group, side: -1 | 1, depthStep: number) => {
         model.scale.setScalar(scale);
         model.position.copy(center).multiplyScalar(-scale);
-        model.position.x += index === 0 || index === 2 ? -1.45 : 1.45;
-        if (index > 1) model.position.z += 0.025;
+        model.position.x += side * 1.45;
+        // Increasing depth nudge per trail member so they do not z-fight with each other.
+        model.position.z += depthStep * 0.025;
         holder.add(model);
         model.updateMatrixWorld(true);
-      }
+      };
+      place(source, -1, 0);
+      place(candidate, 1, 0);
+      sourceGhosts.forEach((model, step) => place(model, -1, step + 1));
+      candidateGhosts.forEach((model, step) => place(model, 1, step + 1));
       const sourceMixer = new AnimationMixer(source);
       const candidateMixer = new AnimationMixer(candidate);
-      const sourceGhostMixer = new AnimationMixer(sourceGhost);
-      const candidateGhostMixer = new AnimationMixer(candidateGhost);
+      const sourceTrail = sourceGhosts.map((model) => ({ model, mixer: new AnimationMixer(model) }));
+      const candidateTrail = candidateGhosts.map((model) => ({ model, mixer: new AnimationMixer(model) }));
       const initial = selectionRef.current;
       const sourceScope = makeScopeSkeleton(source, new Color('#f1bf69'));
       const candidateScope = makeScopeSkeleton(candidate, new Color('#6fc7ff'));
@@ -381,17 +411,15 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       };
       playOnce(sourceMixer, sourceClip);
       playOnce(candidateMixer, candidateClip);
-      playOnce(sourceGhostMixer, sourceClip);
-      playOnce(candidateGhostMixer, candidateClip);
-      sourceGhost.visible = initial.showOnion;
-      candidateGhost.visible = initial.showOnion;
+      sourceTrail.forEach((member) => { playOnce(member.mixer, sourceClip); member.model.visible = initial.showOnion; });
+      candidateTrail.forEach((member) => { playOnce(member.mixer, candidateClip); member.model.visible = initial.showOnion; });
       const baseX = -center.x * scale;
       const applyLayout = (layout: PreviewLayout) => {
         const offset = layout === 'overlay' ? 0 : 1.45;
         source.position.x = baseX - offset;
-        sourceGhost.position.x = baseX - offset;
         candidate.position.x = baseX + offset;
-        candidateGhost.position.x = baseX + offset;
+        sourceTrail.forEach((member) => { member.model.position.x = baseX - offset; });
+        candidateTrail.forEach((member) => { member.model.position.x = baseX + offset; });
         setGroupOpacity(source, layout === 'overlay' ? 0.72 : 1);
         setGroupOpacity(candidate, layout === 'overlay' ? 0.58 : 1);
       };
@@ -399,12 +427,11 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       mixersRef.current = {
         source: sourceMixer,
         candidate: candidateMixer,
-        sourceGhost: sourceGhostMixer,
-        candidateGhost: candidateGhostMixer,
+        sourceTrail,
+        candidateTrail,
         sourceModel: source,
         candidateModel: candidate,
-        sourceModelGhost: sourceGhost,
-        candidateModelGhost: candidateGhost,
+
         baseX,
         sourceClip,
         candidateClip,
@@ -471,8 +498,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           const desiredCandidate = gltfAnimationsRef.current.find((clip) => clip.name === selection.candidateName) ?? runtime.candidateClip;
           runtime.source.stopAllAction();
           runtime.candidate.stopAllAction();
-          runtime.sourceGhost.stopAllAction();
-          runtime.candidateGhost.stopAllAction();
+          runtime.sourceTrail.forEach((member) => member.mixer.stopAllAction());
+          runtime.candidateTrail.forEach((member) => member.mixer.stopAllAction());
           runtime.sourceClip = desiredSource;
           runtime.candidateClip = desiredCandidate;
           runtime.sourceAnimatedBones = animatedBoneUuids(runtime.sourceModel, desiredSource);
@@ -481,8 +508,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           for (const [mixer, clip] of [
             [runtime.source, desiredSource],
             [runtime.candidate, desiredCandidate],
-            [runtime.sourceGhost, desiredSource],
-            [runtime.candidateGhost, desiredCandidate],
+            ...runtime.sourceTrail.map((member) => [member.mixer, desiredSource]),
+            ...runtime.candidateTrail.map((member) => [member.mixer, desiredCandidate]),
           ] as Array<[AnimationMixer, AnimationClip]>) {
             const action = mixer.clipAction(clip);
             action.setLoop(LoopOnce, 1);
@@ -494,9 +521,9 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           runtime.previewLayout = selection.previewLayout;
           const offset = selection.previewLayout === 'overlay' ? 0 : 1.45;
           runtime.sourceModel.position.x = runtime.baseX - offset;
-          runtime.sourceModelGhost.position.x = runtime.baseX - offset;
+          runtime.sourceTrail.forEach((member) => { member.model.position.x = runtime.baseX - offset; });
           runtime.candidateModel.position.x = runtime.baseX + offset;
-          runtime.candidateModelGhost.position.x = runtime.baseX + offset;
+          runtime.candidateTrail.forEach((member) => { member.model.position.x = runtime.baseX + offset; });
           setGroupOpacity(runtime.sourceModel, selection.previewLayout === 'overlay' ? 0.72 : 1);
           setGroupOpacity(runtime.candidateModel, selection.previewLayout === 'overlay' ? 0.58 : 1);
         }
@@ -505,8 +532,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           renderer.setPixelRatio(Math.min(devicePixelRatio, qualityCap(selection.previewQuality)));
           resize();
         }
-        runtime.sourceModelGhost.visible = selection.showOnion;
-        runtime.candidateModelGhost.visible = selection.showOnion;
+        runtime.sourceTrail.forEach((member) => { member.model.visible = selection.showOnion; });
+        runtime.candidateTrail.forEach((member) => { member.model.visible = selection.showOnion; });
         const authoredWindow = Math.max(runtime.sourceClip.duration, runtime.candidateClip.duration);
         const sharedSeconds = progressRef.current * authoredWindow;
         const sourceTime = selection.analysisMode === 'timing'
@@ -540,9 +567,16 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           runtime.candidateAnimatedBones,
           showDeviation ? { peerSegments: runtime.sourceScope.segments, peerAnimated: runtime.sourceAnimatedBones, ceiling: JOINT_DEVIATION_CEILING } : null,
         );
-        const ghostProgress = trailProgress(selection.analysisMode, progressRef.current);
-        runtime.sourceGhost.setTime(ghostProgress * runtime.sourceClip.duration);
-        runtime.candidateGhost.setTime(ghostProgress * runtime.candidateClip.duration);
+        // Only tick trail members that are actually drawn. The single ghost was ticked even when
+        // hidden, which was a small waste at N=1 and would be the dominant cost at N=3.
+        if (selection.showOnion) {
+          runtime.sourceTrail.forEach((member, step) => {
+            member.mixer.setTime(trailProgress(selection.analysisMode, progressRef.current, step + 1) * runtime.sourceClip.duration);
+          });
+          runtime.candidateTrail.forEach((member, step) => {
+            member.mixer.setTime(trailProgress(selection.analysisMode, progressRef.current, step + 1) * runtime.candidateClip.duration);
+          });
+        }
       }
       // OrbitControls.update() reports whether the camera actually moved, which covers the tail
       // of damped motion after the pointer is released.
@@ -590,8 +624,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       controls.dispose();
       mixersRef.current?.source.stopAllAction();
       mixersRef.current?.candidate.stopAllAction();
-      mixersRef.current?.sourceGhost.stopAllAction();
-      mixersRef.current?.candidateGhost.stopAllAction();
+      mixersRef.current?.sourceTrail.forEach((member) => member.mixer.stopAllAction());
+      mixersRef.current?.candidateTrail.forEach((member) => member.mixer.stopAllAction());
       mixersRef.current?.sourceScope.line.geometry.dispose();
       mixersRef.current?.sourceScope.line.material.dispose();
       mixersRef.current?.candidateScope.line.geometry.dispose();
