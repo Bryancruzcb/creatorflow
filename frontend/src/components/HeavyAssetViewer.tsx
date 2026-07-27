@@ -346,6 +346,12 @@ async function applyDeviationHeatmap(
   const outcome = await new Promise<DeviationResult>((resolve, reject) => {
     worker.onmessage = (event: MessageEvent<DeviationProgress | DeviationResult>) => {
       if (event.data.type === 'progress') {
+        // Stop paying for a result nobody is waiting for any more. Without this the worker runs
+        // to completion after the user has already moved to another component.
+        if (signal?.cancelled) {
+          reject(new Error('cancelled'));
+          return;
+        }
         onProgress?.(event.data.total > 0 ? event.data.done / event.data.total : 0);
         return;
       }
@@ -953,19 +959,32 @@ export function HeavyAssetViewer({
       if (resolvedMode === 'heatmap') {
         requestAnimationFrame(() => {
           if (cancelled) return;
+          /**
+           * The cancellation flag has to be re-checked AFTER the await, not only before it.
+           *
+           * While this was synchronous the race could not happen — the user could not interact
+           * during the computation because the main thread was blocked. Moving it to a worker is
+           * what created the window: the run now takes seconds during which the component can be
+           * switched, unmounted, or put into a different comparison mode, and a late result would
+           * overwrite the new selection's state with the old one's numbers.
+           */
+          const signal = { get cancelled() { return cancelled; } };
           void applyDeviationHeatmap(
             project,
             source,
             comparisonMaterialsRef.current,
             comparisonGeometriesRef.current,
-            (fraction) => setHeatmapProgress(fraction),
+            (fraction) => { if (!cancelled) setHeatmapProgress(fraction); },
+            signal,
           ).then((stats) => {
+            if (cancelled) return;
             setHeatmapStats(stats);
             setHeatmapProgress(1);
             setComparisonStatus('ready');
             renderLoopRef.current?.invalidate();
             renderLoopRef.current?.sync();
           }).catch(() => {
+            if (cancelled) return;
             setComparisonStatus('error');
           });
         });
