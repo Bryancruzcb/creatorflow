@@ -28,15 +28,18 @@
   margin-top: 0.42rem;
 }
 
+/* Was 0.5rem — 8px, well under the legibility floor, and these labels are the only thing telling
+   you the rail is ordered by proof stage rather than being a flat list. Off the mono face too:
+   they are section labels, not values. */
 .product-nav-group-label {
   display: block;
-  padding: 0.22rem 0.75rem 0.12rem;
+  padding: 0.3rem 0.75rem 0.16rem;
   color: var(--ink-dim);
-  font-family: var(--font-mono);
-  font-size: 0.5rem;
-  font-weight: 500;
-  letter-spacing: 0.075em;
-  line-height: 1.4;
+  font-family: var(--font-sans);
+  font-size: var(--text-3xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--track-label);
+  line-height: var(--leading-snug);
   text-transform: uppercase;
 }
 
