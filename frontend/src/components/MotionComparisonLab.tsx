@@ -690,24 +690,83 @@ function RootPathPlot({ source, candidate, sourceName, candidateName }: {
   const proxyLabel = (trackName: string | null) => trackName && /(?:body|hips?|pelvis)/i.test(trackName) && !/(?:humanoidrootpart|rootmotion|(?:^|[\[\]./_-])root(?:$|[\[\]./_-]))/i.test(trackName)
     ? 'Body/Hips translation proxy'
     : 'Explicit root translation';
+  const project = (point: { x: number; z: number }) => ({
+    x: 8 + ((point.x - minX) / span) * 84,
+    y: 58 - ((point.z - minZ) / span) * 48,
+  });
   const toPoints = (path: RootPathClipResult) => path.points.map((point) => {
-    const x = 8 + ((point.x - minX) / span) * 84;
-    const y = 58 - ((point.z - minZ) / span) * 48;
+    const { x, y } = project(point);
     return `${x.toFixed(2)},${y.toFixed(2)}`;
   }).join(' ');
+
+  /**
+   * Time direction.
+   *
+   * Each sample already carries its normalised `progress`, and the plot threw it away — so the
+   * path showed where the root went but never which way it ran. Segments now fade in along phase,
+   * faint at the start and solid at the end, which encodes direction without touching the
+   * candidate's dash pattern (the only non-colour channel already in use).
+   */
+  const toSegments = (path: RootPathClipResult, className: string) => path.points.slice(1).map((point, index) => {
+    const from = project(path.points[index]);
+    const to = project(point);
+    return (
+      <line
+        key={`${className}-${index}`}
+        className={className}
+        x1={from.x.toFixed(2)}
+        y1={from.y.toFixed(2)}
+        x2={to.x.toFixed(2)}
+        y2={to.y.toFixed(2)}
+        opacity={(0.22 + 0.78 * point.progress).toFixed(3)}
+      />
+    );
+  });
+
+  const marker = (path: RootPathClipResult, which: 'start' | 'end') => {
+    const point = which === 'start' ? path.points[0] : path.points[path.points.length - 1];
+    if (!point) return null;
+    return project(point);
+  };
+  const sourceStart = marker(source, 'start');
+  const sourceEnd = marker(source, 'end');
+  const candidateStart = marker(candidate, 'start');
+  const candidateEnd = marker(candidate, 'end');
+
+  // Per-clip, not combined: the shared extent means one travelling clip hides an in-place one.
+  const travelOf = (path: RootPathClipResult) => {
+    const px = path.points.map((point) => point.x);
+    const pz = path.points.map((point) => point.z);
+    return Math.max(Math.max(...px) - Math.min(...px), Math.max(...pz) - Math.min(...pz));
+  };
+  const sourceInPlace = travelOf(source) < 0.005;
+  const candidateInPlace = travelOf(candidate) < 0.005;
+
+  const inPlaceCopy = sourceInPlace && candidateInPlace
+    ? 'Both clips stay at the origin in X/Z, so both top-down paths collapse to a point.'
+    : sourceInPlace
+      ? `${sourceName} stays at the origin in X/Z, so its path collapses to a point while ${candidateName} travels.`
+      : candidateInPlace
+        ? `${candidateName} stays at the origin in X/Z, so its path collapses to a point while ${sourceName} travels.`
+        : null;
+
   return (
     <div className="motion-root-plot">
-      <svg viewBox="0 0 100 66" role="img" aria-label={`Top-down root paths for ${sourceName} and ${candidateName}`}>
+      <svg viewBox="0 0 100 66" role="img" aria-label={`Top-down root paths for ${sourceName} and ${candidateName}. Each path fades in along its own timeline, faint at the start and solid at the end, with a hollow marker at the first sample and a filled marker at the last.`}>
         <path d="M8 58H92M8 42H92M8 26H92M8 10H92M8 10V58M36 10V58M64 10V58M92 10V58" />
-        <polyline className="source" points={toPoints(source)} />
-        <polyline className="candidate" points={toPoints(candidate)} />
+        {toSegments(source, 'source')}
+        {toSegments(candidate, 'candidate')}
+        {sourceStart ? <circle className="root-start source" cx={sourceStart.x} cy={sourceStart.y} r="1.5" /> : null}
+        {candidateStart ? <circle className="root-start candidate" cx={candidateStart.x} cy={candidateStart.y} r="1.5" /> : null}
+        {sourceEnd ? <circle className="root-end source" cx={sourceEnd.x} cy={sourceEnd.y} r="1.7" /> : null}
+        {candidateEnd ? <circle className="root-end candidate" cx={candidateEnd.x} cy={candidateEnd.y} r="1.7" /> : null}
       </svg>
       <div><span><i className="source" />{sourceName}</span><span><i className="candidate" />{candidateName}</span><small>Top-down X/Z path · origins aligned</small><small>{proxyLabel(source.trackName)} · {source.trackName}</small><small>{proxyLabel(candidate.trackName)} · {candidate.trackName}</small></div>
       <dl className="motion-root-metrics">
         <div><dt>{sourceName}</dt><dd><span>Displacement <strong>{source.displacement.toFixed(2)}</strong></span><span>Path length <strong>{source.pathLength.toFixed(2)}</strong></span><span>Drift <strong>{source.drift.toFixed(2)}</strong></span><span>Vertical travel <strong>{source.verticalTravel.toFixed(2)}</strong></span></dd></div>
         <div><dt>{candidateName}</dt><dd><span>Displacement <strong>{candidate.displacement.toFixed(2)}</strong></span><span>Path length <strong>{candidate.pathLength.toFixed(2)}</strong></span><span>Drift <strong>{candidate.drift.toFixed(2)}</strong></span><span>Vertical travel <strong>{candidate.verticalTravel.toFixed(2)}</strong></span></dd></div>
       </dl>
-      {horizontalSpan < 0.005 ? <p className="motion-root-in-place"><strong>In-place fixture:</strong> X/Z travel stays at the origin, so the top-down lines collapse to a point. Vertical body motion remains visible in the metrics; a Studio-supplied root channel would draw the actual travel path.</p> : null}
+      {inPlaceCopy ? <p className="motion-root-in-place"><strong>In-place fixture:</strong> {inPlaceCopy} Vertical body motion remains visible in the metrics; a Studio-supplied root channel would draw the actual travel path.</p> : null}
     </div>
   );
 }

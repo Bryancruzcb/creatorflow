@@ -597,7 +597,12 @@
   stroke-width: 0.35;
 }
 
-.motion-root-plot polyline {
+/* The path is drawn as per-sample segments rather than one polyline, so each can carry its own
+   opacity — that is how time direction is encoded: faint at the first sample, solid at the last.
+   The candidate keeps its dash pattern, which stays the one non-colour channel distinguishing the
+   two clips. */
+.motion-root-plot polyline,
+.motion-root-plot svg line {
   fill: none;
   stroke-width: 1.5;
   stroke-linecap: round;
@@ -605,14 +610,31 @@
   vector-effect: non-scaling-stroke;
 }
 
-.motion-root-plot polyline.source {
+.motion-root-plot polyline.source,
+.motion-root-plot svg line.source {
   stroke: var(--darkroom-source);
 }
 
-.motion-root-plot polyline.candidate {
+.motion-root-plot polyline.candidate,
+.motion-root-plot svg line.candidate {
   stroke: var(--darkroom-candidate);
   stroke-dasharray: 3 2;
 }
+
+/* Endpoint markers, so direction is readable without relying on the opacity gradient alone:
+   hollow ring where the clip starts, filled dot where it ends. */
+.motion-root-plot svg circle.root-start {
+  fill: none;
+  stroke-width: 1.1;
+  vector-effect: non-scaling-stroke;
+}
+
+.motion-root-plot svg circle.root-start.source { stroke: var(--darkroom-source); }
+.motion-root-plot svg circle.root-start.candidate { stroke: var(--darkroom-candidate); }
+
+.motion-root-plot svg circle.root-end { stroke: none; }
+.motion-root-plot svg circle.root-end.source { fill: var(--darkroom-source); }
+.motion-root-plot svg circle.root-end.candidate { fill: var(--darkroom-candidate); }
 
 .motion-root-plot > div {
   display: grid;
