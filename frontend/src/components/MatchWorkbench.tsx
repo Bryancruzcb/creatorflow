@@ -1,8 +1,9 @@
 import { ArrowLeftRight, Check, ExternalLink, Link2, X } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, useReducedMotion } from 'framer-motion';
 import { lazy, Suspense, useState } from 'react';
 import type { AssetRecord, SourceMatch } from '../data';
 import { AssetArtwork } from './AssetArtwork';
+import { DecodeSequence } from './DecodeSequence';
 import { StatusMark } from './StatusMark';
 
 const GlbComparisonViewer = lazy(() => import('./GlbComparisonViewer').then((module) => ({ default: module.GlbComparisonViewer })));
@@ -18,6 +19,7 @@ export function MatchWorkbench({ asset, onClose, onUseSource }: MatchWorkbenchPr
   const [selectedId, setSelectedId] = useState(matches[0]?.id ?? '');
   const [split, setSplit] = useState(52);
   const [comparisonMode, setComparisonMode] = useState<'side' | 'wipe' | 'blink'>(matches[0]?.similarity === 100 ? 'wipe' : 'side');
+  const reduceMotion = useReducedMotion();
   const selected = matches.find((match) => match.id === selectedId) ?? matches[0];
 
   if (!selected) return null;
@@ -32,10 +34,10 @@ export function MatchWorkbench({ asset, onClose, onUseSource }: MatchWorkbenchPr
       id="match-workbench"
       className="match-workbench"
       aria-labelledby="match-workbench-title"
-      initial={{ opacity: 0, clipPath: 'inset(0 0 100% 0)' }}
+      initial={reduceMotion ? false : { opacity: 0, clipPath: 'inset(0 0 100% 0)' }}
       animate={{ opacity: 1, clipPath: 'inset(0 0 0% 0)' }}
-      exit={{ opacity: 0, clipPath: 'inset(0 0 100% 0)' }}
-      transition={{ duration: 0.46, ease: [0.16, 1, 0.3, 1] }}
+      exit={reduceMotion ? { opacity: 0 } : { opacity: 0, clipPath: 'inset(0 0 100% 0)' }}
+      transition={reduceMotion ? { duration: 0 } : { duration: 0.46, ease: [0.16, 1, 0.3, 1] }}
     >
       <header className="match-workbench-header">
         <div>
@@ -70,7 +72,7 @@ export function MatchWorkbench({ asset, onClose, onUseSource }: MatchWorkbenchPr
           )}
           <div className={`comparison-viewport comparison-mode-${comparisonMode} variant-${selected.variant} confidence-${selected.similarity < 50 ? 'low' : selected.similarity < 80 ? 'medium' : 'high'} ${isModelComparison ? 'comparison-viewport-model' : 'comparison-viewport-artwork'}`}>
             {isModelComparison ? (
-              <Suspense fallback={<div className="model-state"><span />Preparing 3D comparison…</div>}>
+              <Suspense fallback={<DecodeSequence label="both models" note="The 3D runtime and two glTF models load only when a model comparison is opened. Nothing was fetched before this point." />}>
                 <GlbComparisonViewer split={split} mode={comparisonMode} projectUrl={asset.modelUrl!} sourceUrl={selected.modelUrl!} projectLabel={asset.name} sourceLabel={selected.title} fallbackUrl={asset.previewUrl} initialRotation={asset.modelRotation} />
               </Suspense>
             ) : (
