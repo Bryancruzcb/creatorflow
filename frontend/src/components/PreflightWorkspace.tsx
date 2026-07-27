@@ -161,7 +161,8 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
     setNotice('Creative asset manifest exported for Northwind 1.2.');
   }
 
-  const scanMessage = scanMessages[Math.min(scanMessages.length - 1, Math.floor(progress / 21))];
+  const scanStep = Math.min(scanMessages.length - 1, Math.floor(progress / 21));
+  const scanMessage = scanMessages[scanStep];
 
   return (
     <section className="sample-preflight" id="sample-preflight" aria-labelledby="sample-title">
@@ -194,7 +195,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
           </div>
           <div className="preflight-scan-state" aria-live="polite">
             {scanState === 'idle' && <><span className="state-dot" />Ready to scan</>}
-            {scanState === 'scanning' && <><span className="state-dot scanning" />{scanMessage}</>}
+            {scanState === 'scanning' && <><span className="state-dot scanning" />Simulated: {scanMessage}</>}
             {scanState === 'complete' && <><ShieldCheck size={15} />Preflight complete</>}
           </div>
           <button className="button button-secondary toolbar-export" type="button" disabled={!releaseReady} onClick={exportManifest}>
@@ -207,7 +208,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
             <motion.div key="idle" className="preflight-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="empty-folder" aria-hidden="true"><FolderOpen size={35} /></div>
               <h3>Project selected. No preflight yet.</h3>
-              <p>CreatorFlow will index 248 creative files, compare their fingerprints, and check the release records already in this folder.</p>
+              <p>This sample walks through {assets.length} prepared creative files, showing how CreatorFlow compares fingerprints and checks the release records already in a project folder.</p>
               <button className="button button-primary" type="button" onClick={startScan}><ScanSearch size={16} /> Start local scan</button>
             </motion.div>
           )}
@@ -215,17 +216,21 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
           {scanState === 'scanning' && (
             <motion.div key="scanning" className="scan-stage" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="scan-stage-copy">
-                <span className="section-index">Local analysis</span>
+                <span className="section-index">Simulated walkthrough · step {scanStep + 1} of {scanMessages.length}</span>
                 <h3>{scanMessage}</h3>
-                <p>Files remain on this machine. The sample registry comparison sends fingerprints only.</p>
+                <p className="scan-simulated-note">
+                  Nothing is being read or hashed right now — this is a timed walkthrough of the steps a real
+                  preflight runs, and the findings below were prepared in advance. In the desktop app your files
+                  stay on your machine and only fingerprints are compared.
+                </p>
               </div>
               <div className="scan-readout">
                 <strong>{progress}%</strong>
-                <div className="scan-track" role="progressbar" aria-label="Preflight scan progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
+                <div className="scan-track" role="progressbar" aria-label="Simulated preflight walkthrough progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progress}>
                   <motion.span animate={{ width: `${progress}%` }} transition={{ duration: 0.08 }} />
                 </div>
                 <dl>
-                  <div><dt>Files indexed</dt><dd>{Math.round(progress * 2.48)} / 248</dd></div>
+                  <div><dt>Sample assets</dt><dd>{assets.length}</dd></div>
                   <div><dt>Bytes uploaded</dt><dd>0</dd></div>
                 </dl>
               </div>
@@ -250,7 +255,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
                 <div className="ledger-scroll" tabIndex={0} aria-label="Creative asset preflight ledger">
                   <table className="asset-ledger">
                     <thead>
-                      <tr><th>Asset</th><th>Origin</th><th>License</th><th>Automated evidence</th><th>Release state</th></tr>
+                      <tr><th>Asset</th><th>Automated evidence</th><th>Release state</th><th>Origin</th><th>License</th></tr>
                     </thead>
                     <tbody>
                       {visibleAssets.map((asset) => (
@@ -262,8 +267,6 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
                               <ChevronRight size={14} />
                             </button>
                           </td>
-                          <td><strong>{asset.origin}</strong><small>{asset.firstSeen}</small></td>
-                          <td><span>{asset.license}</span></td>
                           <td>
                             <StatusMark value={asset.status} />
                             {asset.matches?.length ? (
@@ -273,6 +276,8 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
                             ) : <small>{asset.fingerprint}</small>}
                           </td>
                           <td><StatusMark value={asset.decision} /><small>{asset.owner}</small></td>
+                          <td><strong>{asset.origin}</strong><small>{asset.firstSeen}</small></td>
+                          <td><span>{asset.license}</span></td>
                         </tr>
                       ))}
                     </tbody>
