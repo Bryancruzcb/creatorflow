@@ -12,6 +12,7 @@ import {
   PerspectiveCamera,
   Raycaster,
   Scene,
+  SRGBColorSpace,
   Texture,
   Vector2,
   Vector3,
@@ -24,6 +25,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { HeavyComponentMatch } from '../heavyAssets';
 import { watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
+import { DEVIATION_RAMP, NO_DATA_HEX, rampGradientCss, sampleRamp } from '../motion/ramp';
 import { applyStudioEnvironment, attachStudioLights, configureStudioRenderer, createStudioEnvironment } from '../motion/sceneFoundation';
 
 const EMPTY_COMPONENT_MATCHES: HeavyComponentMatch[] = [];
@@ -293,17 +295,35 @@ function collectWorldPoints(root: Object3D, limit = 60_000) {
 function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Material>, geometries: Set<Mesh['geometry']>): HeatmapStats {
   const sourcePoints = collectWorldPoints(source);
   const cellSize = 0.055;
-  const grid = new Map<string, number[]>();
-  const keyFor = (x: number, y: number, z: number) => `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}:${Math.floor(z / cellSize)}`;
-  sourcePoints.forEach((point) => {
-    const key = keyFor(point.x, point.y, point.z);
-    const bucket = grid.get(key) ?? [];
-    bucket.push(point.x, point.y, point.z);
-    grid.set(key, bucket);
+
+  /**
+   * Numeric cell keys, not template literals.
+   *
+   * The grid was keyed by `${x}:${y}:${z}`, so every one of the ~125 neighbour lookups per vertex
+   * allocated a string and hashed it. Across a real component that is over ten million string
+   * allocations, and it froze the tab for minutes — long enough that Chrome reported the renderer
+   * as unresponsive. Packing the cell coordinate into a single integer removes the allocation
+   * entirely and keeps the lookup a plain numeric Map hit.
+   *
+   * The offset supports cells in [-512, 511] per axis. Components here are normalised to roughly
+   * two units against a 0.055 cell, i.e. about 36 cells across, so the range is not close to
+   * binding — but it is clamped rather than assumed, and out-of-range points simply fall into the
+   * unmeasured bucket instead of aliasing onto some other cell.
+   */
+  const CELL_RANGE = 512;
+  const cellKey = (cx: number, cy: number, cz: number) => {
+    if (cx < -CELL_RANGE || cx >= CELL_RANGE || cy < -CELL_RANGE || cy >= CELL_RANGE || cz < -CELL_RANGE || cz >= CELL_RANGE) return -1;
+    return ((cx + CELL_RANGE) * 1024 + (cy + CELL_RANGE)) * 1024 + (cz + CELL_RANGE);
+  };
+  const grid = new Map<number, number[]>();
+  sourcePoints.forEach((entry) => {
+    const key = cellKey(Math.floor(entry.x / cellSize), Math.floor(entry.y / cellSize), Math.floor(entry.z / cellSize));
+    if (key < 0) return;
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(entry.x, entry.y, entry.z);
+    else grid.set(key, [entry.x, entry.y, entry.z]);
   });
-  const cold = new Color('#598fbe');
-  const warm = new Color('#dfad52');
-  const hot = new Color('#d15d49');
+  const noData = new Color(NO_DATA_HEX);
   const point = new Vector3();
   let sum = 0;
   let maximum = 0;
@@ -322,30 +342,58 @@ function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Mat
       const cellX = Math.floor(point.x / cellSize);
       const cellY = Math.floor(point.y / cellSize);
       const cellZ = Math.floor(point.z / cellSize);
+      /**
+       * Nearest neighbour over the spatial grid.
+       *
+       * This ran every vertex through all three radii unconditionally, and each radius rescanned
+       * the cells the previous one had already covered — 1 + 27 + 125 = 153 cell lookups per
+       * vertex, each allocating a template-literal key. On a real 52k-triangle component that is
+       * tens of millions of string allocations and it froze the tab for minutes.
+       *
+       * Two corrections, both exact — the result is identical, only the work changes:
+       *  - scan only the shell at each radius, since inner cells are already done;
+       *  - stop as soon as the best candidate is closer than the next ring could possibly be. A
+       *    cell at Chebyshev radius r+1 has every point at least r*cellSize away, so a hit within
+       *    r*cellSize cannot be beaten further out.
+       */
       let minimumSquared = Number.POSITIVE_INFINITY;
       for (let radius = 0; radius <= 2; radius += 1) {
         for (let x = -radius; x <= radius; x += 1) for (let y = -radius; y <= radius; y += 1) for (let z = -radius; z <= radius; z += 1) {
-          const bucket = grid.get(`${cellX + x}:${cellY + y}:${cellZ + z}`);
+          // Shell only: anything strictly inside was covered by a previous radius.
+          if (radius > 0 && Math.abs(x) !== radius && Math.abs(y) !== radius && Math.abs(z) !== radius) continue;
+          const key = cellKey(cellX + x, cellY + y, cellZ + z);
+          if (key < 0) continue;
+          const bucket = grid.get(key);
           if (!bucket) continue;
           for (let offset = 0; offset < bucket.length; offset += 3) {
             const dx = point.x - bucket[offset];
             const dy = point.y - bucket[offset + 1];
             const dz = point.z - bucket[offset + 2];
-            minimumSquared = Math.min(minimumSquared, dx * dx + dy * dy + dz * dz);
+            const squared = dx * dx + dy * dy + dz * dz;
+            if (squared < minimumSquared) minimumSquared = squared;
           }
         }
+        const guaranteed = radius * cellSize;
+        if (minimumSquared <= guaranteed * guaranteed) break;
       }
-      const distance = Number.isFinite(minimumSquared) ? Math.sqrt(minimumSquared) : 0.12;
-      const ratio = Math.min(1, distance / 0.12);
+      // A vertex whose neighbour search found nothing is UNMEASURED, not maximally different.
+      // It used to fall back to distance 0.12 — the exact top of the ramp — so "we could not
+      // check this" was painted identically to "this is the worst deviation in the model".
+      const measured = Number.isFinite(minimumSquared);
       const color = new Color();
-      if (ratio < 0.5) color.lerpColors(cold, warm, ratio * 2);
-      else color.lerpColors(warm, hot, (ratio - 0.5) * 2);
+      if (!measured) {
+        color.copy(noData);
+      } else {
+        const distance = Math.sqrt(minimumSquared);
+        const sample = sampleRamp(DEVIATION_RAMP, Math.min(1, distance / 0.12));
+        color.setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
+        sum += distance;
+        maximum = Math.max(maximum, distance);
+        samples += 1;
+      }
       colors[index * 3] = color.r;
       colors[index * 3 + 1] = color.g;
       colors[index * 3 + 2] = color.b;
-      sum += distance;
-      maximum = Math.max(maximum, distance);
-      samples += 1;
     }
     geometry.setAttribute('color', new BufferAttribute(colors, 3));
     const material = new MeshBasicMaterial({ vertexColors: true, side: DoubleSide });
@@ -1020,7 +1068,7 @@ export function HeavyAssetViewer({
           {!comparisonActive ? <div className="heavy-viewer-controls" aria-label="Camera viewpoints"><button type="button" onClick={() => setView('iso')}>Iso</button><button type="button" onClick={() => setView('front')}>Front</button><button type="button" onClick={() => setView('top')}>Top</button>{selectedMatch ? <button type="button" onClick={focusSelection}>Focus</button> : null}</div> : null}
         </div>
         {!comparisonActive ? <div className="heavy-viewer-ready"><span />{matchMapEnabled ? selectedMatch ? `${differenceMode === 'ghost' ? 'Ghost context' : differenceMode === 'isolate' ? 'Isolated component' : 'Difference highlight'} · ${selectedMatch.project.label}` : 'Match map active · click a highlighted component' : 'Orbit any direction · wheel or pinch to zoom'}</div> : null}
-        {comparisonActive && selectedMatch && comparisonStatus !== 'error' ? <div className="viewer-comparison-dock">{comparisonMode === 'heatmap' && heatmapStats ? <div className="surface-heatmap-legend"><span>Near-identical</span><i /><span>Largest deviation</span><small>Mean {(heatmapStats.mean * 100).toFixed(2)}% · max {(heatmapStats.maximum * 100).toFixed(2)}% of normalized frame · {heatmapStats.samples.toLocaleString()} vertices sampled</small></div> : null}<div className={`subasset-comparison-labels subasset-comparison-labels-${comparisonMode}`}><span>Project component<strong>{selectedMatch.project.label}</strong></span><small>{comparisonMode === 'overlay' ? 'Normalized overlay' : comparisonMode === 'heatmap' ? 'Sampled normalized deviation' : comparisonMode === 'blink' ? reducedMotionRef.current ? 'Blink replaced with static view' : 'Alternating every 0.85 s' : 'Normalized to the same frame'}</small><span>Matched component<strong>{selectedMatch.source.label}</strong></span></div></div> : null}
+        {comparisonActive && selectedMatch && comparisonStatus !== 'error' ? <div className="viewer-comparison-dock">{comparisonMode === 'heatmap' && heatmapStats ? <div className="surface-heatmap-legend"><span>Near-identical</span><i style={{ backgroundImage: rampGradientCss(DEVIATION_RAMP) }} /><span>Largest deviation</span><small>Mean {(heatmapStats.mean * 100).toFixed(2)}% · max {(heatmapStats.maximum * 100).toFixed(2)}% of normalized frame · {heatmapStats.samples.toLocaleString()} vertices sampled</small></div> : null}<div className={`subasset-comparison-labels subasset-comparison-labels-${comparisonMode}`}><span>Project component<strong>{selectedMatch.project.label}</strong></span><small>{comparisonMode === 'overlay' ? 'Normalized overlay' : comparisonMode === 'heatmap' ? 'Sampled normalized deviation' : comparisonMode === 'blink' ? reducedMotionRef.current ? 'Blink replaced with static view' : 'Alternating every 0.85 s' : 'Normalized to the same frame'}</small><span>Matched component<strong>{selectedMatch.source.label}</strong></span></div></div> : null}
         {selectedMatch && !comparisonActive ? <div className="mini-scene-map" aria-label={`Scene map location for ${selectedMatch.project.label}`}><span>Scene location</span>{miniMarker ? <i style={{ left: `${miniMarker.x}%`, top: `${miniMarker.y}%` }} /> : null}</div> : null}
         {comparisonActive && comparisonStatus === 'loading' ? <div className="subasset-comparison-loading" role="status" aria-live="polite"><span />{comparisonMode === 'heatmap' ? 'Computing normalized surface deviation…' : 'Loading matched GLB and extracting one component…'}</div> : null}
         {comparisonActive && comparisonStatus === 'error' ? <div className="heavy-viewer-error">The selected component pair could not be extracted from its source GLB.</div> : null}
