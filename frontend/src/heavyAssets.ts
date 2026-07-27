@@ -234,8 +234,11 @@ export const heavyAssets: HeavyAssetRecord[] = [
     licenseUrl: 'https://polyhaven.com/license',
     license: 'CC0 1.0 Universal',
     attribution: 'Poly Haven · James Ray Cock, Nicolò Zubbini, Rico Cilliers',
-    bytes: 107_145_484,
-    size: '107.1 MB',
+    // 2K source, Draco geometry + WebP textures. Was 107_145_484 for the uncompressed 4K build,
+    // which was both undeployable and — once the file changed — a number the UI stated that no
+    // longer described the file it was about to load.
+    bytes: 4_782_288,
+    size: '4.6 MB',
     hash: '968D8713CCEEBD13C8F36231F1368B11050537A8C2889E9C652CE2C275F08BF2',
     nodes: 3,
     meshes: 3,
@@ -244,7 +247,7 @@ export const heavyAssets: HeavyAssetRecord[] = [
     textures: 9,
     images: 9,
     extensions: ['Core glTF 2.0 · embedded 4K PBR textures'],
-    description: 'A self-contained 107 MB maritime hero asset with 110,616 triangles and independently selectable hull, rigging, and sail components.',
+    description: 'A self-contained 4.6 MB maritime hero asset with 110,616 triangles and independently selectable hull, rigging, and sail components.',
     componentMatches: shipComponentMatches('dutch-ship-large-01', 'dutch-ship-large-02', '01', '02'),
   },
   {
@@ -257,8 +260,8 @@ export const heavyAssets: HeavyAssetRecord[] = [
     licenseUrl: 'https://polyhaven.com/license',
     license: 'CC0 1.0 Universal',
     attribution: 'Poly Haven · James Ray Cock, Nicolò Zubbini, Rico Cilliers',
-    bytes: 106_163_560,
-    size: '106.2 MB',
+    bytes: 4_726_780,
+    size: '4.5 MB',
     hash: '5BAD7161F9ED1B7614621303C82730F6666C8FCBDE17522220CC365AA2878BA8',
     nodes: 3,
     meshes: 3,
@@ -267,7 +270,7 @@ export const heavyAssets: HeavyAssetRecord[] = [
     textures: 9,
     images: 9,
     extensions: ['Core glTF 2.0 · embedded 4K PBR textures'],
-    description: 'A second 106 MB ship variant with 96,506 triangles, created from the same CC0 texture families but a different hull and component arrangement.',
+    description: 'A second 4.5 MB ship variant with 96,506 triangles, created from the same CC0 texture families but a different hull and component arrangement.',
     componentMatches: shipComponentMatches('dutch-ship-large-02', 'dutch-ship-large-01', '02', '01'),
   },
   {
