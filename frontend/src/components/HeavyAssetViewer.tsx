@@ -295,13 +295,33 @@ function collectWorldPoints(root: Object3D, limit = 60_000) {
 function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Material>, geometries: Set<Mesh['geometry']>): HeatmapStats {
   const sourcePoints = collectWorldPoints(source);
   const cellSize = 0.055;
-  const grid = new Map<string, number[]>();
-  const keyFor = (x: number, y: number, z: number) => `${Math.floor(x / cellSize)}:${Math.floor(y / cellSize)}:${Math.floor(z / cellSize)}`;
-  sourcePoints.forEach((point) => {
-    const key = keyFor(point.x, point.y, point.z);
-    const bucket = grid.get(key) ?? [];
-    bucket.push(point.x, point.y, point.z);
-    grid.set(key, bucket);
+
+  /**
+   * Numeric cell keys, not template literals.
+   *
+   * The grid was keyed by `${x}:${y}:${z}`, so every one of the ~125 neighbour lookups per vertex
+   * allocated a string and hashed it. Across a real component that is over ten million string
+   * allocations, and it froze the tab for minutes — long enough that Chrome reported the renderer
+   * as unresponsive. Packing the cell coordinate into a single integer removes the allocation
+   * entirely and keeps the lookup a plain numeric Map hit.
+   *
+   * The offset supports cells in [-512, 511] per axis. Components here are normalised to roughly
+   * two units against a 0.055 cell, i.e. about 36 cells across, so the range is not close to
+   * binding — but it is clamped rather than assumed, and out-of-range points simply fall into the
+   * unmeasured bucket instead of aliasing onto some other cell.
+   */
+  const CELL_RANGE = 512;
+  const cellKey = (cx: number, cy: number, cz: number) => {
+    if (cx < -CELL_RANGE || cx >= CELL_RANGE || cy < -CELL_RANGE || cy >= CELL_RANGE || cz < -CELL_RANGE || cz >= CELL_RANGE) return -1;
+    return ((cx + CELL_RANGE) * 1024 + (cy + CELL_RANGE)) * 1024 + (cz + CELL_RANGE);
+  };
+  const grid = new Map<number, number[]>();
+  sourcePoints.forEach((entry) => {
+    const key = cellKey(Math.floor(entry.x / cellSize), Math.floor(entry.y / cellSize), Math.floor(entry.z / cellSize));
+    if (key < 0) return;
+    const bucket = grid.get(key);
+    if (bucket) bucket.push(entry.x, entry.y, entry.z);
+    else grid.set(key, [entry.x, entry.y, entry.z]);
   });
   const noData = new Color(NO_DATA_HEX);
   const point = new Vector3();
@@ -322,18 +342,39 @@ function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Mat
       const cellX = Math.floor(point.x / cellSize);
       const cellY = Math.floor(point.y / cellSize);
       const cellZ = Math.floor(point.z / cellSize);
+      /**
+       * Nearest neighbour over the spatial grid.
+       *
+       * This ran every vertex through all three radii unconditionally, and each radius rescanned
+       * the cells the previous one had already covered — 1 + 27 + 125 = 153 cell lookups per
+       * vertex, each allocating a template-literal key. On a real 52k-triangle component that is
+       * tens of millions of string allocations and it froze the tab for minutes.
+       *
+       * Two corrections, both exact — the result is identical, only the work changes:
+       *  - scan only the shell at each radius, since inner cells are already done;
+       *  - stop as soon as the best candidate is closer than the next ring could possibly be. A
+       *    cell at Chebyshev radius r+1 has every point at least r*cellSize away, so a hit within
+       *    r*cellSize cannot be beaten further out.
+       */
       let minimumSquared = Number.POSITIVE_INFINITY;
       for (let radius = 0; radius <= 2; radius += 1) {
         for (let x = -radius; x <= radius; x += 1) for (let y = -radius; y <= radius; y += 1) for (let z = -radius; z <= radius; z += 1) {
-          const bucket = grid.get(`${cellX + x}:${cellY + y}:${cellZ + z}`);
+          // Shell only: anything strictly inside was covered by a previous radius.
+          if (radius > 0 && Math.abs(x) !== radius && Math.abs(y) !== radius && Math.abs(z) !== radius) continue;
+          const key = cellKey(cellX + x, cellY + y, cellZ + z);
+          if (key < 0) continue;
+          const bucket = grid.get(key);
           if (!bucket) continue;
           for (let offset = 0; offset < bucket.length; offset += 3) {
             const dx = point.x - bucket[offset];
             const dy = point.y - bucket[offset + 1];
             const dz = point.z - bucket[offset + 2];
-            minimumSquared = Math.min(minimumSquared, dx * dx + dy * dy + dz * dz);
+            const squared = dx * dx + dy * dy + dz * dz;
+            if (squared < minimumSquared) minimumSquared = squared;
           }
         }
+        const guaranteed = radius * cellSize;
+        if (minimumSquared <= guaranteed * guaranteed) break;
       }
       // A vertex whose neighbour search found nothing is UNMEASURED, not maximally different.
       // It used to fall back to distance 0.12 — the exact top of the ramp — so "we could not

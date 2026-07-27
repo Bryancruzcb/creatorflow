@@ -98,6 +98,32 @@ provenance tool a high score is the *review* case. The scenario pills already ge
 *Done when:* one ramp, monotonic in luminance, colour-blind safe, with a legend above 11px, and
 "no data" visually distinct from "maximum".
 
+### 5a. The deviation heatmap is too slow to use on a real component — KNOWN, UNFIXED
+
+Found by finally driving the view on a real asset, which only became possible once the showcase
+ships were actually deployed. Selecting **Deviation heatmap** on the ~52k-triangle ship hull leaves
+"Computing normalized surface deviation…" on screen for **minutes**, and Chrome reports the
+renderer as unresponsive. It is a main-thread nearest-neighbour search over up to 60,000 source
+points for every vertex of the target.
+
+Two exact optimisations are already in (neither changes the result):
+
+- scan only the shell at each search radius instead of rescanning the inner cells — 153 cell
+  lookups per vertex down to at most 125;
+- stop as soon as the best hit is closer than the next ring could possibly contain.
+
+They help, and they are not enough: the early-exit only pays off when a near neighbour exists, and
+the whole point of this view is components that differ. The grid was also rekeyed from
+`${x}:${y}:${z}` template literals to packed integers, removing ~10 million string allocations.
+
+**The real fix is to get it off the main thread** — a worker, or chunking across frames with real
+progress — not further micro-optimisation. Until then the feature is effectively unusable on
+anything large, and the "Computing…" state is indefinite rather than slow.
+
+Do not "fix" this by quietly cutting the sample count. The legend reports how many vertices were
+sampled, and trading measurement precision for speed without saying so is the kind of quiet
+inaccuracy the rest of this work exists to remove.
+
 ### 6. Housekeeping already named
 StressLab / system-check type-scale pass (`.motion-gate`, `.motion-transport`, `.compressed-preview`
 cluster). Two stragglers in the motion lab at 10.56px and 9.17px.
