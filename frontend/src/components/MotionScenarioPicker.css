@@ -8,7 +8,7 @@
 .motion-rig-switch-label {
   align-self: center;
   font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.12em;
   text-transform: uppercase;
   color: var(--ink-dim);
@@ -31,13 +31,13 @@
 .motion-rig-switch > button:hover { border-color: var(--hairline-strong); }
 .motion-rig-switch > button[aria-pressed="true"] { border-color: var(--blue); background: oklch(58.5% 0.0627 249.71 / 0.1); }
 .motion-rig-switch > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.motion-rig-switch > button strong { font-size: 0.86rem; }
-.motion-rig-switch > button small { font-size: 0.72rem; color: var(--ink-dim); }
+.motion-rig-switch > button strong { font-size: var(--text-xs); }
+.motion-rig-switch > button small { font-size: var(--text-2xs); color: var(--ink-dim); }
 .motion-rig-license {
   align-self: center;
   margin-left: auto;
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   border: 1px solid var(--hairline);
   border-radius: 999px;
@@ -66,20 +66,20 @@
   align-items: center;
   gap: 0.4rem;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--ink-dim);
 }
 .motion-scenario-head h2 { margin: 0.35rem 0 0.3rem; font-size: 1.1rem; font-weight: 600; letter-spacing: -0.01em; }
-.motion-scenario-head > div > p { margin: 0; color: var(--ink-muted); font-size: 0.85rem; max-width: 62ch; }
+.motion-scenario-head > div > p { margin: 0; color: var(--ink-muted); font-size: var(--text-xs); max-width: 62ch; }
 .motion-scenario-note {
   margin: 0;
   display: flex;
   align-items: flex-start;
   gap: 0.4rem;
   max-width: 26ch;
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
   border-left: 2px solid var(--hairline-strong);
   padding-left: 0.6rem;
@@ -109,21 +109,21 @@
 .motion-scenario-card.is-active { border-color: var(--blue); background: oklch(58.5% 0.0627 249.71 / 0.08); }
 .motion-scenario-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .motion-scenario-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.motion-scenario-card-top strong { font-size: 0.9rem; }
+.motion-scenario-card-top strong { font-size: var(--text-sm); }
 .motion-scenario-pair {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
 }
 .motion-scenario-pair i { color: var(--ink-dim); font-style: normal; padding: 0 0.15rem; }
-.motion-scenario-card small { color: var(--ink-dim); font-size: 0.78rem; }
+.motion-scenario-card small { color: var(--ink-dim); font-size: var(--text-xs); }
 
 .scenario-band {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   padding: 0.22rem 0.45rem;
@@ -145,7 +145,7 @@
   border-left: 3px solid var(--blue);
   border-radius: 8px;
   background: var(--desk);
-  font-size: 0.83rem;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
 }
 .motion-scenario-guidance strong { color: var(--ink); }
@@ -163,13 +163,13 @@
   padding: 0.7rem 0.8rem;
 }
 .motion-scenario-facts-col header { display: flex; align-items: baseline; justify-content: space-between; gap: 0.6rem; margin-bottom: 0.5rem; }
-.motion-scenario-facts-col header span { font-family: var(--font-mono); font-size: 0.64rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
-.motion-scenario-facts-col header strong { font-size: 0.9rem; }
+.motion-scenario-facts-col header span { font-family: var(--font-mono); font-size: var(--text-2xs); letter-spacing: 0.08em; text-transform: uppercase; color: var(--ink-dim); }
+.motion-scenario-facts-col header strong { font-size: var(--text-sm); }
 .motion-scenario-facts-col dl { margin: 0; display: grid; gap: 0.28rem; }
 .motion-scenario-facts-col dl div { display: flex; align-items: baseline; justify-content: space-between; gap: 0.75rem; }
-.motion-scenario-facts-col dt { font-size: 0.76rem; color: var(--ink-dim); }
-.motion-scenario-facts-col dd { margin: 0; font-size: 0.78rem; color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
-.motion-scenario-facts-col dd.mono { font-family: var(--font-mono); font-size: 0.72rem; color: var(--ink-muted); }
+.motion-scenario-facts-col dt { font-size: var(--text-xs); color: var(--ink-dim); }
+.motion-scenario-facts-col dd { margin: 0; font-size: var(--text-xs); color: var(--ink); text-align: right; font-variant-numeric: tabular-nums; }
+.motion-scenario-facts-col dd.mono { font-family: var(--font-mono); font-size: var(--text-2xs); color: var(--ink-muted); }
 
 .motion-scenario-facts-shared {
   grid-column: 1 / -1;
@@ -184,8 +184,8 @@
   padding: 0.55rem 0.7rem;
 }
 .motion-scenario-facts-shared > div.wide { grid-column: span 2; }
-.motion-scenario-facts-shared span { display: block; font-size: 0.68rem; letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
-.motion-scenario-facts-shared strong { display: block; margin-top: 0.15rem; font-size: 0.85rem; }
+.motion-scenario-facts-shared span { display: block; font-size: var(--text-2xs); letter-spacing: 0.04em; text-transform: uppercase; color: var(--ink-dim); }
+.motion-scenario-facts-shared strong { display: block; margin-top: 0.15rem; font-size: var(--text-xs); }
 
 @media (max-width: 720px) {
   .motion-scenario-facts { grid-template-columns: 1fr; }
