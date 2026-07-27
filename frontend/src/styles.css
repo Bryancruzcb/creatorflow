@@ -9057,22 +9057,37 @@ code {
   background: color-mix(in srgb, var(--desk) 94%, transparent);
   border: 1px solid var(--hairline-strong);
   font-family: var(--font-mono);
-  font-size: 0.44rem;
+  font-size: var(--text-3xs);
 }
 
 .surface-heatmap-legend > span {
   white-space: nowrap;
 }
 
+/* The only legend in the product, and it was 0.44rem — 7px — with no intermediate ticks, so a
+   reader could tell "more" from "less" and nothing else. The gradient is written from the shared
+   deviation ramp stops, so the key cannot drift away from the data it describes. */
 .surface-heatmap-legend > i {
-  height: 0.35rem;
-  background: linear-gradient(90deg, #598fbe, #dfad52 50%, #d15d49);
+  position: relative;
+  height: 0.5rem;
+  background: linear-gradient(90deg, #1a222c 0%, #3d5c72 35%, #8a7f5e 65%, #d29a3f 85%, #f6d089 100%);
+}
+
+.surface-heatmap-legend > i::after {
+  position: absolute;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--desk) 70%, transparent) 0 1px,
+    transparent 1px 25%
+  );
+  content: '';
 }
 
 .surface-heatmap-legend > small {
   grid-column: 1 / -1;
   color: var(--ink-muted);
-  font-size: 0.45rem;
+  font-size: var(--text-3xs);
 }
 
 .viewer-comparison-dock {
@@ -10424,7 +10439,9 @@ code {
 
 .motion-frame-strip i {
   min-width: 1px;
-  background: hsl(var(--motion-hue) 35% calc(24% + var(--motion-score) * 38%));
+  /* Colour comes from the shared similarity ramp, which is monotonic in luminance, so the
+     strip still reads correctly in greyscale. Opacity reinforces it as a second channel. */
+  background: var(--motion-tone, #2a3038);
 }
 
 .motion-frame-strip > span {
@@ -10524,7 +10541,7 @@ code {
   position: absolute;
   inset: 0 auto 0 0;
   width: calc(var(--motion-score) * 100%);
-  background: hsl(var(--motion-hue) 40% 58%);
+  background: var(--motion-tone, #2a3038);
   transition: width 220ms var(--ease-state);
 }
 

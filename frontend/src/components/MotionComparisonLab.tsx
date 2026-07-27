@@ -42,6 +42,7 @@ import {
   type RootPathClipResult,
   trackMatchesJointScope,
 } from '../motion/motionAnalysis';
+import { SIMILARITY_RAMP, sampleRampCss } from '../motion/ramp';
 import { createStudioScene } from '../motion/sceneFoundation';
 import { useWorkspacePreferences } from '../preferences/workspacePreferences';
 import { MetadataInspector } from './MetadataInspector';
@@ -530,9 +531,22 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
   );
 }
 
+/**
+ * The old version was `hue = 32 + score * 0.85` — orange at 0%, green at 100%.
+ *
+ * That renders a high similarity score green, and green reads as "pass". For a provenance tool a
+ * high score is the reading that needs a human, not the one that clears the asset. The scenario
+ * pills a few hundred pixels away already got this right, labelling an exact curve match in red
+ * while this readout congratulated it.
+ *
+ * Now it runs quiet-neutral to review-amber, and never reaches red: similarity is evidence, not a
+ * verdict, and must not look like one.
+ */
 function scoreStyle(score: number) {
-  const hue = 32 + score * 0.85;
-  return { '--motion-score': score / 100, '--motion-hue': hue } as CSSProperties;
+  return {
+    '--motion-score': score / 100,
+    '--motion-tone': sampleRampCss(SIMILARITY_RAMP, score / 100),
+  } as CSSProperties;
 }
 
 function RootPathPlot({ source, candidate, sourceName, candidateName }: {

@@ -12,6 +12,7 @@ import {
   PerspectiveCamera,
   Raycaster,
   Scene,
+  SRGBColorSpace,
   Texture,
   Vector2,
   Vector3,
@@ -24,6 +25,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { HeavyComponentMatch } from '../heavyAssets';
 import { watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
+import { DEVIATION_RAMP, NO_DATA_HEX, sampleRamp } from '../motion/ramp';
 import { applyStudioEnvironment, attachStudioLights, configureStudioRenderer, createStudioEnvironment } from '../motion/sceneFoundation';
 
 const EMPTY_COMPONENT_MATCHES: HeavyComponentMatch[] = [];
@@ -301,9 +303,7 @@ function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Mat
     bucket.push(point.x, point.y, point.z);
     grid.set(key, bucket);
   });
-  const cold = new Color('#598fbe');
-  const warm = new Color('#dfad52');
-  const hot = new Color('#d15d49');
+  const noData = new Color(NO_DATA_HEX);
   const point = new Vector3();
   let sum = 0;
   let maximum = 0;
@@ -335,17 +335,24 @@ function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Mat
           }
         }
       }
-      const distance = Number.isFinite(minimumSquared) ? Math.sqrt(minimumSquared) : 0.12;
-      const ratio = Math.min(1, distance / 0.12);
+      // A vertex whose neighbour search found nothing is UNMEASURED, not maximally different.
+      // It used to fall back to distance 0.12 — the exact top of the ramp — so "we could not
+      // check this" was painted identically to "this is the worst deviation in the model".
+      const measured = Number.isFinite(minimumSquared);
       const color = new Color();
-      if (ratio < 0.5) color.lerpColors(cold, warm, ratio * 2);
-      else color.lerpColors(warm, hot, (ratio - 0.5) * 2);
+      if (!measured) {
+        color.copy(noData);
+      } else {
+        const distance = Math.sqrt(minimumSquared);
+        const sample = sampleRamp(DEVIATION_RAMP, Math.min(1, distance / 0.12));
+        color.setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
+        sum += distance;
+        maximum = Math.max(maximum, distance);
+        samples += 1;
+      }
       colors[index * 3] = color.r;
       colors[index * 3 + 1] = color.g;
       colors[index * 3 + 2] = color.b;
-      sum += distance;
-      maximum = Math.max(maximum, distance);
-      samples += 1;
     }
     geometry.setAttribute('color', new BufferAttribute(colors, 3));
     const material = new MeshBasicMaterial({ vertexColors: true, side: DoubleSide });
