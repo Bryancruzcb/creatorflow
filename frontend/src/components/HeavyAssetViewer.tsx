@@ -26,6 +26,7 @@ import type { HeavyComponentMatch } from '../heavyAssets';
 import { watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
 import { DEVIATION_RAMP, NO_DATA_HEX, rampGradientCss, sampleRamp } from '../motion/ramp';
+import type { DeviationProgress, DeviationRequest, DeviationResult } from '../motion/deviation.worker';
 import { applyStudioEnvironment, attachStudioLights, configureStudioRenderer, createStudioEnvironment } from '../motion/sceneFoundation';
 
 const EMPTY_COMPONENT_MATCHES: HeavyComponentMatch[] = [];
@@ -292,42 +293,38 @@ function collectWorldPoints(root: Object3D, limit = 60_000) {
   return points;
 }
 
-function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Material>, geometries: Set<Mesh['geometry']>): HeatmapStats {
+/**
+ * Deviation heatmap, computed in a worker.
+ *
+ * The search itself is unchanged — same grid, same cell size, same radius, same numbers. What
+ * changed is where it runs. Synchronously on the main thread it held a real ~52k-triangle
+ * component for minutes, long enough that Chrome reported the renderer unresponsive, so the view
+ * was unusable on exactly the assets it exists for.
+ *
+ * Target positions are gathered once into a flat buffer with per-mesh offsets recorded, the
+ * distances come back in the same order, and colours are written in a second pass. Buffers are
+ * transferred rather than copied.
+ */
+async function applyDeviationHeatmap(
+  project: Group,
+  source: Group,
+  materials: Set<Material>,
+  geometries: Set<Mesh['geometry']>,
+  onProgress?: (fraction: number) => void,
+  signal?: { cancelled: boolean },
+): Promise<HeatmapStats> {
   const sourcePoints = collectWorldPoints(source);
-  const cellSize = 0.055;
-
-  /**
-   * Numeric cell keys, not template literals.
-   *
-   * The grid was keyed by `${x}:${y}:${z}`, so every one of the ~125 neighbour lookups per vertex
-   * allocated a string and hashed it. Across a real component that is over ten million string
-   * allocations, and it froze the tab for minutes — long enough that Chrome reported the renderer
-   * as unresponsive. Packing the cell coordinate into a single integer removes the allocation
-   * entirely and keeps the lookup a plain numeric Map hit.
-   *
-   * The offset supports cells in [-512, 511] per axis. Components here are normalised to roughly
-   * two units against a 0.055 cell, i.e. about 36 cells across, so the range is not close to
-   * binding — but it is clamped rather than assumed, and out-of-range points simply fall into the
-   * unmeasured bucket instead of aliasing onto some other cell.
-   */
-  const CELL_RANGE = 512;
-  const cellKey = (cx: number, cy: number, cz: number) => {
-    if (cx < -CELL_RANGE || cx >= CELL_RANGE || cy < -CELL_RANGE || cy >= CELL_RANGE || cz < -CELL_RANGE || cz >= CELL_RANGE) return -1;
-    return ((cx + CELL_RANGE) * 1024 + (cy + CELL_RANGE)) * 1024 + (cz + CELL_RANGE);
-  };
-  const grid = new Map<number, number[]>();
-  sourcePoints.forEach((entry) => {
-    const key = cellKey(Math.floor(entry.x / cellSize), Math.floor(entry.y / cellSize), Math.floor(entry.z / cellSize));
-    if (key < 0) return;
-    const bucket = grid.get(key);
-    if (bucket) bucket.push(entry.x, entry.y, entry.z);
-    else grid.set(key, [entry.x, entry.y, entry.z]);
+  const sourceBuffer = new Float32Array(sourcePoints.length * 3);
+  sourcePoints.forEach((entry, index) => {
+    sourceBuffer[index * 3] = entry.x;
+    sourceBuffer[index * 3 + 1] = entry.y;
+    sourceBuffer[index * 3 + 2] = entry.z;
   });
-  const noData = new Color(NO_DATA_HEX);
+
+  // Gather every target vertex once, remembering which mesh each run belongs to.
   const point = new Vector3();
-  let sum = 0;
-  let maximum = 0;
-  let samples = 0;
+  const targets: { mesh: Mesh; geometry: Mesh['geometry']; offset: number; count: number }[] = [];
+  const chunks: number[] = [];
   project.updateMatrixWorld(true);
   project.traverse((child) => {
     if (!(child instanceof Mesh)) return;
@@ -336,70 +333,53 @@ function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Mat
     child.geometry = geometry;
     const position = geometry.getAttribute('position');
     if (!position) return;
-    const colors = new Float32Array(position.count * 3);
+    const offset = chunks.length / 3;
     for (let index = 0; index < position.count; index += 1) {
       point.fromBufferAttribute(position, index).applyMatrix4(child.matrixWorld);
-      const cellX = Math.floor(point.x / cellSize);
-      const cellY = Math.floor(point.y / cellSize);
-      const cellZ = Math.floor(point.z / cellSize);
-      /**
-       * Nearest neighbour over the spatial grid.
-       *
-       * This ran every vertex through all three radii unconditionally, and each radius rescanned
-       * the cells the previous one had already covered — 1 + 27 + 125 = 153 cell lookups per
-       * vertex, each allocating a template-literal key. On a real 52k-triangle component that is
-       * tens of millions of string allocations and it froze the tab for minutes.
-       *
-       * Two corrections, both exact — the result is identical, only the work changes:
-       *  - scan only the shell at each radius, since inner cells are already done;
-       *  - stop as soon as the best candidate is closer than the next ring could possibly be. A
-       *    cell at Chebyshev radius r+1 has every point at least r*cellSize away, so a hit within
-       *    r*cellSize cannot be beaten further out.
-       */
-      let minimumSquared = Number.POSITIVE_INFINITY;
-      for (let radius = 0; radius <= 2; radius += 1) {
-        for (let x = -radius; x <= radius; x += 1) for (let y = -radius; y <= radius; y += 1) for (let z = -radius; z <= radius; z += 1) {
-          // Shell only: anything strictly inside was covered by a previous radius.
-          if (radius > 0 && Math.abs(x) !== radius && Math.abs(y) !== radius && Math.abs(z) !== radius) continue;
-          const key = cellKey(cellX + x, cellY + y, cellZ + z);
-          if (key < 0) continue;
-          const bucket = grid.get(key);
-          if (!bucket) continue;
-          for (let offset = 0; offset < bucket.length; offset += 3) {
-            const dx = point.x - bucket[offset];
-            const dy = point.y - bucket[offset + 1];
-            const dz = point.z - bucket[offset + 2];
-            const squared = dx * dx + dy * dy + dz * dz;
-            if (squared < minimumSquared) minimumSquared = squared;
-          }
-        }
-        const guaranteed = radius * cellSize;
-        if (minimumSquared <= guaranteed * guaranteed) break;
+      chunks.push(point.x, point.y, point.z);
+    }
+    targets.push({ mesh: child, geometry, offset, count: position.count });
+  });
+  const targetBuffer = new Float32Array(chunks);
+
+  const worker = new Worker(new URL('../motion/deviation.worker.ts', import.meta.url), { type: 'module' });
+  const outcome = await new Promise<DeviationResult>((resolve, reject) => {
+    worker.onmessage = (event: MessageEvent<DeviationProgress | DeviationResult>) => {
+      if (event.data.type === 'progress') {
+        onProgress?.(event.data.total > 0 ? event.data.done / event.data.total : 0);
+        return;
       }
-      // A vertex whose neighbour search found nothing is UNMEASURED, not maximally different.
-      // It used to fall back to distance 0.12 — the exact top of the ramp — so "we could not
-      // check this" was painted identically to "this is the worst deviation in the model".
-      const measured = Number.isFinite(minimumSquared);
-      const color = new Color();
-      if (!measured) {
-        color.copy(noData);
+      resolve(event.data);
+    };
+    worker.onerror = (event) => reject(new Error(event.message || 'deviation worker failed'));
+    const request: DeviationRequest = { source: sourceBuffer, target: targetBuffer, cellSize: 0.055, ceiling: 0.12 };
+    worker.postMessage(request, [sourceBuffer.buffer, targetBuffer.buffer]);
+  }).finally(() => worker.terminate());
+
+  if (signal?.cancelled) return { mean: 0, maximum: 0, samples: 0 };
+
+  const noData = new Color(NO_DATA_HEX);
+  const colorScratch = new Color();
+  targets.forEach(({ mesh, geometry, offset, count }) => {
+    const colors = new Float32Array(count * 3);
+    for (let index = 0; index < count; index += 1) {
+      const distance = outcome.distances[offset + index];
+      if (Number.isNaN(distance)) {
+        colorScratch.copy(noData);
       } else {
-        const distance = Math.sqrt(minimumSquared);
         const sample = sampleRamp(DEVIATION_RAMP, Math.min(1, distance / 0.12));
-        color.setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
-        sum += distance;
-        maximum = Math.max(maximum, distance);
-        samples += 1;
+        colorScratch.setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
       }
-      colors[index * 3] = color.r;
-      colors[index * 3 + 1] = color.g;
-      colors[index * 3 + 2] = color.b;
+      colors[index * 3] = colorScratch.r;
+      colors[index * 3 + 1] = colorScratch.g;
+      colors[index * 3 + 2] = colorScratch.b;
     }
     geometry.setAttribute('color', new BufferAttribute(colors, 3));
     const material = new MeshBasicMaterial({ vertexColors: true, side: DoubleSide });
     materials.add(material);
-    child.material = material;
+    mesh.material = material;
   });
+
   source.traverse((child) => {
     if (!(child instanceof Mesh)) return;
     const material = new MeshBasicMaterial({ color: '#d7d9d2', wireframe: true, transparent: true, opacity: 0.12, depthWrite: false });
@@ -407,7 +387,8 @@ function applyDeviationHeatmap(project: Group, source: Group, materials: Set<Mat
     child.material = material;
     child.renderOrder = 2;
   });
-  return { mean: samples ? sum / samples : 0, maximum, samples };
+
+  return { mean: outcome.mean, maximum: outcome.maximum, samples: outcome.samples };
 }
 
 export function HeavyAssetViewer({
@@ -462,6 +443,7 @@ export function HeavyAssetViewer({
   const [runtimeTelemetry, setRuntimeTelemetry] = useState<RuntimeTelemetry | null>(null);
   const [gpuDeviceInfo, setGpuDeviceInfo] = useState<GpuDeviceInfo | null>(null);
   const [heatmapStats, setHeatmapStats] = useState<HeatmapStats | null>(null);
+  const [heatmapProgress, setHeatmapProgress] = useState(0);
   const [miniMarker, setMiniMarker] = useState<{ x: number; y: number } | null>(null);
   const selectedMatch = componentMatches.find((match) => match.id === selectedComponentId);
 
@@ -551,6 +533,7 @@ export function HeavyAssetViewer({
     setBudget(null);
     setComparisonStatus('idle');
     setHeatmapStats(null);
+    setHeatmapProgress(0);
     setRuntimeTelemetry(null);
     setGpuDeviceInfo(null);
     let disposed = false;
@@ -924,6 +907,8 @@ export function HeavyAssetViewer({
     if (!comparisonActive || !selected || !root) {
       clearComparison();
       setHeatmapStats(null);
+    setHeatmapProgress(0);
+      setHeatmapProgress(0);
       compareGroup.visible = false;
       holder.visible = true;
       setComparisonStatus('idle');
@@ -935,6 +920,7 @@ export function HeavyAssetViewer({
     holder.visible = false;
     clearComparison();
     setHeatmapStats(null);
+    setHeatmapProgress(0);
     compareGroup.visible = true;
     setComparisonStatus('loading');
 
@@ -967,10 +953,21 @@ export function HeavyAssetViewer({
       if (resolvedMode === 'heatmap') {
         requestAnimationFrame(() => {
           if (cancelled) return;
-          setHeatmapStats(applyDeviationHeatmap(project, source, comparisonMaterialsRef.current, comparisonGeometriesRef.current));
-          setComparisonStatus('ready');
-          renderLoopRef.current?.invalidate();
-          renderLoopRef.current?.sync();
+          void applyDeviationHeatmap(
+            project,
+            source,
+            comparisonMaterialsRef.current,
+            comparisonGeometriesRef.current,
+            (fraction) => setHeatmapProgress(fraction),
+          ).then((stats) => {
+            setHeatmapStats(stats);
+            setHeatmapProgress(1);
+            setComparisonStatus('ready');
+            renderLoopRef.current?.invalidate();
+            renderLoopRef.current?.sync();
+          }).catch(() => {
+            setComparisonStatus('error');
+          });
         });
         return;
       }
@@ -1070,7 +1067,7 @@ export function HeavyAssetViewer({
         {!comparisonActive ? <div className="heavy-viewer-ready"><span />{matchMapEnabled ? selectedMatch ? `${differenceMode === 'ghost' ? 'Ghost context' : differenceMode === 'isolate' ? 'Isolated component' : 'Difference highlight'} · ${selectedMatch.project.label}` : 'Match map active · click a highlighted component' : 'Orbit any direction · wheel or pinch to zoom'}</div> : null}
         {comparisonActive && selectedMatch && comparisonStatus !== 'error' ? <div className="viewer-comparison-dock">{comparisonMode === 'heatmap' && heatmapStats ? <div className="surface-heatmap-legend"><span>Near-identical</span><i style={{ backgroundImage: rampGradientCss(DEVIATION_RAMP) }} /><span>Largest deviation</span><small>Mean {(heatmapStats.mean * 100).toFixed(2)}% · max {(heatmapStats.maximum * 100).toFixed(2)}% of normalized frame · {heatmapStats.samples.toLocaleString()} vertices sampled</small></div> : null}<div className={`subasset-comparison-labels subasset-comparison-labels-${comparisonMode}`}><span>Project component<strong>{selectedMatch.project.label}</strong></span><small>{comparisonMode === 'overlay' ? 'Normalized overlay' : comparisonMode === 'heatmap' ? 'Sampled normalized deviation' : comparisonMode === 'blink' ? reducedMotionRef.current ? 'Blink replaced with static view' : 'Alternating every 0.85 s' : 'Normalized to the same frame'}</small><span>Matched component<strong>{selectedMatch.source.label}</strong></span></div></div> : null}
         {selectedMatch && !comparisonActive ? <div className="mini-scene-map" aria-label={`Scene map location for ${selectedMatch.project.label}`}><span>Scene location</span>{miniMarker ? <i style={{ left: `${miniMarker.x}%`, top: `${miniMarker.y}%` }} /> : null}</div> : null}
-        {comparisonActive && comparisonStatus === 'loading' ? <div className="subasset-comparison-loading" role="status" aria-live="polite"><span />{comparisonMode === 'heatmap' ? 'Computing normalized surface deviation…' : 'Loading matched GLB and extracting one component…'}</div> : null}
+        {comparisonActive && comparisonStatus === 'loading' ? <div className="subasset-comparison-loading" role="status" aria-live="polite"><span />{comparisonMode === 'heatmap' ? `Computing normalized surface deviation… ${Math.round(heatmapProgress * 100)}%` : 'Loading matched GLB and extracting one component…'}</div> : null}
         {comparisonActive && comparisonStatus === 'error' ? <div className="heavy-viewer-error">The selected component pair could not be extracted from its source GLB.</div> : null}
       </> : null}
       {status === 'error' ? <div className="heavy-viewer-error">The static preview remains available; WebGL could not decode this asset.</div> : null}
