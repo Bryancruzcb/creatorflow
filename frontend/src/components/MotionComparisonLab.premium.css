@@ -500,7 +500,7 @@
 
 .motion-darkroom .motion-frame-strip i {
   opacity: calc(0.35 + var(--motion-score) * 0.65);
-  background: hsl(var(--motion-hue) 42% calc(25% + var(--motion-score) * 42%));
+  background: var(--motion-tone, #2a3038);
 }
 
 .motion-darkroom .motion-frame-strip > span {
@@ -900,7 +900,7 @@
 }
 
 .motion-darkroom .motion-signal-list i::after {
-  background: hsl(var(--motion-hue) 44% 60%);
+  background: var(--motion-tone, #2a3038);
 }
 
 .motion-darkroom .motion-exact-state {
