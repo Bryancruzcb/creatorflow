@@ -270,15 +270,30 @@
   will-change: opacity, transform, filter;
 }
 
-@media (max-width: 78rem) {
-  .workspace-proof-ribbon {
-    grid-template-columns: 10rem minmax(0, 1fr);
-  }
-
+/**
+ * Let the ribbon scroll before its columns starve.
+ *
+ * Five columns at `minmax(8.5rem, 1fr)` collapse to about 200px each around 1280px wide, and a
+ * column that size cannot hold the icon, the stage name and the status badge at readable sizes —
+ * every stage name clipped. The scroll threshold used to be 78rem, just below where the problem
+ * starts, so the ribbon squeezed instead of scrolling.
+ *
+ * Raised to 92rem, with a 14rem column minimum so the overflow actually engages rather than the
+ * columns simply shrinking to fit. Scrolling a five-step ribbon is a much better failure than
+ * truncating the name of every step in it.
+ */
+@media (max-width: 92rem) {
   .workspace-proof-ribbon ol {
+    grid-template-columns: repeat(5, minmax(14rem, 1fr));
     overflow-x: auto;
     overscroll-behavior-inline: contain;
     scrollbar-width: thin;
+  }
+}
+
+@media (max-width: 78rem) {
+  .workspace-proof-ribbon {
+    grid-template-columns: 10rem minmax(0, 1fr);
   }
 
   .workspace-proof-ribbon-heading > small {

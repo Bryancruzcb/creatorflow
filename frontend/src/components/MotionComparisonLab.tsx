@@ -1,18 +1,15 @@
 import { AlertTriangle, BadgeCheck, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch, ShieldAlert } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
-  ACESFilmicToneMapping,
   AnimationClip,
   AnimationMixer,
   Bone,
   Box3,
   BufferGeometry,
   Color,
-  DirectionalLight,
   DynamicDrawUsage,
   Float32BufferAttribute,
   Group,
-  HemisphereLight,
   LineBasicMaterial,
   LineSegments,
   LoopOnce,
@@ -21,7 +18,6 @@ import {
   PerspectiveCamera,
   PropertyBinding,
   Scene,
-  SRGBColorSpace,
   Texture,
   Vector3,
   WebGLRenderer,
@@ -46,6 +42,7 @@ import {
   type RootPathClipResult,
   trackMatchesJointScope,
 } from '../motion/motionAnalysis';
+import { createStudioScene } from '../motion/sceneFoundation';
 import { useWorkspacePreferences } from '../preferences/workspacePreferences';
 import { MetadataInspector } from './MetadataInspector';
 import { RobloxProjectExample } from './RobloxProjectExample';
@@ -256,25 +253,19 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
     let last = performance.now();
     let lastUi = 0;
     setStatus('loading');
-    const scene = new Scene();
-    scene.background = new Color('#151713');
-    scene.add(new HemisphereLight('#e9eee5', '#20231f', 3));
-    const key = new DirectionalLight('#ffe6bb', 4.2);
-    key.position.set(4, 6, 5);
-    scene.add(key);
-    const rim = new DirectionalLight('#7ba8ca', 2.5);
-    rim.position.set(-5, 3, -4);
-    scene.add(rim);
-    const holder = new Group();
-    scene.add(holder);
     const camera = new PerspectiveCamera(34, 16 / 8, 0.01, 100);
     camera.position.set(0, 0.3, 6.1);
     const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
+
+    // The pixel-ratio cap here is a user setting, not drift — it is the battery/balanced/sharp
+    // control — so it is passed into the studio rather than replaced by it.
     const qualityCap = (quality: 'battery' | 'balanced' | 'sharp') => quality === 'battery' ? 1 : quality === 'sharp' ? 2 : 1.5;
-    renderer.setPixelRatio(Math.min(devicePixelRatio, qualityCap(selectionRef.current.previewQuality)));
+    const studio = createStudioScene(renderer, {
+      background: '#151713',
+      maxPixelRatio: qualityCap(selectionRef.current.previewQuality),
+    });
+    const scene = studio.scene;
+    const holder = studio.holder;
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
@@ -520,6 +511,7 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       mixersRef.current?.candidateScope.line.material.dispose();
       mixersRef.current = null;
       dispose(holder);
+      studio.dispose();
       renderer.dispose();
     };
   }, [glbUrl, onProgress, onReady]);
