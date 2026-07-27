@@ -1,18 +1,13 @@
 import {
-  ACESFilmicToneMapping,
   Box3,
-  Color,
-  DirectionalLight,
   Group,
-  HemisphereLight,
   Mesh,
   Object3D,
   PerspectiveCamera,
-  Scene,
-  SRGBColorSpace,
   Vector3,
   WebGLRenderer,
 } from 'three';
+import { createContactShadow, createStudioScene } from '../motion/sceneFoundation';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Boxes, RotateCw } from 'lucide-react';
@@ -50,7 +45,11 @@ function disposeTree(root: Object3D) {
  */
 export function ModelGallery() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const viewerRef = useRef<{ camera: PerspectiveCamera; holder: Group } | null>(null);
+  const viewerRef = useRef<{
+    camera: PerspectiveCamera;
+    holder: Group;
+    contactShadow: ReturnType<typeof createContactShadow>;
+  } | null>(null);
   const [category, setCategory] = useState<'All' | GalleryCategory>('All');
   const [selectedId, setSelectedId] = useState(galleryModels[0].id);
   const [stats, setStats] = useState<ModelStats | null>(null);
@@ -65,20 +64,17 @@ export function ModelGallery() {
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const scene = new Scene();
-    scene.background = new Color('#151713');
-    scene.add(new HemisphereLight('#e9eee5', '#20231f', 2.6));
-    const key = new DirectionalLight('#ffe6bb', 3.4);
-    key.position.set(4, 6, 5);
-    scene.add(key);
-    const rim = new DirectionalLight('#7ba8ca', 1.8);
-    rim.position.set(-5, 3, -4);
-    scene.add(rim);
     const camera = new PerspectiveCamera(38, 1.6, 0.01, 100);
     camera.position.set(3.1, 2.3, 4.3);
     const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = ACESFilmicToneMapping;
+
+    // Shared studio: one light rig, image-based lighting, and one colour pipeline, so a model
+    // here looks the same as the same model in the comparison viewers.
+    const studio = createStudioScene(renderer, { background: '#151713' });
+    const scene = studio.scene;
+    const contactShadow = createContactShadow({ radius: 1 });
+    scene.add(contactShadow.mesh);
+
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.08;
@@ -86,9 +82,8 @@ export function ModelGallery() {
     controls.autoRotateSpeed = 1.1;
     controls.minDistance = 2;
     controls.maxDistance = 14;
-    const holder = new Group();
-    scene.add(holder);
-    viewerRef.current = { camera, holder };
+    const holder = studio.holder;
+    viewerRef.current = { camera, holder, contactShadow };
 
     let stopped = false;
     let frame = 0;
@@ -114,6 +109,9 @@ export function ModelGallery() {
       observer.disconnect();
       controls.dispose();
       disposeTree(holder);
+      scene.remove(contactShadow.mesh);
+      contactShadow.dispose();
+      studio.dispose();
       renderer.dispose();
       viewerRef.current = null;
     };
@@ -138,6 +136,12 @@ export function ModelGallery() {
       root.scale.setScalar(scale);
       root.position.copy(center).multiplyScalar(-scale);
       viewer.holder.add(root);
+
+      // Sit the contact shadow on the model's base so it reads as standing on a surface rather
+      // than floating. Base is the scaled bottom of the bounding box, relative to the recentre.
+      const base = (box.min.y - center.y) * scale;
+      const footprint = Math.max(size.x, size.z) * scale;
+      viewer.contactShadow.fit(root, { x: 0, z: 0 }, base, footprint);
 
       let meshes = 0;
       let triangles = 0;
