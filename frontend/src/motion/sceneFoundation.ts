@@ -13,6 +13,7 @@ import {
   SRGBColorSpace,
   ACESFilmicToneMapping,
   type Object3D,
+  type Texture,
   type WebGLRenderer,
 } from 'three';
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
@@ -49,22 +50,41 @@ export function configureStudioRenderer(renderer: WebGLRenderer, options: { maxP
  * RoomEnvironment is generated procedurally by three itself, so this adds no downloaded asset and
  * nothing for the subpath deploy to get wrong.
  */
-export function attachStudioEnvironment(renderer: WebGLRenderer, scene: Scene, intensity = 0.55) {
+/**
+ * Generate the environment once. PMREM prefiltering is the most expensive part of studio setup,
+ * and HeavyAssetViewer runs two scenes off one renderer, so the texture is shared rather than
+ * built per scene.
+ */
+export function createStudioEnvironment(renderer: WebGLRenderer) {
   const pmrem = new PMREMGenerator(renderer);
   pmrem.compileEquirectangularShader();
 
   const room = new RoomEnvironment();
   const target = pmrem.fromScene(room, 0.04);
-  scene.environment = target.texture;
-  scene.environmentIntensity = intensity;
 
   room.dispose?.();
   pmrem.dispose();
 
+  return {
+    texture: target.texture,
+    dispose() { target.texture.dispose(); },
+  };
+}
+
+export function attachStudioEnvironment(renderer: WebGLRenderer, scene: Scene, intensity = 0.55) {
+  const environment = createStudioEnvironment(renderer);
+  applyStudioEnvironment(scene, environment.texture, intensity);
+
   return () => {
-    target.texture.dispose();
+    environment.dispose();
     scene.environment = null;
   };
+}
+
+/** Point a scene at an already-generated environment. */
+export function applyStudioEnvironment(scene: Scene, texture: Texture, intensity = 0.55) {
+  scene.environment = texture;
+  scene.environmentIntensity = intensity;
 }
 
 /** The canonical rig: warm key, cool rim, soft hemisphere fill. One set of values, everywhere. */

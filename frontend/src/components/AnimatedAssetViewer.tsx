@@ -1,20 +1,15 @@
 import { Pause, Play, RotateCcw } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import {
-  ACESFilmicToneMapping,
   AnimationAction,
   AnimationClip,
   AnimationMixer,
   Bone,
   Box3,
   Color,
-  DirectionalLight,
   Group,
-  HemisphereLight,
   Mesh,
   PerspectiveCamera,
-  Scene,
-  SRGBColorSpace,
   Texture,
   Vector3,
   WebGLRenderer,
@@ -23,6 +18,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { prefersReducedMotion, watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
+import { createStudioScene } from '../motion/sceneFoundation';
 import type { MotionFixture } from '../stressLabData';
 
 export interface MotionTelemetry {
@@ -91,24 +87,16 @@ export function AnimatedAssetViewer({ fixture, onTelemetry }: AnimatedAssetViewe
     setDuration(1);
     setClipNames([]);
     setMetrics(null);
-    const scene = new Scene();
-    scene.background = new Color('#171916');
-    scene.add(new HemisphereLight('#edf0e8', '#20251f', 2.8));
-    const key = new DirectionalLight('#fff0ce', 4.6);
-    key.position.set(4, 6, 5);
-    scene.add(key);
-    const rim = new DirectionalLight('#6f9fc7', 2.2);
-    rim.position.set(-5, 2, -4);
-    scene.add(rim);
-    const holder = new Group();
-    scene.add(holder);
     const camera = new PerspectiveCamera(36, 16 / 9, 0.01, 200);
     camera.position.set(2.8, 1.65, 3.7);
     const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-    renderer.setPixelRatio(Math.min(devicePixelRatio, 1.5));
+
+    // Shared studio: one light rig, image-based lighting and one colour pipeline, so a rig here
+    // is lit identically to the same rig in the comparison viewers. Previously this file's key
+    // light was at 4.6 against ModelGallery's 3.4 and GlbComparisonViewer's 4.1.
+    const studio = createStudioScene(renderer, { background: '#171916' });
+    const scene = studio.scene;
+    const holder = studio.holder;
     const controls = new OrbitControls(camera, canvas);
     controls.enableDamping = true;
     controls.dampingFactor = 0.07;
@@ -229,6 +217,7 @@ export function AnimatedAssetViewer({ fixture, onTelemetry }: AnimatedAssetViewe
       clipsRef.current = [];
       actionRef.current = null;
       dispose(holder);
+      studio.dispose();
       renderer.dispose();
     };
   }, [fixture, onTelemetry]);

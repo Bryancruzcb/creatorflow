@@ -1,13 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  ACESFilmicToneMapping,
   Box3,
   BufferAttribute,
   Color,
-  DirectionalLight,
   DoubleSide,
   Group,
-  HemisphereLight,
   Material,
   Mesh,
   MeshBasicMaterial,
@@ -15,7 +12,6 @@ import {
   PerspectiveCamera,
   Raycaster,
   Scene,
-  SRGBColorSpace,
   Texture,
   Vector2,
   Vector3,
@@ -28,6 +24,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import type { HeavyComponentMatch } from '../heavyAssets';
 import { watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
+import { applyStudioEnvironment, attachStudioLights, configureStudioRenderer, createStudioEnvironment } from '../motion/sceneFoundation';
 
 const EMPTY_COMPONENT_MATCHES: HeavyComponentMatch[] = [];
 
@@ -510,30 +507,6 @@ export function HeavyAssetViewer({
     setGpuDeviceInfo(null);
     let disposed = false;
     let pointerStart = new Vector2();
-    const scene = new Scene();
-    scene.background = new Color('#171916');
-    scene.add(new HemisphereLight('#f1eee2', '#20261f', 2.6));
-    const key = new DirectionalLight('#fff3d5', 4.4);
-    key.position.set(4, 5, 6);
-    scene.add(key);
-    const rim = new DirectionalLight('#7ca8d2', 2.5);
-    rim.position.set(-4, 2, -3);
-    scene.add(rim);
-    const holder = new Group();
-    holder.rotation.y = -0.32;
-    scene.add(holder);
-    const comparisonGroup = new Group();
-    comparisonGroup.visible = false;
-    scene.add(comparisonGroup);
-    const miniScene = new Scene();
-    miniScene.background = new Color('#101310');
-    miniScene.add(new HemisphereLight('#e8e7df', '#1f2821', 2.4));
-    const miniKey = new DirectionalLight('#fff0cd', 3.2);
-    miniKey.position.set(4, 5, 6);
-    miniScene.add(miniKey);
-    const miniHolder = new Group();
-    miniHolder.rotation.y = -0.32;
-    miniScene.add(miniHolder);
     const miniCamera = new PerspectiveCamera(35, 1.6, 0.01, 200);
     miniCamera.position.set(2.75, 1.55, 3.45);
     miniCamera.lookAt(0, 0, 0);
@@ -541,10 +514,37 @@ export function HeavyAssetViewer({
     camera.position.set(2.75, 1.55, 3.45);
     camera.lookAt(0, 0, 0);
     const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.08;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1.5));
+
+    /**
+     * Shared studio for both scenes.
+     *
+     * This file carried two of the six hand-rolled light rigs — the main stage at key 4.4 and the
+     * component inspector at 3.2 — so the same mesh was lit differently depending on which of the
+     * two panels you looked at, inside a single component. Both now use one rig and one
+     * environment, prefiltered once and shared.
+     */
+    configureStudioRenderer(renderer);
+    const environment = createStudioEnvironment(renderer);
+
+    const scene = new Scene();
+    scene.background = new Color('#171916');
+    applyStudioEnvironment(scene, environment.texture);
+    const detachSceneLights = attachStudioLights(scene);
+    const holder = new Group();
+    holder.rotation.y = -0.32;
+    scene.add(holder);
+    const comparisonGroup = new Group();
+    comparisonGroup.visible = false;
+    scene.add(comparisonGroup);
+
+    const miniScene = new Scene();
+    miniScene.background = new Color('#101310');
+    applyStudioEnvironment(miniScene, environment.texture);
+    const detachMiniLights = attachStudioLights(miniScene);
+    const miniHolder = new Group();
+    miniHolder.rotation.y = -0.32;
+    miniScene.add(miniHolder);
+
     renderer.info.autoReset = false;
     const gl = renderer.getContext();
     const debugInfo = gl.getExtension('WEBGL_debug_renderer_info') as {
@@ -774,6 +774,9 @@ export function HeavyAssetViewer({
       sourceCacheRef.current.forEach((root) => dispose(root));
       sourceCacheRef.current.clear();
       if (rootRef.current) dispose(rootRef.current);
+      detachSceneLights();
+      detachMiniLights();
+      environment.dispose();
       renderer.dispose();
       cameraRef.current = null;
       controlsRef.current = null;

@@ -1,15 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
 import {
-  ACESFilmicToneMapping,
   Box3,
   Color,
-  DirectionalLight,
   Group,
-  HemisphereLight,
   Mesh,
   PerspectiveCamera,
   Scene,
-  SRGBColorSpace,
   Texture,
   Vector3,
   WebGLRenderer,
@@ -17,6 +13,7 @@ import {
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
+import { applyStudioEnvironment, attachStudioLights, configureStudioRenderer, createStudioEnvironment } from '../motion/sceneFoundation';
 import { assetUrl } from '../assetUrl';
 
 interface GlbComparisonViewerProps {
@@ -30,19 +27,21 @@ interface GlbComparisonViewerProps {
   initialRotation?: number;
 }
 
-function makeScene() {
+/**
+ * Both halves of the comparison get the same studio and the same environment texture.
+ *
+ * This viewer exists to decide whether one model derives from another, so identical lighting is
+ * not a nicety — any difference between the two rigs is a difference the tool invented. They were
+ * already identical here; the change is that they now match every other viewer too.
+ */
+function makeScene(environment: Texture) {
   const scene = new Scene();
   scene.background = new Color('#1a1b18');
-  scene.add(new HemisphereLight('#ebe9df', '#252821', 2.8));
-  const key = new DirectionalLight('#fff4d9', 4.1);
-  key.position.set(3, 4, 5);
-  scene.add(key);
-  const rim = new DirectionalLight('#81a7c8', 2.2);
-  rim.position.set(-4, 1, -3);
-  scene.add(rim);
+  applyStudioEnvironment(scene, environment);
+  const detachLights = attachStudioLights(scene);
   const group = new Group();
   scene.add(group);
-  return { scene, group };
+  return { scene, group, detachLights };
 }
 
 function normalizeModel(model: Group, holder: Group) {
@@ -101,16 +100,17 @@ export function GlbComparisonViewer({ split, mode, projectUrl, sourceUrl, projec
     let lastRenderedAt = performance.now();
     let previousPhase = '';
     let reduceMotion = false;
-    const project = makeScene();
-    const source = makeScene();
     const camera = new PerspectiveCamera(34, 16 / 9, 0.01, 100);
     camera.position.set(0, 0.05, 3.6);
     camera.lookAt(0, 0, 0);
     const renderer = new WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
-    renderer.outputColorSpace = SRGBColorSpace;
-    renderer.toneMapping = ACESFilmicToneMapping;
-    renderer.toneMappingExposure = 1.05;
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+
+    // Renderer first: the environment is prefiltered through it, and both scenes share the result
+    // rather than generating PMREM twice.
+    configureStudioRenderer(renderer);
+    const environment = createStudioEnvironment(renderer);
+    const project = makeScene(environment.texture);
+    const source = makeScene(environment.texture);
     renderer.setScissorTest(true);
 
     const loader = new GLTFLoader();
@@ -260,6 +260,9 @@ export function GlbComparisonViewer({ split, mode, projectUrl, sourceUrl, projec
       canvas.removeEventListener('pointercancel', onPointerUp);
       disposeModel(project.group);
       disposeModel(source.group);
+      project.detachLights();
+      source.detachLights();
+      environment.dispose();
       renderer.dispose();
     };
   }, [initialRotation, projectUrl, sourceUrl]);
