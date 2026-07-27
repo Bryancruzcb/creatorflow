@@ -250,6 +250,7 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
     if (!canvas) return;
     let stopped = false;
     let frame = 0;
+    let idleTimer = 0;
     let inViewport = true;
     let pageVisible = !document.hidden;
     let last = performance.now();
@@ -371,7 +372,30 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
     observer.observe(canvas);
     resize();
     const schedule = () => {
+      if (idleTimer) { window.clearTimeout(idleTimer); idleTimer = 0; }
       if (!stopped && inViewport && pageVisible && frame === 0) frame = requestAnimationFrame(render);
+    };
+
+    /**
+     * Idle cadence.
+     *
+     * This stage used to re-render at the full display rate whenever it was on screen, including
+     * while paused on a static pose — four skinned meshes, two rebuilt skeleton line buffers and
+     * two ghost mixers, every frame, for an image that was not changing. It is the most expensive
+     * viewer in the app and was the only one that never idled.
+     *
+     * Rather than convert it to the demand-driven scheduler the other viewers use (that is a
+     * larger change to this file's state handling, and worth doing on its own), it now simply
+     * drops to ~11fps once playback is paused and the camera has settled. Scrubbing or orbiting
+     * returns it to full rate on the next tick, so the worst case is under 90ms of latency
+     * before the first frame of an interaction.
+     */
+    const scheduleIdle = () => {
+      if (stopped || !inViewport || !pageVisible || frame !== 0 || idleTimer) return;
+      idleTimer = window.setTimeout(() => {
+        idleTimer = 0;
+        if (!stopped && inViewport && pageVisible && frame === 0) frame = requestAnimationFrame(render);
+      }, 90);
     };
     const render = (now: number) => {
       frame = 0;
@@ -442,39 +466,46 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
         runtime.sourceGhost.setTime(ghostProgress * runtime.sourceClip.duration);
         runtime.candidateGhost.setTime(ghostProgress * runtime.candidateClip.duration);
       }
-      controls.update();
+      // OrbitControls.update() reports whether the camera actually moved, which covers the tail
+      // of damped motion after the pointer is released.
+      const cameraMoving = controls.update();
       renderer.render(scene, camera);
       if (now - lastUi > 90) {
         lastUi = now;
         onProgress(progressRef.current);
       }
-      schedule();
+      if (playingRef.current || cameraMoving) schedule();
+      else scheduleIdle();
+    };
+    const suspend = () => {
+      if (frame) {
+        cancelAnimationFrame(frame);
+        frame = 0;
+      }
+      if (idleTimer) {
+        window.clearTimeout(idleTimer);
+        idleTimer = 0;
+      }
     };
     const stageObserver = new IntersectionObserver(([entry]) => {
       inViewport = entry.isIntersecting;
       last = performance.now();
       if (inViewport) schedule();
-      else if (frame) {
-        cancelAnimationFrame(frame);
-        frame = 0;
-      }
+      else suspend();
     }, { rootMargin: '160px' });
     stageObserver.observe(canvas);
     const handleVisibility = () => {
       pageVisible = !document.hidden;
       last = performance.now();
       if (pageVisible) schedule();
-      else if (frame) {
-        cancelAnimationFrame(frame);
-        frame = 0;
-      }
+      else suspend();
     };
     document.addEventListener('visibilitychange', handleVisibility);
     schedule();
 
     return () => {
       stopped = true;
-      cancelAnimationFrame(frame);
+      suspend();
       observer.disconnect();
       stageObserver.disconnect();
       document.removeEventListener('visibilitychange', handleVisibility);
