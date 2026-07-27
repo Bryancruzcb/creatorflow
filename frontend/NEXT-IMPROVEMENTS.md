@@ -10,6 +10,11 @@
 **The product roadmap lives in [`docs/ROADMAP.md`](../docs/ROADMAP.md).** This file is only the
 frontend's own housekeeping list: work that is real, still open, and not covered there.
 
+**The 3D and motion technique plan lives in [`VISUAL-TECHNIQUE-PLAN.md`](./VISUAL-TECHNIQUE-PLAN.md)**
+— what is done, what is next and in what order, and which techniques were rejected and why. Read
+the rejected list before adding a visual effect; several were turned down for trust reasons rather
+than taste, and the reasoning is not obvious from the code.
+
 ## Type-scale migration — in progress
 
 A type scale, weight, leading and tracking token set now exists in `styles.css`'s `:root`, plus
