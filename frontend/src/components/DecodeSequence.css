@@ -1,0 +1,103 @@
+/* Loading state for lazily-mounted 3D surfaces. Reads as an instrument acquiring a frame:
+   registration corners, a sampling grid, and a sweep. Nothing here encodes progress. */
+
+.cf-decode {
+  display: grid;
+  place-content: center;
+  justify-items: center;
+  gap: var(--space-4);
+  min-height: 18rem;
+  padding: var(--space-8);
+  background: var(--desk);
+  border: 1px solid var(--hairline);
+}
+
+.cf-decode-frame {
+  position: relative;
+  width: min(15rem, 46vw);
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  background: color-mix(in srgb, var(--graphite) 70%, var(--desk));
+  border: 1px solid var(--hairline);
+}
+
+/* Registration marks — the corners a measurement frame would carry. */
+.cf-decode-corner {
+  position: absolute;
+  width: 0.75rem;
+  height: 0.75rem;
+  border: 1px solid var(--blue);
+  opacity: 0.62;
+}
+.cf-decode-corner.tl { top: 0.4rem; left: 0.4rem; border-right: 0; border-bottom: 0; }
+.cf-decode-corner.tr { top: 0.4rem; right: 0.4rem; border-left: 0; border-bottom: 0; }
+.cf-decode-corner.bl { bottom: 0.4rem; left: 0.4rem; border-right: 0; border-top: 0; }
+.cf-decode-corner.br { bottom: 0.4rem; right: 0.4rem; border-left: 0; border-top: 0; }
+
+.cf-decode-grid {
+  position: absolute;
+  inset: 0;
+  opacity: 0.3;
+  background-image:
+    linear-gradient(to right, var(--hairline) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--hairline) 1px, transparent 1px);
+  background-size: 1.5rem 1.5rem;
+}
+
+.cf-decode-sweep {
+  position: absolute;
+  inset-block: 0;
+  left: 0;
+  width: 38%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in srgb, var(--blue) 26%, transparent),
+    transparent
+  );
+  animation: cf-decode-sweep 1.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
+}
+
+@keyframes cf-decode-sweep {
+  from { transform: translateX(-110%); }
+  to   { transform: translateX(320%); }
+}
+
+.cf-decode-label {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+
+.cf-decode-dot {
+  width: 0.42rem;
+  height: 0.42rem;
+  border-radius: 50%;
+  background: var(--blue);
+  animation: cf-decode-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes cf-decode-pulse {
+  0%, 100% { opacity: 0.35; }
+  50%      { opacity: 1; }
+}
+
+.cf-decode-note {
+  max-width: 26rem;
+  margin: 0;
+  font-size: 0.62rem;
+  line-height: 1.5;
+  text-align: center;
+  color: var(--ink-dim);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cf-decode-sweep { animation: none; opacity: 0.35; transform: translateX(85%); }
+  .cf-decode-dot { animation: none; opacity: 0.8; }
+}

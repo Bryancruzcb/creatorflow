@@ -23,6 +23,8 @@ import { KineticHeading } from './components/KineticHeading';
 import { useScrollReveal } from './useScrollReveal';
 import './components/MotionField.css';
 import './components/LandingReveal.css';
+import './components/LandingTreatment.css';
+import './components/WorkflowScrub.css';
 import { PreflightWorkspace } from './components/PreflightWorkspace';
 import { ProductWorkspace } from './components/ProductWorkspace';
 import { StatusMark } from './components/StatusMark';
@@ -91,16 +93,70 @@ function AtlasSection() {
 }
 
 function WorkflowSection() {
+  const ref = useRef<HTMLElement>(null);
+  const reduceMotion = useReducedMotion();
+  // The rail is a position readout, not an ornament: it says how far through the four
+  // accountable steps the reader is, and each step marks itself once the rail passes it.
+  //
+  // Written straight to the DOM as a custom property rather than held in React state. Two
+  // reasons: driving it through state re-renders the whole section on every scroll frame, and
+  // the state update also raced the scroll badly enough that the rendered fill disagreed with
+  // the measured position. useScroll({ target }) was tried first and mis-measured inside the
+  // shell's `overflow: clip`, snapping 0 to 1 with nothing in between.
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+
+    if (reduceMotion) {
+      el.style.setProperty('--cf-progress', '1');
+      el.querySelectorAll('li').forEach((li) => li.setAttribute('data-reached', 'true'));
+      return;
+    }
+
+    let queued = false;
+    function measure() {
+      queued = false;
+      const node = ref.current;
+      if (!node) return;
+      const rect = node.getBoundingClientRect();
+      const start = window.innerHeight * 0.78;   // begins as the section rises past 78% of the fold
+      const end = window.innerHeight * 0.55;     // completes as its base clears 55%
+      const span = rect.height + start - end;
+      const progress = span <= 0 ? 1 : Math.min(1, Math.max(0, (start - rect.top) / span));
+
+      node.style.setProperty('--cf-progress', progress.toFixed(4));
+      const items = node.querySelectorAll('li');
+      const reached = Math.ceil(progress * items.length);
+      items.forEach((li, index) => li.setAttribute('data-reached', index < reached ? 'true' : 'false'));
+    }
+    function queue() {
+      if (queued) return;
+      queued = true;
+      requestAnimationFrame(measure);
+    }
+
+    measure();
+    window.addEventListener('scroll', queue, { passive: true });
+    window.addEventListener('resize', queue, { passive: true });
+    return () => {
+      window.removeEventListener('scroll', queue);
+      window.removeEventListener('resize', queue);
+    };
+  }, [reduceMotion]);
+
   return (
-    <section className="workflow-section" id="workflow" aria-labelledby="workflow-title">
+    <section className="workflow-section" id="workflow" ref={ref} aria-labelledby="workflow-title">
       <div className="workflow-heading">
         <p className="section-index">One decision, four accountable steps</p>
         <h2 id="workflow-title">A workflow built around shipping—not collecting.</h2>
         <p>The gallery made originality checks feel like a feature. Preflight makes the evidence part of a decision your team already has to make.</p>
       </div>
-      <ol className="workflow-list">
+      <ol className="workflow-list cf-scrubbed">
+        <span className="cf-rail" aria-hidden="true">
+          <i />
+        </span>
         {workflowSteps.map((step, index) => (
-          <li key={step.title}>
+          <li key={step.title} data-reached="false">
             <div className="workflow-number">{String(index + 1).padStart(2, '0')}</div>
             <div className="workflow-copy"><h3>{step.title}</h3><p>{step.body}</p></div>
             <div className="workflow-output"><span>Output</span><strong>{step.output}</strong></div>
@@ -234,6 +290,11 @@ function LandingApp({ onOpenWorkspace }: { onOpenWorkspace: (view?: WorkspaceEnt
         <span>Detection proves conflicts, never originality.</span>
         <a href="https://github.com/Bryancruzcb/creatorflow" target="_blank" rel="noreferrer">View the Java engine on GitHub <ArrowRight size={14} /></a>
       </footer>
+      {/* Landing route only — grain never goes over the evidence ledger. */}
+      <div className="cf-treatment" aria-hidden="true">
+        <div className="cf-vignette" />
+        <div className="cf-grain" />
+      </div>
     </div>
   );
 }
@@ -247,16 +308,37 @@ function App() {
     return () => window.removeEventListener('hashchange', sync);
   }, []);
 
+  /**
+   * Landing and workspace are a binary swap of the whole tree, which normally reads as a hard
+   * cut. A View Transition cross-fades the two so the jump has continuity. Progressive
+   * enhancement only: unsupported browsers and reduced-motion users get the swap unchanged.
+   */
+  function swapRoot(change: () => void) {
+    const startViewTransition = (document as Document & {
+      startViewTransition?: (callback: () => void) => unknown;
+    }).startViewTransition;
+
+    if (typeof startViewTransition !== 'function' || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      change();
+      return;
+    }
+    startViewTransition.call(document, change);
+  }
+
   function openWorkspace(view: WorkspaceEntry = 'overview') {
-    window.location.hash = `workspace?view=${view}`;
-    setWorkspaceOpen(true);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    swapRoot(() => {
+      window.location.hash = `workspace?view=${view}`;
+      setWorkspaceOpen(true);
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    });
   }
 
   function closeWorkspace() {
-    window.location.hash = 'top';
-    setWorkspaceOpen(false);
-    window.scrollTo({ top: 0, behavior: 'auto' });
+    swapRoot(() => {
+      window.location.hash = 'top';
+      setWorkspaceOpen(false);
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    });
   }
 
   return workspaceOpen ? <ProductWorkspace onExit={closeWorkspace} /> : <LandingApp onOpenWorkspace={openWorkspace} />;
