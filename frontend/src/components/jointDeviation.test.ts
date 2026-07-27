@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { Bone, Color, Group } from 'three';
+import { Bone, Color, Group, SRGBColorSpace } from 'three';
 import { makeScopeSkeleton, updateScopeSkeleton } from './MotionComparisonLab';
-import { DEVIATION_RAMP, sampleRamp } from '../motion/ramp';
+import { DEVIATION_RAMP, NO_DATA_HEX, sampleRamp } from '../motion/ramp';
 
 /**
  * The per-joint deviation channel on the overlay skeleton.
@@ -55,14 +55,18 @@ describe('joint deviation channel', () => {
       ceiling: CEILING,
     });
 
-    const expected = sampleRamp(DEVIATION_RAMP, 0.14 / CEILING);
+    // Linear, not raw bytes. three has ColorManagement enabled, so a vertex-colour buffer is in
+    // linear space; the earlier version of this test asserted `/255` and so locked in a scale
+    // that rendered roughly ten times too bright.
+    const sample = sampleRamp(DEVIATION_RAMP, 0.14 / CEILING);
+    const expected = new Color().setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
     const painted = colorsOf(skeletonA);
-    expect(painted.r).toBeCloseTo(expected.r / 255, 2);
-    expect(painted.g).toBeCloseTo(expected.g / 255, 2);
-    expect(painted.b).toBeCloseTo(expected.b / 255, 2);
+    expect(painted.r).toBeCloseTo(expected.r, 4);
+    expect(painted.g).toBeCloseTo(expected.g, 4);
+    expect(painted.b).toBeCloseTo(expected.b, 4);
   });
 
-  it('keeps the tint when the peer clip does not animate that bone', () => {
+  it('paints the no-data grey, NOT the rig tint, when the peer does not animate that bone', () => {
     const a = makeRig(1);
     const b = makeRig(1.3);
     const tint = new Color('#d6b273');
@@ -76,10 +80,14 @@ describe('joint deviation channel', () => {
       ceiling: CEILING,
     });
 
+    // The source tint sits inside the ramp's top band, so falling back to it would paint
+    // "the other clip has no data here" as "this joint is maximally different".
+    const noData = new Color(NO_DATA_HEX);
     const painted = colorsOf(skeletonA);
-    expect(painted.r).toBeCloseTo(tint.r, 5);
-    expect(painted.g).toBeCloseTo(tint.g, 5);
-    expect(painted.b).toBeCloseTo(tint.b, 5);
+    expect(painted.r).toBeCloseTo(noData.r, 4);
+    expect(painted.g).toBeCloseTo(noData.g, 4);
+    expect(painted.b).toBeCloseTo(noData.b, 4);
+    expect(painted.r).not.toBeCloseTo(tint.r, 2);
   });
 
   it('saturates rather than overflowing past the ceiling', () => {
@@ -94,10 +102,11 @@ describe('joint deviation channel', () => {
       ceiling: CEILING,
     });
 
-    const top = sampleRamp(DEVIATION_RAMP, 1);
+    const sample = sampleRamp(DEVIATION_RAMP, 1);
+    const top = new Color().setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
     const painted = colorsOf(skeletonA);
-    expect(painted.r).toBeCloseTo(top.r / 255, 2);
-    expect(painted.g).toBeCloseTo(top.g / 255, 2);
-    expect(painted.b).toBeCloseTo(top.b / 255, 2);
+    expect(painted.r).toBeCloseTo(top.r, 4);
+    expect(painted.g).toBeCloseTo(top.g, 4);
+    expect(painted.b).toBeCloseTo(top.b, 4);
   });
 });

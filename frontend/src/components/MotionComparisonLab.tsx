@@ -15,6 +15,7 @@ import {
   LoopOnce,
   Mesh,
   Object3D,
+  SRGBColorSpace,
   PerspectiveCamera,
   PropertyBinding,
   Scene,
@@ -42,7 +43,7 @@ import {
   type RootPathClipResult,
   trackMatchesJointScope,
 } from '../motion/motionAnalysis';
-import { DEVIATION_RAMP, SIMILARITY_RAMP, sampleRamp, sampleRampCss } from '../motion/ramp';
+import { DEVIATION_RAMP, NO_DATA_HEX, SIMILARITY_RAMP, rampGradientCss, sampleRamp, sampleRampCss } from '../motion/ramp';
 import { createStudioScene } from '../motion/sceneFoundation';
 import { useWorkspacePreferences } from '../preferences/workspacePreferences';
 import { MetadataInspector } from './MetadataInspector';
@@ -167,6 +168,8 @@ export interface ScopeSkeleton {
   start: Vector3;
   end: Vector3;
   peer: Vector3;
+  /** Reused so the per-frame colour pass allocates nothing. */
+  scratch: Color;
 }
 
 /**
@@ -206,7 +209,7 @@ export function makeScopeSkeleton(model: Group, tint: Color): ScopeSkeleton {
   const line = new LineSegments(geometry, material);
   line.frustumCulled = false;
   line.renderOrder = 6;
-  return { line, position, color, segments, tint: tint.clone(), start: new Vector3(), end: new Vector3(), peer: new Vector3() };
+  return { line, position, color, segments, tint: tint.clone(), start: new Vector3(), end: new Vector3(), peer: new Vector3(), scratch: new Color() };
 }
 
 /** The uuids of the bones this clip actually animates, so the overlay can skip dead joints. */
@@ -243,21 +246,39 @@ export function updateScopeSkeleton(
     values[offset + 4] = skeleton.end.y;
     values[offset + 5] = skeleton.end.z;
 
-    // Colour this segment by how far the matching joint on the other rig sits from this one.
-    // Only where BOTH clips actually drive the bone: against a bone left in bind pose the number
-    // would be a comparison with nothing, dressed up as a measurement.
-    let r = skeleton.tint.r;
-    let g = skeleton.tint.g;
-    let b = skeleton.tint.b;
+    /**
+     * Colour this segment by how far the matching joint on the other rig sits from this one.
+     *
+     * Three distinct cases, and they must LOOK distinct:
+     *  - no comparison running -> the rig's own tint, i.e. the ordinary appearance;
+     *  - comparison running and the peer drives this bone -> the deviation ramp;
+     *  - comparison running and the peer does NOT drive it -> the off-ramp "no data" grey.
+     *
+     * That third case used to fall back to the rig tint, and the source tint (#f1bf69) sits
+     * inside the ramp's top band — so "the other clip has no data for this bone" was painted as
+     * "this bone is maximally different". That is the same defect already fixed in the surface
+     * heatmap, which is why NO_DATA_HEX exists.
+     *
+     * Colours go through Color.setRGB(..., SRGBColorSpace) rather than being divided by 255 and
+     * written raw. three has ColorManagement enabled, so a vertex-colour buffer is LINEAR: the
+     * raw bytes for #1a222c are (0.102, 0.133, 0.173) where the correct linear values are
+     * (0.010, 0.016, 0.025). Writing them raw rendered the whole scale far too bright and made
+     * an identical joint read as roughly mid-deviation against this ramp's own legend.
+     */
     const peerSegment = deviation?.peerSegments[index];
-    if (peerSegment && deviation && deviation.peerAnimated.has(peerSegment.child.uuid)) {
+    if (!deviation) {
+      skeleton.scratch.copy(skeleton.tint);
+    } else if (peerSegment && deviation.peerAnimated.has(peerSegment.child.uuid)) {
       peerSegment.child.getWorldPosition(skeleton.peer);
       const ratio = Math.min(1, skeleton.end.distanceTo(skeleton.peer) / deviation.ceiling);
       const sample = sampleRamp(DEVIATION_RAMP, ratio);
-      r = sample.r / 255;
-      g = sample.g / 255;
-      b = sample.b / 255;
+      skeleton.scratch.setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
+    } else {
+      skeleton.scratch.set(NO_DATA_HEX);
     }
+    const r = skeleton.scratch.r;
+    const g = skeleton.scratch.g;
+    const b = skeleton.scratch.b;
     colors[offset] = r;
     colors[offset + 1] = g;
     colors[offset + 2] = b;
@@ -570,6 +591,12 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
         // Only tick trail members that are actually drawn. The single ghost was ticked even when
         // hidden, which was a small waste at N=1 and would be the dominant cost at N=3.
         if (selection.showOnion) {
+          // In loop mode every member pins to phase 0, so members beyond the first would be
+          // identical rigs stacked at increasing depth — a smeared triple image of the start pose
+          // instead of the single crisp outline the caption promises.
+          const drawn = selection.analysisMode === 'loop' ? 1 : TRAIL_LENGTH;
+          runtime.sourceTrail.forEach((member, step) => { member.model.visible = step < drawn; });
+          runtime.candidateTrail.forEach((member, step) => { member.model.visible = step < drawn; });
           runtime.sourceTrail.forEach((member, step) => {
             member.mixer.setTime(trailProgress(selection.analysisMode, progressRef.current, step + 1) * runtime.sourceClip.duration);
           });
@@ -645,6 +672,17 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       <div className="motion-stage-focus"><span>Skeleton focus</span><strong>{jointScopes.find((item) => item.id === previewFocus)?.label}</strong></div>
       <div className="motion-stage-axis" aria-hidden="true" />
       <div className="motion-stage-calibration" aria-hidden="true"><span>{analysisMode === 'timing' ? 'Shared authored clock' : analysisMode === 'loop' ? 'End pose + start outline' : analysisMode === 'root' ? 'Measured channel · root translation' : 'Normalized joint space'}</span><span>{previewLayout === 'overlay' ? 'Reference + candidate overlay' : 'Reference + candidate side by side'} · {showOnion ? analysisMode === 'loop' ? 'solid = end · wireframe = start' : 'solid = current · wireframe = previous' : 'pose outline hidden'}</span></div>
+      {/* A colour scale with no key is a magnitude claim the reader cannot check. The ceiling is
+          stated explicitly, and the unmeasured swatch is shown because "the other clip has no data
+          for this joint" is a different statement from "this joint matches". */}
+      {previewLayout === 'overlay' ? (
+        <div className="motion-deviation-legend">
+          <span>Joint separation</span>
+          <i style={{ backgroundImage: rampGradientCss(DEVIATION_RAMP) }} />
+          <span>0 &rarr; {JOINT_DEVIATION_CEILING.toFixed(2)} rig units</span>
+          <em><i className="motion-deviation-nodata" style={{ backgroundColor: NO_DATA_HEX }} />not driven by both clips</em>
+        </div>
+      ) : null}
       {status === 'loading' ? <div className="motion-stage-state"><span />Loading licensed rig and animation curves…</div> : null}
       {status === 'error' ? <div className="motion-stage-state motion-stage-state-error">The motion fixture could not be decoded.</div> : null}
     </div>

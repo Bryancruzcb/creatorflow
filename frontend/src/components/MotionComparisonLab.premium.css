@@ -1550,3 +1550,37 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Key for the joint-deviation channel. Drawn from the same DEVIATION_RAMP the segments use, so
+   the key cannot drift from the data — the gradient is set inline, never restated here. */
+.motion-deviation-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.4rem 0.6rem;
+  margin-top: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  color: var(--ink-dim);
+  background: color-mix(in srgb, var(--darkroom-panel) 82%, transparent);
+  border: 1px solid var(--darkroom-rule);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  letter-spacing: var(--track-mono);
+}
+
+.motion-deviation-legend > i {
+  width: 5rem;
+  height: 0.45rem;
+}
+
+.motion-deviation-legend em {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-style: normal;
+}
+
+.motion-deviation-legend .motion-deviation-nodata {
+  width: 0.7rem;
+  height: 0.45rem;
+}
