@@ -581,10 +581,23 @@ export function HeavyAssetViewer({
     miniSceneRef.current = miniScene;
     miniCameraRef.current = miniCamera;
 
+    /**
+     * No setDecoderPath / setTranscoderPath.
+     *
+     * Those were the only two root-absolute asset paths left in src, and they bypassed
+     * assetUrl(). Under the GitHub Pages base they resolved to /decoders/... instead of
+     * /creatorflow/decoders/..., so every compressed asset 404'd at fetch time on the deployed
+     * site while working perfectly in a local root-served build — exactly the silent failure
+     * assetUrl.ts was written to prevent.
+     *
+     * three's own defaults are correct here: DRACOLoader and KTX2Loader resolve their decoders
+     * with `new URL('../libs/...', import.meta.url)`, which the bundler rewrites to a hashed,
+     * base-aware asset URL. Deleting the overrides fixes the 404 and also makes the hand-placed
+     * copies under public/decoders/ redundant — they were 1.29 MB of payload that the runtime
+     * requested and never successfully loaded.
+     */
     const dracoLoader = new DRACOLoader();
-    dracoLoader.setDecoderPath('/decoders/draco/');
     const ktx2Loader = new KTX2Loader();
-    ktx2Loader.setTranscoderPath('/decoders/basis/');
     ktx2Loader.detectSupport(renderer);
     const loader = new GLTFLoader();
     loader.setDRACOLoader(dracoLoader);
