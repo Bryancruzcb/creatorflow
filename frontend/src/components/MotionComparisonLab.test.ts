@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { AnimationClip, QuaternionKeyframeTrack, VectorKeyframeTrack } from 'three';
-import { compareClips, trailProgress } from './MotionComparisonLab';
+import { TRAIL_SPACING, compareClips, trailProgress } from './MotionComparisonLab';
 
 function rotationTrack(name: string, middleY = 0.3826834, endY = 0.7071068) {
   return new QuaternionKeyframeTrack(
@@ -19,8 +19,10 @@ function walkClip(name = 'Walk') {
 }
 
 describe('motion comparison', () => {
-  it('clamps a previous-pose outline instead of wrapping a one-shot clip to its end', () => {
-    expect(trailProgress('shape', 0.02)).toBe(0);
+  it('never wraps a one-shot clip to its end to manufacture history', () => {
+    // Wrapping would look like motion history while asserting the clip loops — false for clips
+    // like WalkJump. With no history to show, the member is simply not drawn.
+    expect(trailProgress('shape', 0.02)).toBeNull();
     expect(trailProgress('shape', 0.5)).toBeCloseTo(0.425, 6);
     expect(trailProgress('loop', 1)).toBe(0);
   });
@@ -163,13 +165,33 @@ describe('pose trail spacing', () => {
   it('spaces members evenly backwards in phase', () => {
     const steps = [1, 2, 3].map((step) => trailProgress('shape', 0.9, step));
     expect(steps).toEqual([0.825, 0.75, 0.675].map((v) => expect.closeTo(v, 6)));
-    // strictly receding
-    expect(steps[0]).toBeGreaterThan(steps[1]);
-    expect(steps[1]).toBeGreaterThan(steps[2]);
+    // strictly receding — every member is behind the one in front of it, none null this far in
+    const drawn = steps.filter((step): step is number => step !== null);
+    expect(drawn).toHaveLength(3);
+    expect(drawn[0]).toBeGreaterThan(drawn[1]);
+    expect(drawn[1]).toBeGreaterThan(drawn[2]);
   });
 
-  it('clamps at zero instead of running negative', () => {
-    expect(trailProgress('shape', 0.05, 3)).toBe(0);
+  it('reports no history rather than clamping to the live pose', () => {
+    /**
+     * This previously asserted `toBe(0)` — it locked in the defect it was written to prevent.
+     *
+     * Clamping does not put the ghost "at the start": early in playback the live pose is also
+     * near the start, so a clamped member lands on top of the rig and reads as "this joint has
+     * not moved". With three members all three stacked there for the first 22.5% of the clip.
+     * A member with no history must not be drawn at all.
+     */
+    expect(trailProgress('shape', 0.05, 3)).toBeNull();
+    expect(trailProgress('shape', 0.05, 2)).toBeNull();
+    expect(trailProgress('shape', 0, 1)).toBeNull();
+  });
+
+  it('draws a member as soon as the clip has run far enough to have history', () => {
+    // Exactly one spacing in, member 1 has precisely zero history and is the boundary case.
+    expect(trailProgress('shape', TRAIL_SPACING, 1)).toBeCloseTo(0, 6);
+    expect(trailProgress('shape', TRAIL_SPACING * 1.5, 1)).toBeCloseTo(TRAIL_SPACING * 0.5, 6);
+    // Members fill in one at a time as the clip runs, rather than appearing all at once.
+    expect([1, 2, 3].map((step) => trailProgress('shape', 0.16, step) !== null)).toEqual([true, true, false]);
   });
 
   it('pins every member to the start pose in loop mode', () => {

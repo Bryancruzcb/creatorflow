@@ -43,7 +43,7 @@ import {
   type RootPathClipResult,
   trackMatchesJointScope,
 } from '../motion/motionAnalysis';
-import { DEVIATION_RAMP, NO_DATA_HEX, SIMILARITY_RAMP, rampGradientCss, sampleRamp, sampleRampCss } from '../motion/ramp';
+import { DEVIATION_RAMP, NO_DATA_HEX, SIMILARITY_RAMP, rampGradientCss, sampleRampCss, sampleRampInto, type RampSample } from '../motion/ramp';
 import { createStudioScene } from '../motion/sceneFoundation';
 import { useWorkspacePreferences } from '../preferences/workspacePreferences';
 import { MetadataInspector } from './MetadataInspector';
@@ -72,16 +72,28 @@ export function compareClips(source: AnimationClip, candidate: AnimationClip, op
 }
 
 /**
- * Phase for a trail member.
+ * Phase for a trail member, or `null` when that member has no history to show yet.
  *
  * `step` is how many spacings behind the live pose this member sits, so the default of 1 keeps
  * the original single-ghost behaviour exactly: progress - 0.075.
  *
+ * This used to clamp to 0, and clamping was the original defect rather than the fix for it. A
+ * member clamped to 0 does not sit "at the start" in any useful sense — early in playback the live
+ * pose is also near 0, so the ghost lands on top of the rig and reads as "this joint has not
+ * moved", which is a claim about the animation and not about the trail. With three members the
+ * clamp tripled it: all three stacked on the live pose for the first 22.5% of the clip.
+ *
+ * Returning null instead means such a member is simply not drawn. The alternative — wrapping to
+ * the tail of the clip — would look like history but assert the clip loops, which is false for
+ * clips like WalkJump and exactly the kind of invented evidence this view exists to avoid.
+ *
  * In loop mode every member pins to 0, because that mode compares the end pose against the start
  * pose and a lagging trail would be answering a different question.
  */
-export function trailProgress(mode: MotionAnalysisMode, progress: number, step = 1, spacing = TRAIL_SPACING) {
-  return mode === 'loop' ? 0 : Math.max(0, progress - step * spacing);
+export function trailProgress(mode: MotionAnalysisMode, progress: number, step = 1, spacing = TRAIL_SPACING): number | null {
+  if (mode === 'loop') return 0;
+  const phase = progress - step * spacing;
+  return phase < 0 ? null : phase;
 }
 
 function dispose(group: Group) {
@@ -155,8 +167,13 @@ const JOINT_DEVIATION_CEILING = 0.35;
  *
  * Three members per side, evenly spaced backwards in phase, fading as they recede.
  */
+interface TrailMember {
+  model: Group;
+  mixer: AnimationMixer;
+}
+
 const TRAIL_LENGTH = 3;
-const TRAIL_SPACING = 0.075;
+export const TRAIL_SPACING = 0.075;
 
 export interface ScopeSkeleton {
   line: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -210,6 +227,34 @@ export function makeScopeSkeleton(model: Group, tint: Color): ScopeSkeleton {
   line.frustumCulled = false;
   line.renderOrder = 6;
   return { line, position, color, segments, tint: tint.clone(), start: new Vector3(), end: new Vector3(), peer: new Vector3(), scratch: new Color() };
+}
+
+/**
+ * Module-level scratch for the per-segment colour path, which runs ~84 times per frame.
+ *
+ * `Color.set(NO_DATA_HEX)` re-parsed the same string every call; a prebuilt Color to copy from
+ * costs three assignments. Neither is a large win on its own — they are here because this is the
+ * one function in the app that runs per segment per rig per frame, and it previously allocated
+ * where the version it replaced allocated nothing.
+ */
+const NO_DATA_COLOR = new Color(NO_DATA_HEX);
+const rampSample: RampSample = { r: 0, g: 0, b: 0 };
+
+/**
+ * Show or hide a trail member by attaching it to the scene, not by setting `visible`.
+ *
+ * `visible = false` skips the draw but not the walk: `updateMatrixWorld` recurses into hidden
+ * subtrees regardless, so six detached-in-spirit rigs still cost a full matrix compose each per
+ * frame — roughly 444 of them on robot-expressive, paid even by someone who has switched the
+ * trail off. Detaching removes them from the traversal entirely.
+ *
+ * The mixer stays bound either way: AnimationMixer drives the object hierarchy directly and does
+ * not care whether it is currently parented to the scene.
+ */
+function setTrailAttached(member: TrailMember, holder: Object3D, attached: boolean) {
+  if (attached === (member.model.parent !== null)) return;
+  if (attached) holder.add(member.model);
+  else member.model.removeFromParent();
 }
 
 /** The uuids of the bones this clip actually animates, so the overlay can skip dead joints. */
@@ -271,10 +316,10 @@ export function updateScopeSkeleton(
     } else if (peerSegment && deviation.peerAnimated.has(peerSegment.child.uuid)) {
       peerSegment.child.getWorldPosition(skeleton.peer);
       const ratio = Math.min(1, skeleton.end.distanceTo(skeleton.peer) / deviation.ceiling);
-      const sample = sampleRamp(DEVIATION_RAMP, ratio);
-      skeleton.scratch.setRGB(sample.r / 255, sample.g / 255, sample.b / 255, SRGBColorSpace);
+      sampleRampInto(DEVIATION_RAMP, ratio, rampSample);
+      skeleton.scratch.setRGB(rampSample.r / 255, rampSample.g / 255, rampSample.b / 255, SRGBColorSpace);
     } else {
-      skeleton.scratch.set(NO_DATA_HEX);
+      skeleton.scratch.copy(NO_DATA_COLOR);
     }
     const r = skeleton.scratch.r;
     const g = skeleton.scratch.g;
@@ -327,8 +372,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
   const mixersRef = useRef<{
     source: AnimationMixer;
     candidate: AnimationMixer;
-    sourceTrail: Array<{ model: Group; mixer: AnimationMixer }>;
-    candidateTrail: Array<{ model: Group; mixer: AnimationMixer }>;
+    sourceTrail: TrailMember[];
+    candidateTrail: TrailMember[];
     sourceModel: Group;
     candidateModel: Group;
 
@@ -432,8 +477,9 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       };
       playOnce(sourceMixer, sourceClip);
       playOnce(candidateMixer, candidateClip);
-      sourceTrail.forEach((member) => { playOnce(member.mixer, sourceClip); member.model.visible = initial.showOnion; });
-      candidateTrail.forEach((member) => { playOnce(member.mixer, candidateClip); member.model.visible = initial.showOnion; });
+      // Trail members start detached; the render loop attaches the ones that have history to show.
+      sourceTrail.forEach((member) => { playOnce(member.mixer, sourceClip); setTrailAttached(member, holder, false); });
+      candidateTrail.forEach((member) => { playOnce(member.mixer, candidateClip); setTrailAttached(member, holder, false); });
       const baseX = -center.x * scale;
       const applyLayout = (layout: PreviewLayout) => {
         const offset = layout === 'overlay' ? 0 : 1.45;
@@ -553,8 +599,10 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           renderer.setPixelRatio(Math.min(devicePixelRatio, qualityCap(selection.previewQuality)));
           resize();
         }
-        runtime.sourceTrail.forEach((member) => { member.model.visible = selection.showOnion; });
-        runtime.candidateTrail.forEach((member) => { member.model.visible = selection.showOnion; });
+        if (!selection.showOnion) {
+          runtime.sourceTrail.forEach((member) => setTrailAttached(member, holder, false));
+          runtime.candidateTrail.forEach((member) => setTrailAttached(member, holder, false));
+        }
         const authoredWindow = Math.max(runtime.sourceClip.duration, runtime.candidateClip.duration);
         const sharedSeconds = progressRef.current * authoredWindow;
         const sourceTime = selection.analysisMode === 'timing'
@@ -595,14 +643,16 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           // identical rigs stacked at increasing depth — a smeared triple image of the start pose
           // instead of the single crisp outline the caption promises.
           const drawn = selection.analysisMode === 'loop' ? 1 : TRAIL_LENGTH;
-          runtime.sourceTrail.forEach((member, step) => { member.model.visible = step < drawn; });
-          runtime.candidateTrail.forEach((member, step) => { member.model.visible = step < drawn; });
-          runtime.sourceTrail.forEach((member, step) => {
-            member.mixer.setTime(trailProgress(selection.analysisMode, progressRef.current, step + 1) * runtime.sourceClip.duration);
-          });
-          runtime.candidateTrail.forEach((member, step) => {
-            member.mixer.setTime(trailProgress(selection.analysisMode, progressRef.current, step + 1) * runtime.candidateClip.duration);
-          });
+          const place = (trail: TrailMember[], clip: AnimationClip) => {
+            trail.forEach((member, step) => {
+              // null means this member sits further back than the clip has run: no history to draw.
+              const phase = step < drawn ? trailProgress(selection.analysisMode, progressRef.current, step + 1) : null;
+              setTrailAttached(member, holder, phase !== null);
+              if (phase !== null) member.mixer.setTime(phase * clip.duration);
+            });
+          };
+          place(runtime.sourceTrail, runtime.sourceClip);
+          place(runtime.candidateTrail, runtime.candidateClip);
         }
       }
       // OrbitControls.update() reports whether the camera actually moved, which covers the tail
@@ -657,6 +707,11 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       mixersRef.current?.sourceScope.line.material.dispose();
       mixersRef.current?.candidateScope.line.geometry.dispose();
       mixersRef.current?.candidateScope.line.material.dispose();
+      // Trail members are attached only while they have history to draw, so at teardown some of
+      // them are outside the holder and dispose(holder) would walk straight past them. Their
+      // geometry is cloned per member, so missing one leaks it for the life of the page.
+      mixersRef.current?.sourceTrail.forEach((member) => dispose(member.model));
+      mixersRef.current?.candidateTrail.forEach((member) => dispose(member.model));
       mixersRef.current = null;
       dispose(holder);
       studio.dispose();
@@ -666,7 +721,13 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
 
   return (
     <div className="motion-compare-stage">
-      <canvas ref={canvasRef} aria-label="Synchronized 3D comparison of source and candidate animation" />
+      {/* The canvas is the only carrier of the deviation channel, and colour is its only encoding.
+          A label that stops at "3D comparison" leaves a screen-reader user unaware the measurement
+          exists at all, so the label names the channel and its ceiling in the same units the
+          legend prints. */}
+      <canvas ref={canvasRef} aria-label={previewLayout === 'overlay'
+        ? `Synchronized 3D comparison of ${sourceName} and ${candidateName}, overlaid. Skeleton joints are coloured by how far apart the two clips place them, from dark at zero to bright at ${JOINT_DEVIATION_CEILING} normalized rig units and above. Joints the candidate clip does not animate are drawn in flat grey as unmeasured.`
+        : `Synchronized 3D comparison of ${sourceName} and ${candidateName}, side by side. Switch to overlay to colour joints by measured deviation.`} />
       <div className="motion-stage-grid" aria-hidden="true" />
       <div className="motion-stage-labels" aria-hidden="true"><span>Reference · {sourceName}</span><span>Candidate · {candidateName}</span></div>
       <div className="motion-stage-focus"><span>Skeleton focus</span><strong>{jointScopes.find((item) => item.id === previewFocus)?.label}</strong></div>
@@ -756,7 +817,15 @@ function RootPathPlot({ source, candidate, sourceName, candidateName }: {
         y1={from.y.toFixed(2)}
         x2={to.x.toFixed(2)}
         y2={to.y.toFixed(2)}
-        opacity={(0.22 + 0.78 * point.progress).toFixed(3)}
+        /**
+         * Floor of 0.35, not 0.22.
+         *
+         * At 0.22 the oldest segments composite to roughly 2.75:1 against the well — under the 3:1
+         * WCAG 1.4.11 requires of a graphical object carrying meaning, and these segments carry
+         * where the clip started. 0.35 clears it at about 3.4:1 and still leaves a 3x range for
+         * the fade to read as direction.
+         */
+        opacity={(0.35 + 0.65 * point.progress).toFixed(3)}
       />
     );
   });
@@ -1143,7 +1212,9 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
                 <span>{analysisMode === 'root' ? 'Preview focus' : 'Analyze joints'}<small>{analysisMode === 'root' ? 'Score stays locked to root translation' : 'Updates the score and skeleton highlight'}</small></span>
                 <div>{jointScopes.map((item) => <button key={item.id} type="button" aria-pressed={previewFocus === item.id} onClick={() => chooseJointScope(item.id)}>{item.label}</button>)}</div>
               </div>
-              <button className="motion-onion-toggle" type="button" aria-pressed={showOnion} onClick={() => setShowOnion((value) => !value)}><ScanSearch size={15} /><span><strong>{analysisMode === 'loop' ? 'Start-pose outline' : 'Previous-pose outline'}</strong><small>{showOnion ? 'Wireframe visible' : 'Outline hidden'}</small></span></button>
+              {/* The label has to name the count, and say when the trail is on but has nothing to
+                  draw yet — otherwise the first fifth of the clip looks like a broken toggle. */}
+              <button className="motion-onion-toggle" type="button" aria-pressed={showOnion} onClick={() => setShowOnion((value) => !value)}><ScanSearch size={15} /><span><strong>{analysisMode === 'loop' ? 'Start-pose outline' : `Pose trail · ${TRAIL_LENGTH} back`}</strong><small>{!showOnion ? 'Trail hidden' : analysisMode === 'loop' ? 'Start pose shown' : trailProgress(analysisMode, progress, 1) === null ? 'No history yet at this point' : `${[1, 2, 3].filter((step) => trailProgress(analysisMode, progress, step) !== null).length} of ${TRAIL_LENGTH} shown`}</small></span></button>
             </header>
 
             <MotionStage glbUrl={rig.glbUrl} sourceName={sourceName} candidateName={candidateName} analysisMode={analysisMode} previewFocus={previewFocus} previewLayout={previewLayout} showOnion={showOnion} previewQuality={preferences.previewQuality} onReady={setClips} progress={progress} playing={playing} onProgress={setProgress} />

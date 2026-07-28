@@ -55,27 +55,62 @@ export function relativeLuminance(hex: string) {
   return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
 }
 
-/** Sample a ramp at t in [0,1]. Returns 0-255 channels. */
-export function sampleRamp(stops: RampStop[], t: number) {
+export interface RampSample {
+  r: number;
+  g: number;
+  b: number;
+}
+
+/**
+ * Parsed stop channels, cached per ramp.
+ *
+ * `sampleRamp` used to call `hexToRgb` on both bracketing stops on every call. That is fine for a
+ * legend drawn once and wrong inside a render loop: the motion stage samples this roughly 84 times
+ * per frame, so the parse and its two objects were being repeated ~5,000 times a second to
+ * recompute five constants.
+ */
+const parsedStops = new WeakMap<RampStop[], RampSample[]>();
+
+function channelsFor(stops: RampStop[]) {
+  let parsed = parsedStops.get(stops);
+  if (!parsed) {
+    parsed = stops.map((stop) => hexToRgb(stop.hex));
+    parsedStops.set(stops, parsed);
+  }
+  return parsed;
+}
+
+/**
+ * Sample a ramp at t in [0,1] into `out`, returning it. 0-255 channels.
+ *
+ * The out-parameter exists for the render loop, which cannot afford an object per segment per rig
+ * per frame. Callers that are not in a hot path should use `sampleRamp`.
+ */
+export function sampleRampInto(stops: RampStop[], t: number, out: RampSample): RampSample {
   const clamped = Math.min(1, Math.max(0, t));
-  let lower = stops[0];
-  let upper = stops[stops.length - 1];
+  const channels = channelsFor(stops);
+  let index = stops.length - 2;
   for (let i = 0; i < stops.length - 1; i += 1) {
     if (clamped >= stops[i].at && clamped <= stops[i + 1].at) {
-      lower = stops[i];
-      upper = stops[i + 1];
+      index = i;
       break;
     }
   }
+  const lower = stops[index];
+  const upper = stops[index + 1];
   const span = upper.at - lower.at;
   const local = span <= 0 ? 0 : (clamped - lower.at) / span;
-  const a = hexToRgb(lower.hex);
-  const b = hexToRgb(upper.hex);
-  return {
-    r: a.r + (b.r - a.r) * local,
-    g: a.g + (b.g - a.g) * local,
-    b: a.b + (b.b - a.b) * local,
-  };
+  const a = channels[index];
+  const b = channels[index + 1];
+  out.r = a.r + (b.r - a.r) * local;
+  out.g = a.g + (b.g - a.g) * local;
+  out.b = a.b + (b.b - a.b) * local;
+  return out;
+}
+
+/** Sample a ramp at t in [0,1]. Returns 0-255 channels. */
+export function sampleRamp(stops: RampStop[], t: number): RampSample {
+  return sampleRampInto(stops, t, { r: 0, g: 0, b: 0 });
 }
 
 export function sampleRampCss(stops: RampStop[], t: number) {
