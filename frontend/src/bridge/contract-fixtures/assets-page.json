@@ -1,0 +1,22 @@
+{
+  "items" : [ {
+    "id" : 1,
+    "scanRunId" : "19200da6-c7e5-4090-a947-220744aab3fd",
+    "ordinal" : 1,
+    "relativePath" : "art/walk.rbxm",
+    "fileName" : "walk.rbxm",
+    "fileType" : "rbxm",
+    "sizeBytes" : 128,
+    "sha256" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "width" : 64,
+    "height" : 64,
+    "dHash" : "01",
+    "pHash" : "02",
+    "audioFingerprint" : null,
+    "verification" : "CLEAR",
+    "findings" : [ ]
+  } ],
+  "scanRunId" : "19200da6-c7e5-4090-a947-220744aab3fd",
+  "limit" : 100,
+  "offset" : 0
+}

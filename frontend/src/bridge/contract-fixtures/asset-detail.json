@@ -1,0 +1,30 @@
+{
+  "asset" : {
+    "id" : 1,
+    "scanRunId" : "19200da6-c7e5-4090-a947-220744aab3fd",
+    "ordinal" : 1,
+    "relativePath" : "art/walk.rbxm",
+    "fileName" : "walk.rbxm",
+    "fileType" : "rbxm",
+    "sizeBytes" : 128,
+    "sha256" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "width" : 64,
+    "height" : 64,
+    "dHash" : "01",
+    "pHash" : "02",
+    "audioFingerprint" : null,
+    "verification" : "CLEAR",
+    "findings" : [ ]
+  },
+  "findings" : [ ],
+  "sourceEvidence" : {
+    "id" : 1,
+    "scanAssetId" : 1,
+    "source" : null,
+    "license" : null,
+    "evidenceUrl" : null,
+    "resolved" : false,
+    "recordedAt" : "2026-07-28T20:57:06.774175900Z"
+  },
+  "latestDecision" : null
+}
