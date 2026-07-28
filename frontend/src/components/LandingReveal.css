@@ -3,7 +3,7 @@
    fully static on arrival, so the entire motion budget was spent above the fold. These only
    animate opacity and transform, so they never affect layout or cause reflow.
 
-   Scoped file rather than an addition to the 11,771-line styles.css. */
+   Scoped file rather than an addition to the main stylesheet in src/styles/. */
 
 .cf-reveal {
   opacity: 0;

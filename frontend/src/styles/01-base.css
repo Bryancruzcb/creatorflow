@@ -1,0 +1,599 @@
+:root {
+  color-scheme: dark;
+  --desk: oklch(18.02% 0.0043 128.73);
+  --graphite: oklch(21.55% 0.0059 121.94);
+  --raised: oklch(25.36% 0.0075 118.35);
+  --raised-strong: oklch(28.4% 0.0085 117);
+  --hairline: oklch(32.59% 0.0104 114.66);
+  --hairline-strong: oklch(41% 0.012 112);
+  --ink: oklch(95.42% 0.008 98.88);
+  --ink-muted: oklch(72.36% 0.0114 100.89);
+  --ink-dim: oklch(60% 0.0105 102);
+  --blue: oklch(58.5% 0.0627 249.71);
+  --blue-hover: oklch(65% 0.069 249.71);
+  --blue-down: oklch(52% 0.059 249.71);
+  --review: oklch(71.3% 0.1172 80.74);
+  --blocked: oklch(65% 0.14 33.83);
+  --clear: oklch(70% 0.058 151.39);
+  --focus: oklch(72% 0.11 249.71);
+  --font-sans: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Consolas, monospace;
+  --space-1: 0.25rem;
+  --space-2: 0.5rem;
+  --space-3: 0.75rem;
+  --space-4: 1rem;
+  /* Was referenced 11 times but never defined. Eight uses carried a `, 1.25rem` fallback; the
+     three without one (the dependency-tree indent and two panel paddings) silently computed to
+     zero, because an unresolvable var() invalidates the whole declaration. 1.25rem is what the
+     guarded uses already fell back to, and it is on-scale at 5 x 0.25rem. */
+  --space-5: 1.25rem;
+  --space-6: 1.5rem;
+  --space-8: 2rem;
+  --space-12: 3rem;
+  --space-16: 4rem;
+  --space-24: 6rem;
+
+  /* ---------------------------------------------------------------------------------------
+     TYPE SCALE
+
+     There was no type scale. 667 font-size declarations used 77 distinct values, and the
+     sub-1rem band was populated in ~0.01rem steps - 0.38, 0.39, 0.40, 0.41 ... - which at a
+     16px root is 0.16px apart. Those are not hierarchy levels, they are one-off guesses, and
+     they are why the interface reads as flat: 88% of sizes sat under 12px and 57% under 10px,
+     so nothing could be emphasised by size.
+
+     Nine steps, and a floor. --text-3xs (11px) is the smallest size anything may use; the
+     6-10px text currently in the UI is below practical legibility and is what the migration
+     replaces. Adopt these per surface - see the migration note in NEXT-IMPROVEMENTS.md.
+
+     Nothing consumes these yet, so adding them changes no rendering.
+     --------------------------------------------------------------------------------------- */
+  --text-3xs: 0.6875rem;
+  --text-2xs: 0.75rem;
+  --text-xs: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.5rem;
+  --text-2xl: 2rem;
+  --text-display: clamp(2.5rem, 1.6rem + 3.4vw, 4rem);
+
+  /* Weight had collapsed to two usable levels: 500 appeared 169 times against 3 for true bold,
+     so with the size range also compressed there was no instrument left for emphasis. */
+  --weight-normal: 400;
+  --weight-medium: 500;
+  --weight-strong: 600;
+
+  --leading-tight: 1.15;
+  --leading-snug: 1.35;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.6;
+
+  /* Only 35 letter-spacing declarations existed against 545 sub-12px font sizes. Small text,
+     and uppercase mono labels especially, need positive tracking to stay readable. */
+  --track-label: 0.14em;
+  --track-mono: 0.02em;
+  --track-normal: 0em;
+  --track-tight: -0.02em;
+  --track-tighter: -0.035em;
+  --ease-state: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-artifact: cubic-bezier(0.16, 1, 0.3, 1);
+  --motion-instant: 90ms;
+  --motion-control: 190ms;
+  --motion-panel: 420ms;
+  --motion-story: 680ms;
+  /* ---------------------------------------------------------------------------------------
+     ELEVATION
+
+     These three are the canonical set and they already existed - they had simply been
+     abandoned. --depth-focus was used 0 times and the other two once each, while 59 box-shadow
+     declarations resolved to 47 distinct one-off values, including eight near-identical large
+     ambient shadows differing only by a few px and a hundredth of alpha.
+
+     Deliberately NOT replaced with a new --elev-* scale: adding a second name for the same
+     idea is how the colour layer ended up with the same blue at six different hue angles. The
+     migration is to move the one-offs onto these, not to invent parallel names.
+     --------------------------------------------------------------------------------------- */
+  --depth-hairline: 0 1px 0 oklch(100% 0 0 / 0.025) inset;
+  --depth-raised: 0 18px 48px oklch(0% 0 0 / 0.3), 0 1px 0 oklch(100% 0 0 / 0.035) inset;
+  --depth-focus: 0 28px 80px oklch(0% 0 0 / 0.42), 0 1px 0 oklch(100% 0 0 / 0.05) inset;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  scroll-behavior: smooth;
+  background: var(--desk);
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--desk);
+  color: var(--ink);
+  font-family: var(--font-sans);
+  font-size: 1rem;
+  font-weight: 400;
+  line-height: 1.65;
+  letter-spacing: 0.006em;
+  font-kerning: normal;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+h4,
+p {
+  margin-top: 0;
+}
+
+h1,
+h2,
+h3 {
+  text-wrap: balance;
+}
+
+p {
+  text-wrap: pretty;
+}
+
+code {
+  font-family: var(--font-mono);
+  font-variant-ligatures: none;
+}
+
+.site-shell {
+  min-height: 100vh;
+  overflow: clip;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.scroll-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 70;
+  height: 2px;
+  background: var(--blue);
+  transform-origin: left;
+}
+
+.skip-link {
+  position: fixed;
+  top: var(--space-3);
+  left: var(--space-3);
+  z-index: 100;
+  padding: var(--space-2) var(--space-3);
+  background: var(--ink);
+  color: var(--desk);
+  transform: translateY(-160%);
+}
+
+.skip-link:focus {
+  transform: translateY(0);
+}
+
+.site-header {
+  position: sticky;
+  top: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 4.5rem;
+  padding: var(--space-3) max(var(--space-4), env(safe-area-inset-right)) var(--space-3) max(var(--space-4), env(safe-area-inset-left));
+  background: var(--desk);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.brand-link,
+.brand-mark,
+.nav-actions,
+.desktop-nav,
+.hero-actions,
+.hero-assurances,
+.status-mark,
+.button,
+.preflight-project,
+.preflight-scan-state,
+.release-actions,
+.release-summary {
+  display: flex;
+  align-items: center;
+}
+
+.brand-link {
+  min-height: 44px;
+}
+
+.brand-mark {
+  gap: 0.7rem;
+}
+
+.brand-glyph {
+  position: relative;
+  width: 2rem;
+  height: 2rem;
+  flex: 0 0 2rem;
+  color: var(--ink);
+}
+
+.brand-glyph i {
+  position: absolute;
+  width: 0.5rem;
+  height: 0.5rem;
+  border-color: currentColor;
+}
+
+.brand-glyph i:nth-child(1) { inset: 0 auto auto 0; border-top: 1px solid; border-left: 1px solid; }
+.brand-glyph i:nth-child(2) { inset: 0 0 auto auto; border-top: 1px solid; border-right: 1px solid; }
+.brand-glyph i:nth-child(3) { inset: auto auto 0 0; border-bottom: 1px solid; border-left: 1px solid; }
+.brand-glyph i:nth-child(4) { inset: auto 0 0 auto; border-right: 1px solid; border-bottom: 1px solid; }
+.brand-glyph b { position: absolute; inset: 50% auto auto 50%; font-family: var(--font-mono); font-size: 1.1rem; font-weight: 400; transform: translate(-50%, -53%); }
+
+.brand-name {
+  font-size: 1.05rem;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+
+.desktop-nav,
+.nav-github,
+.nav-primary {
+  display: none;
+}
+
+.nav-actions {
+  gap: var(--space-3);
+}
+
+.mobile-menu-button {
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  color: var(--ink);
+  background: var(--graphite);
+  border: 1px solid var(--hairline);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.mobile-nav {
+  position: absolute;
+  top: calc(100% + 1px);
+  right: var(--space-4);
+  left: var(--space-4);
+  display: grid;
+  padding: var(--space-2);
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: 0 22px 55px oklch(0% 0 0 / 0.4);
+}
+
+.mobile-nav a,
+.mobile-nav button {
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  color: var(--ink);
+  text-align: left;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.mobile-nav a:hover,
+.mobile-nav button:hover {
+  background: var(--raised);
+}
+
+.button {
+  justify-content: center;
+  gap: var(--space-2);
+  min-height: 44px;
+  padding: 0.7rem 1.05rem;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  font-weight: 500;
+  letter-spacing: 0;
+  cursor: pointer;
+  transition: background-color 180ms var(--ease-state), border-color 180ms var(--ease-state), color 180ms var(--ease-state), transform 100ms var(--ease-state);
+}
+
+.button:hover:not(:disabled) {
+  transform: translateY(-1px);
+}
+
+.button:active:not(:disabled) {
+  transform: translateY(0) scale(0.985);
+}
+
+.button:disabled {
+  color: var(--ink-dim);
+  background: var(--raised);
+  border-color: var(--hairline);
+  cursor: not-allowed;
+  opacity: 0.72;
+}
+
+.button-primary {
+  color: var(--ink);
+  background: var(--blue);
+  border-color: var(--blue);
+}
+
+.button-primary:hover:not(:disabled) {
+  background: var(--blue-hover);
+  border-color: var(--blue-hover);
+}
+
+.button-primary:active:not(:disabled) {
+  background: var(--blue-down);
+}
+
+.button-secondary {
+  color: var(--ink);
+  background: var(--graphite);
+  border-color: var(--hairline-strong);
+}
+
+.button-secondary:hover:not(:disabled) {
+  background: var(--raised);
+  border-color: var(--ink-dim);
+}
+
+.section-index,
+.hero-kicker,
+.workflow-output span,
+.dossier-sheet > span,
+.preflight-controls,
+.asset-ledger th,
+.decision-title code,
+.decision-meta dt {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  font-weight: 400;
+  line-height: 1.45;
+  color: var(--ink-dim);
+}
+
+.section-index,
+.hero-kicker {
+  margin-bottom: var(--space-4);
+  color: var(--ink-muted);
+}
+
+.hero-section,
+.workflow-section,
+.atlas-section,
+.dossier-section,
+.why-section,
+.sample-preflight,
+.closing-section,
+.site-footer {
+  width: min(100%, 96rem);
+  margin-inline: auto;
+  padding-inline: clamp(1.1rem, 4vw, 4.5rem);
+}
+
+.hero-section {
+  display: grid;
+  align-items: center;
+  min-height: calc(100svh - 4.5rem);
+  padding-top: var(--space-16);
+  padding-bottom: var(--space-16);
+}
+
+.hero-copy {
+  position: relative;
+  z-index: 3;
+  max-width: 42rem;
+}
+
+.hero-copy h1 {
+  margin-bottom: var(--space-6);
+  font-size: clamp(3.4rem, 17vw, 5.75rem);
+  font-weight: 400;
+  line-height: 0.96;
+  letter-spacing: -0.04em;
+}
+
+.hero-lead {
+  max-width: 38rem;
+  margin-bottom: var(--space-8);
+  color: var(--ink-muted);
+  font-size: 1.06rem;
+  line-height: 1.72;
+}
+
+.hero-actions {
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.hero-roblox-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-8);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  line-height: 1.5;
+}
+
+.hero-roblox-path i {
+  flex: 0 0 1.25rem;
+  height: 1px;
+  background: var(--hairline-strong);
+}
+
+.hero-assurances {
+  flex-wrap: wrap;
+  gap: var(--space-3) var(--space-6);
+  padding-top: var(--space-4);
+  color: var(--ink-muted);
+  border-top: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+}
+
+.hero-assurances span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.hero-workspace-wrap {
+  position: relative;
+  width: calc(100% + 1.1rem);
+  min-height: 28rem;
+  margin-top: var(--space-12);
+}
+
+.hero-workspace {
+  position: relative;
+  z-index: 4;
+  overflow: hidden;
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 6px;
+  box-shadow: 0 30px 80px oklch(0% 0 0 / 0.42);
+  transform-style: preserve-3d;
+  will-change: transform;
+}
+
+.workspace-evidence {
+  position: relative;
+  overflow: hidden;
+}
+
+.workspace-evidence::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -1px;
+  width: 1px;
+  background: var(--blue-hover);
+  box-shadow: 0 0 20px oklch(65% 0.069 249.71 / 0.42);
+  content: '';
+  opacity: 0.58;
+  animation: workspace-scan 4.8s var(--ease-artifact) infinite;
+  pointer-events: none;
+}
+
+@keyframes workspace-scan {
+  0%, 14% { transform: translateX(0); opacity: 0; }
+  22% { opacity: 0.6; }
+  72% { opacity: 0.35; }
+  88%, 100% { transform: translateX(52rem); opacity: 0; }
+}
+
+.workspace-evidence {
+  min-width: 0;
+  border-right: 1px solid var(--hairline);
+}
+
+.evidence-row.selected {
+  background: var(--raised);
+}
+
+.evidence-asset .asset-art {
+  width: 2.4rem;
+  height: 2rem;
+  flex: 0 0 2.4rem;
+  object-fit: cover;
+  border: 1px solid var(--hairline);
+}
+
+.workspace-decision .button {
+  width: 100%;
+  min-height: 36px;
+  margin-top: var(--space-2);
+  padding: 0.35rem;
+  font-size: 0.63rem;
+}
+
+.asset-art {
+  display: block;
+  width: 100%;
+  height: auto;
+  background: var(--graphite);
+}
+
+.asset-art-model {
+  object-fit: cover;
+  object-position: center;
+}
+
+.workflow-section,
+.dossier-section,
+.why-section,
+.sample-preflight,
+.closing-section {
+  padding-top: var(--space-24);
+  padding-bottom: var(--space-24);
+}
+
+.workflow-section {
+  border-top: 1px solid var(--hairline);
+}
+
+.workflow-heading {
+  max-width: 50rem;
+  margin-bottom: var(--space-12);
+}
+
+.workflow-heading h2,
+.dossier-copy h2,
+.why-statement h2,
+.sample-intro h2,
+.closing-section h2 {
+  margin-bottom: var(--space-6);
+  font-size: clamp(2.25rem, 8vw, 4.6rem);
+  font-weight: 400;
+  line-height: 1.04;
+  letter-spacing: -0.035em;
+}
+

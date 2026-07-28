@@ -17,7 +17,7 @@ than taste, and the reasoning is not obvious from the code.
 
 ## Type-scale migration — in progress
 
-A type scale, weight, leading and tracking token set now exists in `styles.css`'s `:root`, plus
+A type scale, weight, leading and tracking token set now exists in `src/styles/01-base.css`'s `:root`, plus
 notes on the elevation tokens. **Step 1 (defining them) is done and changed no rendering.** What
 remains is adopting them, which is the part that changes how the app looks.
 
@@ -60,9 +60,12 @@ Two rules that matter more than the mapping:
 
 ## Still open
 
-1. **`src/styles.css` is a ~11.7k-line monolith** with four `*.premium.css` override files beside
-   it, and contains verified-dead selectors. Splitting it into tokens plus feature-scoped styles is
-   the largest cleanup left in this workspace. The token layer above is the first step of it.
+1. **`src/styles/` is split but not yet organised.** The 11,978-line monolith is now eleven ordered
+   slabs (`src/styles/index.css`), verified byte-identical in the built output. That is the safe
+   half: the numbering is load-bearing, because several rules win on source order rather than
+   specificity. What remains is the part that cannot be done mechanically — consolidating features
+   whose rules are scattered across slabs, and deleting the verified-dead selectors. Each move
+   needs a specificity check, since relocating a rule changes when it applies.
 2. **Colour contrast, landmarks and heading order have no gate.** `npm run test:audit` now covers
    accessible names and the type floor across 16 surfaces, but it is deliberately scoped to those:
    a gate that fails on hundreds of pre-existing contrast findings gets switched off. Those rules
