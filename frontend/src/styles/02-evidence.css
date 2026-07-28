@@ -99,6 +99,7 @@
   isolation: isolate;
 }
 
+
 .dossier-sheet {
   position: absolute;
   overflow: hidden;
@@ -196,6 +197,57 @@
   border-radius: 50%;
   transform: translateX(-50%);
 }
+
+/**
+ * Below the tablet breakpoint the stack becomes a list.
+ *
+ * The overlapping-papers composition is built from absolutely positioned sheets at percentage
+ * widths, which only works while there is width to overlap INTO. On a phone, 58% of the viewport
+ * is about 226px: every panel clipped its own content, the manifest ran off the right edge, and
+ * the whole thing read as a rendering fault rather than a layout. There is no version of a
+ * three-sheet overlap that works at 390px, so it stops being one.
+ */
+@media (max-width: 48rem) {
+  .dossier-stage {
+    display: grid;
+    gap: var(--space-4);
+    min-height: 0;
+  }
+
+  .dossier-sheet,
+  .dossier-sprite,
+  .dossier-license,
+  .dossier-manifest {
+    position: static;
+    width: auto;
+    /* The tilt is what pushed content past the clip edge; flat is the only honest option here. */
+    transform: none;
+  }
+
+  .dossier-manifest {
+    top: auto;
+    right: auto;
+    bottom: auto;
+    left: auto;
+    min-height: 0;
+    padding: var(--space-4);
+  }
+
+  .dossier-manifest > span {
+    margin: calc(var(--space-4) * -1) calc(var(--space-4) * -1) var(--space-3);
+  }
+
+  .dossier-manifest h3 {
+    margin-bottom: var(--space-4);
+    font-size: 1.6rem;
+  }
+
+  /* The pin is a desk-metaphor detail on a stack that no longer stacks. */
+  .manifest-pin {
+    display: none;
+  }
+}
+
 
 .why-section {
   display: grid;
