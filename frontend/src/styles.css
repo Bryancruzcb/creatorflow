@@ -9092,6 +9092,23 @@ code {
   font-size: var(--text-3xs);
 }
 
+/* Coverage sits at full ink, not muted: it qualifies the average directly above it, and a caveat
+   printed fainter than the number it qualifies is a caveat designed not to be read. The swatch is
+   the same NO_DATA colour those vertices are painted, so the sentence and the model agree. */
+.surface-heatmap-coverage {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--ink) !important;
+}
+
+.surface-heatmap-coverage > i {
+  flex: none;
+  width: 0.625rem;
+  height: 0.625rem;
+  border: 1px solid var(--hairline-strong);
+}
+
 .viewer-comparison-dock {
   position: absolute;
   z-index: 6;
@@ -9153,17 +9170,25 @@ code {
   background: var(--desk);
   border: 1px solid var(--hairline-strong);
   font-family: var(--font-mono);
-  font-size: 0.54rem;
+  font-size: var(--text-3xs);
   transform: translate(-50%, -50%);
 }
 
-.subasset-comparison-loading span {
+/* Class-scoped, not `… span`. The status sentence and the progress readout are now separate spans
+   inside this box, and a descendant selector turned every one of them into a spinning circle. */
+.subasset-comparison-loading > .comparison-spinner {
+  flex: none;
   width: 0.5rem;
   height: 0.5rem;
   border: 1px solid var(--blue-hover);
   border-top-color: transparent;
   border-radius: 50%;
   animation: model-loading 0.85s linear infinite;
+}
+
+.subasset-comparison-progress {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 .heavy-viewer-comparing canvas {
