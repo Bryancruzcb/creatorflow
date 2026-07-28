@@ -3704,7 +3704,11 @@ code {
 .workspace-table-view > header span {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.57rem;
+  /* Shared mono label used across the status strip, metrics, browser headers and table headers.
+     At 0.57rem it rendered at 9.12px on every surface that uses it, including the local project
+     overview — which is how it turned up in a pass scoped to `.local-*`: a surface is what
+     renders, not what shares a class prefix. --text-3xs is the band these belong to. */
+  font-size: var(--text-3xs);
 }
 
 .project-status-strip > div:first-child > strong {
@@ -4823,7 +4827,7 @@ code {
   background: var(--desk);
   border: 1px solid var(--hairline);
   font-family: var(--font-mono);
-  font-size: 0.48rem;
+  font-size: var(--text-3xs);
 }
 
 .imported-ledger td strong,
@@ -5613,6 +5617,12 @@ code {
 .local-ownership-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1) var(--space-3); margin: 0; }
 .local-ownership-facts dt { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-2xs); }
 .local-ownership-facts dd { margin: 0.1rem 0 0; overflow-wrap: anywhere; color: var(--ink); font-size: var(--text-sm); }
+/* <small> carries a UA `font-size: smaller`, so it shrinks to ~0.8x its parent without any rule
+   in this file ever saying so. That is why grepping declarations cannot find these: the 12px
+   `dd` above produced 10px text with no 10px anywhere in the source. Pinned rather than left to
+   the UA — and expect this on every surface that puts a <small> inside sized text. */
+.local-ownership-facts dd small,
+.local-asset-inspector dd small { font-size: var(--text-3xs); }
 .local-ownership-form > small[role="alert"] { color: var(--blocked); }
 
 .local-releases-workspace {
