@@ -3,13 +3,13 @@
 Standing quality gates that run against **rendered** pages, not against source.
 
 ```
-npm run test:audit          # both gates, all 16 surfaces
+npm run test:audit          # all six gates, all 16 surfaces
 npm run harness             # just the harness, at http://127.0.0.1:4176
 ```
 
 ## Why these exist
 
-Both gates were added after review findings that `vitest`, `tsc` and the e2e suite could not
+Each gate was added after a review finding that `vitest`, `tsc` and the e2e suite could not
 possibly have caught:
 
 - A verdict headline authored at `16px` **rendered at `12px`**, because
@@ -130,14 +130,47 @@ Tab order, focus visibility and roving-tabindex behaviour across the app remain 
 
 Runs axe-core restricted to **accessible-name and announceability rules**, on all 16 surfaces.
 
-Deliberately not a full WCAG sweep. A gate that fails on 200 pre-existing colour-contrast
-findings gets switched off within a week, and a gate that is off catches nothing. Contrast,
-landmarks and heading order deserve their own pass with their own baseline.
+Deliberately not a full WCAG sweep. A gate that fails on hundreds of pre-existing colour-contrast
+findings gets switched off within a week, and a gate that is off catches nothing. Landmarks and
+heading order still deserve their own pass with their own baseline.
+
+Contrast has since got one — see below. This section used to justify the exclusion with "200
+pre-existing findings", a number nobody had measured; the real figure was 332, and counting them
+properly is what showed they were only fourteen colour pairs, which is what made the gate
+tractable at all.
 
 Verified to actually fail: injecting `<button></button>`, an `<img>` with no `alt`, and a bare
 `<input>` produces `button-name`, `image-alt` and `label` violations. Worth re-checking if this
 ever goes green after a large refactor — `withRules` silently evaluates nothing if a rule name is
 misspelled.
+
+## `contrast.spec.ts`
+
+Colour contrast at the real WCAG AA thresholds, on all 16 surfaces — **baselined on colour pairs,
+not on surfaces.**
+
+That distinction is the whole gate. There were 332 findings across the sixteen surfaces, and they
+were **fourteen distinct colour pairs**: the colour layer is tokenised, so the same few pairs
+repeat everywhere. A surface-level baseline would have exempted every page in the app and tested
+nothing. A pair-level one still fails the moment a new bad colour appears anywhere — and it
+emptied out almost entirely when one token moved, because twelve of the fourteen were `--ink-dim`
+on a near-black background. Raising that token took the list from fourteen pairs to two.
+
+Ratios in `KNOWN_PAIRS` are recomputed from the hex at assertion time, so the numbers in the file
+cannot drift from the colours in it. Same ratchet rule as the other gates: entries come off when a
+token is fixed, nothing goes on.
+
+The two left are one token doing two jobs. `--blue` is both a filled-button background (needs to be
+darker so white text clears 4.5) and an accent text colour on dark surfaces (needs to be lighter);
+darkening it to 52% trades a 3.66 failure for a 3.43 one. Splitting it into a solid and an accent
+token is the real fix and a visible design change, so it is recorded rather than smuggled into a
+test change.
+
+Nodes axe cannot resolve — text over the WebGL hero, over gradients, over images — are reported
+separately and budgeted, but **only on surfaces with no live canvas.** On canvas surfaces the count
+depends on what the renderer has painted when axe looks: the landing hero measured 66 solo and 79
+under parallel workers, same build. A budget on a number that moves is a flaky gate, and a flaky
+gate gets deleted.
 
 ## The harness (`../harness/`)
 
