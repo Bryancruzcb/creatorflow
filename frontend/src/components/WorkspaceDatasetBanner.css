@@ -5,13 +5,13 @@
   padding: 0.7rem 0.9rem;
   margin-bottom: var(--space-4, 1rem);
   border: 1px solid var(--hairline);
-  border-left: 3px solid var(--hairline-strong);
   border-radius: 11px;
   background: var(--graphite);
 }
-.workspace-dataset-banner.mode-sample { border-left-color: var(--review); }
-.workspace-dataset-banner.mode-local { border-left-color: var(--clear); }
-.workspace-dataset-banner.mode-imported { border-left-color: var(--blue); }
+/* Deliberately uncoloured. --review (amber) and --clear (green) are VERDICT colours in this
+   product: they mean a finding needs a human, or that one passed. Spending them on "where did
+   this data come from" made a neutral fact shout like a result, and made the amber mean two
+   different things on the same screen. The mode is carried by the icon and the word. */
 
 .workspace-dataset-badge {
   display: inline-flex;
@@ -19,7 +19,7 @@
   gap: 0.4rem;
   flex: none;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-3xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   padding: 0.35rem 0.6rem;
@@ -28,18 +28,16 @@
   color: var(--ink-muted);
   background: var(--raised);
 }
-.mode-sample .workspace-dataset-badge { color: var(--review); border-color: oklch(71.3% 0.1172 80.74 / 0.4); background: oklch(71.3% 0.1172 80.74 / 0.1); }
-.mode-local .workspace-dataset-badge { color: var(--clear); border-color: oklch(70% 0.058 151.39 / 0.4); background: oklch(70% 0.058 151.39 / 0.1); }
-.mode-imported .workspace-dataset-badge { color: var(--blue-hover); border-color: oklch(58.5% 0.0627 249.71 / 0.45); background: oklch(58.5% 0.0627 249.71 / 0.1); }
+
 
 .workspace-dataset-copy { min-width: 0; flex: 1 1 auto; }
-.workspace-dataset-copy strong { display: block; font-size: 0.9rem; }
-.workspace-dataset-copy small { display: block; margin-top: 0.1rem; color: var(--ink-dim); font-size: 0.8rem; }
+.workspace-dataset-copy strong { display: block; font-size: var(--text-sm); font-weight: var(--weight-medium); }
+.workspace-dataset-copy small { display: block; margin-top: 0.1rem; color: var(--ink-dim); font-size: var(--text-xs); }
 
 .workspace-dataset-switch {
   flex: none;
   font: inherit;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   color: var(--ink);
   background: var(--raised);
   border: 1px solid var(--hairline-strong);

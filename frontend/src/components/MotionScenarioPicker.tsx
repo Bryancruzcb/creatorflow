@@ -78,7 +78,7 @@ export function MotionScenarioPicker({ sourceName, candidateName, onSelect, scen
         <div>
           <span className="motion-scenario-kicker"><Layers size={14} /> Similarity scenarios</span>
           <h2>See the whole range, not one score.</h2>
-          <p>This rig's clips, framed as the relationships a Roblox creator meets. The band on each is computed live by the engine — click one to load it into the comparison below.</p>
+          <p>Click a card to load that pair below. Bands are computed live.</p>
         </div>
       </header>
 
@@ -113,7 +113,7 @@ export function MotionScenarioPicker({ sourceName, candidateName, onSelect, scen
           <div className="motion-scenario-facts-shared">
             <div><span>Shared joints</span><strong>{result.commonTracks}</strong></div>
             <div><span>Coverage</span><strong>{result.coverage}%</strong></div>
-            <div className="wide"><span>Live verdict</span><strong>{result.verdict}</strong></div>
+            <div className="wide"><span>Live reading</span><strong>{result.verdict}</strong></div>
           </div>
         </div>
       ) : null}

@@ -1,4 +1,5 @@
 import { deflateSync } from 'node:zlib';
+import { statSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { copyFileSync, existsSync, mkdirSync, openSync, closeSync, writeFileSync, writeSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
@@ -30,6 +31,53 @@ function pngChunk(type, data) {
   const checksum = Buffer.alloc(4);
   checksum.writeUInt32BE(crc32(Buffer.concat([name, data])));
   return Buffer.concat([length, name, data, checksum]);
+}
+
+/** HSL to 0-255 RGB. Small helper so the texture palette can walk the hue circle. */
+function hsl(h, sat, light) {
+  const c = (1 - Math.abs(2 * light - 1)) * sat;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = light - c / 2;
+  const [r, g, b] = h < 60 ? [c, x, 0] : h < 120 ? [x, c, 0] : h < 180 ? [0, c, x]
+    : h < 240 ? [0, x, c] : h < 300 ? [x, 0, c] : [c, 0, x];
+  return [Math.round((r + m) * 255), Math.round((g + m) * 255), Math.round((b + m) * 255)];
+}
+
+/**
+ * A distinct texture per index: five patterns across the hue circle.
+ *
+ * Written per-pixel rather than per-row (which is what makePng does) because a row-repeated image
+ * can only ever be vertical stripes — twenty-four of those still read as one texture.
+ */
+function makeTexture(width, height, hue, index) {
+  const signature = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]);
+  const ihdr = Buffer.alloc(13);
+  ihdr.writeUInt32BE(width, 0);
+  ihdr.writeUInt32BE(height, 4);
+  ihdr[8] = 8;
+  ihdr[9] = 2;
+  const base = hsl(hue, 0.42, 0.46);
+  const alt = hsl((hue + 28) % 360, 0.5, 0.62);
+  const pattern = index % 5;
+  const raw = Buffer.alloc((1 + width * 3) * height);
+  for (let y = 0; y < height; y += 1) {
+    const rowStart = y * (1 + width * 3);
+    raw[rowStart] = 0;
+    for (let x = 0; x < width; x += 1) {
+      let on;
+      if (pattern === 0) on = ((x >> 3) + (y >> 3)) % 2 === 0;                    // checker
+      else if (pattern === 1) on = ((x + y) >> 3) % 2 === 0;                      // diagonal bands
+      else if (pattern === 2) on = ((x * x + y * y) >> 7) % 2 === 0;              // concentric
+      else if (pattern === 3) on = (x >> 2) % 3 === 0 || (y >> 2) % 3 === 0;      // grid lines
+      else on = ((x ^ y) >> 3) % 2 === 0;                                          // xor weave
+      const c = on ? alt : base;
+      const p = rowStart + 1 + x * 3;
+      raw[p] = c[0];
+      raw[p + 1] = c[1];
+      raw[p + 2] = c[2];
+    }
+  }
+  return Buffer.concat([signature, pngChunk('IHDR', ihdr), pngChunk('IDAT', deflateSync(raw, { level: 9 })), pngChunk('IEND', Buffer.alloc(0))]);
 }
 
 function makePng(width, height, rgb = [90, 116, 137]) {
@@ -177,14 +225,37 @@ ensure(join(multi, 'textures/environment'));
 ensure(join(multi, 'textures/props'));
 writeFileSync(join(multi, 'buffers/geometry.bin'), Buffer.alloc(256 * 1024, 31));
 writeFileSync(join(multi, 'buffers/animation.bin'), Buffer.alloc(96 * 1024, 17));
-const tinyPng = makePng(32, 32);
+/**
+ * Twenty-four DISTINCT textures.
+ *
+ * This wrote one 32x32 image twenty-four times, so every entry in the dependency tree previewed
+ * as the same grey-blue swatch and the panel looked broken rather than populated. The point of
+ * the fixture is a project with many separate dependencies; identical bytes also made every file
+ * hash the same, which quietly undermined the one thing the tree is demonstrating.
+ *
+ * The palette walks the hue circle so neighbours in the list are visibly different, and the
+ * pattern varies by index so they are not merely recoloured copies.
+ */
 const images = [];
 for (let index = 0; index < 24; index += 1) {
   const group = index < 12 ? 'environment' : 'props';
   const uri = `textures/${group}/texture_${String(index + 1).padStart(2, '0')}.png`;
-  writeFileSync(join(multi, uri), tinyPng);
+  const hue = (index * 137.5) % 360;             // golden angle: adjacent entries never adjacent in hue
+  writeFileSync(join(multi, uri), makeTexture(64, 64, hue, index));
   images.push({ uri });
 }
+/**
+ * Real byte sizes, written out for the UI.
+ *
+ * The dependency tree used to print a hard-coded 178 B against every texture, which was true only
+ * while all twenty-four files were the same image. Distinct textures compress to distinct sizes
+ * (164-494 B), so the number has to come from the files rather than from a constant — a fixture
+ * that demonstrates dependency inspection must not misreport what it inspected.
+ */
+writeJson(join(multi, 'texture-sizes.json'), Object.fromEntries(
+  images.map(({ uri }) => [uri, statSync(join(multi, uri)).size]),
+));
+
 writeJson(join(multi, 'world.gltf'), {
   asset: { version: '2.0', generator: 'CreatorFlow dependency stress fixture' },
   buffers: [{ uri: 'buffers/geometry.bin', byteLength: 262_144 }, { uri: 'buffers/animation.bin', byteLength: 98_304 }],

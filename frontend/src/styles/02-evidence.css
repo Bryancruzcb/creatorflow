@@ -95,7 +95,7 @@
  */
 .dossier-stage {
   position: relative;
-  min-height: 42rem;
+  min-height: 52rem;
   isolation: isolate;
 }
 
@@ -113,10 +113,12 @@
   border-bottom: 1px solid var(--hairline);
 }
 
+/* Flush to the stage edge, not overhanging it. At left: -1rem the tilt pushed the first character
+   of every track label past the clip boundary, which is most of what read as "glitchy". */
 .dossier-sprite {
   z-index: 2;
   top: 0;
-  left: -1rem;
+  left: 0;
   width: 58%;
   transform: rotate(-1.5deg);
 }
@@ -124,7 +126,7 @@
 .dossier-license {
   z-index: 3;
   bottom: 0;
-  left: -1rem;
+  left: 0;
   width: 58%;
   transform: rotate(1.5deg);
 }
@@ -134,8 +136,8 @@
    two record panels, which are now legible artefacts rather than texture, keep their left edge. */
 .dossier-manifest {
   z-index: 5;
-  top: 9rem;
-  right: -1rem;
+  top: 14rem;
+  right: 0;
   width: 44%;
   min-height: 21rem;
   padding: var(--space-6);

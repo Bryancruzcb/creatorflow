@@ -3,7 +3,9 @@ import { similarityBand } from './motionScenarios';
 
 describe('similarity band', () => {
   it('maps a live outcome to the engine\'s bands', () => {
-    expect(similarityBand(true, 100)).toEqual({ label: 'Exact curve data', tone: 'exact' });
+    // Labels are one word: they sit beside a percentage in a narrow card, and the longer
+    // phrasing squeezed the card title until it broke one word per line.
+    expect(similarityBand(true, 100)).toEqual({ label: 'Exact', tone: 'exact' });
     expect(similarityBand(false, 94).tone).toBe('high');
     expect(similarityBand(false, 78).tone).toBe('moderate');
     expect(similarityBand(false, 40).tone).toBe('low');

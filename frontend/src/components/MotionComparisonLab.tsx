@@ -55,10 +55,10 @@ type MotionCategory = 'Locomotion' | 'States' | 'Actions' | 'Gestures';
 type PreviewLayout = 'side' | 'overlay';
 
 const analysisModes: Array<{ id: MotionAnalysisMode; label: string; detail: string }> = [
-  { id: 'shape', label: 'Motion shape', detail: 'Normalize each duration to compare the sequence of poses independently of playback speed.' },
-  { id: 'timing', label: 'Timing drift', detail: 'Put both clips on the same authored clock to reveal when poses stop lining up.' },
-  { id: 'loop', label: 'Loop seam', detail: 'Compare endpoint pose closure and incoming/outgoing joint velocity to find a visible loop pop.' },
-  { id: 'root', label: 'Root path', detail: 'Align available root or body-translation paths, then compare travel and drift.' },
+  { id: 'shape', label: 'Motion shape', detail: 'Compares the order of poses, ignoring playback speed.' },
+  { id: 'timing', label: 'Timing drift', detail: 'Runs both clips on one authored clock to show where timing drifts.' },
+  { id: 'loop', label: 'Loop seam', detail: 'Checks whether the end pose and velocity meet the start cleanly.' },
+  { id: 'root', label: 'Root path', detail: 'Compares root travel and drift, separately from pose.' },
 ];
 
 const jointScopes: Array<{ id: MotionJointScope; label: string }> = [
@@ -276,6 +276,67 @@ function animatedBoneUuids(model: Object3D, clip: AnimationClip): Set<string> {
     if (node) uuids.add(node.uuid);
   }
   return uuids;
+}
+
+/**
+ * The similarity strip, made draggable.
+ *
+ * Pointer capture rather than window listeners: the pointer routinely leaves a 16px-tall strip
+ * mid-drag, and without capture the scrub would stop the moment it did — the failure that makes a
+ * homemade scrubber feel broken next to a video player's.
+ */
+function FrameScrubber({ scores, progress, onSeek, label }: {
+  scores: number[];
+  progress: number;
+  onSeek: (progress: number) => void;
+  label: string;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const seekFromPointer = (clientX: number) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    onSeek(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)));
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      className="motion-frame-strip"
+      role="slider"
+      tabIndex={0}
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+      aria-valuetext={`${Math.round(progress * 100)} percent through the clip`}
+      style={{ '--sample-count': scores.length } as CSSProperties}
+      onPointerDown={(event) => {
+        // Ignore secondary buttons so a right-click context menu does not yank the playhead.
+        if (event.button !== 0) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        seekFromPointer(event.clientX);
+      }}
+      onPointerMove={(event) => {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        seekFromPointer(event.clientX);
+      }}
+      onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+      onKeyDown={(event) => {
+        // Arrow keys are frame stepping at the workbench level; this widget owns coarse seeking,
+        // so it takes Home/End and PageUp/PageDown and lets the arrows bubble.
+        if (event.key === 'Home') { event.preventDefault(); onSeek(0); }
+        else if (event.key === 'End') { event.preventDefault(); onSeek(1); }
+        else if (event.key === 'PageUp') { event.preventDefault(); onSeek(Math.min(1, progress + 0.1)); }
+        else if (event.key === 'PageDown') { event.preventDefault(); onSeek(Math.max(0, progress - 0.1)); }
+      }}
+    >
+      {scores.map((score, index) => (
+        <i key={index} style={scoreStyle(Math.round(score * 100))} title={`Sample ${index + 1}: ${Math.round(score * 100)}% agreement`} />
+      ))}
+      <span style={{ left: `${progress * 100}%` }} />
+    </div>
+  );
 }
 
 export function updateScopeSkeleton(
@@ -805,7 +866,7 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       <div className="motion-stage-labels" aria-hidden="true"><span>Reference · {sourceName}</span><span>Candidate · {candidateName}</span></div>
       <div className="motion-stage-focus"><span>Skeleton focus</span><strong>{jointScopes.find((item) => item.id === previewFocus)?.label}</strong></div>
       <div className="motion-stage-axis" aria-hidden="true" />
-      <div className="motion-stage-calibration" aria-hidden="true"><span>{analysisMode === 'timing' ? 'Shared authored clock' : analysisMode === 'loop' ? 'End pose + start outline' : analysisMode === 'root' ? 'Measured channel · root translation' : 'Normalized joint space'}</span><span>{previewLayout === 'overlay' ? 'Reference + candidate overlay' : 'Reference + candidate side by side'} · {showOnion ? analysisMode === 'loop' ? 'solid = end pose · skeleton = start pose' : 'solid = current pose · skeleton = where joints were' : 'pose trail hidden'}</span></div>
+      <div className="motion-stage-calibration" aria-hidden="true"><span>{analysisMode === 'timing' ? 'Shared authored clock' : analysisMode === 'loop' ? 'End pose + start outline' : analysisMode === 'root' ? 'Root translation' : 'Normalized joint space'}</span><span>{previewLayout === 'overlay' ? 'Overlay' : 'Side by side'} · {showOnion ? analysisMode === 'loop' ? 'solid = end pose · skeleton = start pose' : 'skeleton = where joints were' : 'pose trail hidden'}</span></div>
       {/* A colour scale with no key is a magnitude claim the reader cannot check. The ceiling is
           stated explicitly, and the unmeasured swatch is shown because "the other clip has no data
           for this joint" is a different statement from "this joint matches". */}
@@ -817,8 +878,8 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           <em><i className="motion-deviation-nodata" style={{ backgroundColor: NO_DATA_HEX }} />not driven by both clips</em>
         </div>
       ) : null}
-      {status === 'loading' ? <div className="motion-stage-state"><span />Loading licensed rig and animation curves…</div> : null}
-      {status === 'error' ? <div className="motion-stage-state motion-stage-state-error">The motion fixture could not be decoded.</div> : null}
+      {status === 'loading' ? <div className="motion-stage-state"><span />Loading rig and animation curves…</div> : null}
+      {status === 'error' ? <div className="motion-stage-state motion-stage-state-error">This rig file could not be decoded.</div> : null}
     </div>
   );
 }
@@ -848,7 +909,7 @@ function RootPathPlot({ source, candidate, sourceName, candidateName }: {
   candidateName: string;
 }) {
   if (!source.available || !candidate.available) {
-    return <div className="motion-root-unavailable"><ScanSearch size={17} /><span><strong>Root translation is unavailable.</strong><small>The local fixture needs a Body, Hips, Pelvis, Root, or HumanoidRootPart position track in both clips.</small></span></div>;
+    return <div className="motion-root-unavailable"><ScanSearch size={17} /><span><strong>Root translation is unavailable.</strong><small>Both clips need a Body, Hips, Pelvis, Root, or HumanoidRootPart position track.</small></span></div>;
   }
   const all = [...source.points, ...candidate.points];
   const xs = all.map((point) => point.x);
@@ -923,16 +984,16 @@ function RootPathPlot({ source, candidate, sourceName, candidateName }: {
   const candidateInPlace = travelOf(candidate) < 0.005;
 
   const inPlaceCopy = sourceInPlace && candidateInPlace
-    ? 'Both clips stay at the origin in X/Z, so both top-down paths collapse to a point.'
+    ? 'Neither clip moves in X/Z, so both paths collapse to a point.'
     : sourceInPlace
-      ? `${sourceName} stays at the origin in X/Z, so its path collapses to a point while ${candidateName} travels.`
+      ? `${sourceName} stays at the origin in X/Z; ${candidateName} travels.`
       : candidateInPlace
-        ? `${candidateName} stays at the origin in X/Z, so its path collapses to a point while ${sourceName} travels.`
+        ? `${candidateName} stays at the origin in X/Z; ${sourceName} travels.`
         : null;
 
   return (
     <div className="motion-root-plot">
-      <svg viewBox="0 0 100 66" role="img" aria-label={`Top-down root paths for ${sourceName} and ${candidateName}. Each path fades in along its own timeline, faint at the start and solid at the end, with a hollow marker at the first sample and a filled marker at the last.`}>
+      <svg viewBox="0 0 100 66" role="img" aria-label={`Top-down root paths for ${sourceName} and ${candidateName}. Each path fades from faint at its start to solid at its end; hollow marker is the first sample, filled is the last.`}>
         <path d="M8 58H92M8 42H92M8 26H92M8 10H92M8 10V58M36 10V58M64 10V58M92 10V58" />
         {toSegments(source, 'source')}
         {toSegments(candidate, 'candidate')}
@@ -946,7 +1007,7 @@ function RootPathPlot({ source, candidate, sourceName, candidateName }: {
         <div><dt>{sourceName}</dt><dd><span>Displacement <strong>{source.displacement.toFixed(2)}</strong></span><span>Path length <strong>{source.pathLength.toFixed(2)}</strong></span><span>Drift <strong>{source.drift.toFixed(2)}</strong></span><span>Vertical travel <strong>{source.verticalTravel.toFixed(2)}</strong></span></dd></div>
         <div><dt>{candidateName}</dt><dd><span>Displacement <strong>{candidate.displacement.toFixed(2)}</strong></span><span>Path length <strong>{candidate.pathLength.toFixed(2)}</strong></span><span>Drift <strong>{candidate.drift.toFixed(2)}</strong></span><span>Vertical travel <strong>{candidate.verticalTravel.toFixed(2)}</strong></span></dd></div>
       </dl>
-      {inPlaceCopy ? <p className="motion-root-in-place"><strong>In-place fixture:</strong> {inPlaceCopy} Vertical body motion remains visible in the metrics; a Studio-supplied root channel would draw the actual travel path.</p> : null}
+      {inPlaceCopy ? <p className="motion-root-in-place"><strong>In-place sample:</strong> {inPlaceCopy} Vertical travel still shows in the metrics. A Studio root channel would draw real travel.</p> : null}
     </div>
   );
 }
@@ -980,7 +1041,7 @@ function RegistryMatchCard({ record, candidateName, pose, exact, mode }: {
   const matchLine = exact
     ? `an exact curve match to a registered asset`
     : pose !== null
-      ? `a ${pose}% motion match to a registered asset${modeIndependent ? ' (v2 pose comparison, not this view’s metric)' : ''}`
+      ? `a ${pose}% motion match to a registered asset${modeIndependent ? ' (pose match, not this view’s number)' : ''}`
       : `a match to a registered asset`;
   return (
     <section className="motion-registry-match" data-flagged={flagged ? 'true' : 'false'} aria-label="Registry match">
@@ -1000,7 +1061,7 @@ function RegistryMatchCard({ record, candidateName, pose, exact, mode }: {
         <div><dt>Registry ID</dt><dd className="mono">{record.registryId}</dd></div>
       </dl>
       <p className="motion-registry-usage" data-restricted={restricted ? 'true' : 'false'}>{record.usageNote}</p>
-      <small className="motion-registry-disclaimer">Sample registry — illustrative records, not a live lookup. A real check searches by fingerprint and returns the owner's record to attach as provenance or reject against.</small>
+      <small className="motion-registry-disclaimer">Sample registry — illustrative records, not a live lookup.</small>
     </section>
   );
 }
@@ -1111,7 +1172,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
           setBridgeMessage(null);
         }
       }).catch(() => {
-        if (active) setBridgeMessage('CreatorFlow could not refresh the Studio evidence inbox.');
+        if (active) setBridgeMessage('Could not refresh the Studio evidence inbox.');
       });
     };
     refresh();
@@ -1138,7 +1199,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
     }
     bridgeClient.listPluginPairings(project.projectId)
       .then((page) => setPairingList(page.items))
-      .catch(() => setBridgeMessage('CreatorFlow could not refresh the Studio pairing list.'));
+      .catch(() => setBridgeMessage('Could not refresh the pairing list.'));
   }, [bridgeClient, project]);
 
   useEffect(() => { refreshPairingList(); }, [refreshPairingList]);
@@ -1154,7 +1215,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
       refreshPairingList();
     } catch {
       setPairingState('error');
-      setBridgeMessage('The desktop bridge could not create a Studio pairing. Restart CreatorFlow and try again.');
+      setBridgeMessage('Could not create a pairing. Restart CreatorFlow and try again.');
     }
   }
 
@@ -1166,7 +1227,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
       const page = await bridgeClient.revokePluginPairing(project.projectId, pairingId);
       setPairingList(page.items);
     } catch {
-      setBridgeMessage('The desktop bridge could not revoke that pairing. Try again.');
+      setBridgeMessage('Could not revoke that pairing. Try again.');
     } finally {
       setRevokingPairingId(null);
     }
@@ -1179,7 +1240,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
       window.setTimeout(() => setCopiedField(null), 1800);
     } catch {
       setPairingState('error');
-      setBridgeMessage('Clipboard access was blocked. Select the field and copy it manually.');
+      setBridgeMessage('Clipboard blocked. Select the field and copy it manually.');
     }
   }
 
@@ -1259,7 +1320,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
         <div className="motion-darkroom-intro">
           <span>Roblox animation evidence · local by default</span>
           <h1>Put two motions under the same light.</h1>
-          <p>CreatorFlow keeps motion shape, authored timing, loop quality, and root travel as separate signals so a Roblox team can inspect the right evidence before it ships.</p>
+          <p>Four separate signals: motion shape, authored timing, loop quality, root travel.</p>
         </div>
         <aside><Fingerprint size={18} /><span><strong>{workspaceMode === 'pair' ? 'Motion darkroom' : 'Project context'}</strong><small>{workspaceMode === 'pair' ? `${preferences.sampleCount} samples · raw files stay local` : '427 Instances · fictional Studio snapshot'}</small></span></aside>
         <nav className="motion-scope-switch" aria-label="Animation evidence view">
@@ -1324,12 +1385,12 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
                 <div>{analysisModes.map((item) => <button key={item.id} type="button" aria-pressed={analysisMode === item.id} onClick={() => chooseAnalysisMode(item.id)} title={item.detail}>{item.label}</button>)}</div>
               </div>
               <div className="motion-joint-scopes" role="group" aria-label="Joint scope">
-                <span>{analysisMode === 'root' ? 'Preview focus' : 'Analyze joints'}<small>{analysisMode === 'root' ? 'Score stays locked to root translation' : 'Updates the score and skeleton highlight'}</small></span>
+                <span>{analysisMode === 'root' ? 'Preview focus' : 'Analyze joints'}<small>{analysisMode === 'root' ? 'Score locked to root translation' : 'Updates score and highlight'}</small></span>
                 <div>{jointScopes.map((item) => <button key={item.id} type="button" aria-pressed={previewFocus === item.id} onClick={() => chooseJointScope(item.id)}>{item.label}</button>)}</div>
               </div>
               {/* The label has to name the count, and say when the trail is on but has nothing to
                   draw yet — otherwise the first fifth of the clip looks like a broken toggle. */}
-              <button className="motion-onion-toggle" type="button" aria-pressed={showOnion} onClick={() => setShowOnion((value) => !value)}><ScanSearch size={15} /><span><strong>{analysisMode === 'loop' ? 'Start-pose outline' : `Pose trail · ${TRAIL_LENGTH} back`}</strong><small>{!showOnion ? 'Trail hidden' : analysisMode === 'loop' ? 'Start pose shown' : trailProgress(analysisMode, progress, 1) === null ? 'No history yet at this point' : `${[1, 2, 3].filter((step) => trailProgress(analysisMode, progress, step) !== null).length} of ${TRAIL_LENGTH} shown`}</small></span></button>
+              <button className="motion-onion-toggle" type="button" aria-pressed={showOnion} onClick={() => setShowOnion((value) => !value)}><ScanSearch size={15} /><span><strong>{analysisMode === 'loop' ? 'Start-pose outline' : `Pose trail · ${TRAIL_LENGTH} back`}</strong><small>{!showOnion ? 'Trail hidden' : analysisMode === 'loop' ? 'Start pose shown' : trailProgress(analysisMode, progress, 1) === null ? 'No history yet' : `${[1, 2, 3].filter((step) => trailProgress(analysisMode, progress, step) !== null).length} of ${TRAIL_LENGTH} shown`}</small></span></button>
             </header>
 
             <MotionStage glbUrl={rig.glbUrl} sourceName={sourceName} candidateName={candidateName} analysisMode={analysisMode} previewFocus={previewFocus} previewLayout={previewLayout} showOnion={showOnion} previewQuality={preferences.previewQuality} onReady={setClips} progress={progress} playing={playing} onProgress={setProgress} />
@@ -1353,17 +1414,28 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
               <div className="motion-preview-layout" role="group" aria-label="Reference and candidate layout"><button type="button" aria-pressed={previewLayout === 'side'} onClick={() => setPreviewLayout('side')}>Pair side</button><button type="button" aria-pressed={previewLayout === 'overlay'} onClick={() => setPreviewLayout('overlay')}>Pair overlay</button></div>
             </div>
 
-            {analysisMode === 'root' && result?.root ? <RootPathPlot source={result.root.source} candidate={result.root.candidate} sourceName={sourceName} candidateName={candidateName} /> : analysisMode === 'loop' ? <div className="motion-loop-readout"><header><span><RotateCcw size={13} /> Start-to-end continuity</span><small>Pose + velocity · higher is cleaner · quality only</small></header><div><span><small>{sourceName}</small><strong>{result?.loop?.source.continuity ?? '—'}{result?.loop?.source.continuity !== null && result?.loop?.source.continuity !== undefined ? '%' : ''}</strong></span><i aria-hidden="true" /><span><small>{candidateName}</small><strong>{result?.loop?.candidate.continuity ?? '—'}{result?.loop?.candidate.continuity !== null && result?.loop?.candidate.continuity !== undefined ? '%' : ''}</strong></span></div></div> : <div className="motion-fingerprint-readout">
+            {analysisMode === 'root' && result?.root ? <RootPathPlot source={result.root.source} candidate={result.root.candidate} sourceName={sourceName} candidateName={candidateName} /> : analysisMode === 'loop' ? <div className="motion-loop-readout"><header><span><RotateCcw size={13} /> Start-to-end continuity</span><small>Higher is cleaner · quality only</small></header><div><span><small>{sourceName}</small><strong>{result?.loop?.source.continuity ?? '—'}{result?.loop?.source.continuity !== null && result?.loop?.source.continuity !== undefined ? '%' : ''}</strong></span><i aria-hidden="true" /><span><small>{candidateName}</small><strong>{result?.loop?.candidate.continuity ?? '—'}{result?.loop?.candidate.continuity !== null && result?.loop?.candidate.continuity !== undefined ? '%' : ''}</strong></span></div></div> : <div className="motion-fingerprint-readout">
               <header><span>{analysisMode === 'timing' ? <Clock3 size={13} /> : <Fingerprint size={13} />} {analysisMode === 'timing' ? 'Authored-time difference' : 'Pose difference over normalized phase'}</span><small>{preferences.sampleCount} samples · brighter marks are closer</small></header>
-              <div className="motion-frame-strip" aria-label={analysisMode === 'timing' ? 'Authored-time similarity samples' : 'Normalized pose similarity samples'}>
-                {(result?.frameScores ?? Array.from({ length: preferences.sampleCount }, () => 0)).map((score, index) => <i key={index} style={scoreStyle(Math.round(score * 100))} title={`Sample ${index + 1}: ${Math.round(score * 100)}% agreement`} />)}
-                <span style={{ left: `${progress * 100}%` }} />
-              </div>
+              {/**
+                * The strip is the scrubber. It already showed where the clips agree and where the
+                * playhead is, so making it the thing you grab removes the split where the picture
+                * of the difference and the control for reaching it were two separate widgets.
+                *
+                * Column count comes from the data, not a constant. It was hard-coded to 48 while
+                * sampleCount is a preference of 24, 48 or 96 — at any other setting the samples
+                * wrapped onto a second row, which is the stray block visible under the strip.
+                */}
+              <FrameScrubber
+                scores={result?.frameScores ?? Array.from({ length: preferences.sampleCount }, () => 0)}
+                progress={progress}
+                onSeek={(next) => { setPlaying(false); setProgress(next); }}
+                label={analysisMode === 'timing' ? 'Authored-time similarity samples' : 'Normalized pose similarity samples'}
+              />
             </div>}
 
             <section className="motion-analysis-explainer" data-mode={analysisMode} aria-label={`${selectedAnalysisMode.label} explanation`} aria-live="polite">
               {analysisMode === 'timing' ? <Clock3 size={17} /> : analysisMode === 'loop' ? <RotateCcw size={17} /> : <ScanSearch size={17} />}
-              <div><span>{selectedAnalysisMode.label}</span><strong>{selectedAnalysisMode.detail}</strong><p>{analysisMode === 'shape' ? 'Use this when two clips may run at different speeds but could still share the same pose sequence.' : analysisMode === 'timing' ? 'Both clips keep their authored seconds. A shorter clip holds its final pose instead of silently looping.' : analysisMode === 'loop' ? 'The trail is pinned to the first pose while the solid rig reaches the end; endpoint motion direction is checked as well as pose closure.' : 'Origins are aligned before the top-down translation paths are compared; this signal stays separate from pose resemblance.'}</p></div>
+              <div><span>{selectedAnalysisMode.label}</span><strong>{selectedAnalysisMode.detail}</strong>{analysisMode === 'timing' ? <p>A shorter clip holds its final pose instead of looping.</p> : analysisMode === 'root' ? <p>Origins are aligned first. Separate from pose resemblance.</p> : null}</div>
               <dl><div><dt>Reference</dt><dd>{sourceClip ? `${sourceClip.duration.toFixed(3)}s` : '—'}</dd></div><div><dt>Candidate</dt><dd>{candidateClip ? `${candidateClip.duration.toFixed(3)}s` : '—'}</dd></div><div><dt>{analysisMode === 'root' ? 'Measured' : 'Analyzed'}</dt><dd>{analysisMode === 'root' ? 'Root translation' : jointScopes.find((item) => item.id === effectiveJointScope)?.label}</dd></div></dl>
             </section>
           </div>
@@ -1375,23 +1447,23 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
             </header>
             <div className="motion-result-state"><span>{analysisMode === 'loop' ? 'Loop quality diagnostic' : result?.exactCurveData ? 'Provenance required' : result?.tone === 'review' ? 'Relationship worth reviewing' : 'Comparison evidence'}</span><small>{analysisMode === 'loop' ? 'Not a resemblance or copyright signal' : 'Not a copyright decision'}</small></div>
             <h2>{result?.verdict ?? 'Reading animation tracks'}</h2>
-            <p><strong>{sourceName} ↔ {candidateName}</strong> · {selectedAnalysisMode.detail}</p>
+            <p><strong>{sourceName} ↔ {candidateName}</strong> · {selectedAnalysisMode.label}</p>
             {analysisMode === 'loop' ? <dl className="motion-signal-list"><div><dt>Candidate pose closure</dt><dd>{result?.loop?.candidate.poseClosure ?? '—'}{result?.loop?.candidate.poseClosure !== null && result?.loop?.candidate.poseClosure !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.poseClosure ?? 0)} /></div><div><dt>Velocity continuity</dt><dd>{result?.loop?.candidate.velocityContinuity ?? '—'}{result?.loop?.candidate.velocityContinuity !== null && result?.loop?.candidate.velocityContinuity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.velocityContinuity ?? 0)} /></div><div><dt>Scoped joints</dt><dd>{result?.loop?.candidate.tracksAnalyzed ?? '—'}</dd></div></dl> : analysisMode === 'root' ? <dl className="motion-signal-list"><div><dt>Root-path match</dt><dd>{result?.root?.similarity ?? '—'}{result?.root?.similarity !== null && result?.root?.similarity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.root?.similarity ?? 0)} /></div><div><dt>Candidate travel</dt><dd>{result?.root?.candidate.available ? result.root.candidate.displacement.toFixed(2) : '—'}</dd></div><div><dt>Candidate drift</dt><dd>{result?.root?.candidate.available ? result.root.candidate.drift.toFixed(2) : '—'}</dd><i style={scoreStyle(Math.max(0, 100 - (result?.root?.candidate.drift ?? 0) * 100))} /></div></dl> : analysisMode === 'timing' ? <dl className="motion-signal-list"><div><dt>Authored-time match</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Duration delta</dt><dd>{result ? `${result.durationDeltaSeconds >= 0 ? '+' : ''}${result.durationDeltaSeconds.toFixed(2)}s` : '—'}</dd><i style={scoreStyle(result?.durationSimilarity ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl> : <dl className="motion-signal-list"><div><dt>Pose shape</dt><dd>{result?.pose ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.pose ?? 0)} /></div><div><dt>Authored timing</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl>}
-            {analysisMode === 'loop' ? <div className="motion-exact-state" data-exact="false"><Check size={14} /><span><strong>Provenance stays outside this quality score</strong><small>{result?.exactCurveData ? 'These clips also have exact curves, but that fact does not change loop continuity.' : 'Loop continuity never raises a similarity or copyright alert.'}</small></span></div> : <div className="motion-exact-state" data-exact={result?.exactCurveData ? 'true' : 'false'}>{result?.exactCurveData ? <AlertTriangle size={14} /> : <Check size={14} />}<span><strong>{result?.exactCurveData ? 'Canonical curves match exactly' : 'No exact curve match'}</strong><small>{result?.exactCurveData ? 'Renaming an export does not change its structural fingerprint.' : 'Pose similarity can still come from common rigs, libraries, or authorized reuse.'}</small></span></div>}
+            {analysisMode === 'loop' ? <div className="motion-exact-state" data-exact="false"><Check size={14} /><span><strong>Provenance stays outside this quality score</strong><small>{result?.exactCurveData ? 'Exact curves here too — but loop continuity is unaffected.' : 'Loop continuity never raises a similarity or copyright alert.'}</small></span></div> : <div className="motion-exact-state" data-exact={result?.exactCurveData ? 'true' : 'false'}>{result?.exactCurveData ? <AlertTriangle size={14} /> : <Check size={14} />}<span><strong>{result?.exactCurveData ? 'Canonical curves match exactly' : 'No exact curve match'}</strong><small>{result?.exactCurveData ? 'Renaming an export does not change its structural fingerprint.' : 'Pose similarity can still come from common rigs, libraries, or authorized reuse.'}</small></span></div>}
             {registryMatch
               ? <RegistryMatchCard record={registryMatch} candidateName={candidateName} pose={result?.pose ?? null} exact={result?.exactCurveData ?? false} mode={analysisMode} />
-              : result ? <p className="motion-registry-miss"><ScanSearch size={13} /><span><strong>Reference not in the sample registry.</strong> No registered owner to attach — a clean result here means "no conflict found," not "proven original."</span></p> : null}
+              : result ? <p className="motion-registry-miss"><ScanSearch size={13} /><span><strong>Reference not in the sample registry.</strong> No registered owner to attach. That means "no conflict found," not "proven original."</span></p> : null}
             <button className="motion-jump-difference" type="button" onClick={jumpToLargestDifference} disabled={!result}>{analysisMode === 'loop' ? 'Inspect end seam' : 'Jump to largest difference'}{result && analysisMode !== 'loop' ? <small>{analysisMode === 'timing' ? `${result.largestDifferenceTimeSeconds.toFixed(2)}s` : `${Math.round(result.largestDifferenceProgress * 100)}%`}{result.largestDifferenceJoint ? ` · ${result.largestDifferenceJoint}` : ''}</small> : null}</button>
-            <footer className="motion-review-next"><span>{analysisMode === 'loop' ? 'Quality channel' : 'Human review'}</span><strong>{analysisMode === 'loop' ? 'Loop continuity stays separate from provenance and similarity thresholds.' : 'Attach the source, license, Animation IDs, and a decision before release.'}</strong></footer>
+            <footer className="motion-review-next"><span>{analysisMode === 'loop' ? 'Quality channel' : 'Human review'}</span><strong>{analysisMode === 'loop' ? 'Loop continuity is separate from provenance and similarity.' : 'Attach the source, license, Animation IDs, and a decision before release.'}</strong></footer>
           </aside>
         </section>
 
         <section className="motion-evidence-grid">
           <article className="motion-joint-evidence">
-            <header><div><span>{analysisMode === 'loop' ? 'Seam evidence' : 'Joint evidence'}</span><h2>{analysisMode === 'loop' ? 'Which joints break the loop' : analysisMode === 'root' ? 'Root channel details' : 'Where the movement diverges'}</h2></div><small>{analysisMode === 'root' ? 'Root path is evaluated separately from pose' : 'Lowest-scoring scoped tracks first'}</small></header>
+            <header><div><span>{analysisMode === 'loop' ? 'Seam evidence' : 'Joint evidence'}</span><h2>{analysisMode === 'loop' ? 'Which joints break the loop' : analysisMode === 'root' ? 'Root channel details' : 'Where the movement diverges'}</h2></div><small>{analysisMode === 'root' ? 'Evaluated separately from pose' : 'Lowest-scoring scoped tracks first'}</small></header>
             <div>
               {(result?.trackScores ?? []).map((track) => <div key={track.rawName}><span>{track.name}</span><i><b style={{ width: `${Math.round(track.score * 100)}%` }} /></i><strong>{Math.round(track.score * 100)}%</strong></div>)}
-              {!result ? <p>Animation tracks appear after the local fixture is decoded.</p> : result.trackScores.length === 0 ? <p>{analysisMode === 'root' ? 'The root-path plot above carries this mode’s evidence.' : 'No shared tracks are available in the selected joint scope.'}</p> : null}
+              {!result ? <p>Tracks appear once the rig file is decoded.</p> : result.trackScores.length === 0 ? <p>{analysisMode === 'root' ? 'See the root-path plot above.' : 'No shared tracks in this joint scope.'}</p> : null}
             </div>
           </article>
           <article className="motion-structure-evidence">
@@ -1409,9 +1481,9 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
 
         <div className="motion-support-stack">
           <details className="motion-support-drawer">
-            <summary><span><strong>Browse the licensed motion set</strong><small>{rig.clips.length} authored clips · either side can be the reference</small></span><span>{clips.length ? `${clips.length} loaded` : 'Loading…'} <ChevronDown size={15} /></span></summary>
+            <summary><span><strong>Browse the licensed motion set</strong><small>{rig.clips.length} clips · either can be the reference</small></span><span>{clips.length ? `${clips.length} loaded` : 'Loading…'} <ChevronDown size={15} /></span></summary>
             <section className="motion-corpus-picker" aria-labelledby="motion-corpus-title">
-              <header><div><span>Animation test set</span><h2 id="motion-corpus-title">Choose from {rig.clips.length} authored motions.</h2><p>Every candidate is a real clip in the licensed source file—not a renamed score preset.</p></div><strong>{clips.length ? `${clips.length} clips loaded` : 'Loading clips…'}</strong></header>
+              <header><div><h2 id="motion-corpus-title">Choose from {rig.clips.length} authored motions.</h2></div><strong>{clips.length ? `${clips.length} clips loaded` : 'Loading clips…'}</strong></header>
               <div className="motion-category-filter" role="group" aria-label="Filter animation clips by category">{(['All', 'Locomotion', 'States', 'Actions', 'Gestures'] as const).map((item) => <button key={item} type="button" aria-pressed={category === item} onClick={() => setCategory(item)}>{item}</button>)}</div>
               <div className="motion-clip-catalog">{visibleCatalog.map((item) => { const loadedClip = clips.find((clip) => clip.name === item.name); return <button key={item.name} type="button" aria-pressed={candidateName === item.name} onClick={() => chooseCandidate(item.name)}><span><strong>{item.name}</strong><small>{item.description}</small></span><em>{loadedClip ? `${loadedClip.duration.toFixed(2)}s` : '—'}</em></button>; })}</div>
               <footer><span>{rig.name} · {rig.license}</span><small>{rig.attribution}</small></footer>
@@ -1419,16 +1491,16 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
           </details>
 
           <details className="motion-support-drawer">
-            <summary><span><strong>Connect Roblox Studio</strong><small>Receive permitted Animation IDs through the local desktop bridge</small></span><span>{bridgeClient && project ? 'Ready' : 'Desktop required'} <ChevronDown size={15} /></span></summary>
+            <summary><span><strong>Connect Roblox Studio</strong><small>Read permitted Animation IDs locally</small></span><span>{bridgeClient && project ? 'Ready' : 'Desktop required'} <ChevronDown size={15} /></span></summary>
             <section className="motion-plugin-intake" aria-labelledby="studio-bridge-title">
-              <header><div><span>Studio bridge</span><h2 id="studio-bridge-title">Pair Roblox Studio with this project.</h2><p>The plugin reads two animations you already have permission to access. CreatorFlow revalidates, fingerprints, compares, and stores the evidence on this machine.</p></div><span className={bridgeClient && project ? 'motion-bridge-ready' : 'motion-bridge-demo'}><i />{bridgeClient && project ? `${project.name} ready` : 'Desktop bridge not connected'}</span></header>
-              {bridgeClient && project ? <div className="motion-pairing-panel"><div className="motion-pairing-action"><span><strong>1. Create a temporary pairing</strong><small>Scoped to {project.name}; expires automatically.</small></span><button className="button button-secondary" type="button" onClick={() => { void createPairing(); }} disabled={pairingState === 'creating'}>{pairingState === 'creating' ? 'Creating…' : pairing ? 'Rotate pairing' : 'Create pairing'}</button></div>{pairing ? <div className="motion-pairing-fields"><div className="motion-pairing-field"><span>CreatorFlow endpoint <button type="button" onClick={() => { void copyPairing(pairing.endpoint, 'endpoint'); }}>{copiedField === 'endpoint' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow endpoint" readOnly value={pairing.endpoint} onFocus={(event) => event.currentTarget.select()} /></div><div className="motion-pairing-field"><span>Pairing token <button type="button" onClick={() => { void copyPairing(pairing.token, 'token'); }}>{copiedField === 'token' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow pairing token" readOnly value={pairing.token} onFocus={(event) => event.currentTarget.select()} /></div></div> : <p className="motion-pairing-empty">CreatorFlow will show a loopback address and short-lived token for the Studio plugin. No animation data is sent to a cloud service.</p>}
+              <header><div><h2 id="studio-bridge-title">Pair Roblox Studio with this project.</h2><p>The plugin reads two animations you already have permission to access. CreatorFlow fingerprints and compares them, and the evidence stays on this machine.</p></div><span className={bridgeClient && project ? 'motion-bridge-ready' : 'motion-bridge-demo'}><i />{bridgeClient && project ? `${project.name} ready` : 'Desktop bridge not connected'}</span></header>
+              {bridgeClient && project ? <div className="motion-pairing-panel"><div className="motion-pairing-action"><span><strong>1. Create a temporary pairing</strong><small>Scoped to {project.name}; expires automatically.</small></span><button className="button button-secondary" type="button" onClick={() => { void createPairing(); }} disabled={pairingState === 'creating'}>{pairingState === 'creating' ? 'Creating…' : pairing ? 'Rotate pairing' : 'Create pairing'}</button></div>{pairing ? <div className="motion-pairing-fields"><div className="motion-pairing-field"><span>CreatorFlow endpoint <button type="button" onClick={() => { void copyPairing(pairing.endpoint, 'endpoint'); }}>{copiedField === 'endpoint' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow endpoint" readOnly value={pairing.endpoint} onFocus={(event) => event.currentTarget.select()} /></div><div className="motion-pairing-field"><span>Pairing token <button type="button" onClick={() => { void copyPairing(pairing.token, 'token'); }}>{copiedField === 'token' ? 'Copied' : 'Copy'}</button></span><input aria-label="CreatorFlow pairing token" readOnly value={pairing.token} onFocus={(event) => event.currentTarget.select()} /></div></div> : <p className="motion-pairing-empty">A loopback address and short-lived token appear here. No animation data is sent to a cloud service.</p>}
                 <div className="motion-pairing-list">
                   <div className="motion-pairing-list-head">
                     <span><strong>2. Manage pairings</strong><small>{pairingList.length} issued for {project.name}</small></span>
                     <button type="button" className="motion-pairing-refresh" onClick={refreshPairingList}>Refresh</button>
                   </div>
-                  {pairingList.length === 0 ? <p className="motion-pairing-empty">No pairings yet for this project.</p> : (
+                  {pairingList.length === 0 ? <p className="motion-pairing-empty">No pairings yet.</p> : (
                     <ul className="motion-pairing-rows">
                       {pairingList.map((item) => (
                         <li key={item.id} className="motion-pairing-row" data-tone={pairingStatusTone(item.status)}>
@@ -1445,22 +1517,22 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
                     </ul>
                   )}
                 </div>
-              </div> : <div className="motion-desktop-boundary"><AlertTriangle size={16} /><span><strong>The interactive fixture above still works.</strong><small>To receive real Roblox IDs, launch the CreatorFlow desktop app, open a local project, and return here.</small></span></div>}
+              </div> : <div className="motion-desktop-boundary"><AlertTriangle size={16} /><span><strong>The demo above still works.</strong><small>For real Roblox IDs, open the CreatorFlow desktop app and a local project.</small></span></div>}
               {bridgeMessage ? <p className="motion-bridge-message" role="status">{bridgeMessage}</p> : null}
-              {latestComparison ? <article className="motion-live-result"><header><span><i />Latest Studio evidence</span><time dateTime={latestComparison.createdAt}>{new Date(latestComparison.createdAt).toLocaleString()}</time></header><div><span><small>Animation IDs</small><strong>{latestComparison.sourceAssetId} ↔ {latestComparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{latestComparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{latestComparison.posePercent}%</strong></span><span><small>Timing</small><strong>{latestComparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{latestComparison.coveragePercent}%</strong></span></div><footer><strong>{latestComparison.verdict}</strong><span>{latestComparison.exactCurveData ? 'Exact canonical curves' : 'Similarity signal'} · evidence ID {latestComparison.id.slice(0, 8)}</span></footer></article> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison. This page refreshes the local evidence inbox automatically.</p> : null}
-              <section className="motion-authoring-boundary"><AlertTriangle size={17} /><div><strong>Compare here; author and publish in Roblox Studio.</strong><p>Every comparison mode reads the supplied curves without changing them. CreatorFlow does not pose the rig, overwrite an AnimationClip, replace an Animation ID, or upload an animation.</p></div><dl><div><dt>Available now</dt><dd>Read · compare · preview · fingerprint</dd></div><div><dt>Not an editor</dt><dd>Rig controls · curve timeline · Roblox upload</dd></div></dl></section>
+              {latestComparison ? <article className="motion-live-result"><header><span><i />Latest Studio evidence</span><time dateTime={latestComparison.createdAt}>{new Date(latestComparison.createdAt).toLocaleString()}</time></header><div><span><small>Animation IDs</small><strong>{latestComparison.sourceAssetId} ↔ {latestComparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{latestComparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{latestComparison.posePercent}%</strong></span><span><small>Timing</small><strong>{latestComparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{latestComparison.coveragePercent}%</strong></span></div><footer><strong>{latestComparison.verdict}</strong><span>{latestComparison.exactCurveData ? 'Exact canonical curves' : 'Similarity signal'} · evidence ID {latestComparison.id.slice(0, 8)}</span></footer></article> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison.</p> : null}
+              <section className="motion-authoring-boundary"><AlertTriangle size={17} /><div><strong>Compare here; author and publish in Roblox Studio.</strong><p>CreatorFlow reads the supplied curves without changing them.</p></div><dl><div><dt>Available now</dt><dd>Read · compare · preview · fingerprint</dd></div><div><dt>Not an editor</dt><dd>Rig controls · curve timeline · Roblox upload</dd></div></dl></section>
             </section>
           </details>
 
           <details className="motion-support-drawer" open={Boolean(bridgeClient && project)}>
-            <summary><span><strong>Animation snapshots</strong><small>Pin last-known-good / last-published references and track drift</small></span><span>{bridgeClient && project ? 'Ready' : 'Desktop required'} <ChevronDown size={15} /></span></summary>
+            <summary><span><strong>Animation snapshots</strong><small>Pin known-good and published references, track drift</small></span><span>{bridgeClient && project ? 'Ready' : 'Desktop required'} <ChevronDown size={15} /></span></summary>
             <section className="motion-snapshots-intake" aria-label="Animation snapshots">
               <AnimationSnapshotsPanel bridgeClient={bridgeClient} project={project} latestComparison={latestComparison} />
             </section>
           </details>
 
           <details className="motion-support-drawer">
-            <summary><span><strong>Inspect the evidence record</strong><small>Clip metadata · source permission · algorithm boundary</small></span><span>Unreviewed <ChevronDown size={15} /></span></summary>
+            <summary><span><strong>Inspect the evidence record</strong><small>Clip metadata · permission · algorithm</small></span><span>Unreviewed <ChevronDown size={15} /></span></summary>
             <MetadataInspector
               kind="Animation"
               title={`${sourceName} ↔ ${candidateName}`}
@@ -1475,12 +1547,12 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
         </div>
       </> : <RobloxProjectExample onOpenPair={openProjectClip} />}
 
-      <section className="motion-boundary-note"><AlertTriangle size={17} /><div><strong>This is evidence, not a copyright verdict.</strong> <EvidenceBasisMark basis={verificationBasis()} /><p>A high score can result from common walk cycles, shared rigs, mocap libraries, or authorized reuse. A production finding must stay attached to Animation IDs, source files, licenses, authors, dates, and a human decision.</p></div></section>
+      <section className="motion-boundary-note"><AlertTriangle size={17} /><div><strong>This is evidence, not a copyright verdict.</strong> <EvidenceBasisMark basis={verificationBasis()} /><p>A high score can come from common walk cycles, shared rigs, mocap libraries, or authorized reuse.</p></div></section>
 
       <section className="motion-roblox-path">
-        <header><span>Roblox Studio bridge · desktop pairing required</span><h2>The plugin supplies the motion; CreatorFlow keeps the evidence.</h2><p>The bridge reads permitted clips and converts poses, transforms, easing, and timing into a normalized record. This web prototype does not include installable Studio or animation-authoring tools.</p></header>
+        <header><span>Roblox Studio bridge · desktop pairing required</span><h2>The plugin supplies motion; CreatorFlow keeps evidence.</h2><p>The bridge reads permitted clips into a normalized record. This web prototype has no installable Studio tools.</p></header>
         <div><article><span>Input</span><strong>Two Animation IDs</strong><small>Owned, shared, or otherwise accessible in Studio</small></article><i aria-hidden="true" /><article><span>Studio</span><strong>Resolve permitted clip</strong><small>AnimationClipProvider · normalize locally</small></article><i aria-hidden="true" /><article><span>CreatorFlow</span><strong>Fingerprint and review</strong><small>Exact curves · motion · timing · provenance</small></article></div>
-        <footer><span>Permission boundary</span><strong>The plugin cannot fetch restricted animation data or bypass Roblox asset permissions.</strong></footer>
+        <footer><span>Permission boundary</span><strong>The plugin cannot fetch restricted data or bypass Roblox asset permissions.</strong></footer>
       </section>
     </div>
   );

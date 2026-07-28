@@ -1019,8 +1019,10 @@
     font-weight: 400;
   }
 
+  /* Was 40rem, which silently capped the base rule and re-cropped the sheets. The two record
+     panels are real documents now and need the room to sit apart rather than on top of each other. */
   .dossier-stage {
-    min-height: 40rem;
+    min-height: 52rem;
   }
 
   .why-comparison {

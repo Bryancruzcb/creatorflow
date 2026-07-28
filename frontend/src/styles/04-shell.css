@@ -249,6 +249,7 @@
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
   letter-spacing: var(--track-mono);
+  white-space: nowrap;
 }
 
 .product-sidebar nav {
@@ -289,7 +290,17 @@
   border-color: var(--hairline-strong);
 }
 
-/* Item counts and the "sample" / "Roblox beta" tags. Mono is right — these are values — but
+/* The label must never wrap into the badge. "Animation compare" alongside a two-word tag pushed
+   the label column so narrow it broke onto two lines and collided with the tag; the tag is now one
+   word and the label truncates rather than wrapping. */
+.product-sidebar nav button > span,
+.product-sidebar-bottom button > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Item counts and the "sample" / "Beta" tags. Mono is right — these are values — but
    0.54rem is 8.6px. */
 .product-sidebar nav button small {
   color: var(--ink-dim);

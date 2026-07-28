@@ -59,11 +59,31 @@ float field(vec2 uv, float seed, float t) {
   return fbm(q) + uv.y * 0.34;
 }
 
-/* Anti-aliased contour lines from a scalar field. */
-float isoline(float v, float spacing, float weight) {
-  float f = fract(v * spacing);
-  float d = min(f, 1.0 - f) / spacing;
-  return 1.0 - smoothstep(0.0, weight * fwidth(v) + 1e-5, d);
+/*
+ * Anti-aliased contour lines from a scalar field, at a constant PIXEL width.
+ *
+ * The previous version scaled the smoothstep edge by fwidth(v) directly, which has no floor: where
+ * the field is nearly flat the gradient tends to zero, the edge collapses toward 1e-5, and the
+ * contour becomes a sub-pixel line that flickers on and off as the field drifts under it. At the
+ * other extreme, where the gradient is steep, contours pack closer than one pixel and alias into
+ * moire that crawls. Both were visible as "the background flickers".
+ *
+ * The fix is the standard one for contour shading: convert the distance-to-contour into pixels
+ * before thresholding, so line weight is decided in screen space and never by the field's local
+ * slope, then fade out regions the raster genuinely cannot resolve rather than letting them alias.
+ */
+float isoline(float v, float spacing, float widthPx) {
+  float sv = v * spacing;
+  float g = fwidth(sv);                       // scaled-field change per pixel
+  float f = fract(sv);
+  float d = min(f, 1.0 - f);                  // distance to nearest contour, scaled units
+  float dPx = d / max(g, 1e-4);               // ...in pixels
+  float line = 1.0 - smoothstep(0.0, widthPx, dPx);
+
+  /* Where consecutive contours land within about a pixel of each other there is no line left to
+     draw — only interference. Fading to flat there is what removes the crawl. */
+  float resolvable = 1.0 - smoothstep(0.35, 0.9, g);
+  return line * resolvable;
 }
 
 void main() {
@@ -83,7 +103,11 @@ void main() {
   // The candidate line is dashed. That mirrors the root-path plot inside the product, where the
   // candidate polyline already carries stroke-dasharray — so reference-vs-candidate is legible
   // without relying on colour alone.
-  float dash = step(0.40, fract((uv.x * 0.7 + uv.y) * 34.0));
+  /* Smoothstep, not step. A hard edge on a value that moves under the pixel grid aliases exactly
+     like the contours did, so the dashes strobed along the candidate line as it drifted. */
+  float dashCoord = fract((uv.x * 0.7 + uv.y) * 34.0);
+  float dashAA = fwidth(dashCoord) + 1e-4;
+  float dash = smoothstep(0.40 - dashAA, 0.40 + dashAA, dashCoord);
   lb *= dash;
 
   vec3 amber = vec3(0.88, 0.62, 0.31);
