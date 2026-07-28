@@ -21,24 +21,19 @@ const WIDTHS = [
 ] as const;
 
 /**
- * Known debt: the workspace shell does not collapse on a phone.
+ * There is no baseline any more, and the one that was here recorded the wrong cause.
  *
- * Every `app-*` view overflows by exactly 231px at 390px, which is the 224px navigation rail plus
- * its border — the rail is a fixed column at every width and the content sits beside it. Making
- * the workspace responsive is a real project (a rail that becomes a drawer, a topbar that reflows,
- * tables that become lists), not a line in this file.
+ * It said the workspace shell "does not collapse on a phone" and blamed a 224px fixed nav rail.
+ * That was a confident false statement in a repo whose binding rule is that nothing may claim
+ * more than it measured. The shell already collapses at 48rem in 06-local.css — `.product-workspace`
+ * computes to `display: block` and the sidebar becomes a full-width row.
  *
- * Recorded rather than skipped, and this is a RATCHET: entries come off as views are made
- * responsive, and nothing may be added. The landing page is deliberately not on this list — it
- * was the one surface a creator is most likely to open on a phone, and it is fixed.
+ * The real 231px was one declaration: a `@media (max-width: 48rem)` override pinning the proof
+ * ribbon to `repeat(5, minmax(7.6rem, 1fr))`, which is 608px of tracks inside a 366px ribbon. It
+ * was identical on all nine views because the ribbon is shell chrome, and app-settings measured 0
+ * only because that view does not render a ribbon at all — a detail the old comment read as
+ * "settings is fine".
  */
-const UNRESPONSIVE = new Set([
-  'app-overview', 'app-evidence', 'app-assets', 'app-releases',
-  'app-sources', 'app-project', 'app-gallery', 'app-motion', 'app-stress',
-]);
-// app-settings is NOT here on purpose: it measured 0px and is enforced. A baseline that lists
-// something already passing is a baseline that quietly stops testing it.
-
 interface Overflow {
   sel: string;
   by: number;
@@ -98,18 +93,11 @@ for (const vp of WIDTHS) {
         return { pageBy, clipped: unique };
       });
 
-      const known = vp.name === 'phone' && UNRESPONSIVE.has(surface.id);
-      if (known) {
-        // Loud in CI output rather than silently skipped: debt nobody sees is debt nobody fixes.
-        console.log(`  [debt] ${surface.id} at ${vp.width}px overflows by ${result.pageBy}px — workspace shell does not collapse`);
-      } else {
-        expect(
-          result.pageBy,
-          `${surface.id} at ${vp.width}px scrolls horizontally by ${result.pageBy}px`,
-        ).toBeLessThanOrEqual(2);
-      }
+      expect(
+        result.pageBy,
+        `${surface.id} at ${vp.width}px scrolls horizontally by ${result.pageBy}px`,
+      ).toBeLessThanOrEqual(2);
 
-      if (known) return;
       expect(
         result.clipped,
         `${surface.id} at ${vp.width}px — content clipped by its own container:\n`

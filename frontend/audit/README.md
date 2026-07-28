@@ -79,20 +79,32 @@ reached. That heatmap path is where a wireframe overlay would most plausibly rea
 
 ## `overflow.spec.ts`
 
-Asserts nothing overflows its container, at **390 / 820 / 1280**.
+Asserts nothing overflows its container, at **390 / 820 / 1280**. All 48 checks assert — there is
+no baseline.
 
 Added after the landing dossier shipped broken on a phone: three absolutely positioned sheets at
-percentage widths, fine at 1440, and at 390px each was ~226px so every panel clipped its own text
-and the manifest ran off the screen. The other two gates run at 1440 only, so a layout that fails
-only when narrow was invisible to every check in the repo. They ask *is this readable*; this asks
-*does it fit*.
+percentage widths, fine at 1440, and at 390px each was ~226px so every panel clipped its own text.
+The other gates run at 1440 only, so a layout that fails only when narrow was invisible to every
+check in the repo. They ask *is this readable*; this asks *does it fit*.
 
-`UNRESPONSIVE` lists the workspace views, which overflow by exactly 231px at phone width — the
-224px nav rail is a fixed column at every width. Making the workspace responsive is a real project,
-so it is recorded and logged rather than skipped. Same ratchet rule: entries come off, none go on.
+**Correcting this file's own history.** An earlier version of this section said the workspace shell
+"does not collapse on a phone" and blamed a 224px fixed nav rail. That was measured false. The
+shell already collapses at 48rem in `06-local.css` — `.product-workspace` becomes `display: block`
+and the sidebar a full-width row.
 
-The landing page is deliberately **not** on that list. It is the surface a creator is most likely
-to open on a phone.
+The real 231px was one declaration: a `@media (max-width: 48rem)` override pinning the proof ribbon
+to `repeat(5, minmax(7.6rem, 1fr))`, which lays 608px of tracks inside a 366px ribbon. It was
+identical on all nine views because the ribbon is shell chrome, and `app-settings` measured 0 only
+because that view renders no ribbon — which the old note read as "settings is fine".
+
+Measured at 390px after the fix: `121.3px x3`, ribbon height **157px**. That is up from 99px, and
+worth stating plainly — showing five proof steps on a 390px screen costs vertical space. The
+`7.6rem` the first attempt proposed would have given two 182px tracks and a **216px** ribbon, so
+`7rem` is a measurement, not a preference.
+
+Both fixes are proven load-bearing by mutation: reverting only the ribbon rule produces exactly
+nine `231px` failures; reverting only `.stress-pack-rows` produces exactly one, `app-overview` at
+16px.
 
 ## `a11y.spec.ts`
 
