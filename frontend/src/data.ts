@@ -611,22 +611,22 @@ export const initialAssets: AssetRecord[] = [
 export const workflowSteps = [
   {
     title: 'Scan the project',
-    body: 'Index creative files locally, compute fingerprints, and collect the metadata already present in the folder.',
-    output: 'Asset index, hashes, visual signatures',
+    body: 'Index your files locally and compute fingerprints.',
+    output: 'Hashes and visual signatures',
   },
   {
     title: 'Review the evidence',
-    body: 'See exact conflicts, likely derivatives, missing licenses, and provenance gaps with every source attached.',
+    body: 'Exact matches, missing licenses, and unknown sources — each with its record.',
     output: 'Findings, source links, exceptions',
   },
   {
     title: 'Resolve exceptions',
-    body: 'Attach a receipt, add attribution, record an ownership declaration, replace the file, or exclude it from release.',
-    output: 'Human decisions and audit notes',
+    body: 'Attach a receipt, record an ownership declaration, or exclude the file.',
+    output: 'Human decisions and notes',
   },
   {
     title: 'Export the manifest',
-    body: 'Generate a shareable creative asset manifest for the release package, repository, or publisher review.',
+    body: 'One file listing what you checked and what you decided.',
     output: 'JSON release record',
   },
 ];

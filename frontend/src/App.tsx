@@ -77,18 +77,18 @@ function AtlasSection() {
   return (
     <section className="atlas-section" id="atlas" aria-labelledby="atlas-title">
       <div className="atlas-narrative">
-        <p className="section-index">The complete product loop</p>
-        <h2 id="atlas-title">Scanning is the first ten seconds. The product is everything after.</h2>
-        <p className="atlas-lead">CreatorFlow turns a machine finding into a traceable release decision. The expensive part of the product is not drawing a warning—it is showing the evidence clearly enough that a real team can act on it.</p>
+        <p className="section-index">After the scan</p>
+        <h2 id="atlas-title">A finding is not a verdict.</h2>
+        <p className="atlas-lead">Three things you do next.</p>
         <ol className="atlas-actions">
-          <li><SearchCheck size={18} /><span><strong>Investigate the match</strong>Open every source record, compare the media, and see how the detector reached the finding.</span></li>
-          <li><FileCheck2 size={18} /><span><strong>Connect permission</strong>Attach the license, receipt, credit, ownership declaration, or exclusion that resolves the release risk.</span></li>
-          <li><FileArchive size={18} /><span><strong>Carry the proof forward</strong>Export hashes, sources, automated findings, and human decisions with the release.</span></li>
+          <li><SearchCheck size={18} /><span><strong>Investigate the match</strong>Compare the media and see how the score was reached.</span></li>
+          <li><FileCheck2 size={18} /><span><strong>Connect permission</strong>Attach the license, receipt, credit, or ownership declaration.</span></li>
+          <li><FileArchive size={18} /><span><strong>Carry the proof forward</strong>Export hashes, sources, automated findings, and human decisions.</span></li>
         </ol>
       </div>
       <div className="atlas-scene">
         <EvidenceAtlas />
-        <div className="atlas-caption"><span>Interactive evidence decision map</span><p>Select a stage to inspect its responsibility, then compare the resolved path with the missing-license branch.</p></div>
+        <div className="atlas-caption"><span>Interactive evidence decision map</span><p>Select a stage, then compare the resolved and missing-license paths.</p></div>
       </div>
     </section>
   );
@@ -149,9 +149,9 @@ function WorkflowSection() {
   return (
     <section className="workflow-section" id="workflow" ref={ref} aria-labelledby="workflow-title">
       <div className="workflow-heading">
-        <p className="section-index">One decision, four accountable steps</p>
-        <h2 id="workflow-title">A workflow built around shipping—not collecting.</h2>
-        <p>The gallery made originality checks feel like a feature. Preflight makes the evidence part of a decision your team already has to make.</p>
+        <p className="section-index">Four steps</p>
+        <h2 id="workflow-title">How it works.</h2>
+        
       </div>
       <ol className="workflow-list cf-scrubbed">
         <span className="cf-rail" aria-hidden="true">
@@ -182,11 +182,11 @@ function DossierSection() {
       <div className="dossier-copy">
         <p className="section-index">Evidence before confidence</p>
         <h2 id="dossier-title">Every exception arrives with context.</h2>
-        <p>A fingerprint finding is only useful when the team can trace it back to a file, a source, a license, and a human decision. CreatorFlow keeps those pieces together.</p>
+        <p>The file, its source, its license, and the human decision stay together.</p>
         <ul className="dossier-points">
-          <li><Fingerprint size={17} /><span><strong>Deterministic checks</strong>Exact hashes, perceptual image signatures, audio fingerprints, and metadata.</span></li>
-          <li><FolderLock size={17} /><span><strong>Local by default</strong>Your files stay on the machine; connected registries receive fingerprints only.</span></li>
-          <li><FileArchive size={17} /><span><strong>Portable release record</strong>Export the evidence and every human exception as a shareable manifest.</span></li>
+          <li><Fingerprint size={17} /><span><strong>Deterministic checks</strong>Exact hashes, image and audio fingerprints, and metadata.</span></li>
+          <li><FolderLock size={17} /><span><strong>Local by default</strong>Files stay on your machine. Registries receive fingerprints only.</span></li>
+          <li><FileArchive size={17} /><span><strong>Portable release record</strong>Export the evidence and every human decision as one manifest.</span></li>
         </ul>
       </div>
 
@@ -211,22 +211,22 @@ function WhySection() {
     <section className="why-section" id="why" aria-labelledby="why-title">
       <div className="why-statement">
         <p className="section-index">The product pivot</p>
-        <h2 id="why-title">The engine was strong. The framing was too broad.</h2>
+        <h2 id="why-title">Same engine. Narrower job.</h2>
       </div>
       <div className="why-comparison">
         <article>
           <span>Before</span>
           <h3>A gallery with originality checks</h3>
-          <p>Interesting technology attached to a crowded discovery platform. The user could browse and upload, but the most valuable moment was buried inside publishing.</p>
+          <p>Good technology buried in a discovery platform.</p>
         </article>
         <ArrowDown className="comparison-arrow" aria-hidden="true" />
         <article className="comparison-current">
           <span>Now</span>
           <h3>A release gate for creative teams</h3>
-          <p>One urgent job, one complete loop: scan the project, understand the risks, record the decision, and produce the evidence that can ship with the work.</p>
+          <p>One job, from scan to manifest.</p>
         </article>
       </div>
-      <div className="truth-line"><ShieldCheck size={18} /><p><strong>Detection proves conflicts, never originality.</strong> A clear result means no conflict was found in the checked registries. Ownership still comes from declarations, licenses, provenance, and a dispute process.</p></div>
+      <div className="truth-line"><ShieldCheck size={18} /><p><strong>Detection proves conflicts, never originality.</strong> A clear result means no conflict was found in the registries we checked. Ownership still comes from licenses, declarations, and provenance.</p></div>
     </section>
   );
 }
@@ -252,17 +252,17 @@ function LandingApp({ onOpenWorkspace }: { onOpenWorkspace: (view?: WorkspaceEnt
         <section className="hero-section" aria-labelledby="hero-title">
           <MotionField />
           <div className="hero-copy">
-            <motion.p className="hero-kicker" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45 }}>Local-first release preflight</motion.p>
+            <motion.p className="hero-kicker" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.45 }}>Preflight for Roblox projects</motion.p>
             <h1 id="hero-title">
               {reduceMotion ? <>Know what<br />can ship.</> : <KineticHeading lines={['Know what', 'can ship.']} />}
             </h1>
-            <motion.p className="hero-lead" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.12 }}>CreatorFlow scans a game or creative project, traces suspicious assets back to real source records, guides human resolution, and exports the evidence behind the release.</motion.p>
+            <motion.p className="hero-lead" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.6, delay: 0.12 }}>Scan your project, trace matches back to their source, and export a record of what you checked.</motion.p>
             <motion.div className="hero-actions" initial={reduceMotion ? false : { opacity: 0 }} animate={{ opacity: 1 }} transition={{ duration: 0.5, delay: 0.22 }}>
               <button className="button button-primary" type="button" onClick={() => onOpenWorkspace('motion')}><Fingerprint size={16} /> Compare two Roblox animations</button>
               <button className="button button-secondary" type="button" onClick={() => onOpenWorkspace('overview')}>Explore the release workspace <ArrowRight size={15} /></button>
             </motion.div>
             <div className="hero-roblox-path" aria-label="Roblox animation comparison flow">
-              <span>Two animation IDs</span><i aria-hidden="true" /><span>Studio reads permitted keyframes locally</span><i aria-hidden="true" /><span>CreatorFlow saves the fingerprint evidence</span>
+              <span>Two animation IDs</span><i aria-hidden="true" /><span>Studio reads permitted keyframes</span><i aria-hidden="true" /><span>CreatorFlow saves the fingerprint</span>
             </div>
             <div className="hero-assurances">
               <span><FolderLock size={15} /> Files stay local</span>
@@ -282,7 +282,7 @@ function LandingApp({ onOpenWorkspace }: { onOpenWorkspace: (view?: WorkspaceEnt
         <section className="closing-section">
           <BrandMark compact />
           <h2>Release with a record—not a hunch.</h2>
-          <p>CreatorFlow turns the fingerprint engine you already built into a workflow a team can understand, trust, and demonstrate.</p>
+          <p>Sample data, nothing uploaded, a real manifest at the end.</p>
           <button className="button button-primary" type="button" onClick={openSample}>Open the sample preflight <ArrowRight size={16} /></button>
         </section>
       </main>

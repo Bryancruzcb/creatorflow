@@ -24,7 +24,7 @@ export function DecodeSequence({ label, note }: { label: string; note?: string }
       </div>
       <p className="cf-decode-label">
         <span className="cf-decode-dot" aria-hidden="true" />
-        Decoding {label}
+        Loading {label}
       </p>
       {note ? <p className="cf-decode-note">{note}</p> : null}
     </div>

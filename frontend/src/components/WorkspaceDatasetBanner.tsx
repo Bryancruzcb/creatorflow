@@ -5,19 +5,19 @@ export type DatasetMode = 'sample' | 'local' | 'imported';
 
 const COPY = {
   sample: {
-    tag: 'Sample scenario',
+    tag: 'Sample data',
     icon: FlaskConical,
-    detail: 'Licensed sample assets — not your files.',
+    detail: 'Licensed sample files — not yours.',
   },
   local: {
     tag: 'Your project',
     icon: FolderOpen,
-    detail: 'Scanned on this machine. Only fingerprints leave it.',
+    detail: 'Scanned here. Only fingerprints leave.',
   },
   imported: {
     tag: 'Imported manifest',
     icon: FileArchive,
-    detail: 'Read-only snapshot from a scan file.',
+    detail: 'Read-only scan file.',
   },
 } as const;
 

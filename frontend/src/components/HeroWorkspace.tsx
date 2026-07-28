@@ -70,7 +70,7 @@ export function HeroWorkspace() {
         <div className="cf-proof-titlebar">
           <div>
             <span className="cf-proof-register">Animation proof / local evidence</span>
-            <h2>One ribbon from Roblox asset to release decision.</h2>
+            <h2>From animation ID to release decision.</h2>
           </div>
           <div className="cf-proof-progress" aria-label={`${progress}% of evidence path complete`}>
             <span><b style={{ width: `${progress}%` }} /></span>
@@ -160,7 +160,7 @@ export function HeroWorkspace() {
         <footer className="cf-proof-footer">
           <div className="cf-proof-local-boundary">
             <span aria-hidden="true"><i /></span>
-            <p><strong>Creative payload stays in Studio.</strong> CreatorFlow receives normalized fingerprints and evidence records—not animation keyframes.</p>
+            <p><strong>Keyframes stay in Studio.</strong> CreatorFlow receives fingerprints and evidence records only.</p>
           </div>
           <div className="cf-proof-actions">
             <span>Demo evidence · not a live Roblox verdict</span>
