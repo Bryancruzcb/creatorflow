@@ -63,14 +63,15 @@ Two rules that matter more than the mapping:
 1. **`src/styles.css` is a ~11.7k-line monolith** with four `*.premium.css` override files beside
    it, and contains verified-dead selectors. Splitting it into tokens plus feature-scoped styles is
    the largest cleanup left in this workspace. The token layer above is the first step of it.
-2. **Accessible names and text alternatives are not audited anywhere.** Two of the last review's
-   serious findings were an unlabelled colour channel and a progress readout announced ~41 times
-   into a live region. Both were invisible to the test suite and to type-checking, and both were
-   found only by a human-style pass over the rendered surface. There is no gate for this — see 4.
+2. **Colour contrast, landmarks and heading order have no gate.** `npm run test:audit` now covers
+   accessible names and the type floor across 16 surfaces, but it is deliberately scoped to those:
+   a gate that fails on hundreds of pre-existing contrast findings gets switched off. Those rules
+   need their own pass with their own baseline. See [`audit/README.md`](./audit/README.md).
 3. **`HeavyAssetViewer.tsx` is large enough to be worth decomposing** (renderer lifecycle, asset
    loader, scene index, comparison renderer, heatmap worker, budget estimator, overlays).
-4. **No accessibility gate** — axe-style checks plus a keyboard-only pass over the local project
-   workspace are worth adding.
+4. **No keyboard-only pass** over the local project workspace. Automated name checks are in
+   (`npm run test:audit`); tab order, focus visibility and focus trapping in the welcome modal and
+   the decision forms are still unverified, and axe cannot see any of them.
 
 ## Not open, contrary to older notes
 
