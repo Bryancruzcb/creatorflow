@@ -1,0 +1,25 @@
+{
+  "name": "creatorflow-video",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "description": "Remotion source for the CreatorFlow workflow explainer.",
+  "scripts": {
+    "studio": "remotion studio",
+    "render": "remotion render Explainer out/creatorflow-explainer.mp4",
+    "render:gif": "remotion render Explainer out/creatorflow-explainer.gif --codec=gif --every-nth-frame=2 --width=1280",
+    "still": "remotion still Explainer out/frame.png"
+  },
+  "dependencies": {
+    "@remotion/cli": "^4.0.500",
+    "@remotion/google-fonts": "^4.0.500",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "remotion": "^4.0.500"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
+    "typescript": "^5.7.3"
+  }
+}
