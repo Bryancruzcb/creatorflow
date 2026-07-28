@@ -33,6 +33,17 @@ function fixture(name: string): unknown {
   return JSON.parse(readFileSync(resolve(FIXTURES, `${name}.json`), 'utf8'));
 }
 
+const ORIGIN = 'http://127.0.0.1:1';
+
+function jsonResponse(body: unknown) {
+  // Built per call: a Response body can only be read once, and detect() plus the method under test
+  // are two separate reads.
+  return new Response(JSON.stringify(body), {
+    status: 200,
+    headers: { 'content-type': 'application/json' },
+  });
+}
+
 /**
  * A client wired to a fetch that replays one fixture.
  *
@@ -40,15 +51,22 @@ function fixture(name: string): unknown {
  * exercises the real request path, the real error handling and the real response parsing, so a
  * change in how the client unwraps a payload is caught as well as a change in the payload.
  */
-function clientReturning(body: unknown) {
-  const fetchMock = vi.fn(async () => new Response(JSON.stringify(body), {
-    status: 200,
-    headers: { 'content-type': 'application/json' },
+async function clientReturning(body: unknown) {
+  let first = true;
+  vi.stubGlobal('fetch', vi.fn(async () => {
+    if (first) {
+      first = false;
+      return jsonResponse({ csrfToken: 'test-csrf', origin: ORIGIN, openCloudKeyConfigured: false });
+    }
+    return jsonResponse(body);
   }));
-  vi.stubGlobal('fetch', fetchMock);
-  return new LocalBridgeClient(
-    { csrfToken: 'test-csrf', origin: 'http://127.0.0.1:1', openCloudKeyConfigured: false },
-  );
+  // detect() validates the session against the page origin, and vitest's node environment has no
+  // window. Going through detect() rather than the constructor is not a formality: the constructor
+  // is private, and reaching past it would be testing a construction path the product never uses.
+  vi.stubGlobal('window', { location: { origin: ORIGIN } });
+  const client = await LocalBridgeClient.detect();
+  if (!client) throw new Error('test setup: detect() returned null');
+  return client;
 }
 
 afterEach(() => {
@@ -66,7 +84,7 @@ describe('bridge contract', () => {
   });
 
   it('parses the project list', async () => {
-    const client = clientReturning(fixture('projects'));
+    const client = await clientReturning(fixture('projects'));
     const projects = await client.listProjects();
     expect(projects.items.length).toBeGreaterThan(0);
     const first = projects.items[0];
@@ -77,7 +95,7 @@ describe('bridge contract', () => {
   });
 
   it('parses an assets page, including the run id the UI keys off', async () => {
-    const client = clientReturning(fixture('assets-page'));
+    const client = await clientReturning(fixture('assets-page'));
     const page = await client.listProjectAssets(1, 100, 0);
     expect(typeof page.scanRunId).toBe('string');
     expect(Array.isArray(page.items)).toBe(true);
@@ -90,7 +108,7 @@ describe('bridge contract', () => {
   });
 
   it('parses an asset detail, and keeps sourceEvidence distinguishable from a decision', async () => {
-    const client = clientReturning(fixture('asset-detail'));
+    const client = await clientReturning(fixture('asset-detail'));
     const detail = await client.getAsset(1);
     expect(typeof detail.asset.id).toBe('number');
     expect(Array.isArray(detail.findings)).toBe(true);
@@ -104,7 +122,7 @@ describe('bridge contract', () => {
   });
 
   it('parses a scan run with the counters the progress UI reads', async () => {
-    const client = clientReturning(fixture('scan-run'));
+    const client = await clientReturning(fixture('scan-run'));
     const run = await client.getScanRun('669ab1d1-3462-493d-8efb-420392cc5015');
     expect(typeof run.id).toBe('string');
     expect(typeof run.state).toBe('string');
@@ -115,19 +133,19 @@ describe('bridge contract', () => {
   });
 
   it('parses decision history as a list', async () => {
-    const client = clientReturning(fixture('decision-history'));
+    const client = await clientReturning(fixture('decision-history'));
     const history = await client.getDecisionHistory(1);
     expect(Array.isArray(history.items)).toBe(true);
   });
 
   it('parses ownership verifications as a list', async () => {
-    const client = clientReturning(fixture('ownership-verifications'));
+    const client = await clientReturning(fixture('ownership-verifications'));
     const verifications = await client.listOwnershipVerifications(1);
     expect(Array.isArray(verifications.items)).toBe(true);
   });
 
   it('parses the release list', async () => {
-    const client = clientReturning(fixture('releases'));
+    const client = await clientReturning(fixture('releases'));
     const releases = await client.listProjectReleases(1);
     expect(Array.isArray(releases.items)).toBe(true);
   });
