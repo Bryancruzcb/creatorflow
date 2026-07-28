@@ -26,7 +26,7 @@ import type { HeavyComponentMatch } from '../heavyAssets';
 import { watchReducedMotion } from '../motion/preferences';
 import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
 import { DEVIATION_RAMP, NO_DATA_HEX, rampGradientCss, sampleRamp } from '../motion/ramp';
-import type { DeviationProgress, DeviationRequest, DeviationResult } from '../motion/deviation.worker';
+import type { DeviationProgress, DeviationRequest, DeviationResult } from '../motion/deviation';
 import { applyStudioEnvironment, attachStudioLights, configureStudioRenderer, createStudioEnvironment } from '../motion/sceneFoundation';
 
 const EMPTY_COMPONENT_MATCHES: HeavyComponentMatch[] = [];
@@ -77,6 +77,14 @@ interface HeatmapStats {
   mean: number;
   maximum: number;
   samples: number;
+  /**
+   * Target vertices with no reference neighbour inside the search radius.
+   *
+   * Reported, never dropped: mean and max are computed over `samples` only, so a pair that barely
+   * overlaps can produce a flattering mean from a handful of points. Without this number the
+   * legend would state a confident average and omit that it measured almost nothing.
+   */
+  unmeasured: number;
 }
 
 interface RenderPassStats {
@@ -305,13 +313,28 @@ function collectWorldPoints(root: Object3D, limit = 60_000) {
  * distances come back in the same order, and colours are written in a second pass. Buffers are
  * transferred rather than copied.
  */
+/**
+ * Abandoning a measurement is not a measurement.
+ *
+ * This used to resolve `{ mean: 0, maximum: 0, samples: 0 }` on cancellation — which reads as a
+ * flawless match over zero evidence. It survived only because the caller happened to discard it;
+ * any future caller that trusted the resolved value would have shown a perfect score for work that
+ * never ran. A cancelled search has no result, so it throws.
+ */
+class DeviationAborted extends Error {
+  constructor() {
+    super('deviation search aborted');
+    this.name = 'DeviationAborted';
+  }
+}
+
 async function applyDeviationHeatmap(
   project: Group,
   source: Group,
   materials: Set<Material>,
   geometries: Set<Mesh['geometry']>,
   onProgress?: (fraction: number) => void,
-  signal?: { cancelled: boolean },
+  signal?: AbortSignal,
 ): Promise<HeatmapStats> {
   const sourcePoints = collectWorldPoints(source);
   const sourceBuffer = new Float32Array(sourcePoints.length * 3);
@@ -342,16 +365,24 @@ async function applyDeviationHeatmap(
   });
   const targetBuffer = new Float32Array(chunks);
 
+  if (signal?.aborted) throw new DeviationAborted();
+
   const worker = new Worker(new URL('../motion/deviation.worker.ts', import.meta.url), { type: 'module' });
+  /**
+   * Abort must terminate the worker directly rather than wait to be noticed.
+   *
+   * Progress messages are posted from inside the search loop, so they are not a usable
+   * cancellation heartbeat: the worker builds the whole source grid before the first one is sent,
+   * and that build is itself expensive on a 60,000-point reference. A worker cancelled during it
+   * would otherwise finish the grid and enter the loop before it could observe anything. Dragging
+   * the confidence slider re-runs this effect on every step, so without a direct kill those
+   * abandoned grid builds stack up and compete for cores with the one the user is waiting for.
+   */
   const outcome = await new Promise<DeviationResult>((resolve, reject) => {
+    const abort = () => reject(new DeviationAborted());
+    signal?.addEventListener('abort', abort, { once: true });
     worker.onmessage = (event: MessageEvent<DeviationProgress | DeviationResult>) => {
       if (event.data.type === 'progress') {
-        // Stop paying for a result nobody is waiting for any more. Without this the worker runs
-        // to completion after the user has already moved to another component.
-        if (signal?.cancelled) {
-          reject(new Error('cancelled'));
-          return;
-        }
         onProgress?.(event.data.total > 0 ? event.data.done / event.data.total : 0);
         return;
       }
@@ -361,8 +392,6 @@ async function applyDeviationHeatmap(
     const request: DeviationRequest = { source: sourceBuffer, target: targetBuffer, cellSize: 0.055, ceiling: 0.12 };
     worker.postMessage(request, [sourceBuffer.buffer, targetBuffer.buffer]);
   }).finally(() => worker.terminate());
-
-  if (signal?.cancelled) return { mean: 0, maximum: 0, samples: 0 };
 
   const noData = new Color(NO_DATA_HEX);
   const colorScratch = new Color();
@@ -394,7 +423,7 @@ async function applyDeviationHeatmap(
     child.renderOrder = 2;
   });
 
-  return { mean: outcome.mean, maximum: outcome.maximum, samples: outcome.samples };
+  return { mean: outcome.mean, maximum: outcome.maximum, samples: outcome.samples, unmeasured: outcome.unmeasured };
 }
 
 export function HeavyAssetViewer({
@@ -433,6 +462,7 @@ export function HeavyAssetViewer({
   const styledMaterialsRef = useRef(new Set<Material>());
   const comparisonMaterialsRef = useRef(new Set<Material>());
   const comparisonGeometriesRef = useRef(new Set<Mesh['geometry']>());
+  const abortRef = useRef<AbortController | null>(null);
   const onSelectRef = useRef(onSelectComponent);
   const onSceneIndexRef = useRef(onSceneIndex);
   const matchMapRef = useRef(matchMapEnabled);
@@ -443,7 +473,9 @@ export function HeavyAssetViewer({
   const renderLoopRef = useRef<CanvasRenderLoop | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [progress, setProgress] = useState(0);
-  const [comparisonStatus, setComparisonStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  // 'error' means the pair could not be extracted; 'measure-failed' means it was extracted and the
+  // deviation search itself failed. Blaming the wrong stage sends the user to the wrong asset.
+  const [comparisonStatus, setComparisonStatus] = useState<'idle' | 'loading' | 'ready' | 'error' | 'measure-failed'>('idle');
   const [budget, setBudget] = useState<SceneBudget | null>(null);
   const [budgetOpen, setBudgetOpen] = useState(false);
   const [runtimeTelemetry, setRuntimeTelemetry] = useState<RuntimeTelemetry | null>(null);
@@ -913,7 +945,6 @@ export function HeavyAssetViewer({
     if (!comparisonActive || !selected || !root) {
       clearComparison();
       setHeatmapStats(null);
-    setHeatmapProgress(0);
       setHeatmapProgress(0);
       compareGroup.visible = false;
       holder.visible = true;
@@ -923,6 +954,7 @@ export function HeavyAssetViewer({
       return;
     }
     let cancelled = false;
+    abortRef.current = new AbortController();
     holder.visible = false;
     clearComparison();
     setHeatmapStats(null);
@@ -968,14 +1000,13 @@ export function HeavyAssetViewer({
            * switched, unmounted, or put into a different comparison mode, and a late result would
            * overwrite the new selection's state with the old one's numbers.
            */
-          const signal = { get cancelled() { return cancelled; } };
           void applyDeviationHeatmap(
             project,
             source,
             comparisonMaterialsRef.current,
             comparisonGeometriesRef.current,
             (fraction) => { if (!cancelled) setHeatmapProgress(fraction); },
-            signal,
+            abortRef.current?.signal,
           ).then((stats) => {
             if (cancelled) return;
             setHeatmapStats(stats);
@@ -983,9 +1014,10 @@ export function HeavyAssetViewer({
             setComparisonStatus('ready');
             renderLoopRef.current?.invalidate();
             renderLoopRef.current?.sync();
-          }).catch(() => {
-            if (cancelled) return;
-            setComparisonStatus('error');
+          }).catch((error: unknown) => {
+            // An abort is the expected outcome of the user moving on, not a failure to report.
+            if (cancelled || error instanceof DeviationAborted) return;
+            setComparisonStatus('measure-failed');
           });
         });
         return;
@@ -1013,7 +1045,10 @@ export function HeavyAssetViewer({
       renderLoopRef.current?.invalidate();
       renderLoopRef.current?.sync();
     }
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+      abortRef.current?.abort();
+    };
   }, [assetId, comparisonActive, comparisonMode, comparisonSourceUrl, componentMatches, matchMapEnabled, selectedComponentId, status]);
 
   const memoryReviewTargetMb = 576;
@@ -1084,10 +1119,23 @@ export function HeavyAssetViewer({
           {!comparisonActive ? <div className="heavy-viewer-controls" aria-label="Camera viewpoints"><button type="button" onClick={() => setView('iso')}>Iso</button><button type="button" onClick={() => setView('front')}>Front</button><button type="button" onClick={() => setView('top')}>Top</button>{selectedMatch ? <button type="button" onClick={focusSelection}>Focus</button> : null}</div> : null}
         </div>
         {!comparisonActive ? <div className="heavy-viewer-ready"><span />{matchMapEnabled ? selectedMatch ? `${differenceMode === 'ghost' ? 'Ghost context' : differenceMode === 'isolate' ? 'Isolated component' : 'Difference highlight'} · ${selectedMatch.project.label}` : 'Match map active · click a highlighted component' : 'Orbit any direction · wheel or pinch to zoom'}</div> : null}
-        {comparisonActive && selectedMatch && comparisonStatus !== 'error' ? <div className="viewer-comparison-dock">{comparisonMode === 'heatmap' && heatmapStats ? <div className="surface-heatmap-legend"><span>Near-identical</span><i style={{ backgroundImage: rampGradientCss(DEVIATION_RAMP) }} /><span>Largest deviation</span><small>Mean {(heatmapStats.mean * 100).toFixed(2)}% · max {(heatmapStats.maximum * 100).toFixed(2)}% of normalized frame · {heatmapStats.samples.toLocaleString()} vertices sampled</small></div> : null}<div className={`subasset-comparison-labels subasset-comparison-labels-${comparisonMode}`}><span>Project component<strong>{selectedMatch.project.label}</strong></span><small>{comparisonMode === 'overlay' ? 'Normalized overlay' : comparisonMode === 'heatmap' ? 'Sampled normalized deviation' : comparisonMode === 'blink' ? reducedMotionRef.current ? 'Blink replaced with static view' : 'Alternating every 0.85 s' : 'Normalized to the same frame'}</small><span>Matched component<strong>{selectedMatch.source.label}</strong></span></div></div> : null}
+        {comparisonActive && selectedMatch && comparisonStatus !== 'error' ? <div className="viewer-comparison-dock">{comparisonMode === 'heatmap' && heatmapStats ? <div className="surface-heatmap-legend"><span>Near-identical</span><i style={{ backgroundImage: rampGradientCss(DEVIATION_RAMP) }} /><span>Largest deviation</span><small>Mean {(heatmapStats.mean * 100).toFixed(2)}% · max {(heatmapStats.maximum * 100).toFixed(2)}% of normalized frame · {heatmapStats.samples.toLocaleString()} vertices sampled</small>{heatmapStats.unmeasured > 0 ? <small className="surface-heatmap-coverage"><i style={{ background: NO_DATA_HEX }} />{heatmapStats.unmeasured.toLocaleString()} vertices had no reference surface within range — the figures above cover the other {Math.round((heatmapStats.samples / (heatmapStats.samples + heatmapStats.unmeasured)) * 100)}%</small> : null}</div> : null}<div className={`subasset-comparison-labels subasset-comparison-labels-${comparisonMode}`}><span>Project component<strong>{selectedMatch.project.label}</strong></span><small>{comparisonMode === 'overlay' ? 'Normalized overlay' : comparisonMode === 'heatmap' ? 'Sampled normalized deviation' : comparisonMode === 'blink' ? reducedMotionRef.current ? 'Blink replaced with static view' : 'Alternating every 0.85 s' : 'Normalized to the same frame'}</small><span>Matched component<strong>{selectedMatch.source.label}</strong></span></div></div> : null}
         {selectedMatch && !comparisonActive ? <div className="mini-scene-map" aria-label={`Scene map location for ${selectedMatch.project.label}`}><span>Scene location</span>{miniMarker ? <i style={{ left: `${miniMarker.x}%`, top: `${miniMarker.y}%` }} /> : null}</div> : null}
-        {comparisonActive && comparisonStatus === 'loading' ? <div className="subasset-comparison-loading" role="status" aria-live="polite"><span />{comparisonMode === 'heatmap' ? `Computing normalized surface deviation… ${Math.round(heatmapProgress * 100)}%` : 'Loading matched GLB and extracting one component…'}</div> : null}
-        {comparisonActive && comparisonStatus === 'error' ? <div className="heavy-viewer-error">The selected component pair could not be extracted from its source GLB.</div> : null}
+        {/**
+          * The percentage is deliberately outside the live region.
+          *
+          * It used to sit inside it, so a search posting ~41 progress updates queued ~41 spoken
+          * sentences — each one re-reading "Computing normalized surface deviation" — and a screen
+          * reader kept reading them after the work had finished. The live region now holds a
+          * sentence that never changes, so it is announced once; the number is exposed through a
+          * progressbar, which assistive tech reports on request rather than interrupting with.
+          */}
+        {comparisonActive && comparisonStatus === 'loading' ? <div className="subasset-comparison-loading"><span className="comparison-spinner" />
+          <span role="status" aria-live="polite">{comparisonMode === 'heatmap' ? 'Computing normalized surface deviation…' : 'Loading matched GLB and extracting one component…'}</span>
+          {comparisonMode === 'heatmap' ? <span className="subasset-comparison-progress" role="progressbar" aria-label="Deviation search progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(heatmapProgress * 100)}><span aria-hidden="true">{Math.round(heatmapProgress * 100)}%</span></span> : null}
+        </div> : null}
+        {comparisonActive && comparisonStatus === 'error' ? <div className="heavy-viewer-error" role="alert">The selected component pair could not be extracted from its source GLB.</div> : null}
+        {comparisonActive && comparisonStatus === 'measure-failed' ? <div className="heavy-viewer-error" role="alert">Both components loaded, but the deviation search did not finish. No measurement is shown.</div> : null}
       </> : null}
       {status === 'error' ? <div className="heavy-viewer-error">The static preview remains available; WebGL could not decode this asset.</div> : null}
     </div>
