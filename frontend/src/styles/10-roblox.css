@@ -877,6 +877,32 @@
   text-align: right;
 }
 
+/* Two lines: which authored key you are parked on, and where that is on the clock. The key index
+   is the primary reading now that stepping exists, so it takes full ink and the clock supports it.
+   Tabular figures because these numbers change under the eye while stepping and must not reflow. */
+.motion-step-readout {
+  display: grid;
+  gap: 0.1rem;
+  min-width: 6.5rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.motion-step-readout > strong {
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+}
+
+.motion-step-readout > small {
+  color: var(--ink-dim);
+  font-size: var(--text-3xs);
+}
+
+.motion-compare-transport > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
 .motion-frame-strip {
   position: relative;
   display: grid;

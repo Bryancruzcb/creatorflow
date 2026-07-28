@@ -432,9 +432,20 @@
   border-color: color-mix(in srgb, var(--darkroom-candidate) 42%, var(--darkroom-rule));
 }
 
-.motion-darkroom .motion-compare-transport label,
-.motion-darkroom .motion-compare-transport output {
+.motion-darkroom .motion-compare-transport label {
   font-size: var(--text-2xs);
+}
+
+/* The readout is two lines now, so a single font-size on the <output> would flatten the
+   distinction between the key index and the clock beneath it. This skin is what actually ships on
+   this surface — styling only the base rule would have been silently overridden here. */
+.motion-darkroom .motion-step-readout > strong {
+  color: var(--darkroom-ink, var(--ink));
+  font-size: var(--text-2xs);
+}
+
+.motion-darkroom .motion-step-readout > small {
+  font-size: var(--text-3xs);
 }
 
 .motion-darkroom .motion-compare-transport input {
