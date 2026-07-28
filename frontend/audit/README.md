@@ -36,6 +36,23 @@ Current debt, largest first: `app-project` (49 rules, smallest 6.08px), `landing
 `app-assets` (17), `app-overview` (11). Migration order is in
 [`../VISUAL-TECHNIQUE-PLAN.md`](../VISUAL-TECHNIQUE-PLAN.md) item 6.
 
+## `overflow.spec.ts`
+
+Asserts nothing overflows its container, at **390 / 820 / 1280**.
+
+Added after the landing dossier shipped broken on a phone: three absolutely positioned sheets at
+percentage widths, fine at 1440, and at 390px each was ~226px so every panel clipped its own text
+and the manifest ran off the screen. The other two gates run at 1440 only, so a layout that fails
+only when narrow was invisible to every check in the repo. They ask *is this readable*; this asks
+*does it fit*.
+
+`UNRESPONSIVE` lists the workspace views, which overflow by exactly 231px at phone width — the
+224px nav rail is a fixed column at every width. Making the workspace responsive is a real project,
+so it is recorded and logged rather than skipped. Same ratchet rule: entries come off, none go on.
+
+The landing page is deliberately **not** on that list. It is the surface a creator is most likely
+to open on a phone.
+
 ## `a11y.spec.ts`
 
 Runs axe-core restricted to **accessible-name and announceability rules**, on all 16 surfaces.
