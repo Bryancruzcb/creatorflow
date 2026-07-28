@@ -345,10 +345,12 @@
   display: block;
 }
 
+/* Shared topbar chrome — these two render on every workspace view, so they were the last
+   sub-floor rules on several surfaces at once rather than a per-surface problem. */
 .product-topbar > div:first-child span {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.54rem;
+  font-size: var(--text-3xs);
 }
 
 .product-topbar > div:first-child strong {
@@ -361,7 +363,7 @@
   margin-top: 0.08rem;
   color: var(--blue-hover);
   font-family: var(--font-mono);
-  font-size: 0.5rem;
+  font-size: var(--text-3xs);
   font-weight: 400;
 }
 
