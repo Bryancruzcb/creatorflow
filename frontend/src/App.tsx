@@ -15,6 +15,8 @@ import {
 import { motion, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { AssetArtwork } from './components/AssetArtwork';
+import { KeyframeSheet, SourceRecordSheet } from './components/DossierArtwork';
+import './components/DossierArtwork.css';
 import { BrandMark } from './components/BrandMark';
 import { EvidenceAtlas } from './components/EvidenceAtlas';
 import { HeroWorkspace } from './components/HeroWorkspace';
@@ -189,8 +191,8 @@ function DossierSection() {
       </div>
 
       <div className="dossier-stage" aria-label="Layered evidence dossier">
-        <motion.div className="dossier-sheet dossier-sprite" style={{ y: leftY }}><span>Asset / sprite sheet</span><AssetArtwork kind="sprite" /></motion.div>
-        <motion.div className="dossier-sheet dossier-license" style={{ y: rightY }}><span>License / source record</span><AssetArtwork kind="receipt" /></motion.div>
+        <motion.div className="dossier-sheet dossier-sprite" style={{ y: leftY }}><span>Project file / animation tracks</span><KeyframeSheet /></motion.div>
+        <motion.div className="dossier-sheet dossier-license" style={{ y: rightY }}><span>Source record / permission</span><SourceRecordSheet /></motion.div>
         <div className="dossier-sheet dossier-manifest">
           <div className="manifest-pin" aria-hidden="true" />
           <span>Release manifest</span>
@@ -199,7 +201,6 @@ function DossierSection() {
           <div className="manifest-rule" />
           <StatusMark value="review" />
         </div>
-        <div className="dossier-sheet dossier-hash"><span>SHA-256</span><code>5D7A386E6F5C4D8B<br />9A1E7F0C8D2B3A6F</code></div>
       </div>
     </section>
   );

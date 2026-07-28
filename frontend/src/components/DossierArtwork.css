@@ -1,0 +1,209 @@
+/**
+ * The two dossier artefacts. Landing only — imported from App.tsx beside the other landing CSS,
+ * never from the workspace, because the instrument does not get decorative motion.
+ *
+ * Both panels sit inside `.dossier-sheet`, which is `position: absolute` with `overflow: hidden`
+ * in a deliberately overlapping stack. That means the visible area of each is a partial crop, and
+ * the layout below puts each panel's identifying content in the part that stays exposed.
+ */
+
+.ks,
+.sr {
+  display: grid;
+  margin: 0;
+  padding: var(--space-3);
+  gap: var(--space-2);
+  font-family: var(--font-mono);
+}
+
+/* ---- dope sheet ---- */
+
+.ks-head {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.ks-head > strong {
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+  letter-spacing: var(--track-mono);
+}
+
+.ks-head > small,
+.ks > figcaption {
+  color: var(--ink-dim);
+  font-size: var(--text-3xs);
+}
+
+.ks-grid {
+  position: relative;
+  display: grid;
+  gap: 0.3rem;
+  padding: var(--space-2) 0;
+}
+
+.ks-lane {
+  display: grid;
+  grid-template-columns: 6.5rem 1fr;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.ks-part {
+  overflow: hidden;
+  color: var(--ink-muted);
+  font-size: var(--text-3xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ks-track {
+  position: relative;
+  height: 0.9rem;
+  background: var(--desk);
+  border: 1px solid var(--hairline);
+}
+
+/* Keys are diamonds because that is what the Roblox animation editor draws them as. Anyone who
+   has opened it recognises the shape before reading the label. */
+.ks-key {
+  position: absolute;
+  top: 50%;
+  width: 0.4rem;
+  height: 0.4rem;
+  background: var(--ink-muted);
+  transform: translate(-50%, -50%) rotate(45deg);
+}
+
+/* One playhead over the whole lane block, so every lane reads against the same clock. Duration is
+   arbitrary presentation, not the clip's 0.958s — a 1s sweep would be too fast to follow and
+   labelling it as the clip's real time would be the fabrication this project refuses. */
+.ks-playhead {
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: 6.5rem;
+  width: calc(100% - 6.5rem);
+  pointer-events: none;
+}
+
+.ks-playhead::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: var(--blue);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--blue) 55%, transparent);
+  animation: ks-scan 7.2s linear infinite;
+  content: '';
+}
+
+@keyframes ks-scan {
+  from { left: 0; }
+  to { left: 100%; }
+}
+
+/* ---- source record ---- */
+
+.sr-head {
+  display: grid;
+  gap: 0.15rem;
+}
+
+.sr-head > strong {
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  font-weight: var(--weight-medium);
+}
+
+.sr-head > small,
+.sr-digest > small {
+  color: var(--ink-dim);
+  font-size: var(--text-3xs);
+}
+
+.sr-chain {
+  display: grid;
+  gap: 0.45rem;
+  margin: 0;
+  padding: 0 0 0 var(--space-3);
+  /* The rail is the point: these four records are one chain, not four unrelated facts. */
+  border-left: 1px solid var(--hairline-strong);
+  list-style: none;
+}
+
+.sr-chain > li {
+  position: relative;
+  display: grid;
+  gap: 0.05rem;
+}
+
+.sr-chain > li::before {
+  position: absolute;
+  top: 0.35rem;
+  left: calc(-1 * var(--space-3) - 0.21rem);
+  width: 0.4rem;
+  height: 0.4rem;
+  background: var(--ink-muted);
+  border-radius: 50%;
+  content: '';
+}
+
+/* The last record is an open review, not a pass. It is marked because a chain that ends in review
+   is the honest sample — the fixture asset is a locally edited derivative. */
+.sr-chain > li[data-open='true']::before {
+  background: var(--review);
+}
+
+.sr-label {
+  color: var(--ink-dim);
+  font-size: var(--text-3xs);
+  letter-spacing: var(--track-label);
+  text-transform: uppercase;
+}
+
+.sr-value {
+  overflow: hidden;
+  color: var(--ink);
+  font-size: var(--text-2xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sr-note {
+  color: var(--ink-muted);
+  font-size: var(--text-3xs);
+}
+
+.sr-digest {
+  display: grid;
+  gap: var(--space-1);
+}
+
+/* 256 cells as a 64x4 strip rather than a 32x8 block. One cell per bit of the real digest — a
+   picture of a specific number, not a texture that looks like one. The strip shape is not only
+   aesthetic: at 32 wide this panel grew tall enough to bury the sheet above it in the stack. */
+.sr-bits {
+  display: grid;
+  grid-template-columns: repeat(64, 1fr);
+  gap: 1px;
+}
+
+.sr-bits > i {
+  aspect-ratio: 1;
+  min-height: 2px;
+  background: var(--hairline);
+}
+
+.sr-bits > i[data-on='true'] {
+  background: var(--blue);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ks-playhead::after {
+    left: 50%;
+    animation: none;
+  }
+}
