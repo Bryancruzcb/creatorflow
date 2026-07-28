@@ -124,9 +124,34 @@ Do not "fix" this by quietly cutting the sample count. The legend reports how ma
 sampled, and trading measurement precision for speed without saying so is the kind of quiet
 inaccuracy the rest of this work exists to remove.
 
-### 6. Housekeeping already named
-StressLab / system-check type-scale pass (`.motion-gate`, `.motion-transport`, `.compressed-preview`
-cluster). Two stragglers in the motion lab at 10.56px and 9.17px.
+### 6. Type scale — much bigger than this file used to claim
+
+This item read "StressLab / system-check type-scale pass, plus two stragglers in the motion lab at
+10.56px and 9.17px". That was wrong, and wrong in the direction that matters: it made the
+remaining work sound like a rounding error. Measured on `main` before the `.local-*` pass:
+
+| | |
+|---|---|
+| `font-size` declarations in `styles.css` | 547 |
+| using a `--text-*` token | 144 (26%) |
+| hardcoded under 12px | 316 |
+| hardcoded under 9.6px | 165 |
+| smallest | **6.56px** (`.scene-budget-section > small`) |
+
+Done: `.local-*` (56 declarations — the ownership-verification surface).
+
+Remaining, in value order:
+
+1. `.scene-budget` / `.scene-tree` / `.subasset-*` — HeavyAssetViewer panels, includes the 6.56px floor.
+2. `.failure-lab` / `.system-check` — StressLab. This is what the item originally named.
+3. `.release-*` — release map and inspector.
+
+**Read this before doing another one.** Authored size is not rendered size. On the `.local-*` pass,
+`.local-ownership-verdict > strong` was authored at 0.66rem and actually rendered at 0.51rem,
+because `.local-asset-inspector section > div strong` (0,1,3) outranks `.local-ownership-verdict >
+strong` (0,1,1). Grepping font sizes tells you what someone intended; only reading computed style
+off the live element tells you what ships. Expect more of these — the file is full of generic
+container-descendant rules that reach into nested components.
 
 ## Rejected, with reasons — do not re-add
 
