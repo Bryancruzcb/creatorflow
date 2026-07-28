@@ -160,11 +160,15 @@ Ratios in `KNOWN_PAIRS` are recomputed from the hex at assertion time, so the nu
 cannot drift from the colours in it. Same ratchet rule as the other gates: entries come off when a
 token is fixed, nothing goes on.
 
-The two left are one token doing two jobs. `--blue` is both a filled-button background (needs to be
-darker so white text clears 4.5) and an accent text colour on dark surfaces (needs to be lighter);
-darkening it to 52% trades a 3.66 failure for a 3.43 one. Splitting it into a solid and an accent
-token is the real fix and a visible design change, so it is recorded rather than smuggled into a
-test change.
+**The baseline is now empty — zero findings across zero pairs, on all sixteen surfaces.** The last
+two entries were one token failing in opposite directions at once: `--blue` was both a filled-button
+background (needs to be darker so white text clears 4.5:1) and an accent text colour on dark
+surfaces (needs to be lighter). No single value satisfies both, so it was split into `--blue-solid`
+(48%, bounded by `--ink` sitting on it) and `--blue-accent` (67%, bounded by the lightest surface it
+can land on) rather than moved.
+
+An empty ratchet is a gate that can stop working without anyone noticing, so it is canaried:
+reverting `--blue-accent` to the old value fails it, naming the element and the measured ratio.
 
 Nodes axe cannot resolve — text over the WebGL hero, over gradients, over images — are reported
 separately and budgeted, but **only on surfaces with no live canvas.** On canvas surfaces the count

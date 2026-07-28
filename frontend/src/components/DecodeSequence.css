@@ -26,7 +26,7 @@
   position: absolute;
   width: 0.75rem;
   height: 0.75rem;
-  border: 1px solid var(--blue);
+  border: 1px solid var(--blue-accent);
   opacity: 0.62;
 }
 .cf-decode-corner.tl { top: 0.4rem; left: 0.4rem; border-right: 0; border-bottom: 0; }
@@ -52,7 +52,7 @@
   background: linear-gradient(
     90deg,
     transparent,
-    color-mix(in srgb, var(--blue) 26%, transparent),
+    color-mix(in srgb, var(--blue-accent) 26%, transparent),
     transparent
   );
   animation: cf-decode-sweep 1.5s cubic-bezier(0.5, 0, 0.5, 1) infinite;
@@ -79,7 +79,7 @@
   width: 0.42rem;
   height: 0.42rem;
   border-radius: 50%;
-  background: var(--blue);
+  background: var(--blue-accent);
   animation: cf-decode-pulse 1.2s ease-in-out infinite;
 }
 

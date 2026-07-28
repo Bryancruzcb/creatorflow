@@ -15,9 +15,30 @@
      value that clears the backgrounds that happen to be used today would leave the next layout to
      reintroduce the problem. It stays clearly subordinate to --ink-muted at 72.36%. */
   --ink-dim: oklch(66% 0.0105 102);
-  --blue: oklch(58.5% 0.0627 249.71);
-  --blue-hover: oklch(65% 0.069 249.71);
-  --blue-down: oklch(52% 0.059 249.71);
+  /* Blue is two jobs, and one token could not do both. As a filled surface under --ink it has to be
+     DARKER to clear 4.5:1; as text or a mark on a dark surface it has to be LIGHTER. The single
+     --blue sat between them at 58.5% and failed in both directions — 3.66:1 with white text on it,
+     4.50:1 as text on --desk. Moving it satisfied one and broke the other, which is why it was
+     recorded in contrast.spec.ts as a design decision rather than patched.
+
+     --blue-solid: filled controls that CARRY --ink text. Bounded by white text on top.
+     Every state stays legible, and hover still brightens (48 -> 53) rather than giving that up. */
+  --blue-solid: oklch(48% 0.0627 249.71);        /* #426080, --ink on it 5.72:1 */
+  --blue-solid-hover: oklch(53% 0.0627 249.71);  /* #4f6f8f, 4.59:1 */
+  --blue-solid-down: oklch(44% 0.0627 249.71);   /* #375574, 6.78:1 */
+
+  /* --blue-accent: text, icons, borders and marks ON dark surfaces. Bounded by the LIGHTEST
+     surface it can land on (--raised-strong), not by --desk: a token that clears only the
+     backgrounds used today is how the next layout reintroduces the problem. 65% was rejected —
+     it measures exactly 4.50:1 there, and sitting on the threshold is how this bug happened. */
+  --blue-accent: oklch(67% 0.069 249.71);        /* #7599bf, 4.86:1 on --raised-strong, 6.32:1 on --desk */
+
+  /* There is deliberately no --blue-accent-hover. The plan for this split assumed one was needed,
+     on the theory that an accent element brightening on hover would otherwise collapse into its
+     own base. Checking every :hover / :focus-within / [aria-pressed] / .selected rule against its
+     base rule found no such case — the interactive accents either sit on a tint of the token or
+     change a different property. A token defined for a need that does not exist is how the colour
+     layer got into this state; if one is ever needed, add it then. */
   --review: oklch(71.3% 0.1172 80.74);
   --blocked: oklch(65% 0.14 33.83);
   --clear: oklch(70% 0.058 151.39);
@@ -198,7 +219,7 @@ code {
   inset: 0 0 auto;
   z-index: 70;
   height: 2px;
-  background: var(--blue);
+  background: var(--blue-accent);
   transform-origin: left;
 }
 
@@ -361,19 +382,27 @@ code {
   opacity: 0.72;
 }
 
+/**
+ * The one place blue is a surface UNDER text rather than a mark on one, so it takes the solid ramp.
+ *
+ * The hover state is the reason this is worth spelling out. It used to reach for the light blue,
+ * which put --ink on it at 2.81:1 — worse than the 3.66:1 base that the contrast gate did flag.
+ * axe measures the default rendered state, so no gate here could have seen it, and it would have
+ * stayed green over it indefinitely.
+ */
 .button-primary {
   color: var(--ink);
-  background: var(--blue);
-  border-color: var(--blue);
+  background: var(--blue-solid);
+  border-color: var(--blue-solid);
 }
 
 .button-primary:hover:not(:disabled) {
-  background: var(--blue-hover);
-  border-color: var(--blue-hover);
+  background: var(--blue-solid-hover);
+  border-color: var(--blue-solid-hover);
 }
 
 .button-primary:active:not(:disabled) {
-  background: var(--blue-down);
+  background: var(--blue-solid-down);
 }
 
 .button-secondary {
@@ -521,8 +550,8 @@ code {
   bottom: 0;
   left: -1px;
   width: 1px;
-  background: var(--blue-hover);
-  box-shadow: 0 0 20px oklch(65% 0.069 249.71 / 0.42);
+  background: var(--blue-accent);
+  box-shadow: 0 0 20px color-mix(in srgb, var(--blue-accent) 42%, transparent);
   content: '';
   opacity: 0.58;
   animation: workspace-scan 4.8s var(--ease-artifact) infinite;

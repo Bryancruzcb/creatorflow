@@ -27,7 +27,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  background: linear-gradient(to bottom, var(--blue), color-mix(in srgb, var(--blue) 40%, var(--review)));
+  background: linear-gradient(to bottom, var(--blue-accent), color-mix(in srgb, var(--blue-accent) 40%, var(--review)));
   transform-origin: top center;
   /* Set on .workflow-section by the scroll measurement. */
   transform: scaleY(var(--cf-progress, 0));
@@ -42,7 +42,7 @@
 }
 
 .workflow-list.cf-scrubbed > li[data-reached='true'] .workflow-number {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   opacity: 1;
 }
 

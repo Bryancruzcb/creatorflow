@@ -58,8 +58,8 @@
   inset: 0 auto 0 -1px;
   z-index: -1;
   width: 3px;
-  background: var(--blue-hover);
-  box-shadow: 0 0 22px color-mix(in srgb, var(--blue-hover) 48%, transparent);
+  background: var(--blue-accent);
+  box-shadow: 0 0 22px color-mix(in srgb, var(--blue-accent) 48%, transparent);
 }
 
 .workspace-proof-ribbon {
@@ -92,7 +92,7 @@
 }
 
 .workspace-proof-ribbon-heading > span {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-size: var(--text-3xs);
   letter-spacing: var(--track-label);
 }
@@ -177,7 +177,7 @@
   place-items: center;
   width: 1.75rem;
   height: 1.75rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   border: 1px solid color-mix(in srgb, currentColor 42%, var(--hairline));
   border-radius: 50%;
   font-style: normal;
@@ -257,9 +257,9 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  border-top: 1px solid color-mix(in srgb, var(--blue-hover) 52%, transparent);
-  border-bottom: 2px solid var(--blue-hover);
-  box-shadow: 0 10px 28px color-mix(in srgb, var(--blue-hover) 9%, transparent) inset;
+  border-top: 1px solid color-mix(in srgb, var(--blue-accent) 52%, transparent);
+  border-bottom: 2px solid var(--blue-accent);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--blue-accent) 9%, transparent) inset;
   pointer-events: none;
 }
 

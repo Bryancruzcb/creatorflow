@@ -122,7 +122,7 @@ describe('the video does not drift from the product', () => {
       ['desk', 'desk'], ['graphite', 'graphite'], ['raised', 'raised'],
       ['hairline', 'hairline'], ['hairline-strong', 'hairlineStrong'],
       ['ink', 'ink'], ['ink-muted', 'inkMuted'], ['ink-dim', 'inkDim'],
-      ['blue', 'blue'], ['blue-hover', 'blueHover'],
+      ['blue-solid', 'blueSolid'], ['blue-accent', 'blueAccent'],
       ['clear', 'clear'], ['review', 'review'], ['blocked', 'blocked'],
     ];
 

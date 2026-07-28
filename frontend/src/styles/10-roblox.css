@@ -393,7 +393,7 @@
 
 .motion-pairing-field > span button {
   padding: 0;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   background: transparent;
   border: 0;
   cursor: pointer;

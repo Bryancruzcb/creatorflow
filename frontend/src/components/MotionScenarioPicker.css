@@ -29,7 +29,7 @@
               background var(--motion-control, 190ms) var(--ease-state, ease);
 }
 .motion-rig-switch > button:hover { border-color: var(--hairline-strong); }
-.motion-rig-switch > button[aria-pressed="true"] { border-color: var(--blue); background: oklch(58.5% 0.0627 249.71 / 0.1); }
+.motion-rig-switch > button[aria-pressed="true"] { border-color: var(--blue-accent); background: color-mix(in srgb, var(--blue-accent) 10%, transparent); }
 .motion-rig-switch > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .motion-rig-switch > button strong { font-size: var(--text-xs); }
 .motion-rig-switch > button small { font-size: var(--text-2xs); color: var(--ink-dim); }
@@ -106,7 +106,7 @@
               transform var(--motion-control, 190ms) var(--ease-state, ease);
 }
 .motion-scenario-card:hover { border-color: var(--hairline-strong); transform: translateY(-1px); }
-.motion-scenario-card.is-active { border-color: var(--blue); background: oklch(58.5% 0.0627 249.71 / 0.08); }
+.motion-scenario-card.is-active { border-color: var(--blue-accent); background: color-mix(in srgb, var(--blue-accent) 8%, transparent); }
 .motion-scenario-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 /* Title above the badge, not beside it. Side by side, the badge would not shrink and the title
    collapsed to one word per line — the card became a column of single words. */

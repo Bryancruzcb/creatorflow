@@ -76,7 +76,7 @@
 
 .dossier-points li > svg {
   margin-top: 0.25rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .dossier-points strong {
@@ -293,7 +293,7 @@
 
 .comparison-arrow {
   align-self: center;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .truth-line {
@@ -308,7 +308,7 @@
 
 .truth-line > svg {
   margin-top: 0.25rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .truth-line p {
@@ -345,12 +345,12 @@
   gap: var(--space-3) var(--space-6);
   margin-bottom: var(--space-4);
   padding: var(--space-3) var(--space-4);
-  background: color-mix(in srgb, var(--blue) 9%, var(--graphite));
+  background: color-mix(in srgb, var(--blue-accent) 9%, var(--graphite));
   border: 1px solid var(--hairline-strong);
 }
 
 .core-milestone > span {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-family: var(--font-mono);
   font-size: 0.63rem;
 }
@@ -449,7 +449,7 @@
 }
 
 .state-dot.scanning {
-  background: var(--blue-hover);
+  background: var(--blue-accent);
   animation: state-pulse 1.15s ease-in-out infinite;
 }
 
@@ -543,7 +543,7 @@
 .scan-track span {
   display: block;
   height: 100%;
-  background: var(--blue-hover);
+  background: var(--blue-accent);
 }
 
 .scan-readout dl {
@@ -795,7 +795,7 @@
 .status-excluded { color: var(--ink-muted); }
 
 .evidence-basis-verified { color: var(--clear); }
-.evidence-basis-declared { color: var(--blue); }
+.evidence-basis-declared { color: var(--blue-accent); }
 .evidence-basis-not-verified { color: var(--ink-muted); }
 
 .decision-panel {
@@ -1071,7 +1071,7 @@
 
 .atlas-actions li > svg {
   margin-top: 0.25rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .atlas-actions span,
@@ -1219,7 +1219,7 @@
 .atlas-stage > button.selected {
   color: var(--ink);
   background: var(--raised);
-  border-color: color-mix(in srgb, var(--blue-hover) 58%, var(--hairline-strong));
+  border-color: color-mix(in srgb, var(--blue-accent) 58%, var(--hairline-strong));
   transform: translateY(-3px);
 }
 
@@ -1246,7 +1246,7 @@
   align-self: start;
   width: 1.8rem;
   height: 1.8rem;
-  color: var(--blue-hover);
-  border: 1px solid color-mix(in srgb, var(--blue-hover) 34%, transparent);
+  color: var(--blue-accent);
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 34%, transparent);
 }
 

@@ -223,7 +223,7 @@
 }
 
 .scene-tree-kind.kind-mesh {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .scene-tree-name {
@@ -795,7 +795,7 @@
   flex: none;
   width: 0.5rem;
   height: 0.5rem;
-  border: 1px solid var(--blue-hover);
+  border: 1px solid var(--blue-accent);
   border-top-color: transparent;
   border-radius: 50%;
   animation: model-loading 0.85s linear infinite;
