@@ -1,4 +1,4 @@
-import { AlertTriangle, BadgeCheck, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch, ShieldAlert } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, ChevronDown, Clock3, Fingerprint, FolderTree, GitCompare, Pause, Play, RotateCcw, ScanSearch, ShieldAlert, StepBack, StepForward } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import {
   AnimationClip,
@@ -44,6 +44,7 @@ import {
   trackMatchesJointScope,
 } from '../motion/motionAnalysis';
 import { DEVIATION_RAMP, NO_DATA_HEX, SIMILARITY_RAMP, rampGradientCss, sampleRampCss, sampleRampInto, type RampSample } from '../motion/ramp';
+import { frameIndexAt, frameStops, stepFrame } from '../motion/clipFrames';
 import { createStudioScene } from '../motion/sceneFoundation';
 import { useWorkspacePreferences } from '../preferences/workspacePreferences';
 import { MetadataInspector } from './MetadataInspector';
@@ -125,26 +126,23 @@ function tintClone(group: Group, tint: Color, amount: number) {
   });
 }
 
-function makeOnionSkin(group: Group, tint: Color, opacity = 0.34) {
+/**
+ * Hide a trail clone's meshes. The clone stays as a pose source; only its skeleton is drawn.
+ *
+ * This replaces a full-mesh wireframe onion skin, which was the reason the pose history was
+ * unreadable. That version cloned every material with `wireframe: true` and `depthTest: false`,
+ * so every edge of the whole skinned robot — including the far side of it — painted over the
+ * scene, three times over. Roughly 19,000 line segments of hidden-surface noise per rig.
+ *
+ * Re-enabling depth testing does not fix it, which is worth recording because it is the obvious
+ * first move: a wireframe rasterises edges only and never fills its interior, so it writes almost
+ * no depth and has nothing to occlude the far side with. The mesh silhouette was never the point
+ * anyway — the question this view answers is where a JOINT was, and the rigs already carry a
+ * skeleton representation that says exactly that.
+ */
+function hideMeshes(group: Group) {
   group.traverse((child) => {
-    if (!(child instanceof Mesh)) return;
-    const materials = Array.isArray(child.material) ? child.material : [child.material];
-    const ghosts = materials.map((material) => {
-      const next = material.clone();
-      next.transparent = true;
-      next.opacity = opacity;
-      next.depthTest = false;
-      next.depthWrite = false;
-      if ('wireframe' in next) next.wireframe = true;
-      if ('color' in next && next.color instanceof Color) next.color.copy(tint);
-      if ('emissive' in next && next.emissive instanceof Color) {
-        next.emissive.copy(tint);
-        next.emissiveIntensity = 0.72;
-      }
-      return next;
-    });
-    child.material = Array.isArray(child.material) ? ghosts : ghosts[0];
-    child.renderOrder = 5;
+    if (child instanceof Mesh) child.visible = false;
   });
 }
 
@@ -168,12 +166,25 @@ const JOINT_DEVIATION_CEILING = 0.35;
  * Three members per side, evenly spaced backwards in phase, fading as they recede.
  */
 interface TrailMember {
+  /** Pose source only — its meshes are hidden; the skeleton below is what is drawn. */
   model: Group;
   mixer: AnimationMixer;
+  scope: ScopeSkeleton;
+  /** Bones this member's clip actually drives, so untracked bones are not drawn in bind pose. */
+  animated: Set<string>;
 }
 
 const TRAIL_LENGTH = 3;
 export const TRAIL_SPACING = 0.075;
+
+/**
+ * Per-member opacity, newest first. Absolute values, one per trail slot.
+ *
+ * The newest ghost sits above the live full-body skeleton's 0.34 because it is the only mark a
+ * ghost makes — the meshes are hidden — and a history you have to hunt for is not history. The
+ * drop to 0.2 across three members is what encodes which way time runs.
+ */
+const TRAIL_OPACITY = [0.5, 0.34, 0.2];
 
 export interface ScopeSkeleton {
   line: LineSegments<BufferGeometry, LineBasicMaterial>;
@@ -272,6 +283,15 @@ export function updateScopeSkeleton(
   scope: MotionJointScope,
   animatedBones: Set<string>,
   deviation?: JointDeviation | null,
+  /**
+   * Absolute opacity for trail members, which is not a scale of the live value on purpose.
+   *
+   * The live skeleton runs 0.34 at full-body and 0.92 when scoped to a limb, so a multiplier
+   * would make the trail nearly three times more prominent in one scope than the other for no
+   * reason the viewer could infer. The trail is the only thing a ghost draws now, so it sets its
+   * own legible level and the fade between members carries recency.
+   */
+  opacityOverride?: number,
 ) {
   const values = skeleton.position.array as Float32Array;
   const colors = skeleton.color.array as Float32Array;
@@ -336,7 +356,7 @@ export function updateScopeSkeleton(
   skeleton.position.needsUpdate = true;
   skeleton.color.needsUpdate = true;
   skeleton.line.geometry.setDrawRange(0, offset / 3);
-  skeleton.line.material.opacity = scope === 'full' ? 0.34 : 0.92;
+  skeleton.line.material.opacity = opacityOverride ?? (scope === 'full' ? 0.34 : 0.92);
 }
 
 function setGroupOpacity(group: Group, opacity: number) {
@@ -435,10 +455,10 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       tintClone(source, new Color('#d6b273'), 0.14);
       tintClone(candidate, new Color('#7298b8'), 0.24);
       // Trail members fade as they recede, so the reading is "which way is time running".
-      const makeTrail = (tint: string) => Array.from({ length: TRAIL_LENGTH }, (_unused, step) => {
+      const makeTrail = (tint: string) => Array.from({ length: TRAIL_LENGTH }, () => {
         const model = cloneSkeleton(gltf.scene) as Group;
-        makeOnionSkin(model, new Color(tint), 0.34 * (1 - step / (TRAIL_LENGTH + 1)));
-        return model;
+        hideMeshes(model);
+        return { model, scope: makeScopeSkeleton(model, new Color(tint)) };
       });
       const sourceGhosts = makeTrail('#e4bd76');
       const candidateGhosts = makeTrail('#75b9e6');
@@ -446,23 +466,26 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       const center = box.getCenter(new Vector3());
       const size = box.getSize(new Vector3());
       const scale = 2.45 / Math.max(size.x, size.y, size.z, 0.001);
-      const place = (model: Group, side: -1 | 1, depthStep: number) => {
+      /**
+       * No per-member depth nudge any more. It existed to stop three solid wireframe meshes
+       * z-fighting; lines are drawn with depthTest off and separated by opacity and render order
+       * instead. Keeping the nudge would now be worse than useless — it would offset each ghost
+       * skeleton slightly in Z, so a joint that had not moved at all would still appear to drift,
+       * which is a fabricated difference in a view whose whole job is measuring difference.
+       */
+      const place = (model: Group, side: -1 | 1) => {
         model.scale.setScalar(scale);
         model.position.copy(center).multiplyScalar(-scale);
         model.position.x += side * 1.45;
-        // Increasing depth nudge per trail member so they do not z-fight with each other.
-        model.position.z += depthStep * 0.025;
         holder.add(model);
         model.updateMatrixWorld(true);
       };
-      place(source, -1, 0);
-      place(candidate, 1, 0);
-      sourceGhosts.forEach((model, step) => place(model, -1, step + 1));
-      candidateGhosts.forEach((model, step) => place(model, 1, step + 1));
+      place(source, -1);
+      place(candidate, 1);
+      sourceGhosts.forEach(({ model }) => place(model, -1));
+      candidateGhosts.forEach(({ model }) => place(model, 1));
       const sourceMixer = new AnimationMixer(source);
       const candidateMixer = new AnimationMixer(candidate);
-      const sourceTrail = sourceGhosts.map((model) => ({ model, mixer: new AnimationMixer(model) }));
-      const candidateTrail = candidateGhosts.map((model) => ({ model, mixer: new AnimationMixer(model) }));
       const initial = selectionRef.current;
       const sourceScope = makeScopeSkeleton(source, new Color('#f1bf69'));
       const candidateScope = makeScopeSkeleton(candidate, new Color('#6fc7ff'));
@@ -477,9 +500,29 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       };
       playOnce(sourceMixer, sourceClip);
       playOnce(candidateMixer, candidateClip);
+
+      /**
+       * Trail members are built here rather than above because `animated` needs the clip, and the
+       * clips are only resolved once the GLB has loaded. A member drawn for a bone its clip does
+       * not key would show that bone frozen in bind pose — a limb that never moves, which reads as
+       * "this joint held still" rather than "this clip says nothing about this joint".
+       */
+      const buildTrail = (
+        ghosts: Array<{ model: Group; scope: ScopeSkeleton }>,
+        clip: AnimationClip,
+      ): TrailMember[] => ghosts.map(({ model, scope }, step) => {
+        const mixer = new AnimationMixer(model);
+        playOnce(mixer, clip);
+        // Behind the live skeletons (6) and receding, so the newest ghost wins where they cross.
+        scope.line.renderOrder = 5 - step;
+        scene.add(scope.line);
+        return { model, mixer, scope, animated: animatedBoneUuids(model, clip) };
+      });
+      const sourceTrail = buildTrail(sourceGhosts, sourceClip);
+      const candidateTrail = buildTrail(candidateGhosts, candidateClip);
       // Trail members start detached; the render loop attaches the ones that have history to show.
-      sourceTrail.forEach((member) => { playOnce(member.mixer, sourceClip); setTrailAttached(member, holder, false); });
-      candidateTrail.forEach((member) => { playOnce(member.mixer, candidateClip); setTrailAttached(member, holder, false); });
+      sourceTrail.forEach((member) => setTrailAttached(member, holder, false));
+      candidateTrail.forEach((member) => setTrailAttached(member, holder, false));
       const baseX = -center.x * scale;
       const applyLayout = (layout: PreviewLayout) => {
         const offset = layout === 'overlay' ? 0 : 1.45;
@@ -571,6 +614,14 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           runtime.candidateClip = desiredCandidate;
           runtime.sourceAnimatedBones = animatedBoneUuids(runtime.sourceModel, desiredSource);
           runtime.candidateAnimatedBones = animatedBoneUuids(runtime.candidateModel, desiredCandidate);
+          /**
+           * The trail members need this too, and getting it wrong fails silently in the worst way.
+           * cloneSkeleton mints fresh uuids, so a member holding the previous clip's set — or the
+           * live rig's set — matches zero bones, leaves the draw range at 0, and renders nothing.
+           * The trail would simply be absent and look like the toggle was off.
+           */
+          runtime.sourceTrail.forEach((member) => { member.animated = animatedBoneUuids(member.model, desiredSource); });
+          runtime.candidateTrail.forEach((member) => { member.animated = animatedBoneUuids(member.model, desiredCandidate); });
           runtime.selectionKey = selectionKey;
           for (const [mixer, clip] of [
             [runtime.source, desiredSource],
@@ -648,11 +699,25 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
               // null means this member sits further back than the clip has run: no history to draw.
               const phase = step < drawn ? trailProgress(selection.analysisMode, progressRef.current, step + 1) : null;
               setTrailAttached(member, holder, phase !== null);
-              if (phase !== null) member.mixer.setTime(phase * clip.duration);
+              member.scope.line.visible = phase !== null;
+              if (phase === null) return;
+              member.mixer.setTime(phase * clip.duration);
+              // Bone world matrices have to be current before the skeleton reads them.
+              member.model.updateMatrixWorld(true);
+              /**
+               * No deviation colouring on the trail. A ghost is this rig's own past, so the only
+               * honest reading is "where this joint was" — colouring it against the other clip
+               * would put a measurement on a pose that is not being compared to anything.
+               * It fades instead, which encodes recency and nothing else.
+               */
+              updateScopeSkeleton(member.scope, selection.previewFocus, member.animated, null, TRAIL_OPACITY[step]);
             });
           };
           place(runtime.sourceTrail, runtime.sourceClip);
           place(runtime.candidateTrail, runtime.candidateClip);
+        } else {
+          runtime.sourceTrail.forEach((member) => { member.scope.line.visible = false; });
+          runtime.candidateTrail.forEach((member) => { member.scope.line.visible = false; });
         }
       }
       // OrbitControls.update() reports whether the camera actually moved, which covers the tail
@@ -712,6 +777,14 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       // geometry is cloned per member, so missing one leaks it for the life of the page.
       mixersRef.current?.sourceTrail.forEach((member) => dispose(member.model));
       mixersRef.current?.candidateTrail.forEach((member) => dispose(member.model));
+      // Each trail member owns a LineSegments added straight to the scene, so it is outside both
+      // the holder and the member's own model — neither dispose() above reaches it.
+      [...(mixersRef.current?.sourceTrail ?? []), ...(mixersRef.current?.candidateTrail ?? [])]
+        .forEach((member) => {
+          member.scope.line.removeFromParent();
+          member.scope.line.geometry.dispose();
+          member.scope.line.material.dispose();
+        });
       mixersRef.current = null;
       dispose(holder);
       studio.dispose();
@@ -732,7 +805,7 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       <div className="motion-stage-labels" aria-hidden="true"><span>Reference · {sourceName}</span><span>Candidate · {candidateName}</span></div>
       <div className="motion-stage-focus"><span>Skeleton focus</span><strong>{jointScopes.find((item) => item.id === previewFocus)?.label}</strong></div>
       <div className="motion-stage-axis" aria-hidden="true" />
-      <div className="motion-stage-calibration" aria-hidden="true"><span>{analysisMode === 'timing' ? 'Shared authored clock' : analysisMode === 'loop' ? 'End pose + start outline' : analysisMode === 'root' ? 'Measured channel · root translation' : 'Normalized joint space'}</span><span>{previewLayout === 'overlay' ? 'Reference + candidate overlay' : 'Reference + candidate side by side'} · {showOnion ? analysisMode === 'loop' ? 'solid = end · wireframe = start' : 'solid = current · wireframe = previous' : 'pose outline hidden'}</span></div>
+      <div className="motion-stage-calibration" aria-hidden="true"><span>{analysisMode === 'timing' ? 'Shared authored clock' : analysisMode === 'loop' ? 'End pose + start outline' : analysisMode === 'root' ? 'Measured channel · root translation' : 'Normalized joint space'}</span><span>{previewLayout === 'overlay' ? 'Reference + candidate overlay' : 'Reference + candidate side by side'} · {showOnion ? analysisMode === 'loop' ? 'solid = end pose · skeleton = start pose' : 'solid = current pose · skeleton = where joints were' : 'pose trail hidden'}</span></div>
       {/* A colour scale with no key is a magnitude claim the reader cannot check. The ceiling is
           stated explicitly, and the unmeasured swatch is shown because "the other clip has no data
           for this joint" is a different statement from "this joint matches". */}
@@ -969,6 +1042,31 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
     sampleCount: preferences.sampleCount,
     reviewThreshold: preferences.reviewThreshold,
   }) : null, [analysisMode, candidateClip, effectiveJointScope, preferences.reviewThreshold, preferences.sampleCount, sourceClip]);
+
+  /**
+   * The positions the transport can stop on: every moment either clip is actually keyed at.
+   *
+   * Both clips, not just the reference — stepping one grid strands the other's poses. Walking is
+   * keyed on 24s and Dance on 81s; because 23 and 80 are coprime, a reference-only grid puts 79
+   * of Dance's 81 authored poses out of reach entirely.
+   *
+   * 'timing' compares on a shared authored clock, so stops map onto the longer duration and mean
+   * the same second for both. Every other mode normalises per clip, so a stop is a phase.
+   */
+  const stops = useMemo(
+    () => (sourceClip && candidateClip ? frameStops(sourceClip, candidateClip, analysisMode === 'timing') : []),
+    [analysisMode, candidateClip, sourceClip],
+  );
+  const stopIndex = stops.length ? frameIndexAt(stops, progress) : 0;
+  const atFirstStop = !stops.length || progress <= stops[0] + 1e-4;
+  const atLastStop = !stops.length || progress >= stops[stops.length - 1] - 1e-4;
+  const stepBy = useCallback((delta: number) => {
+    if (!stops.length) return;
+    // Stepping is for holding a pose still, so it always stops playback.
+    setPlaying(false);
+    setProgress((current) => stepFrame(stops, current, delta));
+  }, [stops]);
+
   const latestComparison = comparisons[0];
   // The reference is the "known" side; if it's a registered asset, the score becomes a lead.
   const registryMatch = registryRecordFor(selectedRigId, sourceName);
@@ -1196,7 +1294,24 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
           scenarios={rig.scenarios}
           clipByName={(name) => clipInRig(rig, name)}
         />
-        <section className="motion-investigation" ref={investigationRef} aria-label="Animation comparison workbench">
+        {/**
+          * Arrow keys step frames. The handler sits here and checks the event target rather than
+          * on the canvas: the canvas has no tabIndex, so it can never be activeElement and a
+          * listener on it would never fire. Typing in a select or a text field must still move the
+          * caret, so those are excluded explicitly.
+          */}
+        <section
+          className="motion-investigation"
+          ref={investigationRef}
+          aria-label="Animation comparison workbench"
+          onKeyDown={(event) => {
+            if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+            const tag = (event.target as HTMLElement).tagName;
+            if (tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return;
+            event.preventDefault();
+            stepBy(event.key === 'ArrowRight' ? 1 : -1);
+          }}
+        >
           <div className="motion-view-column">
             <header className="motion-workbench-toolbar">
               <div className="motion-pair-controls">
@@ -1222,8 +1337,19 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
             <div className="motion-compare-transport">
               <button type="button" onClick={() => setPlaying((value) => !value)} aria-label={playing ? 'Pause synchronized animation comparison' : 'Play synchronized animation comparison'}>{playing ? <Pause size={15} /> : <Play size={15} />}</button>
               <button type="button" onClick={() => { setProgress(0); setPlaying(false); }} aria-label="Restart synchronized comparison"><RotateCcw size={14} /></button>
+              {/* Stepping always pauses. Holding a pose is the entire point of asking for it. */}
+              <button type="button" onClick={() => stepBy(-1)} disabled={!stops.length || atFirstStop} aria-label="Previous authored keyframe" title="Previous keyframe (←)"><StepBack size={15} /></button>
+              <button type="button" onClick={() => stepBy(1)} disabled={!stops.length || atLastStop} aria-label="Next authored keyframe" title="Next keyframe (→)"><StepForward size={15} /></button>
               <label><span>{analysisMode === 'timing' ? 'Shared authored timeline' : analysisMode === 'loop' ? 'Inspect seam at clip end' : 'Normalized phase'}</span><input type="range" min="0" max="1" step="0.002" value={progress} onChange={(event) => { setPlaying(false); setProgress(Number(event.target.value)); }} /></label>
-              <output>{analysisMode === 'timing' && result ? `${(progress * Math.max(result.sourceDuration, result.candidateDuration)).toFixed(2)}s` : `${Math.round(progress * 100)}%`}</output>
+              {/**
+                * Live region, not a bare <output>. Focus stays on the step button after a click,
+                * so a value that only announces when the slider has focus would leave a
+                * keyboard-or-screen-reader user stepping through poses in silence.
+                */}
+              <output className="motion-step-readout" role="status" aria-live="polite">
+                <strong>{stops.length ? `Key ${stopIndex + 1}/${stops.length}` : '—'}</strong>
+                <small>{analysisMode === 'timing' && result ? `${(progress * Math.max(result.sourceDuration, result.candidateDuration)).toFixed(3)}s` : `${Math.round(progress * 100)}% phase`}</small>
+              </output>
               <div className="motion-preview-layout" role="group" aria-label="Reference and candidate layout"><button type="button" aria-pressed={previewLayout === 'side'} onClick={() => setPreviewLayout('side')}>Pair side</button><button type="button" aria-pressed={previewLayout === 'overlay'} onClick={() => setPreviewLayout('overlay')}>Pair overlay</button></div>
             </div>
 
