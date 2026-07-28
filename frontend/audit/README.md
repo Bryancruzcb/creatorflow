@@ -3,7 +3,7 @@
 Standing quality gates that run against **rendered** pages, not against source.
 
 ```
-npm run test:audit          # all six gates, all 16 surfaces
+npm run test:audit          # all seven gates, all 16 surfaces
 npm run harness             # just the harness, at http://127.0.0.1:4176
 ```
 
@@ -175,6 +175,42 @@ separately and budgeted, but **only on surfaces with no live canvas.** On canvas
 depends on what the renderer has painted when axe looks: the landing hero measured 66 solo and 79
 under parallel workers, same build. A budget on a number that moves is a flaky gate, and a flaky
 gate gets deleted.
+
+## `state-contrast.spec.ts`
+
+The same WCAG AA thresholds, on all 16 surfaces, **while every hoverable element is hovered.**
+
+A page renders in its default state and axe has no notion of hovering, so until this gate no hover
+style had ever been measured by anything. That gap was not hypothetical: `.button-primary:hover` put
+`--ink` on the light blue at **2.81:1** — worse than the 3.66:1 default that `contrast.spec.ts` did
+flag — and it was found by hand while splitting `--blue`, which is not a repeatable process.
+
+Hover is applied with Chrome's `CSS.forcePseudoState`, the same thing DevTools' "force element
+state" uses, not with a real mouse. Playwright's `hover()` runs full actionability checks and scrolls
+elements into view: **1459ms per element**, about eleven minutes across sixteen surfaces. Forcing is
+**17ms**, applies the real cascade, and shows up in computed style — same answer, ~84x cheaper. The
+whole gate runs in about 19 seconds.
+
+Which elements to force is read off `document.styleSheets` at runtime, never from a list in the
+file. A gate that hardcodes which components have hover styles goes stale the first time somebody
+adds one, and goes stale silently.
+
+**Forcing them all at once is deliberate, and sound here for two specific reasons.** `:hover` already
+propagates up the ancestor chain — hovering a child hovers its parents — so for any node, "its own
+`:hover` plus its ancestors'" is exactly what a real pointer on it produces; the four
+descendant/sibling state rules in the stylesheets are all of that shape. And the only way one
+subtree could style another is `:has()` with a state pseudo, of which there is none. If either
+changes, this gate starts measuring combinations that cannot happen, and the fix is to hover one at
+a time and pay for it.
+
+Verified to actually fail, twice. Reverting `--blue-solid-hover` to the old value fails it with
+`#f1f0ea on #6f93b8 = 2.81:1` naming `.button-primary` — **while `contrast.spec.ts` passes on the
+identical break**, which is the whole argument for the gate existing. And breaking the selector
+extraction fails it with "no element was put into `:hover`", because the dangerous failure for this
+gate is not a wrong answer but a vacuous green.
+
+`:focus-visible` and `:active` are **not** covered. The same machinery reaches them and the same
+reasoning holds, but each needs its own baseline and its own read of what it finds.
 
 ## The harness (`../harness/`)
 
