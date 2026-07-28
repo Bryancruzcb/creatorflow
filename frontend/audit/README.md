@@ -36,6 +36,47 @@ Current debt, largest first: `app-project` (49 rules, smallest 6.08px), `landing
 `app-assets` (17), `app-overview` (11). Migration order is in
 [`../VISUAL-TECHNIQUE-PLAN.md`](../VISUAL-TECHNIQUE-PLAN.md) item 6.
 
+## `render-budget.spec.ts`
+
+Does the 3D actually render, and how much is it drawing?
+
+Before this, ~3,400 lines across six viewers had **no automated verification of any kind** —
+`HeavyAssetViewer` (1,143 lines), `ModelGallery`, `GlbComparisonViewer`, `AnimatedAssetViewer` and
+`StressLab` had zero test files referencing them, and `MotionComparisonLab`'s three covered only
+pure functions. Every serious rendering defect found in review lived in that band.
+
+`glCounters.ts` wraps `drawElements` / `drawArrays` / `getContext` / `requestAnimationFrame` via
+`addInitScript`, which reproduces `renderer.info.render` from outside with no production change.
+
+Frames come from rAF, **not** from `gl.clear`: `HeavyAssetViewer` issues two autoClear'd `render()`
+calls per frame (main scene plus scissored minimap), so a clear-derived count is 2x and every
+per-frame number derived from it would be half the truth.
+
+Measured on this build at 1440:
+
+| surface | frames | calls/f | lines/f | tris/f |
+|---|---|---|---|---|
+| model gallery | ~520 | 3 | 0 | ~826 |
+| animation compare | ~87 | 45 | ~116 | ~6,300 |
+| heavy asset viewer | ~87 | 19 | 0 | ~3,136 |
+
+**The line budget is per frame, not per draw call.** The wireframe overlay removed from the motion
+lab emitted 58,266 line primitives across 114 calls — about 511 each, which slides under any sane
+per-draw ceiling. Reintroducing that defect measured 57,028 lines/frame with a
+`maxLinePrimitivesInOneDraw` of only **1,710**: a 2,048 per-draw ceiling would have passed it.
+
+Verified by canary: with the defect injected the gate fails with the real number; restored, it
+passes. It also caught a flaw in itself first — at phase 0 no trail member has history, so the
+original spec measured the stage with its most expensive feature switched off. It now scrubs to
+mid-clip before measuring.
+
+Viewers are demand-rendered and suspend offscreen, so `wakeCanvases` scrolls each canvas into view
+and drags once; without it every surface measures zero and a broken viewer reads as a pass.
+
+**Not covered, stated rather than implied:** StressLab's animation gate did not mount a context in
+this harness, and `HeavyAssetViewer`'s comparison modes (including the deviation heatmap) are not
+reached. That heatmap path is where a wireframe overlay would most plausibly reappear.
+
 ## `overflow.spec.ts`
 
 Asserts nothing overflows its container, at **390 / 820 / 1280**.
