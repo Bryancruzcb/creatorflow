@@ -23,7 +23,7 @@
 }
 
 .release-proof-ribbon-heading span {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-size: var(--text-3xs);
   letter-spacing: 0.13em;
 }
@@ -104,7 +104,7 @@
   place-items: center;
   width: 1.85rem;
   height: 1.85rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   border: 1px solid color-mix(in srgb, currentColor 46%, var(--hairline));
   border-radius: 50%;
   font-style: normal;
@@ -171,9 +171,9 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  border-top: 1px solid color-mix(in srgb, var(--blue-hover) 46%, transparent);
-  border-bottom: 2px solid var(--blue-hover);
-  box-shadow: 0 12px 30px color-mix(in srgb, var(--blue-hover) 9%, transparent) inset;
+  border-top: 1px solid color-mix(in srgb, var(--blue-accent) 46%, transparent);
+  border-bottom: 2px solid var(--blue-accent);
+  box-shadow: 0 12px 30px color-mix(in srgb, var(--blue-accent) 9%, transparent) inset;
   pointer-events: none;
 }
 
@@ -231,7 +231,7 @@
 }
 
 .release-manifest-front em { color: var(--blocked); }
-.release-manifest-back em { color: var(--blue-hover); }
+.release-manifest-back em { color: var(--blue-accent); }
 .release-manifest-back { transform: rotateY(180deg); }
 .release-manifest-fold.is-handoff .release-manifest-front { transform: rotateY(-180deg); }
 .release-manifest-fold.is-handoff .release-manifest-back { transform: rotateY(0deg); }
@@ -251,14 +251,14 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: color-mix(in srgb, var(--blue-hover) 6%, transparent);
-  border: 1px solid color-mix(in srgb, var(--blue-hover) 55%, var(--hairline));
-  box-shadow: 0 2px var(--blue-hover) inset, 0 0 32px color-mix(in srgb, var(--blue-hover) 7%, transparent) inset;
+  background: color-mix(in srgb, var(--blue-accent) 6%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 55%, var(--hairline));
+  box-shadow: 0 2px var(--blue-accent) inset, 0 0 32px color-mix(in srgb, var(--blue-accent) 7%, transparent) inset;
   pointer-events: none;
 }
 
 .release-map-edges line[data-active='true'] {
-  stroke: var(--blue-hover);
+  stroke: var(--blue-accent);
   stroke-width: 1.6;
   stroke-dasharray: 5 4;
   animation: release-evidence-trace 1.3s linear infinite;
@@ -284,9 +284,9 @@
   z-index: 0;
   /* Kept blue — this one means 'selected', which is real state. Flattened to an even tint: the
      gradient made one corner of a selected node look more selected than the other. */
-  background: color-mix(in srgb, var(--blue-hover) 11%, transparent);
-  border: 1px solid var(--blue-hover);
-  box-shadow: 0 0 28px color-mix(in srgb, var(--blue-hover) 13%, transparent) inset;
+  background: color-mix(in srgb, var(--blue-accent) 11%, transparent);
+  border: 1px solid var(--blue-accent);
+  box-shadow: 0 0 28px color-mix(in srgb, var(--blue-accent) 13%, transparent) inset;
   pointer-events: none;
 }
 
@@ -386,8 +386,8 @@
   width: 2.25rem;
   height: 2.25rem;
   place-items: center;
-  color: var(--blue-hover);
-  border: 1px solid color-mix(in srgb, var(--blue-hover) 48%, var(--hairline));
+  color: var(--blue-accent);
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 48%, var(--hairline));
 }
 
 .release-view-explainer[data-mode='compare'] .release-view-explainer-icon {
@@ -504,7 +504,7 @@
 
 .release-unlocks button:hover {
   color: var(--ink);
-  border-color: color-mix(in srgb, var(--blue-hover) 50%, var(--hairline));
+  border-color: color-mix(in srgb, var(--blue-accent) 50%, var(--hairline));
 }
 
 .release-compare-notice {

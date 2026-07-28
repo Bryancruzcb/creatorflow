@@ -34,7 +34,7 @@ export const Close: React.FC<{ durationInFrames: number }> = () => {
           <span>Open source</span>
         </div>
 
-        <div style={{ ...useEnter(sec(2.2)), marginTop: 54, fontFamily: font.mono, fontSize: 27, color: c.blueHover }}>
+        <div style={{ ...useEnter(sec(2.2)), marginTop: 54, fontFamily: font.mono, fontSize: 27, color: c.blueAccent }}>
           github.com/Bryancruzcb/creatorflow
         </div>
       </div>

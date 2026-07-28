@@ -1089,8 +1089,8 @@
 }
 
 .difference-modebar--comparison button[aria-pressed='true'] {
-  background: color-mix(in srgb, var(--blue-hover) 10%, var(--raised));
-  box-shadow: inset 0 -2px var(--blue-hover);
+  background: color-mix(in srgb, var(--blue-accent) 10%, var(--raised));
+  box-shadow: inset 0 -2px var(--blue-accent);
 }
 
 .asset-capability-badges {

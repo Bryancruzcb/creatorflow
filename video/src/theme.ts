@@ -20,8 +20,13 @@ export const c = {
   // caught that the video had not followed the app.
   inkDim: '#93928b',
 
-  blue: '#5f7fa0',
-  blueHover: '#6f93b8',
+  /**
+   * Two blues, because the app has two. `blueSolid` is a filled control with `ink` on top;
+   * `blueAccent` is text or a mark on a dark surface. They cannot be one value — the requirement
+   * pulls in opposite directions, which is what the single `--blue` failed at in both.
+   */
+  blueSolid: '#426080',
+  blueAccent: '#7599bf',
 
   /**
    * Verdict colours, and they are not decoration. Amber means a human needs to look; green means

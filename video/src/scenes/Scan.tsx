@@ -60,7 +60,7 @@ export const Scan: React.FC<{ durationInFrames: number }> = ({ durationInFrames 
           </div>
 
           <div style={{ marginTop: 26, height: 3, background: c.hairline }}>
-            <div style={{ width: `${sweep * 100}%`, height: '100%', background: c.blueHover }} />
+            <div style={{ width: `${sweep * 100}%`, height: '100%', background: c.blueAccent }} />
           </div>
         </Panel>
 

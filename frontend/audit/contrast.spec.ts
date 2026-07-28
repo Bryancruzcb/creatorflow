@@ -14,12 +14,13 @@ import { open, surfaces } from './surfaces';
  * That is why the baseline is keyed on the pair and not on the surface. A surface-level baseline
  * would exempt every page in the app and test nothing. A pair-level one still fails the moment a
  * new bad colour appears anywhere, and empties out almost entirely when one token is changed —
- * twelve of the fourteen are `--ink-dim` on a near-black background.
+ * twelve of the fourteen were `--ink-dim` on a near-black background.
  *
- * Every known pair is between 3.66:1 and 4.50:1 against a 4.5 requirement. This is not a palette
- * with scattered mistakes in it; it is a palette one notch too dark, and fixing it is a design
- * decision with a real blast radius (238 `var(--ink-dim)` usages in src/styles alone), not a
- * cleanup to slip into a test PR.
+ * **The baseline is now empty: zero findings across zero pairs, on all sixteen surfaces.** It got
+ * there in two steps, and the second is the argument for keying on pairs. Raising `--ink-dim` took
+ * fourteen pairs to two. The last two were one token failing in opposite directions at once —
+ * `--blue` had to be darker to carry white text and lighter to be read as text — so it was split
+ * into `--blue-solid` and `--blue-accent` rather than moved.
  */
 
 /**
@@ -29,13 +30,16 @@ import { open, surfaces } from './surfaces';
  * RATCHET: entries come off when a token is fixed. Nothing goes on. A pair not in this list fails.
  */
 const KNOWN_PAIRS: Record<string, string> = {
-  // The only pair left. --blue is one token doing two jobs: a filled button background that needs
-  // to be DARKER for white text to clear 4.5, and an accent text colour on dark surfaces that
-  // needs to be LIGHTER. Darkening it to 52% takes white-on-blue to 4.79 and drops blue-on-desk to
-  // 3.43, trading one failure for another. Splitting it into a solid and an accent token is the
-  // real fix and a visible design change, so it is recorded rather than smuggled in here.
-  '#f1f0ea on #5f7fa0': '--ink on --blue, 3.66:1 — white text on the primary button',
-  '#5f7fa0 on #111210': '--blue on --desk, 4.50:1 — accent text, e.g. .evidence-basis-declared',
+  // Empty, and that is the finished state of a ratchet rather than a gate with nothing to say.
+  //
+  // The last two entries were the same token failing in both directions: --blue was a filled button
+  // background needing to be DARKER for white text (3.66:1), and an accent text colour on dark
+  // surfaces needing to be LIGHTER (4.50:1). No single value satisfies both, which is why it was
+  // recorded here instead of patched. --blue is now --blue-solid (48%, bounded by --ink on top of
+  // it) and --blue-accent (67%, bounded by the lightest surface it lands on), and the sixteen
+  // surfaces report zero findings across zero pairs.
+  //
+  // Anything appearing here again is a new colour below 4.5:1. Add it only with a reason.
 };
 
 /**

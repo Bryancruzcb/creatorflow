@@ -79,7 +79,7 @@
 }
 
 .product-sidebar-brand:hover {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .product-sidebar-brand > span {
@@ -163,7 +163,7 @@
   width: 2rem;
   height: 2rem;
   color: var(--ink);
-  background: var(--blue-down);
+  background: var(--blue-solid);
   font-family: var(--font-mono);
   font-size: 0.58rem;
 }
@@ -221,7 +221,7 @@
   width: 2rem;
   height: 2rem;
   color: var(--ink);
-  background: var(--blue-down);
+  background: var(--blue-solid);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
   font-weight: var(--weight-medium);
@@ -361,7 +361,7 @@
 
 .product-topbar .dataset-indicator {
   margin-top: 0.08rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
   font-weight: 400;
@@ -476,9 +476,9 @@
   width: 2rem;
   height: 2rem;
   place-items: center;
-  color: var(--blue-hover);
-  background: color-mix(in srgb, var(--blue) 10%, var(--desk));
-  border: 1px solid color-mix(in srgb, var(--blue-hover) 25%, var(--hairline));
+  color: var(--blue-accent);
+  background: color-mix(in srgb, var(--blue-accent) 10%, var(--desk));
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 25%, var(--hairline));
 }
 
 .metadata-inspector summary small,
@@ -572,7 +572,7 @@
 
 .metadata-inspector dt { color: var(--ink-dim); }
 .metadata-inspector dd { min-width: 0; overflow-wrap: anywhere; color: var(--ink); }
-.metadata-inspector .metadata-value-mono { color: var(--blue-hover); }
+.metadata-inspector .metadata-value-mono { color: var(--blue-accent); }
 
 .metadata-inspector dl small {
   grid-column: 2 / -1;
