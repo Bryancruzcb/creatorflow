@@ -38,16 +38,27 @@ export const surfaces: Surface[] = [
   { id: 'local-sources', url: `${HARNESS}/?scene=sources`, ready: '[data-harness-scene]' },
 ];
 
-/** Dismiss the first-run modal so it does not mask the surface under audit. */
-export async function open(page: Page, surface: Surface) {
+/**
+ * Dismiss the first-run modal so it does not mask the surface under audit.
+ *
+ * `firstRun: true` leaves it showing, for the keyboard gate that needs to audit the dialog itself.
+ * An option rather than a sibling helper on purpose — a second copy would have to independently
+ * keep the networkidle wait, the ready selector and the heavy-settle delay in step, and would
+ * drift the first time one of them changed.
+ */
+export async function open(page: Page, surface: Surface, options: { firstRun?: boolean } = {}) {
   // Key must match WELCOME_KEY in WorkspaceWelcome.tsx. If it drifts, the modal reopens and masks
   // every surface — which is loud rather than silent, because the ready selector then times out.
-  await page.addInitScript(() => {
-    try { localStorage.setItem('creatorflow:welcomed', '1'); } catch { /* ignore */ }
-  });
+  if (!options.firstRun) {
+    await page.addInitScript(() => {
+      try { localStorage.setItem('creatorflow:welcomed', '1'); } catch { /* ignore */ }
+    });
+  }
   await page.goto(surface.url, { waitUntil: 'networkidle' });
-  const close = page.locator('[role="dialog"] button[aria-label*="lose" i], [role="dialog"] button:has-text("Explore on my own")').first();
-  if (await close.count()) await close.click().catch(() => undefined);
+  if (!options.firstRun) {
+    const close = page.locator('[role="dialog"] button[aria-label*="lose" i], [role="dialog"] button:has-text("Explore on my own")').first();
+    if (await close.count()) await close.click().catch(() => undefined);
+  }
   await page.waitForSelector(surface.ready, { timeout: 20_000 });
   await page.waitForTimeout(surface.heavy ? 2500 : 700);
 }

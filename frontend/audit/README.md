@@ -106,6 +106,26 @@ Both fixes are proven load-bearing by mutation: reverting only the ribbon rule p
 nine `231px` failures; reverting only `.stress-pack-rows` produces exactly one, `app-overview` at
 16px.
 
+## `keyboard.spec.ts`
+
+Keyboard behaviour of the first-run dialog. Five assertions, deliberately narrow.
+
+`WorkspaceWelcome` rendered `role="dialog" aria-modal="true"` and handled Escape, and did nothing
+else a modal has to do. `aria-modal` tells assistive tech the rest of the page is inert while the
+DOM let Tab walk straight out of it — the announcement and the behaviour disagreed, which is worse
+than not claiming modality at all.
+
+Four of the five failed before the fix; only Escape passed. Restoration needed a stated target
+before it could pass at all: the dialog opens from localStorage during mount, so nothing was ever
+focused to return to. The workspace main region now carries `tabIndex={-1}` and receives focus, so
+a keyboard user resumes at the content the dialog was covering.
+
+**Scope, stated rather than implied.** A full keyboard audit — tab-order walks across all sixteen
+surfaces, focus-indicator detection, generic trap detection — was rejected in review for bundling
+four independent mechanisms, and because the proposed trap detector caught exactly one trap shape
+(a `Tab` that leaves the active element unchanged) while reading as though it caught all of them.
+Tab order, focus visibility and roving-tabindex behaviour across the app remain untested.
+
 ## `a11y.spec.ts`
 
 Runs axe-core restricted to **accessible-name and announceability rules**, on all 16 surfaces.
