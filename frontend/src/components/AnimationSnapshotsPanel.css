@@ -126,7 +126,7 @@
   transition: border-color var(--motion-control, 190ms) var(--ease-state, ease),
               background var(--motion-control, 190ms) var(--ease-state, ease);
 }
-.animation-snapshots-side-actions button:hover:not(:disabled) { border-color: var(--blue); background: var(--raised-strong); }
+.animation-snapshots-side-actions button:hover:not(:disabled) { border-color: var(--blue-accent); background: var(--raised-strong); }
 .animation-snapshots-side-actions button:disabled { opacity: 0.5; cursor: default; }
 .animation-snapshots-side-actions button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 

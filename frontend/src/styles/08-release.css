@@ -152,7 +152,7 @@
 }
 
 .subasset-comparison-labels-overlay > span:first-child {
-  border-color: color-mix(in srgb, var(--blue-hover) 55%, var(--hairline));
+  border-color: color-mix(in srgb, var(--blue-accent) 55%, var(--hairline));
 }
 
 .subasset-comparison-labels-overlay > span:last-child {
@@ -315,7 +315,7 @@
   align-items: center;
   gap: var(--space-4);
   padding: var(--space-4) var(--space-6);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   background: var(--graphite);
   border: 1px solid var(--hairline-strong);
 }
@@ -447,7 +447,7 @@
 }
 
 .release-mode-switch button[aria-pressed='true'] {
-  box-shadow: inset 0 -2px var(--blue-hover);
+  box-shadow: inset 0 -2px var(--blue-accent);
 }
 
 .release-reset-layout {
@@ -517,8 +517,8 @@
 }
 
 .release-phase li.selected {
-  background: color-mix(in srgb, var(--blue-hover) 7%, var(--desk));
-  box-shadow: inset 2px 0 var(--blue-hover);
+  background: color-mix(in srgb, var(--blue-accent) 7%, var(--desk));
+  box-shadow: inset 2px 0 var(--blue-accent);
 }
 
 .release-stage-number {
@@ -632,8 +632,8 @@
   width: 2.25rem;
   height: 2.25rem;
   place-items: center;
-  color: var(--blue-hover);
-  border: 1px solid color-mix(in srgb, var(--blue-hover) 40%, var(--hairline));
+  color: var(--blue-accent);
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 40%, var(--hairline));
 }
 
 .release-stage-inspector[data-state='blocked'] .release-inspector-icon { color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 40%, var(--hairline)); }
@@ -854,11 +854,11 @@
 .release-map-node:hover,
 .release-map-node.selected {
   background: var(--raised);
-  border-color: color-mix(in srgb, var(--blue-hover) 58%, var(--hairline));
+  border-color: color-mix(in srgb, var(--blue-accent) 58%, var(--hairline));
 }
 
 .release-map-node.selected {
-  outline: 2px solid color-mix(in srgb, var(--blue-hover) 65%, transparent);
+  outline: 2px solid color-mix(in srgb, var(--blue-accent) 65%, transparent);
   outline-offset: 2px;
 }
 
@@ -1054,7 +1054,7 @@
 }
 
 .release-friend-test > ol li > span {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
 }
@@ -1118,7 +1118,7 @@
 }
 
 .release-preference button[aria-pressed='true'] {
-  box-shadow: inset 0 -2px var(--blue-hover);
+  box-shadow: inset 0 -2px var(--blue-accent);
 }
 
 .release-preference > small {

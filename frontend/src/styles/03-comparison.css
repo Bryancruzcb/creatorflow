@@ -58,9 +58,9 @@
   right: 0;
   width: 5px;
   height: 5px;
-  background: var(--blue-hover);
+  background: var(--blue-accent);
   border-radius: 50%;
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue-hover) 14%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue-accent) 14%, transparent);
 }
 
 .atlas-stage-blocked .atlas-connector {
@@ -85,8 +85,8 @@
   place-items: center;
   width: 2.35rem;
   height: 2.35rem;
-  color: var(--blue-hover);
-  border: 1px solid color-mix(in srgb, var(--blue-hover) 34%, transparent);
+  color: var(--blue-accent);
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 34%, transparent);
 }
 
 .atlas-detail-source { color: var(--review); border-color: color-mix(in srgb, var(--review) 34%, transparent); }
@@ -440,7 +440,7 @@
 .model-state span {
   width: 0.5rem;
   height: 0.5rem;
-  border: 1px solid var(--blue-hover);
+  border: 1px solid var(--blue-accent);
   border-top-color: transparent;
   border-radius: 50%;
   animation: model-loading 0.9s linear infinite;
@@ -467,7 +467,7 @@
   width: 0.45rem;
   height: 0.45rem;
   margin-right: var(--space-2);
-  background: var(--blue-hover);
+  background: var(--blue-accent);
   border-radius: 50%;
   content: '';
 }
@@ -477,7 +477,7 @@
 }
 
 .comparison-mode-blink .glb-comparison {
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue-hover) 18%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--blue-accent) 18%, transparent);
 }
 
 .model-fallback {
@@ -647,7 +647,7 @@
 .comparison-range input {
   width: 100%;
   min-height: 32px;
-  accent-color: var(--blue-hover);
+  accent-color: var(--blue-accent);
 }
 
 .comparison-relationship {
@@ -939,7 +939,7 @@
 
 .match-limit > svg {
   margin-top: 0.2rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .match-limit p,

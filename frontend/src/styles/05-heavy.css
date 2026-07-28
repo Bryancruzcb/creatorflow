@@ -6,7 +6,7 @@
 
 .manifest-import-notice.notice-error > div > svg { color: var(--blocked); }
 .manifest-import-notice.notice-success > div > svg { color: var(--clear); }
-.manifest-import-notice.notice-info > div > svg { color: var(--blue-hover); }
+.manifest-import-notice.notice-info > div > svg { color: var(--blue-accent); }
 
 .manifest-import-notice strong,
 .manifest-import-notice small {
@@ -51,7 +51,7 @@
 
 .manifest-import-progress {
   padding: var(--space-3) var(--space-4);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-family: var(--font-mono);
 }
 
@@ -143,15 +143,15 @@
   gap: var(--space-6);
   margin-top: var(--space-4);
   padding: var(--space-4);
-  background: color-mix(in srgb, var(--blue-down) 10%, var(--graphite));
-  border: 1px solid color-mix(in srgb, var(--blue) 45%, var(--hairline));
+  background: color-mix(in srgb, var(--blue-solid) 10%, var(--graphite));
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 45%, var(--hairline));
 }
 
 .overview-motion-entry > div {
   display: flex;
   align-items: center;
   gap: var(--space-3);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .overview-motion-entry strong,
@@ -238,12 +238,12 @@
   flex: 1;
   max-width: 2rem;
   min-height: 1rem;
-  background: color-mix(in srgb, var(--blue) 74%, var(--raised));
+  background: color-mix(in srgb, var(--blue-accent) 74%, var(--raised));
   transition: background 160ms var(--ease-state);
 }
 
 .throughput-chart i:hover {
-  background: var(--blue-hover);
+  background: var(--blue-accent);
 }
 
 .throughput-chart i span {
@@ -615,7 +615,7 @@
 .heavy-viewer > .heavy-viewer-loading > span i {
   display: block;
   height: 100%;
-  background: var(--blue-hover);
+  background: var(--blue-accent);
 }
 
 .heavy-viewer > .heavy-viewer-loading strong {
@@ -741,7 +741,7 @@
 
 .asset-extension-list code {
   padding: 0.25rem 0.45rem;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   background: var(--desk);
   border: 1px solid var(--hairline);
   font-size: 0.55rem;
@@ -855,7 +855,7 @@
 }
 
 .release-history a {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-size: 0.68rem;
 }
 
@@ -957,7 +957,7 @@
   gap: var(--space-4);
   margin-top: var(--space-4);
   padding: var(--space-4) var(--space-6);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .imported-snapshot-boundary strong,
@@ -1051,7 +1051,7 @@
   gap: var(--space-3);
   min-width: 17rem;
   padding: var(--space-3);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   background: var(--desk);
   border: 1px solid var(--hairline);
 }

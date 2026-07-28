@@ -19,7 +19,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-family: var(--font-mono);
   font-size: 0.7rem;
 }
@@ -99,7 +99,7 @@
   grid-template-columns: auto minmax(0, 1fr);
   align-content: start;
   gap: var(--space-3);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .workspace-settings-section > header h2 {
@@ -194,7 +194,7 @@
 .workspace-setting-choices button[aria-pressed='true'] {
   color: var(--ink);
   background: var(--raised-strong);
-  box-shadow: inset 0 -2px var(--blue-hover);
+  box-shadow: inset 0 -2px var(--blue-accent);
 }
 
 .workspace-setting-choices button strong,
@@ -249,7 +249,7 @@
 
 .workspace-setting-range input {
   width: 100%;
-  accent-color: var(--blue-hover);
+  accent-color: var(--blue-accent);
   cursor: pointer;
 }
 
@@ -294,12 +294,12 @@
 }
 
 .workspace-setting-switch input:checked + i {
-  background: color-mix(in srgb, var(--blue) 25%, var(--desk));
-  border-color: var(--blue-hover);
+  background: color-mix(in srgb, var(--blue-accent) 25%, var(--desk));
+  border-color: var(--blue-accent);
 }
 
 .workspace-setting-switch input:checked + i::after {
-  background: var(--blue-hover);
+  background: var(--blue-accent);
   transform: translateX(1.22rem);
 }
 
@@ -331,7 +331,7 @@
   gap: var(--space-3);
   min-height: 4.7rem;
   padding: var(--space-3) 0;
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   border-bottom: 1px solid var(--hairline);
 }
 

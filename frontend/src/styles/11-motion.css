@@ -286,7 +286,7 @@
 
 .product-search:focus-within > label,
 .product-search:focus-within > button {
-  border-color: var(--blue);
+  border-color: var(--blue-accent);
 }
 
 .product-search > button:hover {
@@ -315,7 +315,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
 }
 
 .workspace-utility-panel > header strong {
@@ -362,7 +362,7 @@
   gap: var(--space-3);
   min-height: 5rem;
   padding: var(--space-3) var(--space-4);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   text-align: left;
   background: var(--desk);
   border: 0;
@@ -440,9 +440,9 @@
 .roblox-asset-stress > header > small {
   flex: 0 0 auto;
   padding: var(--space-2) var(--space-3);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   background: var(--desk);
-  border: 1px solid color-mix(in srgb, var(--blue) 38%, var(--hairline));
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 38%, var(--hairline));
 }
 
 .roblox-workload-layout {
@@ -477,12 +477,12 @@
 
 .roblox-workload-list > button:hover,
 .roblox-workload-list > button[aria-pressed='true'] {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   background: var(--raised);
 }
 
 .roblox-workload-list > button[aria-pressed='true'] {
-  box-shadow: inset 2px 0 var(--blue-hover);
+  box-shadow: inset 2px 0 var(--blue-accent);
 }
 
 .roblox-workload-list > button:disabled {
@@ -528,7 +528,7 @@
   align-items: center;
   gap: var(--space-3);
   padding-bottom: var(--space-4);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -611,7 +611,7 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -637,7 +637,7 @@
   font-style: normal;
 }
 
-.generated-stream-probe[data-state='running'] > header em { color: var(--blue-hover); }
+.generated-stream-probe[data-state='running'] > header em { color: var(--blue-accent); }
 .generated-stream-probe[data-state='complete'] > header em { color: var(--clear); }
 .generated-stream-probe[data-state='cancelled'] > header em { color: var(--review); }
 .generated-stream-probe[data-state='error'] > header em { color: var(--blocked); }
@@ -652,7 +652,7 @@
   display: block;
   min-width: 2px;
   height: 100%;
-  background: var(--blue-hover);
+  background: var(--blue-accent);
   transition: width 140ms linear;
 }
 
@@ -759,7 +759,7 @@
   align-items: center;
   min-height: 2rem;
   padding-inline: var(--space-2);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   border: 1px solid var(--hairline);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
@@ -786,8 +786,8 @@
 }
 
 .asset-capability-badges i:last-child {
-  color: var(--blue-hover);
-  border-color: color-mix(in srgb, var(--blue) 42%, var(--hairline));
+  color: var(--blue-accent);
+  border-color: color-mix(in srgb, var(--blue-accent) 42%, var(--hairline));
 }
 
 .workspace-table-action {
@@ -826,9 +826,9 @@
   gap: var(--space-4);
   margin-bottom: var(--space-6);
   padding: var(--space-4);
-  color: var(--blue-hover);
-  background: color-mix(in srgb, var(--blue) 7%, var(--desk));
-  border: 1px solid color-mix(in srgb, var(--blue) 34%, var(--hairline));
+  color: var(--blue-accent);
+  background: color-mix(in srgb, var(--blue-accent) 7%, var(--desk));
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 34%, var(--hairline));
 }
 
 .release-record-boundary strong,
@@ -853,7 +853,7 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
   white-space: nowrap;
@@ -869,13 +869,13 @@
   align-items: center;
   gap: var(--space-6);
   padding: var(--space-5, 1.25rem) var(--space-6);
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   background: var(--graphite);
-  border: 1px solid color-mix(in srgb, var(--blue) 40%, var(--hairline));
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 40%, var(--hairline));
 }
 
 .release-publish-clarifier > div > span {
-  color: var(--blue-hover);
+  color: var(--blue-accent);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
 }
@@ -934,8 +934,8 @@
 }
 
 .release-publish-clarifier > a:hover {
-  color: var(--blue-hover);
-  border-color: var(--blue);
+  color: var(--blue-accent);
+  border-color: var(--blue-accent);
 }
 
 .release-reset-layout:disabled,

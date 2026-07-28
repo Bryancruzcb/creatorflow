@@ -11,8 +11,10 @@
     --ink: oklch(95.42% 0.008 98.88);
     --ink-muted: oklch(72.36% 0.0114 100.89);
     --ink-dim: oklch(60% 0.0105 102);
-    --blue: oklch(58.5% 0.0627 249.71);
-    --blue-hover: oklch(65% 0.069 249.71);
+    --blue-solid: oklch(48% 0.0627 249.71);
+    --blue-solid-hover: oklch(53% 0.0627 249.71);
+    --blue-accent: oklch(67% 0.069 249.71);
+    
     --review: oklch(71.3% 0.1172 80.74);
     --blocked: oklch(65% 0.14 33.83);
     --clear: oklch(70% 0.058 151.39);
@@ -93,7 +95,7 @@
   .step::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--hairline-strong); }
   .step[data-state="done"]::before { background: var(--clear); }
   .step[data-state="blocked"]::before { background: var(--blocked); }
-  .step[data-state="ready"]::before { background: var(--blue); }
+  .step[data-state="ready"]::before { background: var(--blue-accent); }
   .step[data-state="waiting"]::before { background: var(--hairline-strong); }
 
   .marker {
@@ -117,7 +119,7 @@
   .state::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
   .state.done { color: var(--clear); border-color: oklch(70% 0.058 151.39 / 0.4); background: oklch(70% 0.058 151.39 / 0.1); }
   .state.blocked { color: var(--blocked); border-color: oklch(65% 0.14 33.83 / 0.4); background: oklch(65% 0.14 33.83 / 0.1); }
-  .state.ready { color: var(--blue-hover); border-color: oklch(58.5% 0.0627 249.71 / 0.45); background: oklch(58.5% 0.0627 249.71 / 0.1); }
+  .state.ready { color: var(--blue-accent); border-color: color-mix(in srgb, var(--blue-accent) 45%, transparent); background: color-mix(in srgb, var(--blue-accent) 10%, transparent); }
 
   .step-aside { grid-column: 2 / 4; grid-row: 2; display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.35rem; }
   .action {
@@ -126,9 +128,9 @@
     padding: 0.4rem 0.75rem; border-radius: 8px; cursor: pointer;
     display: inline-flex; align-items: center; gap: 0.4rem;
   }
-  .action:hover { border-color: var(--blue); }
-  .action.primary { background: var(--blue); border-color: transparent; color: oklch(99% 0.01 250); font-weight: 500; }
-  .action.primary:hover { background: var(--blue-hover); }
+  .action:hover { border-color: var(--blue-accent); }
+  .action.primary { background: var(--blue-solid); border-color: transparent; color: oklch(99% 0.01 250); font-weight: 500; }
+  .action.primary:hover { background: var(--blue-solid-hover); }
   .action:focus-visible, .step:focus-within { outline: 2px solid var(--focus); outline-offset: 2px; }
 
   /* Highlighted rows — permission diff + rollback target carry the product's real leverage */

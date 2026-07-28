@@ -46,7 +46,7 @@
   cursor: pointer;
   transition: border-color var(--motion-control, 190ms) var(--ease-state, ease);
 }
-.workspace-dataset-switch:hover { border-color: var(--blue); }
+.workspace-dataset-switch:hover { border-color: var(--blue-accent); }
 .workspace-dataset-switch:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 
 @media (max-width: 640px) {

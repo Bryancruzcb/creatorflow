@@ -76,7 +76,7 @@
   transition: border-color var(--motion-control, 190ms) var(--ease-state, ease),
               transform var(--motion-control, 190ms) var(--ease-state, ease);
 }
-.workspace-welcome-cards button:hover { border-color: var(--blue); transform: translateY(-1px); }
+.workspace-welcome-cards button:hover { border-color: var(--blue-accent); transform: translateY(-1px); }
 .workspace-welcome-cards button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .workspace-welcome-card-icon {
   grid-row: span 2;
@@ -86,9 +86,9 @@
   width: 40px;
   height: 40px;
   border-radius: 10px;
-  color: var(--blue-hover);
-  background: oklch(58.5% 0.0627 249.71 / 0.12);
-  border: 1px solid oklch(58.5% 0.0627 249.71 / 0.3);
+  color: var(--blue-accent);
+  background: color-mix(in srgb, var(--blue-accent) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--blue-accent) 30%, transparent);
 }
 .workspace-welcome-cards button strong { font-size: 0.95rem; }
 .workspace-welcome-cards button small { color: var(--ink-dim); font-size: 0.8rem; }
