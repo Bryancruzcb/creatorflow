@@ -138,11 +138,14 @@ remaining work sound like a rounding error. Measured on `main` before the `.loca
 | hardcoded under 9.6px | 165 |
 | smallest | **6.56px** (`.scene-budget-section > small`) |
 
-Done: `.local-*` (56 declarations — the ownership-verification surface).
+Done: `.local-*` (56 declarations — the ownership-verification surface), and `.release-*` plus
+`.project-run-*` (62 declarations — the release-flow surface, which held the app's smallest
+rendered text at 6.08px and went from 48 offenders to 0).
 
 Remaining, in value order:
 
-1. `.scene-budget` / `.scene-tree` / `.subasset-*` — HeavyAssetViewer panels, includes the 6.56px floor.
+1. `landing` — now the largest single block at 39 rules, and the surface a stranger sees first.
+2. `.scene-budget` / `.scene-tree` / `.subasset-*` — HeavyAssetViewer panels (app-assets, 14).
 2. `.failure-lab` / `.system-check` — StressLab. This is what the item originally named.
 3. `.release-*` — release map and inspector.
 

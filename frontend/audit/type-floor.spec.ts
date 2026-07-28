@@ -25,8 +25,10 @@ const FLOOR_PX = 11;
  */
 const UNMIGRATED = new Set([
   'landing', 'app-overview', 'app-evidence', 'app-assets', 'app-releases',
-  'app-sources', 'app-settings', 'app-project', 'app-gallery', 'app-motion', 'app-stress',
+  'app-sources', 'app-settings', 'app-gallery', 'app-motion', 'app-stress',
 ]);
+// app-project came off: it measured 48 offenders down to 0, the largest single surface in the
+// baseline and the one holding the app's smallest rendered text at 6.08px. It is enforced now.
 
 interface Offender { px: number; sel: string; text: string }
 

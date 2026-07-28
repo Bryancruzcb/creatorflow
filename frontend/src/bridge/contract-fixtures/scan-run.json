@@ -1,0 +1,20 @@
+{
+  "id" : "19200da6-c7e5-4090-a947-220744aab3fd",
+  "projectId" : 1,
+  "release" : "1.0.0",
+  "state" : "COMPLETED",
+  "discoveredCount" : 1,
+  "processedCount" : 1,
+  "bytesProcessed" : 128,
+  "supportedCount" : 1,
+  "ignoredCount" : 0,
+  "excludedCount" : 0,
+  "unreadableCount" : 0,
+  "missingDependencyCount" : 0,
+  "failedCount" : 0,
+  "warnings" : [ ],
+  "error" : null,
+  "createdAt" : "2026-07-28T20:57:06.774175900Z",
+  "startedAt" : "2026-07-28T20:57:06.774175900Z",
+  "completedAt" : "2026-07-28T20:57:06.774175900Z"
+}

@@ -1,0 +1,9 @@
+{
+  "activeProjectId" : null,
+  "activeScanRunId" : null,
+  "selectedAssetId" : null,
+  "selectedFindingId" : null,
+  "filters" : { },
+  "queue" : [ ],
+  "updatedAt" : null
+}

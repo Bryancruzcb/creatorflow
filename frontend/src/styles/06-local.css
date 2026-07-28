@@ -1186,9 +1186,15 @@
   .local-release-list article > dl { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 
   .product-metrics,
-  .stress-pack-rows,
   .complexity-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Split out of the group above. Two-up at 390px gives each row a ~179px cell holding a 104px
+     thumbnail, leaving ~27px for a mono definition list that cannot fit in it — a 16px overflow
+     on the overview that survived the ribbon fix. */
+  .stress-pack-rows {
+    grid-template-columns: minmax(0, 1fr);
   }
 
   .stress-pack-summary > header,
