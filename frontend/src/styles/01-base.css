@@ -8,7 +8,13 @@
   --hairline-strong: oklch(41% 0.012 112);
   --ink: oklch(95.42% 0.008 98.88);
   --ink-muted: oklch(72.36% 0.0114 100.89);
-  --ink-dim: oklch(60% 0.0105 102);
+  /* 66%, not 60%. At 60% this failed WCAG AA on every background it is used on — twelve of the
+     fourteen contrast pairs the audit found were this one token, ranging 3.99:1 to 4.49:1 against
+     a 4.5 requirement. 66% clears the worst case, --raised-strong (#292a26), at 4.63:1.
+     65% was tried and rejected: it reaches only 4.45:1 there, which is still a fail, and picking a
+     value that clears the backgrounds that happen to be used today would leave the next layout to
+     reintroduce the problem. It stays clearly subordinate to --ink-muted at 72.36%. */
+  --ink-dim: oklch(66% 0.0105 102);
   --blue: oklch(58.5% 0.0627 249.71);
   --blue-hover: oklch(65% 0.069 249.71);
   --blue-down: oklch(52% 0.059 249.71);

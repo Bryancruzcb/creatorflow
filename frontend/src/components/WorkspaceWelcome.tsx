@@ -1,5 +1,5 @@
 import { Activity, Boxes, Fingerprint, X } from 'lucide-react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { WorkspaceView } from './ProductWorkspace';
 
 const WELCOME_KEY = 'creatorflow:welcomed';
@@ -39,24 +39,71 @@ export function WorkspaceWelcome({ onNavigate }: { onNavigate: (view: WorkspaceV
     }
   });
 
-  useEffect(() => {
-    if (!open) return;
-    const onKey = (event: KeyboardEvent) => { if (event.key === 'Escape') dismiss(); };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open]);
+  const panelRef = useRef<HTMLDivElement>(null);
 
-  if (!open) return null;
-
-  function dismiss() {
+  /**
+   * Where focus goes when this closes.
+   *
+   * Not "whatever was focused before", because nothing was: the dialog opens from localStorage
+   * during mount, so document.activeElement is <body> and there is nothing to restore. Focus goes
+   * to the workspace main region instead, which is the content the dialog was covering.
+   */
+  const dismiss = useCallback(() => {
     try {
       window.localStorage.setItem(WELCOME_KEY, '1');
     } catch {
       // A private-mode failure just means it may greet again next time; harmless.
     }
     setOpen(false);
-  }
+    window.requestAnimationFrame(() => {
+      document.getElementById('workspace-main')?.focus();
+    });
+  }, []);
+
+  /**
+   * Focus enters on open and stays until dismissal.
+   *
+   * aria-modal="true" tells assistive tech the rest of the page is inert. Without a trap the DOM
+   * says otherwise — Tab walked straight out into the page behind, so the announcement and the
+   * behaviour disagreed, which is worse than not claiming modality at all.
+   */
+  useEffect(() => {
+    if (!open) return undefined;
+
+    const panel = panelRef.current;
+    const focusable = () => Array.from(
+      panel?.querySelectorAll<HTMLElement>('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])') ?? [],
+    ).filter((el) => !el.hasAttribute('disabled'));
+
+    focusable()[0]?.focus();
+
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') {
+        dismiss();
+        return;
+      }
+      if (event.key !== 'Tab') return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      const active = document.activeElement;
+
+      // Wrap at both ends, and pull focus back in if it somehow escaped.
+      if (event.shiftKey && (active === first || !panel?.contains(active))) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && (active === last || !panel?.contains(active))) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, dismiss]);
+
+  if (!open) return null;
 
   function go(view: WorkspaceView) {
     dismiss();
@@ -65,7 +112,7 @@ export function WorkspaceWelcome({ onNavigate }: { onNavigate: (view: WorkspaceV
 
   return (
     <div className="workspace-welcome-backdrop" role="dialog" aria-modal="true" aria-labelledby="workspace-welcome-title" onClick={dismiss}>
-      <div className="workspace-welcome" onClick={(event) => event.stopPropagation()}>
+      <div className="workspace-welcome" ref={panelRef} onClick={(event) => event.stopPropagation()}>
         <button className="workspace-welcome-close" type="button" onClick={dismiss} aria-label="Dismiss welcome"><X size={16} /></button>
         <span className="workspace-welcome-kicker">Welcome — sample project</span>
         <h2 id="workspace-welcome-title">Evidence for what you ship.</h2>

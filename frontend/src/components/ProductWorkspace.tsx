@@ -879,7 +879,11 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
         <div className="product-sidebar-bottom"><button className={view === 'settings' ? 'selected' : ''} type="button" aria-label="Open workspace settings" aria-current={view === 'settings' ? 'page' : undefined} onClick={() => changeView('settings')}><Settings size={16} /><span>Settings</span></button><button type="button" aria-label="Return to CreatorFlow landing page" onClick={onExit}><ArrowLeft size={16} /><span>Back to site</span></button></div>
       </aside>
 
-      <div className="product-workspace-main">
+      {/* tabIndex={-1} so the welcome dialog has somewhere real to return focus to. It opens
+          during mount from localStorage, so nothing was focused before it — "restore what was
+          focused" has no answer, and leaving focus on <body> makes the next Tab start at the top
+          of the document instead of at the content the dialog was covering. */}
+      <div className="product-workspace-main" id="workspace-main" tabIndex={-1}>
         <header className="product-topbar">
           <div><span>{projectSubtitle}</span><strong>{view === 'settings' ? 'Settings' : navigationItems.find((item) => item.id === view)?.label}</strong><small className="dataset-indicator" aria-label={`Active dataset: ${activeLocal ? 'local project' : activeManifest ? 'imported snapshot' : 'sample data'}`}>{activeLocal ? 'Local project' : activeManifest ? 'Imported snapshot' : 'Sample data'}</small></div>
           <form className="product-search" role="search" onSubmit={submitWorkspaceSearch}><label><Search size={15} /><input aria-label="Search current project" value={workspaceQuery} onChange={(event) => setWorkspaceQuery(event.target.value)} placeholder="Search…" /></label><button type="submit" aria-label="Search CreatorFlow workspace"><Search size={15} /></button></form>

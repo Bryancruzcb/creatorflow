@@ -715,6 +715,58 @@ class LocalBridgeServerTest {
         return scans.listAssets(run.id(), 10, 0).getFirst().id();
     }
 
+    /**
+     * Writes real response bodies to disk for the TypeScript client to parse.
+     *
+     * The three TS unit suites around LocalBridgeClient stub fetch, so they assert the client
+     * against a hand-written idea of what this server returns. That catches client bugs and is
+     * structurally blind to server drift: rename a field here and every one of them still passes
+     * while the desktop app breaks.
+     *
+     * These fixtures are the actual bytes this server produced, captured from the same flow the
+     * other tests in this class exercise. The TS side feeds them through the real client. If a
+     * field is renamed, retyped or nested differently, that test fails on the next run of either
+     * suite — which is the only way the two halves stay in contract without running both.
+     *
+     * Not asserted here on purpose. This test's job is to record what the server says, not to
+     * decide whether it is right; the assertions live where the parsing does.
+     */
+    @Test
+    void writesContractFixturesForTheTypeScriptClient() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        Path out = Path.of("..", "frontend", "src", "bridge", "contract-fixtures");
+        Files.createDirectories(out);
+
+        long assetId = seedBoundAsset(90110L);
+        long projectId = json.readTree(get("/api/v1/projects", cookie).body())
+                .get("items").get(0).get("projectId").asLong();
+
+        // The run id comes from the assets page: /api/v1/projects/{id}/scan-runs is POST-only,
+        // it starts a scan rather than listing them.
+        String assetsPath = "/api/v1/projects/" + projectId + "/assets?limit=100&offset=0";
+        String runId = json.readTree(get(assetsPath, cookie).body()).get("scanRunId").asText();
+
+        record Capture(String name, String path) { }
+        List<Capture> captures = List.of(
+                new Capture("session", "/api/v1/session"),
+                new Capture("projects", "/api/v1/projects"),
+                new Capture("scan-run", "/api/v1/scan-runs/" + runId),
+                new Capture("assets-page", assetsPath),
+                new Capture("asset-detail", "/api/v1/assets/" + assetId),
+                new Capture("decision-history", "/api/v1/assets/" + assetId + "/decisions"),
+                new Capture("ownership-verifications", "/api/v1/assets/" + assetId + "/ownership-verifications"),
+                new Capture("releases", "/api/v1/projects/" + projectId + "/releases"),
+                new Capture("workspace-state", "/api/v1/workspace-state"));
+
+        for (Capture capture : captures) {
+            HttpResponse<String> response = get(capture.path(), cookie);
+            assertEquals(200, response.statusCode(), capture.path() + " did not return 200");
+            Files.writeString(out.resolve(capture.name() + ".json"),
+                    json.writerWithDefaultPrettyPrinter()
+                            .writeValueAsString(json.readTree(response.body())));
+        }
+    }
+
     private HttpResponse<String> get(String path, String requestCookie) throws Exception {
         HttpRequest.Builder request = HttpRequest.newBuilder(origin.resolve(path)).GET();
         if (requestCookie != null) request.header("Cookie", requestCookie);

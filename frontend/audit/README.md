@@ -3,13 +3,13 @@
 Standing quality gates that run against **rendered** pages, not against source.
 
 ```
-npm run test:audit          # both gates, all 16 surfaces
+npm run test:audit          # all six gates, all 16 surfaces
 npm run harness             # just the harness, at http://127.0.0.1:4176
 ```
 
 ## Why these exist
 
-Both gates were added after review findings that `vitest`, `tsc` and the e2e suite could not
+Each gate was added after a review finding that `vitest`, `tsc` and the e2e suite could not
 possibly have caught:
 
 - A verdict headline authored at `16px` **rendered at `12px`**, because
@@ -36,35 +36,141 @@ Current debt, largest first: `app-project` (49 rules, smallest 6.08px), `landing
 `app-assets` (17), `app-overview` (11). Migration order is in
 [`../VISUAL-TECHNIQUE-PLAN.md`](../VISUAL-TECHNIQUE-PLAN.md) item 6.
 
+## `render-budget.spec.ts`
+
+Does the 3D actually render, and how much is it drawing?
+
+Before this, ~3,400 lines across six viewers had **no automated verification of any kind** —
+`HeavyAssetViewer` (1,143 lines), `ModelGallery`, `GlbComparisonViewer`, `AnimatedAssetViewer` and
+`StressLab` had zero test files referencing them, and `MotionComparisonLab`'s three covered only
+pure functions. Every serious rendering defect found in review lived in that band.
+
+`glCounters.ts` wraps `drawElements` / `drawArrays` / `getContext` / `requestAnimationFrame` via
+`addInitScript`, which reproduces `renderer.info.render` from outside with no production change.
+
+Frames come from rAF, **not** from `gl.clear`: `HeavyAssetViewer` issues two autoClear'd `render()`
+calls per frame (main scene plus scissored minimap), so a clear-derived count is 2x and every
+per-frame number derived from it would be half the truth.
+
+Measured on this build at 1440:
+
+| surface | frames | calls/f | lines/f | tris/f |
+|---|---|---|---|---|
+| model gallery | ~520 | 3 | 0 | ~826 |
+| animation compare | ~87 | 45 | ~116 | ~6,300 |
+| heavy asset viewer | ~87 | 19 | 0 | ~3,136 |
+
+**The line budget is per frame, not per draw call.** The wireframe overlay removed from the motion
+lab emitted 58,266 line primitives across 114 calls — about 511 each, which slides under any sane
+per-draw ceiling. Reintroducing that defect measured 57,028 lines/frame with a
+`maxLinePrimitivesInOneDraw` of only **1,710**: a 2,048 per-draw ceiling would have passed it.
+
+Verified by canary: with the defect injected the gate fails with the real number; restored, it
+passes. It also caught a flaw in itself first — at phase 0 no trail member has history, so the
+original spec measured the stage with its most expensive feature switched off. It now scrubs to
+mid-clip before measuring.
+
+Viewers are demand-rendered and suspend offscreen, so `wakeCanvases` scrolls each canvas into view
+and drags once; without it every surface measures zero and a broken viewer reads as a pass.
+
+**Not covered, stated rather than implied:** StressLab's animation gate did not mount a context in
+this harness, and `HeavyAssetViewer`'s comparison modes (including the deviation heatmap) are not
+reached. That heatmap path is where a wireframe overlay would most plausibly reappear.
+
 ## `overflow.spec.ts`
 
-Asserts nothing overflows its container, at **390 / 820 / 1280**.
+Asserts nothing overflows its container, at **390 / 820 / 1280**. All 48 checks assert — there is
+no baseline.
 
 Added after the landing dossier shipped broken on a phone: three absolutely positioned sheets at
-percentage widths, fine at 1440, and at 390px each was ~226px so every panel clipped its own text
-and the manifest ran off the screen. The other two gates run at 1440 only, so a layout that fails
-only when narrow was invisible to every check in the repo. They ask *is this readable*; this asks
-*does it fit*.
+percentage widths, fine at 1440, and at 390px each was ~226px so every panel clipped its own text.
+The other gates run at 1440 only, so a layout that fails only when narrow was invisible to every
+check in the repo. They ask *is this readable*; this asks *does it fit*.
 
-`UNRESPONSIVE` lists the workspace views, which overflow by exactly 231px at phone width — the
-224px nav rail is a fixed column at every width. Making the workspace responsive is a real project,
-so it is recorded and logged rather than skipped. Same ratchet rule: entries come off, none go on.
+**Correcting this file's own history.** An earlier version of this section said the workspace shell
+"does not collapse on a phone" and blamed a 224px fixed nav rail. That was measured false. The
+shell already collapses at 48rem in `06-local.css` — `.product-workspace` becomes `display: block`
+and the sidebar a full-width row.
 
-The landing page is deliberately **not** on that list. It is the surface a creator is most likely
-to open on a phone.
+The real 231px was one declaration: a `@media (max-width: 48rem)` override pinning the proof ribbon
+to `repeat(5, minmax(7.6rem, 1fr))`, which lays 608px of tracks inside a 366px ribbon. It was
+identical on all nine views because the ribbon is shell chrome, and `app-settings` measured 0 only
+because that view renders no ribbon — which the old note read as "settings is fine".
+
+Measured at 390px after the fix: `121.3px x3`, ribbon height **157px**. That is up from 99px, and
+worth stating plainly — showing five proof steps on a 390px screen costs vertical space. The
+`7.6rem` the first attempt proposed would have given two 182px tracks and a **216px** ribbon, so
+`7rem` is a measurement, not a preference.
+
+Both fixes are proven load-bearing by mutation: reverting only the ribbon rule produces exactly
+nine `231px` failures; reverting only `.stress-pack-rows` produces exactly one, `app-overview` at
+16px.
+
+## `keyboard.spec.ts`
+
+Keyboard behaviour of the first-run dialog. Five assertions, deliberately narrow.
+
+`WorkspaceWelcome` rendered `role="dialog" aria-modal="true"` and handled Escape, and did nothing
+else a modal has to do. `aria-modal` tells assistive tech the rest of the page is inert while the
+DOM let Tab walk straight out of it — the announcement and the behaviour disagreed, which is worse
+than not claiming modality at all.
+
+Four of the five failed before the fix; only Escape passed. Restoration needed a stated target
+before it could pass at all: the dialog opens from localStorage during mount, so nothing was ever
+focused to return to. The workspace main region now carries `tabIndex={-1}` and receives focus, so
+a keyboard user resumes at the content the dialog was covering.
+
+**Scope, stated rather than implied.** A full keyboard audit — tab-order walks across all sixteen
+surfaces, focus-indicator detection, generic trap detection — was rejected in review for bundling
+four independent mechanisms, and because the proposed trap detector caught exactly one trap shape
+(a `Tab` that leaves the active element unchanged) while reading as though it caught all of them.
+Tab order, focus visibility and roving-tabindex behaviour across the app remain untested.
 
 ## `a11y.spec.ts`
 
 Runs axe-core restricted to **accessible-name and announceability rules**, on all 16 surfaces.
 
-Deliberately not a full WCAG sweep. A gate that fails on 200 pre-existing colour-contrast
-findings gets switched off within a week, and a gate that is off catches nothing. Contrast,
-landmarks and heading order deserve their own pass with their own baseline.
+Deliberately not a full WCAG sweep. A gate that fails on hundreds of pre-existing colour-contrast
+findings gets switched off within a week, and a gate that is off catches nothing. Landmarks and
+heading order still deserve their own pass with their own baseline.
+
+Contrast has since got one — see below. This section used to justify the exclusion with "200
+pre-existing findings", a number nobody had measured; the real figure was 332, and counting them
+properly is what showed they were only fourteen colour pairs, which is what made the gate
+tractable at all.
 
 Verified to actually fail: injecting `<button></button>`, an `<img>` with no `alt`, and a bare
 `<input>` produces `button-name`, `image-alt` and `label` violations. Worth re-checking if this
 ever goes green after a large refactor — `withRules` silently evaluates nothing if a rule name is
 misspelled.
+
+## `contrast.spec.ts`
+
+Colour contrast at the real WCAG AA thresholds, on all 16 surfaces — **baselined on colour pairs,
+not on surfaces.**
+
+That distinction is the whole gate. There were 332 findings across the sixteen surfaces, and they
+were **fourteen distinct colour pairs**: the colour layer is tokenised, so the same few pairs
+repeat everywhere. A surface-level baseline would have exempted every page in the app and tested
+nothing. A pair-level one still fails the moment a new bad colour appears anywhere — and it
+emptied out almost entirely when one token moved, because twelve of the fourteen were `--ink-dim`
+on a near-black background. Raising that token took the list from fourteen pairs to two.
+
+Ratios in `KNOWN_PAIRS` are recomputed from the hex at assertion time, so the numbers in the file
+cannot drift from the colours in it. Same ratchet rule as the other gates: entries come off when a
+token is fixed, nothing goes on.
+
+The two left are one token doing two jobs. `--blue` is both a filled-button background (needs to be
+darker so white text clears 4.5) and an accent text colour on dark surfaces (needs to be lighter);
+darkening it to 52% trades a 3.66 failure for a 3.43 one. Splitting it into a solid and an accent
+token is the real fix and a visible design change, so it is recorded rather than smuggled into a
+test change.
+
+Nodes axe cannot resolve — text over the WebGL hero, over gradients, over images — are reported
+separately and budgeted, but **only on surfaces with no live canvas.** On canvas surfaces the count
+depends on what the renderer has painted when axe looks: the landing hero measured 66 solo and 79
+under parallel workers, same build. A budget on a number that moves is a flaky gate, and a flaky
+gate gets deleted.
 
 ## The harness (`../harness/`)
 

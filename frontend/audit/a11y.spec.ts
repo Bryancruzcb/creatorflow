@@ -10,9 +10,13 @@ import { open, surfaces } from './surfaces';
  * into a live region, an error state that removed the live region entirely. None were visible to
  * vitest or tsc, and all were found by hand. This is the gate that was missing.
  *
- * Scoped to the rules that catch that class of defect. It is deliberately NOT a full WCAG sweep:
- * a gate that fails on 200 pre-existing colour-contrast findings gets switched off in a week, and
- * a gate that is off catches nothing. Contrast and the rest belong in a separate, wider pass.
+ * Scoped to the rules that catch that class of defect, not a full WCAG sweep.
+ *
+ * The original reason given here was "a gate that fails on 200 pre-existing colour-contrast
+ * findings gets switched off in a week". The instinct was right; the number was invented. Measured
+ * afterwards: 332 findings, but only FOURTEEN distinct colour pairs, because the colour layer is
+ * almost entirely tokenised. contrast.spec.ts now covers them with a pair-keyed baseline — see
+ * that file. Landmarks and heading order are still uncovered.
  */
 
 const NAME_RULES = [

@@ -331,8 +331,22 @@
     display: none;
   }
 
+  /**
+   * 3-up and wrapping, not a fixed five.
+   *
+   * This override is the ENTIRE phone overflow: five tracks at a 7.6rem minimum is 608px laid out
+   * inside a 366px ribbon, so the fifth step's right edge landed at 621px on a 390px viewport.
+   * That is the 231px every workspace view was reporting — the base rule above was changed to
+   * auto-fit earlier, but this block kept forcing 5-up underneath it.
+   *
+   * 7rem rather than 7.6rem is measured, not chosen: at 390px, 7.6rem still yields two 182px
+   * tracks and a 216px-tall ribbon, while 7rem yields three ~121px tracks at 157px tall. Both
+   * clear the overflow; the ribbon is shell chrome above every view, so on a phone the 59px
+   * matters. It is still taller than the 99px single row it replaces, and that is the real cost
+   * of showing five steps on a 390px screen.
+   */
   .workspace-proof-ribbon ol {
-    grid-template-columns: repeat(5, minmax(7.6rem, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(7rem, 1fr));
   }
 
   .workspace-proof-ribbon button {

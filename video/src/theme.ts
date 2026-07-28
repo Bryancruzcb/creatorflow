@@ -15,7 +15,10 @@ export const c = {
 
   ink: '#f1f0ea',
   inkMuted: '#a7a69e',
-  inkDim: '#818079',
+  // Raised with --ink-dim when that token was corrected for WCAG AA; on --desk this measures
+  // 4.74:1 before and 6.02:1 after. The drift guard in DossierArtwork.drift.test.ts is what
+  // caught that the video had not followed the app.
+  inkDim: '#93928b',
 
   blue: '#5f7fa0',
   blueHover: '#6f93b8',
