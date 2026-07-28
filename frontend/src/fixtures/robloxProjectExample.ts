@@ -38,7 +38,8 @@ export interface RobloxProjectFinding {
   detail: string;
 }
 
-const animationStats: Array<[string, number, number, number]> = [
+/** Also read by the landing dossier artwork, so the marketing surface cannot drift from this. */
+export const animationStats: Array<[string, number, number, number]> = [
   ['Dance', 3.333, 12, 972],
   ['Death', 0.958, 18, 432],
   ['Idle', 3.333, 7, 567],
