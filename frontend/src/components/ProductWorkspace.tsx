@@ -130,11 +130,11 @@ function readAssetDeepLink(): AssetDeepLink {
 type NavigationPhase = 'snapshot' | 'fingerprint' | 'source' | 'decision' | 'handoff';
 
 const navigationPhases: Array<{ id: NavigationPhase; label: string }> = [
-  { id: 'snapshot', label: '01 · Snapshot' },
-  { id: 'fingerprint', label: '02 · Fingerprint + inspect' },
-  { id: 'source', label: '03 · Source' },
-  { id: 'decision', label: '04 · Decision' },
-  { id: 'handoff', label: '05 · Roblox handoff' },
+  { id: 'snapshot', label: 'Snapshot' },
+  { id: 'fingerprint', label: 'Fingerprint' },
+  { id: 'source', label: 'Source' },
+  { id: 'decision', label: 'Decision' },
+  { id: 'handoff', label: 'Roblox' },
 ];
 
 const navigation: Array<{ id: WorkspaceView; label: string; icon: typeof LayoutDashboard; phase: NavigationPhase; count?: string }> = [
@@ -142,7 +142,7 @@ const navigation: Array<{ id: WorkspaceView; label: string; icon: typeof LayoutD
   { id: 'evidence', label: 'Evidence', icon: Fingerprint, phase: 'fingerprint', count: '12' },
   { id: 'assets', label: 'Assets', icon: Boxes, phase: 'fingerprint', count: 'sample' },
   { id: 'gallery', label: 'Model gallery', icon: Boxes, phase: 'fingerprint', count: '24' },
-  { id: 'motion', label: 'Animation compare', icon: Activity, phase: 'fingerprint', count: 'Roblox beta' },
+  { id: 'motion', label: 'Animations', icon: Activity, phase: 'fingerprint', count: 'Beta' },
   { id: 'stress', label: 'System check', icon: FlaskConical, phase: 'fingerprint', count: '6' },
   { id: 'sources', label: 'Sources', icon: Library, phase: 'source', count: '20' },
   { id: 'project', label: 'Release flow', icon: Workflow, phase: 'decision' },
@@ -157,45 +157,45 @@ function OverviewView({ onOpenAsset, onOpenEvidence, onOpenMotion }: { onOpenAss
   return (
     <div className="product-overview">
       <section className="project-status-strip">
-        <div><span className="workspace-kicker">Current release</span><strong>Northwind / Release 2.4</strong><small>Demo project profile · local-first policy</small></div>
-        <div className="project-readiness"><ShieldCheck size={18} /><span><strong>88% ready</strong><small>12 evidence decisions remain</small></span></div>
+        <div><span className="workspace-kicker">Current release</span><strong>Northwind / Release 2.4</strong><small>Sample project</small></div>
+        <div className="project-readiness"><ShieldCheck size={18} /><span><strong>88% ready</strong><small>12 decisions left</small></span></div>
         <button className="button button-primary" type="button" onClick={onOpenEvidence}>Review evidence</button>
       </section>
 
       <section className="product-metrics" aria-label="Project metrics">
-        <Metric label="Indexed files" value="12,844" note="Sample profile · 39 creative formats" />
-        <Metric label="Project footprint" value="18.4 GB" note="Sample profile, nothing downloaded" />
-        <Metric label="Capability asset set" value="446 MB" note="32-file curated demo of real complex assets" />
+        <Metric label="Indexed files" value="12,844" note="Sample · 39 file formats" />
+        <Metric label="Project footprint" value="18.4 GB" note="Sample · nothing downloaded" />
+        <Metric label="Demo asset set" value="446 MB" note="32 real files, bundled" />
         <Metric label="Bytes uploaded" value="0" note="Fingerprints leave the machine; files never do" />
       </section>
 
       <section className="overview-motion-entry">
-        <div><Activity size={19} /><span><strong>Check a Roblox animation</strong><small>Compare two permitted animation IDs, then keep the normalized fingerprints with the local evidence record.</small></span></div>
+        <div><Activity size={19} /><span><strong>Check a Roblox animation</strong><small>Compare two animation IDs you have permission to use.</small></span></div>
         <button className="button button-secondary" type="button" onClick={onOpenMotion}>Open animation compare</button>
       </section>
 
       <div className="overview-grid">
         <section className="project-throughput">
-          <header><div><span>Index throughput</span><strong>Last seven local scans</strong></div><small>FILES / SECOND</small></header>
+          <header><div><span>Scan speed</span><strong>Last seven scans</strong></div><small>FILES / SECOND</small></header>
           <div className="throughput-chart" aria-label="Local scan throughput ranged from 312 to 428 files per second over seven scans">
             {[56, 68, 62, 81, 73, 92, 86].map((height, index) => <i key={index} style={{ height: `${height}%` }}><span>{312 + index * 19}</span></i>)}
           </div>
-          <footer><span>Average 369 files/s</span><span>Content upload disabled</span></footer>
+          <footer><span>Average 369 files/s</span></footer>
         </section>
 
         <section className="decision-queue">
           <header><span>Decision queue</span><strong>What needs a human</strong></header>
           <ol>
-            <li><span className="queue-state blocked">3</span><div><strong>Missing permission</strong><small>License or ownership evidence required</small></div></li>
-            <li><span className="queue-state review">5</span><div><strong>High-confidence matches</strong><small>Compare source and project records</small></div></li>
-            <li><span className="queue-state neutral">7</span><div><strong>Low-confidence candidates</strong><small>Visible differences documented by format</small></div></li>
+            <li><span className="queue-state blocked">3</span><div><strong>Missing permission</strong><small>No license or owner yet</small></div></li>
+            <li><span className="queue-state review">5</span><div><strong>High-confidence matches</strong><small>Compare with the source</small></div></li>
+            <li><span className="queue-state neutral">7</span><div><strong>Low-confidence candidates</strong><small>Differences already documented</small></div></li>
           </ol>
         </section>
       </div>
 
       <section className="stress-pack-summary">
         <header>
-          <div><span>Actual capability proof</span><h2>Complex assets, indexed without pretending they are lightweight.</h2></div>
+          <div><span>Sample asset set</span><h2>Complex files, indexed as they are.</h2></div>
           <button className="button button-secondary" type="button" onClick={() => onOpenAsset()}>Open asset stress set</button>
         </header>
         <div className="stress-pack-rows">
@@ -353,7 +353,7 @@ function AssetsView() {
     <div className="workspace-assets-view">
       <RobloxAssetStressSet />
       <section className="asset-browser">
-        <header><div><span>Bundled licensed fixtures</span><strong>Interactive rigs and production GLBs</strong></div><small>{heavyPayloadMb} MB actual GLB payload · load on demand</small></header>
+        <header><div><span>Licensed sample files</span><strong>Rigs and GLB models</strong></div><small>{heavyPayloadMb} MB total · loads on demand</small></header>
         <div className="asset-browser-columns">
           <div className="heavy-asset-list" role="list" aria-label="Complex project assets">
             <div className="heavy-asset-filterbar" aria-label="Filter complex assets">
@@ -395,16 +395,16 @@ function AssetsView() {
             <div className={`asset-investigation-layout ${loadedId === selected.id ? 'with-tree' : ''}`}>
             <div className="heavy-preview-stage">
               {loadedId === selected.id ? (
-                <Suspense fallback={<div className="heavy-preview-skeleton">Preparing 3D runtime…</div>}>
+                <Suspense fallback={<div className="heavy-preview-skeleton">Loading 3D viewer…</div>}>
                   <HeavyAssetViewer assetId={selected.id} url={selected.modelUrl} label={selected.name} previewUrl={selected.previewUrl} size={selected.size} componentMatches={visibleMatches} selectedComponentId={selectedComponentId} onSelectComponent={selectComponent} onSceneIndex={setSceneNodes} focusedSceneNodeId={focusedSceneNodeId} matchMapEnabled={matchMapEnabled} differenceMode={differenceMode} comparisonActive={comparisonActive} comparisonMode={comparisonMode} comparisonSourceUrl={comparisonAsset?.modelUrl} />
                 </Suspense>
               ) : (
                 <>
                   <img src={selected.previewUrl} alt={`${selected.name} source preview`} />
                   <div className="heavy-preview-gate">
-                    <span><HardDrive size={15} /> On-demand payload · {selected.size}</span>
-                    <strong>{selected.componentMatches?.length ? `${selected.componentMatches.length} component matches are indexed before the GLB opens.` : 'Preview stays light until you ask for the model.'}</strong>
-                    <button className="button button-primary" type="button" onClick={() => setLoadedId(selected.id)}><Play size={15} /> Load interactive GLB</button>
+                    <span><HardDrive size={15} /> Loads on demand · {selected.size}</span>
+                    <strong>{selected.componentMatches?.length ? `${selected.componentMatches.length} component matches already indexed.` : 'Nothing loads until you ask.'}</strong>
+                    <button className="button button-primary" type="button" onClick={() => setLoadedId(selected.id)}><Play size={15} /> Load 3D model</button>
                   </div>
                 </>
               )}
@@ -424,7 +424,7 @@ function AssetsView() {
                 {
                   title: focusedSceneNode ? 'Object record' : selectedComponent ? 'Finding record' : 'Asset record',
                   fields: focusedSceneNode ? [
-                    { label: 'Runtime object ID', value: focusedSceneNode.id, mono: true, copyValue: focusedSceneNode.id, note: 'Viewer-session identifier; not a stable Roblox Instance ID.' },
+                    { label: 'Runtime object ID', value: focusedSceneNode.id, mono: true, copyValue: focusedSceneNode.id, note: 'Viewer session only — not a Roblox Instance ID.' },
                     { label: 'Name / type', value: `${focusedSceneNode.name} / ${focusedSceneNode.type}` },
                     { label: 'Hierarchy depth', value: focusedSceneNode.depth },
                     { label: 'Children', value: focusedSceneNode.childCount },
@@ -448,7 +448,7 @@ function AssetsView() {
                   ],
                 },
                 {
-                  title: 'Parent asset and provenance',
+                  title: 'Source and license',
                   fields: [
                     { label: 'Asset', value: selected.name },
                     { label: 'Project path', value: selected.projectPath, mono: true },
@@ -472,13 +472,13 @@ function AssetsView() {
             />
             {selected.componentMatches?.length ? (
               <section className="subasset-match-panel" aria-labelledby="subasset-match-title">
-                <header><div><span>Similar parts in this GLB</span><strong id="subasset-match-title">Select a highlighted component or choose a record.</strong></div><label className="match-threshold-control"><span>Minimum confidence <strong>{confidenceThreshold}%</strong></span><input type="range" min="0" max="100" step="1" value={confidenceThreshold} onChange={(event) => changeThreshold(Number(event.target.value))} aria-label="Minimum component match confidence" /><small>{visibleMatches.length} of {selected.componentMatches.length} visible</small></label></header>
+                <header><div><span>Similar parts in this GLB</span><strong id="subasset-match-title">Pick one to compare.</strong></div><label className="match-threshold-control"><span>Minimum confidence <strong>{confidenceThreshold}%</strong></span><input type="range" min="0" max="100" step="1" value={confidenceThreshold} onChange={(event) => changeThreshold(Number(event.target.value))} aria-label="Minimum component match confidence" /><small>{visibleMatches.length} of {selected.componentMatches.length} visible</small></label></header>
                 <div className="subasset-match-grid">
                   <div className="subasset-match-list">
-                    {visibleMatches.length ? visibleMatches.map((match) => <button key={match.id} type="button" className={match.id === selectedComponentId ? 'selected' : ''} onClick={() => selectComponent(match.id)}><span><strong>{match.project.label}</strong><small>{match.kind === 'exact-instance' ? 'Exact shared instance' : match.kind === 'geometry' ? 'Geometry relationship' : 'Appearance relationship'}</small></span><em>{match.similarity}%</em></button>) : <div className="filtered-match-empty"><strong>No matches above {confidenceThreshold}%</strong><small>Lower the threshold to restore weaker candidates.</small></div>}
+                    {visibleMatches.length ? visibleMatches.map((match) => <button key={match.id} type="button" className={match.id === selectedComponentId ? 'selected' : ''} onClick={() => selectComponent(match.id)}><span><strong>{match.project.label}</strong><small>{match.kind === 'exact-instance' ? 'Exact shared instance' : match.kind === 'geometry' ? 'Geometry relationship' : 'Appearance relationship'}</small></span><em>{match.similarity}%</em></button>) : <div className="filtered-match-empty"><strong>No matches above {confidenceThreshold}%</strong><small>Lower the threshold to see more.</small></div>}
                   </div>
                   <div className="subasset-selection-tray">
-                    {selectedComponent ? <><div><span>Selected component</span><strong>{selectedComponent.project.label}</strong><small>{selectedComponent.method}</small></div><div className="subasset-match-route"><span>{selectedComponent.project.label}</span><i>→</i><span>{selectedComponent.source.label}</span><strong>{selectedComponent.similarity}%</strong></div><p>{selectedComponent.relationship}</p><div className="subasset-selection-actions"><button className="button button-primary" type="button" onClick={() => { setLoadedId(selected.id); setComparisonMode('side'); setComparisonActive(true); }}><GitCompare size={15} /> Compare selected pair</button><button className="button button-secondary" type="button" onClick={togglePinned}>{selectedPinned ? <PinOff size={15} /> : <Pin size={15} />}{selectedPinned ? 'Unpin' : 'Pin comparison'}</button></div></> : <div className="subasset-empty"><ScanSearch size={19} /><strong>Choose a component finding</strong><p>After the GLB loads, you can also click any highlighted hull, rigging, sail, or chess piece directly in the viewport.</p></div>}
+                    {selectedComponent ? <><div><span>Selected component</span><strong>{selectedComponent.project.label}</strong><small>{selectedComponent.method}</small></div><div className="subasset-match-route"><span>{selectedComponent.project.label}</span><i>→</i><span>{selectedComponent.source.label}</span><strong>{selectedComponent.similarity}%</strong></div><p>{selectedComponent.relationship}</p><div className="subasset-selection-actions"><button className="button button-primary" type="button" onClick={() => { setLoadedId(selected.id); setComparisonMode('side'); setComparisonActive(true); }}><GitCompare size={15} /> Compare pair</button><button className="button button-secondary" type="button" onClick={togglePinned}>{selectedPinned ? <PinOff size={15} /> : <Pin size={15} />}{selectedPinned ? 'Unpin' : 'Pin comparison'}</button></div></> : <div className="subasset-empty"><ScanSearch size={19} /><strong>Pick a finding</strong><p>Or click a highlighted part once the model loads.</p></div>}
                   </div>
                 </div>
                 {selectedComponent ? <div className="subasset-difference-strip">{selectedComponent.differences.map((difference) => <div key={difference.label}><span>{difference.label}</span><p>{difference.project}</p><i>→</i><p>{difference.source}</p></div>)}</div> : null}
@@ -492,7 +492,7 @@ function AssetsView() {
               <div><dt>Embedded images</dt><dd>{selected.images}</dd></div>
               <div><dt>SHA-256</dt><dd><code>{selected.hash.slice(0, 12)}…</code></dd></div>
             </dl>
-            <div className="asset-extension-list"><span>Format and runtime features</span>{selected.extensions.map((extension) => <code key={extension}>{extension}</code>)}</div>
+            <div className="asset-extension-list"><span>Format features</span>{selected.extensions.map((extension) => <code key={extension}>{extension}</code>)}</div>
             <div className="asset-license-line"><FileCheck2 size={16} /><span><strong>{selected.license} · attribution stored</strong><small>{selected.attribution}</small></span><a href={selected.licenseUrl} target="_blank" rel="noreferrer">License <ExternalLink size={13} /></a></div>
           </div>
         </div>
@@ -509,27 +509,26 @@ function SourcesView({ onOpenEvidence }: { onOpenEvidence: () => void }) {
     ['Sketchfab / Loïc Norgeot', '1 record', 'CC BY 4.0', 'Attribution ready'],
     ['Northwind team archive', '5 imports', 'References upstream', 'Linked'],
   ];
-  return <section className="workspace-table-view"><header><span>Evidence library</span><h2>Sources and permission records</h2><p>Source records are attached once and reused across releases without uploading the creative payload.</p></header><table><thead><tr><th>Provider</th><th>Records</th><th>License coverage</th><th>State</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell}>{index === 0 ? <strong>{cell}</strong> : cell}</td>)}</tr>)}</tbody></table><footer className="workspace-table-action"><span><strong>Need to resolve a missing source?</strong><small>The sample source table is an inventory. Decisions are recorded on the underlying evidence item.</small></span><button className="button button-primary" type="button" onClick={onOpenEvidence}>Open unresolved evidence</button></footer></section>;
+  return <section className="workspace-table-view"><header><span>Evidence library</span><h2>Sources and permissions</h2><p>Attached once, reused across releases.</p></header><table><thead><tr><th>Provider</th><th>Records</th><th>License coverage</th><th>State</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell}>{index === 0 ? <strong>{cell}</strong> : cell}</td>)}</tr>)}</tbody></table><footer className="workspace-table-action"><span><strong>Missing a source?</strong><small>Decisions happen on the evidence item.</small></span><button className="button button-primary" type="button" onClick={onOpenEvidence}>Open unresolved evidence</button></footer></section>;
 }
 
 function ReleasesView({ onOpenEvidence, onOpenReleaseFlow }: { onOpenEvidence: () => void; onOpenReleaseFlow: () => void }) {
-  return <section className="workspace-table-view"><header><span>Sample evidence checkpoints</span><h2>Release records—not Roblox deployments</h2><p>Building a release here freezes the manifest, checks, and human decisions. It does not call Roblox or make an experience public.</p></header><aside className="release-record-boundary"><FileCheck2 size={16} /><span><strong>CreatorFlow prepares the handoff.</strong><small>Publishing the place version, choosing its audience, and moving live servers remain explicit Roblox actions.</small></span><button className="button button-secondary" type="button" onClick={onOpenReleaseFlow}>See the handoff steps</button><a href="https://create.roblox.com/docs/production/publishing/publish-games-and-places" target="_blank" rel="noreferrer">Roblox publishing guide <ExternalLink size={12} /></a></aside><div className="release-history"><article><span>Current sample</span><strong>Northwind 2.4.0-rc2</strong><small>7 authored decisions pending · 32-file proof pack</small><button className="button button-primary" type="button" onClick={onOpenEvidence}>Continue evidence review</button></article><article><span>Example evidence checkpoint</span><strong>Northwind 2.3.1</strong><small>Illustrative history · shared 32-file fixture pack</small><a href={assetUrl('/assets/creatorflow-real-assets-manifest.json')} download="northwind-2.3.1-demo-proof.json">Download demo proof pack</a></article><article><span>Example evidence checkpoint</span><strong>Northwind 2.3.0</strong><small>Illustrative history · shared 32-file fixture pack</small><a href={assetUrl('/assets/creatorflow-real-assets-manifest.json')} download="northwind-2.3.0-demo-proof.json">Download demo proof pack</a></article></div></section>;
+  return <section className="workspace-table-view"><header><span>Sample evidence checkpoints</span><h2>Release records, not Roblox deployments</h2><p>A release freezes the manifest, checks, and decisions.</p></header><aside className="release-record-boundary"><FileCheck2 size={16} /><span><strong>CreatorFlow prepares the handoff.</strong><small>Publishing, audience, and live servers stay in Roblox.</small></span><button className="button button-secondary" type="button" onClick={onOpenReleaseFlow}>See the handoff steps</button><a href="https://create.roblox.com/docs/production/publishing/publish-games-and-places" target="_blank" rel="noreferrer">Roblox publishing guide <ExternalLink size={12} /></a></aside><div className="release-history"><article><span>Current sample</span><strong>Northwind 2.4.0-rc2</strong><small>7 decisions pending · 32-file proof pack</small><button className="button button-primary" type="button" onClick={onOpenEvidence}>Continue evidence review</button></article><article><span>Example checkpoint</span><strong>Northwind 2.3.1</strong><small>Sample history · 32-file pack</small><a href={assetUrl('/assets/creatorflow-real-assets-manifest.json')} download="northwind-2.3.1-demo-proof.json">Download demo proof pack</a></article><article><span>Example checkpoint</span><strong>Northwind 2.3.0</strong><small>Sample history · 32-file pack</small><a href={assetUrl('/assets/creatorflow-real-assets-manifest.json')} download="northwind-2.3.0-demo-proof.json">Download demo proof pack</a></article></div></section>;
 }
 
 const proofSteps: Array<{
   id: string;
   label: string;
-  detail: string;
   signal: string;
   tone: 'clear' | 'local' | 'review' | 'waiting' | 'external';
   view: WorkspaceView;
   icon: typeof Fingerprint;
 }> = [
-  { id: 'snapshot', label: 'Snapshot', detail: 'Project scope', signal: 'SCOPED', tone: 'clear', view: 'overview', icon: FileCheck2 },
-  { id: 'fingerprint', label: 'Fingerprint', detail: 'Local evidence', signal: 'LOCAL', tone: 'local', view: 'evidence', icon: Fingerprint },
-  { id: 'source', label: 'Source', detail: 'Permission record', signal: '2 REVIEW', tone: 'review', view: 'sources', icon: Library },
-  { id: 'decision', label: 'Decision', detail: 'Human release gate', signal: 'WAITING', tone: 'waiting', view: 'project', icon: ShieldCheck },
-  { id: 'handoff', label: 'Roblox', detail: 'Studio handoff', signal: 'EXTERNAL', tone: 'external', view: 'releases', icon: ExternalLink },
+  { id: 'snapshot', label: 'Snapshot', signal: 'Scoped', tone: 'clear', view: 'overview', icon: FileCheck2 },
+  { id: 'fingerprint', label: 'Fingerprint', signal: 'Local', tone: 'local', view: 'evidence', icon: Fingerprint },
+  { id: 'source', label: 'Source', signal: '2 to review', tone: 'review', view: 'sources', icon: Library },
+  { id: 'decision', label: 'Decision', signal: 'Your call', tone: 'waiting', view: 'project', icon: ShieldCheck },
+  { id: 'handoff', label: 'Roblox', signal: 'In Studio', tone: 'external', view: 'releases', icon: ExternalLink },
 ];
 
 function proofStepForView(view: WorkspaceView) {
@@ -543,11 +542,11 @@ function proofStepForView(view: WorkspaceView) {
 function WorkspaceProofRibbon({ view, onNavigate, datasetLabel }: { view: WorkspaceView; onNavigate: (view: WorkspaceView) => void; datasetLabel: string }) {
   const activeId = proofStepForView(view);
   return (
-    <section className="workspace-proof-ribbon" aria-label={`${datasetLabel} proof ribbon`}>
+    <section className="workspace-proof-ribbon" aria-label={`${datasetLabel} proof steps`}>
       <div className="workspace-proof-ribbon-heading">
-        <span>Proof ribbon</span>
+        <span>Proof steps</span>
         <strong>{datasetLabel}</strong>
-        <small>Content stays local. Decisions travel with the release record.</small>
+        <small>Files stay on this machine.</small>
       </div>
       <ol>
         {proofSteps.map((step, index) => {
@@ -558,8 +557,7 @@ function WorkspaceProofRibbon({ view, onNavigate, datasetLabel }: { view: Worksp
               <button type="button" onClick={() => onNavigate(step.view)} aria-current={active ? 'step' : undefined}>
                 {active ? <motion.span className="workspace-proof-cursor" layoutId="workspace-proof-cursor" transition={{ type: 'spring', stiffness: 380, damping: 34 }} /> : null}
                 <i><Icon size={13} /><em>{String(index + 1).padStart(2, '0')}</em></i>
-                <span><strong>{step.label}</strong><small>{step.detail}</small></span>
-                <b>{step.signal}</b>
+                <span><strong>{step.label}</strong><b>{step.signal}</b></span>
               </button>
             </li>
           );
@@ -590,7 +588,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
   const activeManifest = activeImport?.manifest;
   const activeLocal = activeDataset === 'local' ? localProject : null;
   const projectName = activeLocal?.name ?? activeManifest?.project.name ?? 'Northwind';
-  const projectSubtitle = activeLocal ? 'Desktop local project' : activeManifest ? `Release ${activeManifest.project.release}` : 'Sample scenario';
+  const projectSubtitle = activeLocal ? 'Local project' : activeManifest ? `Release ${activeManifest.project.release}` : 'Sample data';
   const projectInitials = projectName.split(/\s+|[-_]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'CF';
 
   const navigationItems = useMemo(() => navigation.map((item) => {
@@ -727,14 +725,14 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
     event.preventDefault();
     const query = workspaceQuery.trim().toLowerCase();
     if (!query) {
-      setImportNotice({ tone: 'info', title: 'Search needs a term', detail: 'Try an asset name, animation, source, evidence, system check, or release.' });
+      setImportNotice({ tone: 'info', title: 'Type a search term', detail: 'Try an asset name or release.' });
       return;
     }
 
     const asset = heavyAssets.find((item) => `${item.name} ${item.projectPath} ${item.description} ${item.robloxWorkflow?.label ?? ''}`.toLowerCase().includes(query));
     if (asset) {
       openAsset(asset.id);
-      setImportNotice({ tone: 'info', title: `Opened ${asset.name}`, detail: `Matched ${asset.projectPath}. The GLB remains load-on-demand.` });
+      setImportNotice({ tone: 'info', title: `Opened ${asset.name}`, detail: `Matched ${asset.projectPath}.` });
       return;
     }
 
@@ -750,16 +748,16 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
               ? 'project'
               : 'assets';
     changeView(destination);
-    setImportNotice({ tone: 'info', title: `Opened ${navigation.find((item) => item.id === destination)?.label ?? destination}`, detail: `No exact asset matched “${workspaceQuery.trim()},” so CreatorFlow opened the closest workspace.` });
+    setImportNotice({ tone: 'info', title: `Opened ${navigation.find((item) => item.id === destination)?.label ?? destination}`, detail: `No asset matched “${workspaceQuery.trim()}.”` });
   }
 
   function clearSavedViewState() {
     try {
       ['creatorflow:release-map', 'creatorflow:comparison-queue:v1'].forEach((key) => localStorage.removeItem(key));
-      setImportNotice({ tone: 'success', title: 'Saved view state cleared', detail: 'Release map positions and pinned asset comparisons will use their defaults the next time they open.' });
+      setImportNotice({ tone: 'success', title: 'Saved view state cleared', detail: 'Map positions and pinned comparisons are back to defaults.' });
       return true;
     } catch {
-      setImportNotice({ tone: 'info', title: 'Browser storage unavailable', detail: 'There is no persisted map or comparison state to clear. Current in-memory views still work.' });
+      setImportNotice({ tone: 'info', title: 'Browser storage unavailable', detail: 'Nothing was saved to clear.' });
       return false;
     }
   }
@@ -767,21 +765,21 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
   function activateSample() {
     setActiveDataset('sample');
     setProjectMenuOpen(false);
-    setImportNotice({ tone: 'info', title: 'Sample scenario active', detail: importedProject ? 'Your imported snapshot remains available in the project switcher.' : 'Northwind is authored demonstration data.' });
+    setImportNotice({ tone: 'info', title: 'Sample scenario active', detail: importedProject ? 'Your imported snapshot is still available.' : 'Northwind is sample data.' });
   }
 
   function activateImported() {
     if (!importedProject) return;
     setActiveDataset('imported');
     setProjectMenuOpen(false);
-    setImportNotice({ tone: 'info', title: `${importedProject.manifest.project.name} reopened`, detail: 'The validated snapshot remains read-only and in memory for this browser session.' });
+    setImportNotice({ tone: 'info', title: `${importedProject.manifest.project.name} reopened`, detail: 'Read-only, this browser session only.' });
   }
 
   function activateLocal() {
     if (!localProject || !bridgeClient) return;
     setActiveDataset('local');
     setProjectMenuOpen(false);
-    setImportNotice({ tone: 'info', title: `${localProject.name} reopened`, detail: 'Persisted scanner records and decisions remain on this machine.' });
+    setImportNotice({ tone: 'info', title: `${localProject.name} reopened`, detail: 'Records and decisions stay on this machine.' });
     void bridgeClient.saveWorkspaceState({ activeProjectId: localProject.projectId, activeScanRunId: localRun?.id ?? null }).catch(() => undefined);
     changeView('project');
   }
@@ -799,10 +797,10 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
       setActiveDataset('local');
       localStorage.setItem('creatorflow:local-project:v1', JSON.stringify(summary));
       void bridgeClient.saveWorkspaceState({ activeProjectId: summary.projectId, activeScanRunId: null }).catch(() => undefined);
-      setImportNotice({ tone: 'success', title: `${summary.name} selected locally`, detail: 'Folder permission came from the native desktop picker. No creative payload was uploaded.' });
+      setImportNotice({ tone: 'success', title: `${summary.name} opened`, detail: 'You picked the folder. Nothing was uploaded.' });
       changeView('project');
     } catch (reason) {
-      setImportNotice({ tone: 'error', title: 'Local project could not be opened', detail: reason instanceof Error ? reason.message : 'The desktop bridge rejected the project selection.' });
+      setImportNotice({ tone: 'error', title: 'Could not open that project', detail: reason instanceof Error ? reason.message : 'The desktop app refused the selection.' });
     }
   }
 
@@ -816,7 +814,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
     setImportedProject(null);
     if (activeDataset === 'imported') setActiveDataset('sample');
     setProjectMenuOpen(false);
-    setImportNotice({ tone: 'info', title: `${clearedName} cleared`, detail: 'The original JSON file was not changed. Northwind sample data is active again.' });
+    setImportNotice({ tone: 'info', title: `${clearedName} cleared`, detail: 'Your file was not changed. Sample data is active again.' });
   }
 
   async function importManifest(file: File | undefined) {
@@ -827,8 +825,8 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
     if (!result.ok) {
       setImportNotice({
         tone: 'error',
-        title: importedProject ? 'Replacement rejected — current project preserved' : 'Manifest import rejected',
-        detail: `${file.name} did not pass CreatorFlow manifest validation.`,
+        title: importedProject ? 'Import rejected — current project kept' : 'Import rejected',
+        detail: `${file.name} is not a valid CreatorFlow manifest.`,
         issues: result.issues,
       });
       return;
@@ -837,7 +835,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
     const next: ImportedProject = { manifest: result.manifest, fileName: file.name, fileBytes: file.size, importedAt: new Date().toISOString() };
     setImportedProject(next);
     setActiveDataset('imported');
-    setImportNotice({ tone: 'success', title: `${result.manifest.project.name} imported`, detail: `${result.manifest.assets.length.toLocaleString()} scanner records validated. No creative asset payloads were opened or uploaded.` });
+    setImportNotice({ tone: 'success', title: `${result.manifest.project.name} imported`, detail: `${result.manifest.assets.length.toLocaleString()} records validated. No asset files were opened or uploaded.` });
     changeView('overview');
   }
 
@@ -848,24 +846,24 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
         <button className="product-sidebar-brand" type="button" onClick={onExit} aria-label="Return to CreatorFlow landing page"><BrandMark /></button>
         <div className="project-switcher-wrap" ref={projectMenuRef}>
           <button className="project-switcher" type="button" onClick={() => setProjectMenuOpen((current) => !current)} aria-haspopup="menu" aria-expanded={projectMenuOpen} aria-label={`Switch project. Current dataset: ${projectName}, ${activeLocal ? 'desktop local project' : activeManifest ? 'imported scanner snapshot' : 'sample scenario'}`}>
-            <span>{projectInitials}</span><div><strong>{projectName}</strong><small>{activeLocal ? 'Desktop local project' : activeManifest ? 'Imported snapshot' : 'Sample scenario'}</small></div><ChevronDown size={14} />
+            <span>{projectInitials}</span><div><strong>{projectName}</strong><small>{activeLocal ? 'Local project' : activeManifest ? 'Imported snapshot' : 'Sample data'}</small></div><ChevronDown size={14} />
           </button>
           {projectMenuOpen ? (
             <div className="project-switcher-menu" role="menu" aria-label="Project datasets">
               <span>Project data</span>
-              <button type="button" role="menuitem" aria-current={activeDataset === 'sample' ? 'true' : undefined} onClick={activateSample}><span>NP</span><div><strong>Northwind</strong><small>Sample scenario</small></div>{activeDataset === 'sample' ? <Check size={14} /> : null}</button>
-              {localProject && bridgeClient ? <button type="button" role="menuitem" aria-current={activeDataset === 'local' ? 'true' : undefined} onClick={activateLocal}><span>{localProject.name.slice(0, 2).toUpperCase()}</span><div><strong>{localProject.name}</strong><small>Persisted local project</small></div>{activeDataset === 'local' ? <Check size={14} /> : null}</button> : null}
+              <button type="button" role="menuitem" aria-current={activeDataset === 'sample' ? 'true' : undefined} onClick={activateSample}><span>NP</span><div><strong>Northwind</strong><small>Sample data</small></div>{activeDataset === 'sample' ? <Check size={14} /> : null}</button>
+              {localProject && bridgeClient ? <button type="button" role="menuitem" aria-current={activeDataset === 'local' ? 'true' : undefined} onClick={activateLocal}><span>{localProject.name.slice(0, 2).toUpperCase()}</span><div><strong>{localProject.name}</strong><small>On this machine</small></div>{activeDataset === 'local' ? <Check size={14} /> : null}</button> : null}
               {importedProject ? <button type="button" role="menuitem" aria-current={activeDataset === 'imported' ? 'true' : undefined} onClick={activateImported}><span>{importedProject.manifest.project.name.slice(0, 2).toUpperCase()}</span><div><strong>{importedProject.manifest.project.name}</strong><small>Imported · {importedProject.manifest.project.release}</small></div>{activeDataset === 'imported' ? <Check size={14} /> : null}</button> : null}
               <div className="project-switcher-menu-actions">
                 {bridgeClient ? <button type="button" role="menuitem" onClick={() => { void openLocalProject(); }} aria-label={localProject ? 'Choose another local project with desktop folder picker' : 'Open local project with desktop folder picker'}><FolderOpen size={14} /> {localProject ? 'Choose another local project…' : 'Open local project…'}</button> : null}
-                <button type="button" role="menuitem" onClick={openImporter} aria-label={importedProject ? 'Replace imported scanner manifest' : 'Import scanner manifest'}><Upload size={14} /> {importedProject ? 'Replace imported manifest…' : 'Import scanner manifest…'}</button>
+                <button type="button" role="menuitem" onClick={openImporter} aria-label={importedProject ? 'Replace imported scanner manifest' : 'Import scanner manifest'}><Upload size={14} /> {importedProject ? 'Replace manifest…' : 'Import manifest…'}</button>
                 {importedProject ? <button type="button" role="menuitem" onClick={clearImportedProject} aria-label="Clear imported project"><Trash2 size={14} /> Clear imported snapshot</button> : null}
               </div>
             </div>
           ) : null}
         </div>
         <input ref={importInputRef} className="sr-only" type="file" accept="application/json,.json" aria-label="Choose CreatorFlow manifest JSON" onChange={(event) => { void importManifest(event.target.files?.[0]); event.currentTarget.value = ''; }} />
-        <nav aria-label="Product workspace, ordered by proof stage">
+        <nav aria-label="Workspace, ordered by stage">
           {navigationPhases.filter((phase) => navigationItems.some((item) => item.phase === phase.id)).map((phase) => (
             <div className="product-nav-group" data-phase={phase.id} key={phase.id}>
               <span className="product-nav-group-label">{phase.label}</span>
@@ -883,14 +881,14 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
 
       <div className="product-workspace-main">
         <header className="product-topbar">
-          <div><span>{projectName} · {projectSubtitle}</span><strong>{view === 'settings' ? 'Settings' : navigationItems.find((item) => item.id === view)?.label}</strong><small className="dataset-indicator" aria-label={`Active dataset: ${activeLocal ? 'desktop local project' : activeManifest ? 'imported scanner snapshot' : 'sample scenario'}`}>{activeLocal ? 'Desktop local project' : activeManifest ? 'Imported scanner snapshot' : 'Sample scenario'}</small></div>
-          <form className="product-search" role="search" onSubmit={submitWorkspaceSearch}><label><Search size={15} /><input aria-label="Search current project" value={workspaceQuery} onChange={(event) => setWorkspaceQuery(event.target.value)} placeholder={activeLocal ? 'Find a workspace or demo asset…' : activeManifest ? 'Find a workspace or demo asset…' : 'Asset, animation, evidence, release…'} /></label><button type="submit" aria-label="Search CreatorFlow workspace"><Search size={15} /></button></form>
+          <div><span>{projectSubtitle}</span><strong>{view === 'settings' ? 'Settings' : navigationItems.find((item) => item.id === view)?.label}</strong><small className="dataset-indicator" aria-label={`Active dataset: ${activeLocal ? 'local project' : activeManifest ? 'imported snapshot' : 'sample data'}`}>{activeLocal ? 'Local project' : activeManifest ? 'Imported snapshot' : 'Sample data'}</small></div>
+          <form className="product-search" role="search" onSubmit={submitWorkspaceSearch}><label><Search size={15} /><input aria-label="Search current project" value={workspaceQuery} onChange={(event) => setWorkspaceQuery(event.target.value)} placeholder="Search…" /></label><button type="submit" aria-label="Search CreatorFlow workspace"><Search size={15} /></button></form>
           <button className="project-metadata-trigger" type="button" aria-expanded={projectMetadataOpen} onClick={() => setProjectMetadataOpen((current) => !current)}><FileJson2 size={16} /><span>Metadata</span></button>
-          <button type="button" aria-label={activeLocal || activeManifest ? 'No notifications for current read-only workspace state' : 'Notifications'} aria-expanded={activeLocal || activeManifest ? undefined : notificationsOpen} disabled={Boolean(activeLocal || activeManifest)} onClick={() => setNotificationsOpen((current) => !current)}><Bell size={17} />{activeLocal || activeManifest ? null : <i />}</button>
+          <button type="button" aria-label={activeLocal || activeManifest ? 'No notifications here' : 'Notifications'} aria-expanded={activeLocal || activeManifest ? undefined : notificationsOpen} disabled={Boolean(activeLocal || activeManifest)} onClick={() => setNotificationsOpen((current) => !current)}><Bell size={17} />{activeLocal || activeManifest ? null : <i />}</button>
           <div className="workspace-user"><span>BC</span><div><strong>Bryan Cruz</strong><small>Owner</small></div></div>
         </header>
 
-        {view !== 'settings' ? <WorkspaceProofRibbon view={view} onNavigate={changeView} datasetLabel={`${projectName} · ${activeLocal ? 'local project' : activeManifest ? 'imported snapshot' : 'sample trace'}`} /> : null}
+        {view !== 'settings' ? <WorkspaceProofRibbon view={view} onNavigate={changeView} datasetLabel={`${projectName} · ${activeLocal ? 'local project' : activeManifest ? 'imported snapshot' : 'sample data'}`} /> : null}
 
         {projectMetadataOpen ? <section className="project-metadata-panel" aria-label="Current project metadata"><MetadataInspector
           kind="Project"
@@ -898,33 +896,33 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
           subtitle={projectSubtitle}
           sections={[
             {
-              title: 'Identity and scope',
+              title: 'Identity',
               fields: [
                 { label: 'Project name', value: projectName },
                 { label: 'Project ID', value: activeLocal ? String(activeLocal.projectId) : activeManifest ? `manifest:${activeManifest.project.name}:${activeManifest.project.release}` : 'sample:northwind', mono: true, copyValue: activeLocal ? String(activeLocal.projectId) : activeManifest ? `manifest:${activeManifest.project.name}:${activeManifest.project.release}` : 'sample:northwind' },
-                { label: 'Dataset', value: activeLocal ? 'Desktop local project' : activeManifest ? 'Imported read-only snapshot' : 'Authored sample scenario' },
+                { label: 'Dataset', value: activeLocal ? 'Local project' : activeManifest ? 'Imported snapshot (read-only)' : 'Sample data' },
                 { label: 'Release', value: activeManifest?.project.release ?? (activeLocal ? 'Set during release export' : '2.4.0-rc2 sample') },
-                { label: 'Intended experience', value: activeLocal?.experience ? `${activeLocal.experience.experienceName} (declared by you, not verified)` : activeManifest?.experience ? `${activeManifest.experience.experienceName} (declared, not verified)` : activeLocal ? 'Not yet declared' : activeManifest ? 'Not declared in this manifest' : 'Not applicable' },
+                { label: 'Intended experience', value: activeLocal?.experience ? `${activeLocal.experience.experienceName} — declared, not verified` : activeManifest?.experience ? `${activeManifest.experience.experienceName} — declared, not verified` : activeLocal || activeManifest ? 'Not declared' : 'Not applicable' },
                 { label: 'Current view', value: navigationItems.find((item) => item.id === view)?.label ?? view },
               ],
             },
             {
               title: 'Evidence state',
               fields: [
-                { label: 'Records', value: activeManifest ? activeManifest.assets.length.toLocaleString() : activeLocal ? (localRun?.supportedCount?.toLocaleString() ?? 'No completed scan') : '12,844 sample records' },
+                { label: 'Records', value: activeManifest ? activeManifest.assets.length.toLocaleString() : activeLocal ? (localRun?.supportedCount?.toLocaleString() ?? 'No completed scan') : '12,844 (sample)' },
                 { label: 'Active scan run', value: localRun?.id ?? (activeLocal ? 'None' : 'Not applicable'), mono: Boolean(localRun?.id), copyValue: localRun?.id },
                 { label: 'Run state', value: localRun ? titleCaseRunState(localRun.state) : 'Not running' },
-                { label: 'Snapshot generated', value: activeManifest ? new Date(activeManifest.generatedAt).toLocaleString() : activeLocal ? 'Stored by desktop scanner' : 'Authored demonstration' },
-                { label: 'Payload policy', value: 'Creative files remain local; portable fingerprints and decisions form the evidence record.' },
+                { label: 'Snapshot generated', value: activeManifest ? new Date(activeManifest.generatedAt).toLocaleString() : activeLocal ? 'Stored by desktop scanner' : 'Authored, not scanned' },
+                { label: 'File policy', value: 'Files stay local. Fingerprints and decisions travel.' },
               ],
             },
           ]}
         /></section> : null}
 
-        {notificationsOpen ? <section className="workspace-utility-panel workspace-notifications-panel" aria-label="Sample notifications"><header><span><Bell size={15} /><strong>Sample notifications</strong></span><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X size={14} /></button></header><div><button type="button" onClick={() => changeView('motion')}><Activity size={15} /><span><strong>Animator sign-off is pending</strong><small>Open Animation compare and review the candidate evidence.</small></span><ChevronRight size={13} /></button><button type="button" onClick={() => changeView('sources')}><Library size={15} /><span><strong>Two permission records need attention</strong><small>Review the sample source inventory and unresolved evidence.</small></span><ChevronRight size={13} /></button></div></section> : null}
+        {notificationsOpen ? <section className="workspace-utility-panel workspace-notifications-panel" aria-label="Sample notifications"><header><span><Bell size={15} /><strong>Sample notifications</strong></span><button type="button" aria-label="Close notifications" onClick={() => setNotificationsOpen(false)}><X size={14} /></button></header><div><button type="button" onClick={() => changeView('motion')}><Activity size={15} /><span><strong>Animator sign-off is pending</strong><small>Review the candidate evidence.</small></span><ChevronRight size={13} /></button><button type="button" onClick={() => changeView('sources')}><Library size={15} /><span><strong>Two permission records need review</strong><small>Check the source inventory.</small></span><ChevronRight size={13} /></button></div></section> : null}
 
         {importNotice ? <div className={`manifest-import-notice notice-${importNotice.tone}`} role={importNotice.tone === 'error' ? 'alert' : 'status'} aria-live="polite"><div>{importNotice.tone === 'error' ? <X size={16} /> : <Check size={16} />}<span><strong>{importNotice.title}</strong><small>{importNotice.detail}</small>{importNotice.issues?.length ? <ul>{importNotice.issues.slice(0, 4).map((issue, index) => <li key={`${issue.path}-${issue.message}-${index}`}><code>{issue.path}</code> {issue.message}</li>)}{importNotice.issues.length > 4 ? <li>And {importNotice.issues.length - 4} more validation issue{importNotice.issues.length - 4 === 1 ? '' : 's'}.</li> : null}</ul> : null}</span></div><button type="button" aria-label="Dismiss import message" onClick={() => setImportNotice(null)}><X size={14} /></button></div> : null}
-        {importing ? <div className="manifest-import-progress" role="status" aria-live="polite">Validating manifest schema and record totals…</div> : null}
+        {importing ? <div className="manifest-import-progress" role="status" aria-live="polite">Validating manifest…</div> : null}
 
         <main className={`product-view product-view-${view}`}>
           {view !== 'settings' ? (

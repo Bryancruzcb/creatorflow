@@ -72,7 +72,7 @@ export function MatchWorkbench({ asset, onClose, onUseSource }: MatchWorkbenchPr
           )}
           <div className={`comparison-viewport comparison-mode-${comparisonMode} variant-${selected.variant} confidence-${selected.similarity < 50 ? 'low' : selected.similarity < 80 ? 'medium' : 'high'} ${isModelComparison ? 'comparison-viewport-model' : 'comparison-viewport-artwork'}`}>
             {isModelComparison ? (
-              <Suspense fallback={<DecodeSequence label="both models" note="The 3D runtime and two glTF models load only when a model comparison is opened. Nothing was fetched before this point." />}>
+              <Suspense fallback={<DecodeSequence label="both models" note="The 3D runtime and both models load only when you open a comparison." />}>
                 <GlbComparisonViewer split={split} mode={comparisonMode} projectUrl={asset.modelUrl!} sourceUrl={selected.modelUrl!} projectLabel={asset.name} sourceLabel={selected.title} fallbackUrl={asset.previewUrl} initialRotation={asset.modelRotation} />
               </Suspense>
             ) : (

@@ -120,7 +120,10 @@
 
 .workspace-proof-ribbon ol {
   display: grid;
-  grid-template-columns: repeat(5, minmax(8.5rem, 1fr));
+  /* auto-fit, so the steps always divide the width they are given. Fixed 5-up forced a 42.5rem
+     minimum that overflowed and scrolled; when there is genuinely not enough room the row wraps
+     rather than scrolling or clipping a stage name. */
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
   min-width: 0;
   margin: 0;
   padding: 0;
@@ -132,21 +135,16 @@
   min-width: 0;
 }
 
-.workspace-proof-ribbon li + li::before {
-  position: absolute;
-  top: 50%;
-  left: -0.28rem;
-  z-index: 2;
-  width: 0.55rem;
-  height: 1px;
-  background: var(--hairline-strong);
-  content: '';
-}
+/* The connector dash is gone. It asserted a single unbroken row, which stopped being true once
+   the steps can wrap, and the 01-05 numbers already carry the sequence. */
 
 .workspace-proof-ribbon button {
   position: relative;
+  /* Two columns, not three. The signal chip used to sit in a third column and refuse to shrink,
+     so below about 1400px it ate the label's width and every stage name clipped — including
+     one-word names like "Source". It now sits under the label and the label gets the full column. */
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: center;
   gap: 0.55rem;
   width: 100%;
@@ -235,11 +233,11 @@
 
 /* The stage status — SCOPED / LOCAL / 2 REVIEW / WAITING / EXTERNAL. Was 6.2px, on the one
    element in the ribbon that reports state. */
-.workspace-proof-ribbon button > b {
+.workspace-proof-ribbon button b {
   position: relative;
   z-index: 1;
-  align-self: start;
-  margin-top: 0.1rem;
+  display: block;
+  margin-top: 0.2rem;
   color: var(--ink-dim);
   font-family: var(--font-mono);
   font-size: var(--text-3xs);
@@ -249,11 +247,11 @@
 }
 
 .workspace-proof-ribbon li[data-tone='clear'] button > i,
-.workspace-proof-ribbon li[data-tone='clear'] button > b { color: var(--clear); }
+.workspace-proof-ribbon li[data-tone='clear'] button b { color: var(--clear); }
 .workspace-proof-ribbon li[data-tone='review'] button > i,
-.workspace-proof-ribbon li[data-tone='review'] button > b { color: var(--review); }
+.workspace-proof-ribbon li[data-tone='review'] button b { color: var(--review); }
 .workspace-proof-ribbon li[data-tone='waiting'] button > i,
-.workspace-proof-ribbon li[data-tone='waiting'] button > b { color: var(--blocked); }
+.workspace-proof-ribbon li[data-tone='waiting'] button b { color: var(--blocked); }
 
 .workspace-proof-cursor {
   position: absolute;
@@ -282,14 +280,9 @@
  * columns simply shrinking to fit. Scrolling a five-step ribbon is a much better failure than
  * truncating the name of every step in it.
  */
-@media (max-width: 92rem) {
-  .workspace-proof-ribbon ol {
-    grid-template-columns: repeat(5, minmax(14rem, 1fr));
-    overflow-x: auto;
-    overscroll-behavior-inline: contain;
-    scrollbar-width: thin;
-  }
-}
+/* No scroll rule any more. Making the ribbon scroll below 92rem fixed the clipping it replaced,
+   but traded it for a strip that never filled its container and hid the last stage behind a
+   scrollbar. auto-fit above wraps instead, which is the failure mode that still shows every step. */
 
 @media (max-width: 78rem) {
   .workspace-proof-ribbon {
@@ -347,7 +340,7 @@
     padding: 0.45rem 0.55rem;
   }
 
-  .workspace-proof-ribbon button > b {
+  .workspace-proof-ribbon button b {
     display: none;
   }
 }

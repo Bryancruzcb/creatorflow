@@ -35,7 +35,7 @@ test('imports a real scanner manifest, isolates sample data, and preserves it af
   await chooseManifest(page, realManifest);
 
   await expect(page.getByText('CreatorFlow-Real-Asset-Pack / 0.1.0')).toBeVisible();
-  await expect(page.getByLabel('Active dataset: imported scanner snapshot')).toBeVisible();
+  await expect(page.getByLabel('Active dataset: imported snapshot')).toBeVisible();
   await expect(page.getByText('Creative asset payloads were not imported.')).toBeVisible();
 
   await page.getByRole('button', { name: 'Open Evidence' }).click();
@@ -49,13 +49,13 @@ test('imports a real scanner manifest, isolates sample data, and preserves it af
     mimeType: 'application/json',
     buffer: Buffer.from('{"$schema":"creatorflow.manifest/v0.1","assets":[]}'),
   });
-  await expect(page.getByRole('alert')).toContainText('Replacement rejected — current project preserved');
-  await expect(page.getByLabel('Active dataset: imported scanner snapshot')).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('Import rejected — current project kept');
+  await expect(page.getByLabel('Active dataset: imported snapshot')).toBeVisible();
   await expect(page.getByText('32 of 32 records')).toBeVisible();
 
   await openProjectMenu(page);
   await page.getByRole('menuitem', { name: /Northwind/ }).click();
-  await expect(page.getByLabel('Active dataset: sample scenario', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Active dataset: sample data', { exact: true })).toBeVisible();
   expect(mutationRequests).toEqual([]);
 });
 
@@ -166,6 +166,6 @@ test('imports a v0.2 manifest with an embedded BLOCKED gate', async ({ page }) =
   });
 
   await expect(page.getByRole('status')).toContainText('Gate fixture imported');
-  await expect(page.getByLabel('Active dataset: imported scanner snapshot', { exact: true })).toBeVisible();
-  await expect(page.getByText('Gate fixture · Release 1.0.0', { exact: true })).toBeVisible();
+  await expect(page.getByLabel('Active dataset: imported snapshot', { exact: true })).toBeVisible();
+  await expect(page.getByText('Release 1.0.0', { exact: true })).toBeVisible();
 });

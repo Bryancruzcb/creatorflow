@@ -170,7 +170,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
         <div>
           <p className="section-index">Interactive sample</p>
           <h2 id="sample-title">Make the release decision.</h2>
-          <p>Run the sample, inspect the evidence, apply the prepared human decisions, then export the manifest. Nothing uploads; this demo runs entirely in your browser.</p>
+          <p>Sample data, running in your browser. Nothing uploads.</p>
         </div>
         {scanState !== 'scanning' && (
           <button className="button button-primary" type="button" onClick={startScan}>
@@ -208,7 +208,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
             <motion.div key="idle" className="preflight-empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
               <div className="empty-folder" aria-hidden="true"><FolderOpen size={35} /></div>
               <h3>Project selected. No preflight yet.</h3>
-              <p>This sample walks through {assets.length} prepared creative files, showing how CreatorFlow compares fingerprints and checks the release records already in a project folder.</p>
+              <p>{assets.length} prepared sample files, ready to scan.</p>
               <button className="button button-primary" type="button" onClick={startScan}><ScanSearch size={16} /> Start local scan</button>
             </motion.div>
           )}
@@ -219,9 +219,8 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
                 <span className="section-index">Simulated walkthrough · step {scanStep + 1} of {scanMessages.length}</span>
                 <h3>{scanMessage}</h3>
                 <p className="scan-simulated-note">
-                  Nothing is being read or hashed right now — this is a timed walkthrough of the steps a real
-                  preflight runs, and the findings below were prepared in advance. In the desktop app your files
-                  stay on your machine and only fingerprints are compared.
+                  Nothing is being hashed right now — this is a timed walkthrough, and the findings
+                  below were prepared in advance.
                 </p>
               </div>
               <div className="scan-readout">

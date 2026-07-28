@@ -22,9 +22,10 @@
   justify-content: space-between;
   gap: var(--space-8);
   padding: clamp(1.25rem, 3vw, 2.5rem);
-  background:
-    linear-gradient(105deg, color-mix(in srgb, var(--blue) 14%, transparent), transparent 47%),
-    var(--graphite);
+  /* Flat, not a blue wash. The gradient was pure atmosphere — it encoded nothing, and a diagonal
+     tinted sweep behind a heading is the single most recognisable "generated template" tell.
+     Every other panel in this workspace is a flat surface with a hairline; this one now matches. */
+  background: var(--graphite);
   border: 1px solid var(--hairline-strong);
 }
 
@@ -40,7 +41,7 @@
 .telemetry-lab header span {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: var(--text-3xs);
 }
 
 .stress-lab-header h1 {

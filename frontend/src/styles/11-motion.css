@@ -404,9 +404,10 @@
   justify-content: space-between;
   gap: var(--space-6);
   padding: var(--space-6);
-  background:
-    linear-gradient(105deg, color-mix(in srgb, var(--blue) 12%, transparent), transparent 48%),
-    var(--graphite);
+  /* Flat: a tinted diagonal wash behind a heading encodes nothing and is the most
+     recognisable generated-template tell. Meaningful tints stay (the motion stage's
+     source/candidate split); atmosphere does not. */
+  background: var(--graphite);
   border-bottom: 1px solid var(--hairline);
 }
 
@@ -776,8 +777,10 @@
   margin-top: var(--space-3);
   padding: var(--space-2) var(--space-3);
   color: var(--ink-muted);
-  background: color-mix(in srgb, var(--blue) 7%, var(--desk));
-  border-left: 2px solid var(--blue);
+  /* Neutral rail. A blue accent bar on a callout is decoration — blue is the interactive and
+     selected colour in this workspace, so a static note wearing it reads as clickable. */
+  background: var(--desk);
+  border-left: 2px solid var(--hairline-strong);
   font-size: var(--text-3xs);
   line-height: 1.5;
 }
@@ -867,9 +870,7 @@
   gap: var(--space-6);
   padding: var(--space-5, 1.25rem) var(--space-6);
   color: var(--blue-hover);
-  background:
-    linear-gradient(105deg, color-mix(in srgb, var(--blue) 10%, transparent), transparent 50%),
-    var(--graphite);
+  background: var(--graphite);
   border: 1px solid color-mix(in srgb, var(--blue) 40%, var(--hairline));
 }
 

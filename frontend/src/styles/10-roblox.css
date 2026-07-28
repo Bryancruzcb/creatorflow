@@ -903,13 +903,38 @@
   opacity: 0.4;
 }
 
+/* Column count is set inline from the actual sample array. It was hard-coded to 48 while
+   sampleCount is a preference of 24, 48 or 96, so any other setting wrapped samples onto a
+   second row. The strip is also the scrubber now, hence the grab cursor and the taller target. */
 .motion-frame-strip {
   position: relative;
   display: grid;
-  grid-template-columns: repeat(48, minmax(1px, 1fr));
+  grid-template-columns: repeat(var(--sample-count, 48), minmax(1px, 1fr));
   gap: 1px;
-  height: 1rem;
+  height: 1.5rem;
   padding: 0 var(--space-3) var(--space-3);
+  cursor: grab;
+  touch-action: none;
+}
+
+.motion-frame-strip:active {
+  cursor: grabbing;
+}
+
+.motion-frame-strip:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+/* Widen the hit area without changing the drawn height: a 16px strip is a hard target to grab,
+   and a video scrubber that needs precision to catch feels broken. */
+.motion-frame-strip::before {
+  position: absolute;
+  top: -0.5rem;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  content: '';
 }
 
 .motion-frame-strip i {
@@ -919,14 +944,28 @@
   background: var(--motion-tone, #2a3038);
 }
 
+/* The playhead reads as a handle now — a bare hairline gives no sign the strip can be grabbed. */
 .motion-frame-strip > span {
   position: absolute;
+  z-index: 2;
   top: -0.2rem;
   bottom: 0.55rem;
-  width: 1px;
+  width: 2px;
   background: var(--ink);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--desk) 75%, transparent);
   pointer-events: none;
+}
+
+.motion-frame-strip > span::after {
+  position: absolute;
+  top: -0.25rem;
+  left: 50%;
+  width: 0.55rem;
+  height: 0.55rem;
+  background: var(--ink);
+  border-radius: 50%;
+  transform: translateX(-50%);
+  content: '';
 }
 
 .motion-result-panel {
