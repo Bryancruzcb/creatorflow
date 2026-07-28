@@ -178,7 +178,9 @@ gate gets deleted.
 
 ## `state-contrast.spec.ts`
 
-The same WCAG AA thresholds, on all 16 surfaces, **while every hoverable element is hovered.**
+The same WCAG AA thresholds, on all 16 surfaces, in three interaction states: **`:hover`, focus
+(`:focus` + `:focus-visible` + `:focus-within` together, which is what one keyboard-focused element
+actually matches) and `:active`.**
 
 A page renders in its default state and axe has no notion of hovering, so until this gate no hover
 style had ever been measured by anything. That gap was not hypothetical: `.button-primary:hover` put
@@ -195,22 +197,60 @@ Which elements to force is read off `document.styleSheets` at runtime, never fro
 file. A gate that hardcodes which components have hover styles goes stale the first time somebody
 adds one, and goes stale silently.
 
-**Forcing them all at once is deliberate, and sound here for two specific reasons.** `:hover` already
-propagates up the ancestor chain — hovering a child hovers its parents — so for any node, "its own
-`:hover` plus its ancestors'" is exactly what a real pointer on it produces; the four
-descendant/sibling state rules in the stylesheets are all of that shape. And the only way one
-subtree could style another is `:has()` with a state pseudo, of which there is none. If either
-changes, this gate starts measuring combinations that cannot happen, and the fix is to hover one at
-a time and pay for it.
+**Forcing them all at once is deliberate, and sound per state for a reason that was measured rather
+than assumed.** Classifying every state rule by shape:
 
-Verified to actually fail, twice. Reverting `--blue-solid-hover` to the old value fails it with
-`#f1f0ea on #6f93b8 = 2.81:1` naming `.button-primary` — **while `contrast.spec.ts` passes on the
-identical break**, which is the whole argument for the gate existing. And breaking the selector
-extraction fails it with "no element was put into `:hover`", because the dangerous failure for this
-gate is not a wrong answer but a vacuous green.
+| state | self | descendant | sibling |
+|---|---|---|---|
+| `:hover` | 90 | 9 | 0 |
+| `:focus-visible` | 32 | 0 | **1** |
+| `:focus-within` | 2 | 2 | 0 |
+| `:focus` | 2 | 0 | 0 |
+| `:active` | 5 | 2 | 0 |
 
-`:focus-visible` and `:active` are **not** covered. The same machinery reaches them and the same
-reasoning holds, but each needs its own baseline and its own read of what it finds.
+**self** and **descendant** are always safe: all three states propagate up the ancestor chain, so
+"a node's own state plus its ancestors'" is exactly what a real interaction on it produces.
+**sibling** (`.a:focus + .b`) is the one unsound shape, because it needs `.a` stated while `.b` may
+also be stated, and focus and active are singular. Exactly one exists and it sets only `outline` /
+`outline-offset`, which the colour rule never reads — so the gate **enforces** that rather than
+trusting it: give that rule a colour and the gate fails saying so.
+
+### How much each state actually covers
+
+Worth knowing before reading a green tick as reassurance — the three are not equal:
+
+| state | rules that set a colour | what the gate is doing |
+|---|---|---|
+| `:hover` | **83** | live coverage |
+| `:active` | **3** | live coverage |
+| focus | **0** | prospective only |
+
+Every one of the 25 focus rules sets `outline`, `box-shadow` or a transform — **none changes a text
+or background colour.** So the focus gate finds nothing today, and that is a fact about the
+stylesheets, not evidence they are good. Its value is the day someone adds a focus colour.
+
+It also does **not** answer the question that actually matters for focus: whether the focus ring
+itself is visible enough (WCAG 1.4.11, 3:1 non-text contrast). `--focus` (`#6daae7`) measures
+5.89–7.65:1 against the four page surfaces and 2.66:1 against `--blue-solid`, but `outline-offset:
+3px` draws the ring outside the button on the page surface, so that last one is not a live failure.
+Either way, 1.4.11 is ungated.
+
+### Verified to fail — four canaries
+
+- **Reverting `--blue-solid-hover`** fails it with `#f1f0ea on #6f93b8 = 2.81:1`, while
+  `contrast.spec.ts` passes all 16. That gap is the whole argument for the gate existing.
+- **Regressing `.button-primary:active`** to a light fill fails it with `2.60:1`.
+- **Adding a low-contrast focus colour** fails it with `#4a4a4a on #111210 = 2.12:1` — the
+  prospective coverage, demonstrated rather than asserted.
+- **Breaking selector extraction** fails it for measuring nothing. For a gate with an empty
+  baseline the dangerous failure is not a wrong answer, it is a vacuous green.
+
+The sibling-rule guard was canaried too, and **the canary did not fire** — `:focus` was matching as
+a prefix of `:focus-visible`, so the guard read the tail as `-visible + i` and skipped the one rule
+it existed to watch. Fixed, re-canaried, fires now. A guard that has never been seen to fail is a
+guard nobody has tested.
+
+`:visited` and `:target` are not covered; neither is styled anywhere in this app.
 
 ## The harness (`../harness/`)
 
