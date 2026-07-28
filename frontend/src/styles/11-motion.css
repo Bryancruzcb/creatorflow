@@ -777,8 +777,10 @@
   margin-top: var(--space-3);
   padding: var(--space-2) var(--space-3);
   color: var(--ink-muted);
-  background: color-mix(in srgb, var(--blue) 7%, var(--desk));
-  border-left: 2px solid var(--blue);
+  /* Neutral rail. A blue accent bar on a callout is decoration — blue is the interactive and
+     selected colour in this workspace, so a static note wearing it reads as clickable. */
+  background: var(--desk);
+  border-left: 2px solid var(--hairline-strong);
   font-size: var(--text-3xs);
   line-height: 1.5;
 }

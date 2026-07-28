@@ -15,7 +15,7 @@ import {
 import { motion, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
 import { useEffect, useRef, useState } from 'react';
 import { AssetArtwork } from './components/AssetArtwork';
-import { KeyframeSheet, SourceRecordSheet } from './components/DossierArtwork';
+import { MatchFinding, SourceRecordSheet } from './components/DossierArtwork';
 import './components/DossierArtwork.css';
 import { BrandMark } from './components/BrandMark';
 import { EvidenceAtlas } from './components/EvidenceAtlas';
@@ -191,8 +191,8 @@ function DossierSection() {
       </div>
 
       <div className="dossier-stage" aria-label="Layered evidence dossier">
-        <motion.div className="dossier-sheet dossier-sprite" style={{ y: leftY }}><span>Project file / animation tracks</span><KeyframeSheet /></motion.div>
-        <motion.div className="dossier-sheet dossier-license" style={{ y: rightY }}><span>Source record / permission</span><SourceRecordSheet /></motion.div>
+        <motion.div className="dossier-sheet dossier-sprite" style={{ y: leftY }}><span>The finding</span><MatchFinding /></motion.div>
+        <motion.div className="dossier-sheet dossier-license" style={{ y: rightY }}><span>The record</span><SourceRecordSheet /></motion.div>
         <div className="dossier-sheet dossier-manifest">
           <div className="manifest-pin" aria-hidden="true" />
           <span>Release manifest</span>
