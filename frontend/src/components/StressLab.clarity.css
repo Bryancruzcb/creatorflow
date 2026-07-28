@@ -14,9 +14,10 @@
   align-items: center;
   min-height: 0;
   padding: 1.5rem;
-  background:
-    linear-gradient(100deg, color-mix(in srgb, var(--stress-blue) 9%, transparent), transparent 44%),
-    var(--stress-surface);
+  /* Flat. This override carries the skin that actually ships, so removing the gradient from the
+     base rule alone changed nothing on screen. A diagonal blue wash behind a heading encodes no
+     information and is the clearest "generated template" tell in the workspace. */
+  background: var(--stress-surface);
   border-color: var(--stress-rule);
 }
 
@@ -25,8 +26,10 @@
 }
 
 .stress-clarity .stress-lab-header span {
-  color: var(--stress-blue);
-  font-size: 0.75rem;
+  /* The kicker is a label, not a measured value. Blue is the interactive/selected colour here, so
+     colouring static text with it made a heading look clickable. */
+  color: var(--ink-dim);
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .stress-lab-header h1 {

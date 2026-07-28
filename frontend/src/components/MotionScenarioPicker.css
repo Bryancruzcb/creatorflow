@@ -108,8 +108,11 @@
 .motion-scenario-card:hover { border-color: var(--hairline-strong); transform: translateY(-1px); }
 .motion-scenario-card.is-active { border-color: var(--blue); background: oklch(58.5% 0.0627 249.71 / 0.08); }
 .motion-scenario-card:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-.motion-scenario-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
-.motion-scenario-card-top strong { font-size: var(--text-sm); }
+/* Title above the badge, not beside it. Side by side, the badge would not shrink and the title
+   collapsed to one word per line — the card became a column of single words. */
+.motion-scenario-card-top { display: grid; justify-items: start; gap: 0.3rem; }
+.motion-scenario-card-top strong { font-size: var(--text-sm); text-wrap: balance; }
+.motion-scenario-card-top .scenario-band { white-space: nowrap; }
 .motion-scenario-pair {
   font-family: var(--font-mono);
   font-size: var(--text-xs);

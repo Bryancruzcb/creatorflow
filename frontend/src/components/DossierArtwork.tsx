@@ -72,10 +72,10 @@ export function KeyframeSheet() {
  * that is a locally edited derivative, so the record ends on an open review rather than a pass.
  */
 const CHAIN = [
-  { label: 'File', value: 'ReplicatedStorage…Guide.Wave', note: 'rbxm · in the place file' },
-  { label: 'Source', value: 'Licensed fixture', note: 'source metadata attached' },
-  { label: 'Permission', value: 'CC0 1.0', note: 'recorded, not inferred' },
-  { label: 'Decision', value: 'Animator review open', note: 'locally edited derivative', open: true },
+  { label: 'File', value: 'Guide.Wave' },
+  { label: 'Source', value: 'Licensed fixture' },
+  { label: 'Permission', value: 'CC0 1.0' },
+  { label: 'Decision', value: 'Animator review open', open: true },
 ];
 
 const CHAIN_TEXT = CHAIN.map((row) => `${row.label}:${row.value}`).join('\n');
@@ -109,7 +109,6 @@ export function SourceRecordSheet() {
           <li key={row.label} data-open={row.open ? 'true' : undefined}>
             <span className="sr-label">{row.label}</span>
             <span className="sr-value">{row.value}</span>
-            <span className="sr-note">{row.note}</span>
           </li>
         ))}
       </ol>

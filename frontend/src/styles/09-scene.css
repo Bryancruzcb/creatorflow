@@ -1129,9 +1129,10 @@
   gap: var(--space-8);
   min-height: 9rem;
   padding: clamp(1.25rem, 3vw, 2.4rem);
-  background:
-    linear-gradient(105deg, color-mix(in srgb, var(--motion-source) 8%, transparent), transparent 34%),
-    var(--graphite);
+  /* Flat: a tinted diagonal wash behind a heading encodes nothing and is the most
+     recognisable generated-template tell. Meaningful tints stay (the motion stage's
+     source/candidate split); atmosphere does not. */
+  background: var(--graphite);
   border: 1px solid var(--hairline-strong);
 }
 

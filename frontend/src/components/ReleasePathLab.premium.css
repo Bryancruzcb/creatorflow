@@ -197,9 +197,10 @@
   justify-content: center;
   padding: 0.65rem;
   overflow: hidden;
-  background:
-    linear-gradient(125deg, color-mix(in srgb, var(--blue-hover) 8%, transparent), transparent 48%),
-    var(--raised);
+  /* Flat: a tinted diagonal wash behind a heading encodes nothing and is the most
+     recognisable generated-template tell. Meaningful tints stay (the motion stage's
+     source/candidate split); atmosphere does not. */
+  background: var(--raised);
   border: 1px solid var(--hairline-strong);
   backface-visibility: hidden;
   transform-origin: left center;
@@ -250,7 +251,7 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--blue-hover) 11%, transparent), transparent 68%);
+  background: color-mix(in srgb, var(--blue-hover) 6%, transparent);
   border: 1px solid color-mix(in srgb, var(--blue-hover) 55%, var(--hairline));
   box-shadow: 0 2px var(--blue-hover) inset, 0 0 32px color-mix(in srgb, var(--blue-hover) 7%, transparent) inset;
   pointer-events: none;
@@ -281,7 +282,9 @@
   position: absolute;
   inset: 0;
   z-index: 0;
-  background: linear-gradient(130deg, color-mix(in srgb, var(--blue-hover) 18%, transparent), transparent 65%);
+  /* Kept blue — this one means 'selected', which is real state. Flattened to an even tint: the
+     gradient made one corner of a selected node look more selected than the other. */
+  background: color-mix(in srgb, var(--blue-hover) 11%, transparent);
   border: 1px solid var(--blue-hover);
   box-shadow: 0 0 28px color-mix(in srgb, var(--blue-hover) 13%, transparent) inset;
   pointer-events: none;

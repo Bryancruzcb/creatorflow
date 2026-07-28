@@ -142,7 +142,7 @@ const navigation: Array<{ id: WorkspaceView; label: string; icon: typeof LayoutD
   { id: 'evidence', label: 'Evidence', icon: Fingerprint, phase: 'fingerprint', count: '12' },
   { id: 'assets', label: 'Assets', icon: Boxes, phase: 'fingerprint', count: 'sample' },
   { id: 'gallery', label: 'Model gallery', icon: Boxes, phase: 'fingerprint', count: '24' },
-  { id: 'motion', label: 'Animation compare', icon: Activity, phase: 'fingerprint', count: 'Roblox beta' },
+  { id: 'motion', label: 'Animations', icon: Activity, phase: 'fingerprint', count: 'Beta' },
   { id: 'stress', label: 'System check', icon: FlaskConical, phase: 'fingerprint', count: '6' },
   { id: 'sources', label: 'Sources', icon: Library, phase: 'source', count: '20' },
   { id: 'project', label: 'Release flow', icon: Workflow, phase: 'decision' },
@@ -558,8 +558,7 @@ function WorkspaceProofRibbon({ view, onNavigate, datasetLabel }: { view: Worksp
               <button type="button" onClick={() => onNavigate(step.view)} aria-current={active ? 'step' : undefined}>
                 {active ? <motion.span className="workspace-proof-cursor" layoutId="workspace-proof-cursor" transition={{ type: 'spring', stiffness: 380, damping: 34 }} /> : null}
                 <i><Icon size={13} /><em>{String(index + 1).padStart(2, '0')}</em></i>
-                <span><strong>{step.label}</strong><small>{step.detail}</small></span>
-                <b>{step.signal}</b>
+                <span><strong>{step.label}</strong><small>{step.detail}</small><b>{step.signal}</b></span>
               </button>
             </li>
           );

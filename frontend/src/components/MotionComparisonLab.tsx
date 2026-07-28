@@ -278,6 +278,67 @@ function animatedBoneUuids(model: Object3D, clip: AnimationClip): Set<string> {
   return uuids;
 }
 
+/**
+ * The similarity strip, made draggable.
+ *
+ * Pointer capture rather than window listeners: the pointer routinely leaves a 16px-tall strip
+ * mid-drag, and without capture the scrub would stop the moment it did — the failure that makes a
+ * homemade scrubber feel broken next to a video player's.
+ */
+function FrameScrubber({ scores, progress, onSeek, label }: {
+  scores: number[];
+  progress: number;
+  onSeek: (progress: number) => void;
+  label: string;
+}) {
+  const trackRef = useRef<HTMLDivElement>(null);
+
+  const seekFromPointer = (clientX: number) => {
+    const rect = trackRef.current?.getBoundingClientRect();
+    if (!rect || rect.width <= 0) return;
+    onSeek(Math.min(1, Math.max(0, (clientX - rect.left) / rect.width)));
+  };
+
+  return (
+    <div
+      ref={trackRef}
+      className="motion-frame-strip"
+      role="slider"
+      tabIndex={0}
+      aria-label={label}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+      aria-valuetext={`${Math.round(progress * 100)} percent through the clip`}
+      style={{ '--sample-count': scores.length } as CSSProperties}
+      onPointerDown={(event) => {
+        // Ignore secondary buttons so a right-click context menu does not yank the playhead.
+        if (event.button !== 0) return;
+        event.currentTarget.setPointerCapture(event.pointerId);
+        seekFromPointer(event.clientX);
+      }}
+      onPointerMove={(event) => {
+        if (!event.currentTarget.hasPointerCapture(event.pointerId)) return;
+        seekFromPointer(event.clientX);
+      }}
+      onPointerUp={(event) => event.currentTarget.releasePointerCapture(event.pointerId)}
+      onKeyDown={(event) => {
+        // Arrow keys are frame stepping at the workbench level; this widget owns coarse seeking,
+        // so it takes Home/End and PageUp/PageDown and lets the arrows bubble.
+        if (event.key === 'Home') { event.preventDefault(); onSeek(0); }
+        else if (event.key === 'End') { event.preventDefault(); onSeek(1); }
+        else if (event.key === 'PageUp') { event.preventDefault(); onSeek(Math.min(1, progress + 0.1)); }
+        else if (event.key === 'PageDown') { event.preventDefault(); onSeek(Math.max(0, progress - 0.1)); }
+      }}
+    >
+      {scores.map((score, index) => (
+        <i key={index} style={scoreStyle(Math.round(score * 100))} title={`Sample ${index + 1}: ${Math.round(score * 100)}% agreement`} />
+      ))}
+      <span style={{ left: `${progress * 100}%` }} />
+    </div>
+  );
+}
+
 export function updateScopeSkeleton(
   skeleton: ScopeSkeleton,
   scope: MotionJointScope,
@@ -1355,10 +1416,21 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
 
             {analysisMode === 'root' && result?.root ? <RootPathPlot source={result.root.source} candidate={result.root.candidate} sourceName={sourceName} candidateName={candidateName} /> : analysisMode === 'loop' ? <div className="motion-loop-readout"><header><span><RotateCcw size={13} /> Start-to-end continuity</span><small>Pose + velocity · higher is cleaner · quality only</small></header><div><span><small>{sourceName}</small><strong>{result?.loop?.source.continuity ?? '—'}{result?.loop?.source.continuity !== null && result?.loop?.source.continuity !== undefined ? '%' : ''}</strong></span><i aria-hidden="true" /><span><small>{candidateName}</small><strong>{result?.loop?.candidate.continuity ?? '—'}{result?.loop?.candidate.continuity !== null && result?.loop?.candidate.continuity !== undefined ? '%' : ''}</strong></span></div></div> : <div className="motion-fingerprint-readout">
               <header><span>{analysisMode === 'timing' ? <Clock3 size={13} /> : <Fingerprint size={13} />} {analysisMode === 'timing' ? 'Authored-time difference' : 'Pose difference over normalized phase'}</span><small>{preferences.sampleCount} samples · brighter marks are closer</small></header>
-              <div className="motion-frame-strip" aria-label={analysisMode === 'timing' ? 'Authored-time similarity samples' : 'Normalized pose similarity samples'}>
-                {(result?.frameScores ?? Array.from({ length: preferences.sampleCount }, () => 0)).map((score, index) => <i key={index} style={scoreStyle(Math.round(score * 100))} title={`Sample ${index + 1}: ${Math.round(score * 100)}% agreement`} />)}
-                <span style={{ left: `${progress * 100}%` }} />
-              </div>
+              {/**
+                * The strip is the scrubber. It already showed where the clips agree and where the
+                * playhead is, so making it the thing you grab removes the split where the picture
+                * of the difference and the control for reaching it were two separate widgets.
+                *
+                * Column count comes from the data, not a constant. It was hard-coded to 48 while
+                * sampleCount is a preference of 24, 48 or 96 — at any other setting the samples
+                * wrapped onto a second row, which is the stray block visible under the strip.
+                */}
+              <FrameScrubber
+                scores={result?.frameScores ?? Array.from({ length: preferences.sampleCount }, () => 0)}
+                progress={progress}
+                onSeek={(next) => { setPlaying(false); setProgress(next); }}
+                label={analysisMode === 'timing' ? 'Authored-time similarity samples' : 'Normalized pose similarity samples'}
+              />
             </div>}
 
             <section className="motion-analysis-explainer" data-mode={analysisMode} aria-label={`${selectedAnalysisMode.label} explanation`} aria-live="polite">

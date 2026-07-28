@@ -7,17 +7,17 @@ const COPY = {
   sample: {
     tag: 'Sample scenario',
     icon: FlaskConical,
-    detail: 'Real licensed sample assets with real hashes — not your files. Open a project in the CreatorFlow desktop app to scan your own.',
+    detail: 'Licensed sample assets — not your files.',
   },
   local: {
     tag: 'Your project',
     icon: FolderOpen,
-    detail: 'Live files scanned on this machine. Only fingerprints ever leave it.',
+    detail: 'Scanned on this machine. Only fingerprints leave it.',
   },
   imported: {
     tag: 'Imported manifest',
     icon: FileArchive,
-    detail: 'A read-only snapshot loaded from a scan file — not a live project folder.',
+    detail: 'Read-only snapshot from a scan file.',
   },
 } as const;
 
@@ -35,10 +35,10 @@ export function WorkspaceDatasetBanner({ mode, projectName, release, onSwitch }:
   const copy = COPY[mode];
   const Icon = copy.icon;
   const title = mode === 'sample'
-    ? `Exploring ${projectName} — authored demo data`
+    ? projectName
     : mode === 'imported'
       ? `${projectName}${release ? ` · ${release}` : ''}`
-      : `${projectName} — live desktop project`;
+      : projectName;
 
   return (
     <aside className={`workspace-dataset-banner mode-${mode}`} aria-label={`Active dataset: ${copy.tag}. ${title}`}>

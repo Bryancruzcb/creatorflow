@@ -19,7 +19,7 @@ import {
   ShieldCheck,
   Zap,
 } from 'lucide-react';
-import { lazy, Suspense, useCallback, useMemo, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import { capacityProfiles, executableFormats, failureFixtures, motionFixtures } from '../stressLabData';
 import type { MotionTelemetry } from './AnimatedAssetViewer';
 import './StressLab.clarity.css';
@@ -108,7 +108,8 @@ function stateLabel(state: ResultState) {
 interface DependencyFixture {
   path: string;
   role: 'root' | 'geometry' | 'animation' | 'texture';
-  bytes: number;
+  /** null until the real size is read from the generated manifest. */
+  bytes: number | null;
   group: 'root' | 'buffers' | 'environment' | 'props';
 }
 
@@ -116,8 +117,10 @@ const dependencyFixtures: DependencyFixture[] = [
   { path: 'world.gltf', role: 'root', bytes: 2_596, group: 'root' },
   { path: 'buffers/geometry.bin', role: 'geometry', bytes: 262_144, group: 'buffers' },
   { path: 'buffers/animation.bin', role: 'animation', bytes: 98_304, group: 'buffers' },
-  ...Array.from({ length: 12 }, (_, index) => ({ path: `textures/environment/texture_${String(index + 1).padStart(2, '0')}.png`, role: 'texture' as const, bytes: 178, group: 'environment' as const })),
-  ...Array.from({ length: 12 }, (_, index) => ({ path: `textures/props/texture_${String(index + 13).padStart(2, '0')}.png`, role: 'texture' as const, bytes: 178, group: 'props' as const })),
+  // Texture sizes are read from texture-sizes.json, emitted by the fixture generator. They used
+  // to be a hard-coded 178, which was true only while all twenty-four files were the same image.
+  ...Array.from({ length: 12 }, (_, index) => ({ path: `textures/environment/texture_${String(index + 1).padStart(2, '0')}.png`, role: 'texture' as const, bytes: null, group: 'environment' as const })),
+  ...Array.from({ length: 12 }, (_, index) => ({ path: `textures/props/texture_${String(index + 13).padStart(2, '0')}.png`, role: 'texture' as const, bytes: null, group: 'props' as const })),
 ];
 
 const dependencyFolders = [
@@ -128,6 +131,19 @@ const dependencyFolders = [
 
 function DependencyExplorer({ result }: { result: ProbeResult }) {
   const [selectedPath, setSelectedPath] = useState('world.gltf');
+  const [textureSizes, setTextureSizes] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    let live = true;
+    void fetch(assetUrl('/stress-fixtures/multi-file-package/texture-sizes.json'))
+      .then((response) => (response.ok ? response.json() : {}))
+      .then((sizes: Record<string, number>) => { if (live) setTextureSizes(sizes); })
+      .catch(() => undefined);
+    return () => { live = false; };
+  }, []);
+
+  /** The real size, or an explicit dash. Never a placeholder number presented as measured. */
+  const sizeOf = (file: DependencyFixture) => file.bytes ?? textureSizes[file.path] ?? null;
   const [openFolders, setOpenFolders] = useState<Set<string>>(() => new Set(['buffers']));
   const [copied, setCopied] = useState(false);
   const selected = dependencyFixtures.find((fixture) => fixture.path === selectedPath) ?? dependencyFixtures[0];
@@ -167,7 +183,7 @@ function DependencyExplorer({ result }: { result: ProbeResult }) {
         {dependencyFolders.map((folder) => {
           const open = openFolders.has(folder.id);
           const files = dependencyFixtures.filter((fixture) => fixture.group === folder.id);
-          return <div className="dependency-folder" key={folder.id} role="group"><button type="button" onClick={() => toggleFolder(folder.id)} aria-expanded={open}><span className="dependency-folder-icon">{open ? <FolderOpen size={15} /> : <Folder size={15} />}</span><span><strong>{folder.label}</strong><small>{folder.note}</small></span><em>{files.length} files</em><ChevronDown size={14} /></button>{open ? <div>{files.map((file) => { const detail = result.details?.[file.path]; return <button className={selected.path === file.path ? 'selected' : ''} type="button" key={file.path} onClick={() => setSelectedPath(file.path)} role="treeitem" aria-selected={selected.path === file.path}><FileIcon role={file.role} /><span><strong>{file.path.split('/').at(-1)}</strong><small>{formatBytes(file.bytes)} · referenced by world.gltf</small></span><em data-state={result.state}>{result.state === 'idle' ? 'Not checked' : result.state === 'running' ? 'Checking' : detail?.ok ? 'Resolved' : 'Missing'}</em></button>; })}</div> : null}</div>;
+          return <div className="dependency-folder" key={folder.id} role="group"><button type="button" onClick={() => toggleFolder(folder.id)} aria-expanded={open}><span className="dependency-folder-icon">{open ? <FolderOpen size={15} /> : <Folder size={15} />}</span><span><strong>{folder.label}</strong><small>{folder.note}</small></span><em>{files.length} files</em><ChevronDown size={14} /></button>{open ? <div>{files.map((file) => { const detail = result.details?.[file.path]; return <button className={selected.path === file.path ? 'selected' : ''} type="button" key={file.path} onClick={() => setSelectedPath(file.path)} role="treeitem" aria-selected={selected.path === file.path}><FileIcon role={file.role} /><span><strong>{file.path.split('/').at(-1)}</strong><small>{sizeOf(file) === null ? '—' : formatBytes(sizeOf(file)!)} · referenced by world.gltf</small></span><em data-state={result.state}>{result.state === 'idle' ? 'Not checked' : result.state === 'running' ? 'Checking' : detail?.ok ? 'Resolved' : 'Missing'}</em></button>; })}</div> : null}</div>;
         })}
       </div>
 
@@ -177,7 +193,7 @@ function DependencyExplorer({ result }: { result: ProbeResult }) {
         <dl>
           <div><dt>Project path</dt><dd><code>{selected.path}</code></dd></div>
           <div><dt>Role</dt><dd>{selected.role === 'root' ? 'glTF project root' : selected.role === 'geometry' ? 'Geometry buffer' : selected.role === 'animation' ? 'Animation buffer' : 'PNG texture'}</dd></div>
-          <div><dt>Fixture bytes</dt><dd>{selected.bytes.toLocaleString()}</dd></div>
+          <div><dt>Fixture bytes</dt><dd>{sizeOf(selected)?.toLocaleString() ?? '—'}</dd></div>
           <div><dt>Referenced by</dt><dd><code>{selected.role === 'root' ? 'System check' : 'world.gltf'}</code></dd></div>
           <div><dt>Resolution</dt><dd data-state={result.state}>{result.state === 'idle' ? 'Not checked' : result.state === 'running' ? 'Checking…' : selectedResult?.ok ? 'Available inside project root' : 'Missing or unreachable'}</dd></div>
           <div><dt>Content type</dt><dd>{selectedResult?.contentType ?? (selected.role === 'root' ? 'model/gltf+json' : selected.role === 'texture' ? 'image/png' : 'application/octet-stream')}</dd></div>
@@ -365,7 +381,7 @@ export function StressLab() {
   return (
     <div className="stress-lab stress-clarity">
       <header className="stress-lab-header">
-        <div><span>CreatorFlow device diagnostics</span><h1>Can this device run the inspection tools?</h1><p>Run six known files after setup, after switching devices, or when a viewer fails. The result isolates CreatorFlow and browser capability from anything inside your Roblox project.</p></div>
+        <div><span>CreatorFlow device diagnostics</span><h1>Can this device run the inspection tools?</h1><p>Six known files, to tell a browser problem apart from a problem in your project.</p></div>
         <button aria-busy={runningAll} className="button button-primary" type="button" onClick={runAll} disabled={runningAll}>{runningAll ? <RefreshCw aria-hidden="true" className="stress-spin" size={15} /> : <Zap aria-hidden="true" size={15} />} {runningAll && runningIndex >= 0 ? `Running ${runningIndex + 1}/6: ${suite[runningIndex].label}` : 'Run 6 built-in checks'}</button>
       </header>
 

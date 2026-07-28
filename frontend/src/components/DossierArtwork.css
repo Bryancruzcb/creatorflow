@@ -11,8 +11,8 @@
 .sr {
   display: grid;
   margin: 0;
-  padding: var(--space-3);
-  gap: var(--space-2);
+  padding: var(--space-4);
+  gap: var(--space-3);
   font-family: var(--font-mono);
 }
 
@@ -126,7 +126,7 @@
 
 .sr-chain {
   display: grid;
-  gap: 0.45rem;
+  gap: 0.7rem;
   margin: 0;
   padding: 0 0 0 var(--space-3);
   /* The rail is the point: these four records are one chain, not four unrelated facts. */
@@ -172,29 +172,25 @@
   white-space: nowrap;
 }
 
-.sr-note {
-  color: var(--ink-muted);
-  font-size: var(--text-3xs);
-}
-
 .sr-digest {
   display: grid;
   gap: var(--space-1);
 }
 
-/* 256 cells as a 64x4 strip rather than a 32x8 block. One cell per bit of the real digest — a
-   picture of a specific number, not a texture that looks like one. The strip shape is not only
-   aesthetic: at 32 wide this panel grew tall enough to bury the sheet above it in the stack. */
+/* 256 cells, 32 per row. One cell per bit of the real digest.
+   At 64 per row the cells were about 2px and the whole thing read as static rather than as data —
+   the difference between a picture of a number and visual noise is whether you can see the cells.
+   Rounded to a hair so the lit bits read as marks rather than a dithered fill. */
 .sr-bits {
   display: grid;
-  grid-template-columns: repeat(64, 1fr);
-  gap: 1px;
+  grid-template-columns: repeat(32, 1fr);
+  gap: 2px;
 }
 
 .sr-bits > i {
   aspect-ratio: 1;
-  min-height: 2px;
-  background: var(--hairline);
+  border-radius: 1px;
+  background: color-mix(in srgb, var(--hairline) 70%, transparent);
 }
 
 .sr-bits > i[data-on='true'] {
