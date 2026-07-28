@@ -21,6 +21,13 @@ A type scale, weight, leading and tracking token set now exists in `styles.css`'
 notes on the elevation tokens. **Step 1 (defining them) is done and changed no rendering.** What
 remains is adopting them, which is the part that changes how the app looks.
 
+**Progress: 26% adopted before the `.local-*` pass** — 144 of 547 `font-size` declarations used a
+token; 316 were still hardcoded under 12px and 165 under 9.6px. The per-surface order and the
+remaining clusters live in
+[`VISUAL-TECHNIQUE-PLAN.md`](./VISUAL-TECHNIQUE-PLAN.md) item 6, along with the specificity trap
+found while doing `.local-*`: **authored size is not rendered size**, so verify with computed style
+on a live element rather than by grepping declarations.
+
 The problem being fixed: there was no scale at all. 667 `font-size` declarations used **77 distinct
 values**, with the sub-1rem band populated in ~0.01rem steps — 0.38, 0.39, 0.40, 0.41 … — which at
 a 16px root is 0.16px apart. Those are not hierarchy levels, they are one-off guesses. 88% of sizes
@@ -56,11 +63,10 @@ Two rules that matter more than the mapping:
 1. **`src/styles.css` is a ~11.7k-line monolith** with four `*.premium.css` override files beside
    it, and contains verified-dead selectors. Splitting it into tokens plus feature-scoped styles is
    the largest cleanup left in this workspace. The token layer above is the first step of it.
-2. **`MotionComparisonLab.tsx`'s `MotionStage` renders every animation frame while visible**, even
-   when paused and static, instead of using the demand-aware scheduler in `motion/renderLoop.ts`
-   (which `AnimatedAssetViewer`, `GlbComparisonViewer` and `HeavyAssetViewer` already use). An
-   IntersectionObserver and a visibilitychange handler stop it offscreen or on a hidden tab, so this
-   is wasted work rather than a runaway loop.
+2. **Accessible names and text alternatives are not audited anywhere.** Two of the last review's
+   serious findings were an unlabelled colour channel and a progress readout announced ~41 times
+   into a live region. Both were invisible to the test suite and to type-checking, and both were
+   found only by a human-style pass over the rendered surface. There is no gate for this — see 4.
 3. **`HeavyAssetViewer.tsx` is large enough to be worth decomposing** (renderer lifecycle, asset
    loader, scene index, comparison renderer, heatmap worker, budget estimator, overlays).
 4. **No accessibility gate** — axe-style checks plus a keyboard-only pass over the local project
