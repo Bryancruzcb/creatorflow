@@ -132,7 +132,7 @@ remaining work sound like a rounding error. Measured on `main` before the `.loca
 
 | | |
 |---|---|
-| `font-size` declarations in `styles.css` | 547 |
+| `font-size` declarations in `src/styles/` | 547 |
 | using a `--text-*` token | 144 (26%) |
 | hardcoded under 12px | 316 |
 | hardcoded under 9.6px | 165 |

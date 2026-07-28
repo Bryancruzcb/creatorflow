@@ -99,7 +99,7 @@ The manifest exported by this demo is plain JSON. It is not cryptographically si
 - `scripts/generate-stress-fixtures.mjs` — reproducibly creates malformed packages, an 8K PNG, multichannel WAV, font subset, and dependency fixture.
 - `src/data.ts` — sample evidence records and workflow content.
 - `src/heavyAssets.ts` — verified sizes, scene complexity, hashes, sources, and licenses for the stress set.
-- `src/styles.css` — design tokens, responsive behavior, motion, and component styling.
+- `src/styles/` — design tokens, responsive behavior, motion, and component styling, split into ordered slabs (see `src/styles/index.css` — the numbering is load-bearing).
 - `STRATEGY.md` — hackathon analysis, product decision, alternatives, and roadmap.
 - `RESUME-AND-INTERVIEW.md` — honest resume bullets, pitches, architecture explanation, demo script, and next milestones.
 - `END-TO-END-PROJECT.md` — the real Northwind vertical slice, current capability boundary, integration contracts, and five-minute interview demo.

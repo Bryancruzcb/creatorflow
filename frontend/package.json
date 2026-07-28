@@ -17,7 +17,8 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "harness": "vite --config vite.harness.config.ts",
-    "test:audit": "playwright test --config playwright.audit.config.ts"
+    "test:audit": "playwright test --config playwright.audit.config.ts",
+    "inspect:motion": "node scripts/inspect-motion.mjs"
   },
   "dependencies": {
     "@fontsource/ibm-plex-mono": "5.3.0",

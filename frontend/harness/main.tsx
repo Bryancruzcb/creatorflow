@@ -19,7 +19,7 @@ import {
   LocalEvidenceView, LocalProjectOverview, LocalReleasesView, LocalScanView, LocalSourcesBoundary,
 } from '../src/components/LocalProjectWorkspace';
 import { project, run, stubClient } from './fixtures';
-import '../src/styles.css';
+import '../src/styles/index.css';
 
 const client = stubClient();
 const noop = () => undefined;

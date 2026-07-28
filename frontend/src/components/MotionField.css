@@ -1,5 +1,5 @@
 /* Hero deviation field + kinetic headline.
-   Scoped to the landing hero on purpose — this does not go into the 11,771-line styles.css,
+   Scoped to the landing hero on purpose — this does not go into the main stylesheet in src/styles/,
    which is already the largest open cleanup in the frontend. */
 
 .hero-section {
