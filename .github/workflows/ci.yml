@@ -63,3 +63,9 @@ jobs:
         run: npx playwright install --with-deps chrome
       - name: E2E tests
         run: npm run test:e2e
+      # The seven standing gates in frontend/audit. They had never run here: every one of them was
+      # only ever exercised by somebody remembering to run it locally, which for a quality gate is
+      # indistinguishable from not having it. `audit/README.md` makes the point itself — a gate that
+      # is off catches nothing.
+      - name: Audit gates
+        run: npm run test:audit
