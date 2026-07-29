@@ -32,9 +32,27 @@ Surfaces listed in `UNMIGRATED` are known debt: they log their count and smalles
 output instead of failing. **It is a ratchet — entries come off as surfaces migrate, and nothing
 may be added.** A regression on an already-clean surface fails immediately.
 
-Current debt, largest first: `app-project` (49 rules, smallest 6.08px), `landing` (40),
-`app-assets` (17), `app-overview` (11). Migration order is in
-[`../VISUAL-TECHNIQUE-PLAN.md`](../VISUAL-TECHNIQUE-PLAN.md) item 6.
+Current debt, measured on `8e996db2`: **84 rules across 10 of 16 surfaces.**
+
+| surface | rules | smallest |
+|---|---|---|
+| `landing` | 39 | 7.2px |
+| `app-assets` | 14 | 7.84px |
+| `app-overview` | 8 | 7.68px |
+| `app-settings` | 8 | 9.6px |
+| `app-evidence` | 4 | 9.92px |
+| `app-stress` | 4 | 10.4px |
+| `app-releases` | 3 | 9.12px |
+| `app-gallery` | 2 | 9.92px |
+| `app-motion` | 1 | 9.17px |
+| `app-sources` | 1 | 8.96px |
+
+`app-project` is **not** on this list any more: it was the largest block at 48 rules and held the
+app's smallest rendered text at 6.08px, and it is now migrated and strictly enforced. An earlier
+version of this section still listed it as the biggest debt, which is how a ratchet quietly starts
+lying about which end it is at. Migration order is in
+[`../VISUAL-TECHNIQUE-PLAN.md`](../VISUAL-TECHNIQUE-PLAN.md) item 6; `landing` is both the largest
+remaining block and the first surface a stranger sees.
 
 ## `render-budget.spec.ts`
 
@@ -230,10 +248,13 @@ or background colour.** So the focus gate finds nothing today, and that is a fac
 stylesheets, not evidence they are good. Its value is the day someone adds a focus colour.
 
 It also does **not** answer the question that actually matters for focus: whether the focus ring
-itself is visible enough (WCAG 1.4.11, 3:1 non-text contrast). `--focus` (`#6daae7`) measures
-5.89–7.65:1 against the four page surfaces and 2.66:1 against `--blue-solid`, but `outline-offset:
-3px` draws the ring outside the button on the page surface, so that last one is not a live failure.
-Either way, 1.4.11 is ungated.
+itself is visible enough. That is WCAG 1.4.11, and it is gated separately by
+[`focus-ring.spec.ts`](#focus-ringspects) — which found a button whose ring never rendered at all.
+
+For the record, since this section used to end by calling 1.4.11 ungated: `--focus` (`#6daae7`)
+measures 5.89–7.65:1 against the four page surfaces and 2.66:1 against `--blue-solid`, but
+`outline-offset: 3px` draws the ring outside the button onto the page surface, so that last figure
+is not a live failure.
 
 ### Verified to fail — four canaries
 
