@@ -359,6 +359,21 @@
   outline-offset: -1px;
 }
 
+/**
+ * The decorative dashed outline above is authored at (0,2,0) and the global focus ring at
+ * `button:focus-visible` is (0,1,1), so the decoration won and this button showed NO focus ring at
+ * all — a keyboard user got a 1px dashed amber line measuring 2.01:1 against the surface behind it,
+ * unchanged from its resting state. Nothing distinguished focused from not focused.
+ *
+ * Restated at (0,3,0) so the ring wins. Found by `audit/focus-ring.spec.ts`, which is also why that
+ * gate diffs the focused and unfocused states rather than only measuring whatever outline it finds:
+ * measuring alone would have read the decoration's contrast and reported the button as fine.
+ */
+.release-mode-switch .release-mode-research:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
 .release-mode-switch .release-mode-research[aria-pressed='true'] {
   box-shadow: inset 0 -2px var(--review);
 }
