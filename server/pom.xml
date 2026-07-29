@@ -15,7 +15,7 @@
   <description>The CreatorFlow platform: community asset gallery, fingerprint registry, accounts and disputes.</description>
 
   <properties>
-    <spring-boot.version>3.3.5</spring-boot.version>
+    <spring-boot.version>3.5.3</spring-boot.version>
   </properties>
 
   <dependencyManagement>
