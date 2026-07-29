@@ -53,7 +53,7 @@
   background: oklch(14.6% 0.005 118);
   border-bottom: 1px solid var(--proof-line);
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: var(--text-2xs);
 }
 
 .cf-proof-link-state,
@@ -72,6 +72,7 @@
   min-width: 0;
   gap: 0.48rem;
 }
+
 
 .cf-proof-link-state i {
   width: 6px;
@@ -123,7 +124,7 @@
   border: 1px solid var(--proof-line);
   border-radius: 2px;
   font-family: var(--font-mono);
-  font-size: 0.57rem;
+  font-size: var(--text-3xs);
   cursor: pointer;
   transition: color 180ms var(--ease-state), background-color 180ms var(--ease-state), border-color 180ms var(--ease-state);
 }
@@ -151,7 +152,7 @@
   margin-bottom: 0.4rem;
   color: var(--proof-blue);
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: var(--text-2xs);
 }
 
 .cf-proof-titlebar h2 {
@@ -169,7 +170,7 @@
   gap: 0.7rem;
   color: var(--proof-muted);
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: var(--text-2xs);
 }
 
 .cf-proof-progress > span {
@@ -240,15 +241,26 @@
   min-width: 0;
   overflow: hidden;
   color: var(--proof-muted);
-  font-size: 0.57rem;
+  font-size: var(--text-3xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 
+/**
+ * Same treatment its sibling `span` already had, and for the reason that rule exists.
+ *
+ * At 0.5rem this rendered at 8px and fitted its ribbon column; the type-scale lift to 11px is a 37%
+ * increase, and "Human decision" then ran 3px past `.cf-proof-machine`, which clips. `nowrap`
+ * without `min-width: 0` is the trap: as a flex item it defaults to `min-width: auto` and refuses
+ * to shrink below its own text, so the ellipsis never engages and the text simply leaves the box.
+ */
 .cf-proof-step > header small {
+  min-width: 0;
   margin-left: auto;
+  overflow: hidden;
   color: var(--proof-dim);
-  font-size: 0.5rem;
+  font-size: var(--text-3xs);
+  text-overflow: ellipsis;
   white-space: nowrap;
 }
 
@@ -313,14 +325,14 @@
   margin-bottom: 0.22rem;
   color: var(--proof-dim);
   font-family: var(--font-mono);
-  font-size: 0.48rem;
+  font-size: var(--text-3xs);
   font-weight: 400;
 }
 
 .cf-proof-source-stack code {
   overflow: hidden;
   color: var(--proof-muted);
-  font-size: 0.55rem;
+  font-size: var(--text-3xs);
   text-overflow: ellipsis;
 }
 
@@ -376,7 +388,7 @@
 .cf-proof-measure > strong {
   margin: auto 0 0.8rem;
   color: var(--proof-ink);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
@@ -398,7 +410,7 @@
   margin: 0;
   color: var(--proof-dim);
   font-family: var(--font-mono);
-  font-size: 0.48rem;
+  font-size: var(--text-3xs);
 }
 
 .cf-proof-measure dd { color: var(--proof-muted); }
@@ -406,12 +418,12 @@
 .cf-proof-fingerprint code {
   margin: auto 0 0.3rem;
   color: var(--proof-ink);
-  font-size: 0.6rem;
+  font-size: var(--text-2xs);
 }
 
 .cf-proof-fingerprint > span {
   color: var(--proof-dim);
-  font-size: 0.57rem;
+  font-size: var(--text-3xs);
   line-height: 1.45;
 }
 
@@ -459,14 +471,14 @@
 
 .cf-proof-rights strong {
   color: var(--proof-ink);
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
 .cf-proof-rights small {
   margin-top: 0.2rem;
   color: var(--proof-dim);
-  font-size: 0.51rem;
+  font-size: var(--text-3xs);
   line-height: 1.45;
 }
 
@@ -484,7 +496,7 @@
   border: 1px solid var(--proof-amber);
   border-radius: 2px;
   font-family: var(--font-mono);
-  font-size: 0.48rem;
+  font-size: var(--text-3xs);
   font-weight: 500;
   cursor: pointer;
   transition: background-color 180ms var(--ease-state), border-color 180ms var(--ease-state), transform 180ms var(--ease-state);
@@ -514,7 +526,7 @@
 .cf-proof-decision > span {
   margin-top: 0.35rem;
   color: var(--proof-dim);
-  font-size: 0.53rem;
+  font-size: var(--text-3xs);
   line-height: 1.45;
 }
 
@@ -556,7 +568,7 @@
   max-width: 62ch;
   margin: 0;
   color: var(--proof-dim);
-  font-size: 0.56rem;
+  font-size: var(--text-3xs);
   line-height: 1.55;
 }
 
@@ -574,7 +586,7 @@
   max-width: 9rem;
   color: var(--proof-dim);
   font-family: var(--font-mono);
-  font-size: 0.45rem;
+  font-size: var(--text-3xs);
   line-height: 1.45;
   text-align: right;
 }
@@ -591,7 +603,7 @@
   border: 1px solid var(--proof-line);
   border-radius: 2px;
   font-family: var(--font-mono);
-  font-size: 0.53rem;
+  font-size: var(--text-3xs);
   transition: background-color 180ms var(--ease-state), border-color 180ms var(--ease-state);
 }
 

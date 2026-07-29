@@ -85,6 +85,14 @@ export interface MotionAnalysisResult {
   root: {
     available: boolean;
     similarity: number | null;
+    /**
+     * Both clips stay put in X/Z, so there is no root path to compare.
+     *
+     * Distinct from `available: false`, which means neither clip HAS a root track. Here the track
+     * exists and reports no travel, and the two states need different words on screen — telling
+     * someone to add a Hips track they already have sends them to fix the wrong thing.
+     */
+    inPlace: boolean;
     source: RootPathClipResult;
     candidate: RootPathClipResult;
   } | null;
@@ -380,8 +388,36 @@ function rootPath(clip: AnimationClip, sampleCount: number): RootPathClipResult 
   };
 }
 
+/**
+ * Horizontal extent of a path. Shared with the plot so "does not move" has exactly one definition —
+ * two thresholds that can disagree is worse than either of them being wrong.
+ */
+export const IN_PLACE_EXTENT = 0.005;
+
+export function isInPlace(path: RootPathClipResult) {
+  if (!path.points.length) return false;
+  const xs = path.points.map((point) => point.x);
+  const zs = path.points.map((point) => point.z);
+  const extent = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...zs) - Math.min(...zs));
+  return extent < IN_PLACE_EXTENT;
+}
+
 function rootComparison(source: RootPathClipResult, candidate: RootPathClipResult) {
-  if (!source.available || !candidate.available) return { available: false, similarity: null, frameScores: [] as number[] };
+  if (!source.available || !candidate.available) {
+    return { available: false, similarity: null, inPlace: false, frameScores: [] as number[] };
+  }
+
+  /**
+   * Two clips that both stay at the origin are two identical points, and comparing them yields a
+   * near-perfect score computed on no motion whatsoever. That number is the worst thing this view
+   * can display: it is confident, it is meaningless, and it is exactly the shape of claim this
+   * product exists to refuse. The paths and their metrics still render — the score does not.
+   *
+   * One in-place and one travelling is a real and large difference, so it keeps scoring.
+   */
+  if (isInPlace(source) && isInPlace(candidate)) {
+    return { available: true, similarity: null, inPlace: true, frameScores: [] as number[] };
+  }
   // Scored with the same fixed-decay v2 kernel as pose-closure (kernelPointSimilarity),
   // not the old self-normalized-by-this-pair's-own-path-size decay. The point sampling
   // itself (rootPath, above) is untouched — it still drives the RootPathPlot visualization
@@ -390,7 +426,7 @@ function rootComparison(source: RootPathClipResult, candidate: RootPathClipResul
     const other = candidate.points[index] ?? candidate.points[candidate.points.length - 1];
     return kernelPointSimilarity(point, other);
   });
-  return { available: true, similarity: Math.round(average(frameScores) * 100), frameScores };
+  return { available: true, similarity: Math.round(average(frameScores) * 100), inPlace: false, frameScores };
 }
 
 function relationshipVerdict(value: number, mode: MotionAnalysisMode, threshold: number) {
@@ -467,6 +503,7 @@ export function analyzeMotionClips(
   const root = {
     available: rootRelation.available,
     similarity: rootRelation.similarity,
+    inPlace: rootRelation.inPlace,
     source: rootSource,
     candidate: rootCandidate,
   };

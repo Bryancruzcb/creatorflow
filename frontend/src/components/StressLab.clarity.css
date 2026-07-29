@@ -170,7 +170,7 @@
 .stress-run-facts dd {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .stress-run-facts dt {
@@ -271,7 +271,7 @@
   margin-bottom: 0.32rem;
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .stress-state {
@@ -337,7 +337,7 @@
 .system-check-guide > summary > span:last-child {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .system-check-guide > summary svg:last-child {
@@ -364,7 +364,7 @@
 }
 
 .stress-clarity .system-check-purpose > div > span {
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .system-check-purpose strong {
@@ -500,7 +500,7 @@
 .stress-clarity .failure-lab article > div > small,
 .stress-clarity .failure-lab article p > span,
 .stress-clarity .failure-lab article em {
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .failure-lab article strong {
