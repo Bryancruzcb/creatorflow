@@ -10,7 +10,7 @@ animations, because the test is only meaningful against assets Roblox actually l
 **The one constraint people miss:** the bridge is loopback-only by design, so Studio and CreatorFlow
 must run on the **same machine**. Two options:
 
-- **They install it** (~10 min: JDK 21+, Maven, Node 20+ — [`FRIEND-TEST.md`](FRIEND-TEST.md) setup).
+- **They install it** (~10 min: JDK 24+, Maven, Node 20+ — [`FRIEND-TEST.md`](FRIEND-TEST.md) setup).
   Best fidelity: their machine, their Studio account, their assets.
 - **They sign into Studio on your machine.** Zero setup, and the plugin still only reads what their
   account can access — which is the part being tested. Easier to schedule; pick this if installing

@@ -29,7 +29,11 @@ jobs:
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
-          java-version: "21"
+          # Must track maven.compiler.release in the parent pom, which #92 raised to 24 for
+          # JavaFX 26. A JDK cannot compile --release above its own version, so this pin being
+          # one behind meant the gate died at "Build release-gate CLI" before it ever read a
+          # manifest. It is workflow_dispatch-only and had never run, so nothing caught it.
+          java-version: "24"
           cache: maven
 
       - name: Build release-gate CLI
