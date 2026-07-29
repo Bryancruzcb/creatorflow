@@ -7,49 +7,6 @@
   font-size: 1.05rem;
 }
 
-.workflow-list {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-  border-top: 1px solid var(--hairline-strong);
-}
-
-.workflow-list li {
-  display: grid;
-  grid-template-columns: 2.5rem 1fr auto;
-  gap: var(--space-4);
-  align-items: start;
-  padding-block: var(--space-6);
-  border-bottom: 1px solid var(--hairline);
-}
-
-.workflow-list li > svg {
-  align-self: center;
-  color: var(--ink-dim);
-}
-
-.workflow-number {
-  padding-top: 0.15rem;
-  color: var(--ink-dim);
-  font-family: var(--font-mono);
-  font-size: 0.76rem;
-}
-
-.workflow-copy h3 {
-  margin-bottom: var(--space-2);
-  font-size: 1.15rem;
-  font-weight: 500;
-}
-
-.workflow-copy p {
-  margin-bottom: 0;
-  color: var(--ink-muted);
-}
-
-.workflow-output {
-  display: none;
-}
-
 .dossier-section {
   position: relative;
   display: grid;

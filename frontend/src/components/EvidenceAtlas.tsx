@@ -99,6 +99,32 @@ const gapStages: AtlasStage[] = baseStages.map((stage) => {
   return stage;
 });
 
+/**
+ * Split a label where a reader would break it, and nowhere else.
+ *
+ * The stage cards are narrow by design — five across one row — and no width they could reasonably
+ * have fits `avocado_foodstudy_v02.glb` on one line. Under `overflow-wrap: anywhere` that came out
+ * as "avocado_fo / odstudy_v0 / 2.glb", which reads as a rendering fault rather than a filename.
+ *
+ * Underscores and hyphens only. The first attempt at this also broke after `.`, which fixed the
+ * filename and promptly split the card next to it into "Manifest 1." / "2" — a full stop inside a
+ * version number is not a word boundary, and neither is the one before a file extension.
+ */
+export function breakPoints(text: string): string[] {
+  return text.split(/(?<=[_-])/);
+}
+
+function breakable(text: string) {
+  const parts = breakPoints(text);
+  if (parts.length === 1) return text;
+  return parts.map((part, index) => (
+    <span key={`${part}-${index}`}>
+      {part}
+      {index < parts.length - 1 ? <wbr /> : null}
+    </span>
+  ));
+}
+
 export function EvidenceAtlas() {
   const [view, setView] = useState<AtlasView>('resolved');
   const stages = view === 'resolved' ? baseStages : gapStages;
@@ -129,7 +155,7 @@ export function EvidenceAtlas() {
                   <span className="atlas-stage-icon"><Icon size={18} /></span>
                   <span className="atlas-stage-copy">
                     <small>{stage.eyebrow}</small>
-                    <strong>{stage.title}</strong>
+                    <strong>{breakable(stage.title)}</strong>
                     <em>{stage.meta}</em>
                   </span>
                 </button>

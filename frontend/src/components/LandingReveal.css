@@ -24,8 +24,8 @@
   will-change: auto;
 }
 
-/* The numbered workflow rows read as a sequence, so they arrive as one. */
-.workflow-list .cf-reveal {
+/* The workflow steps and the record they build arrive together, as one block. */
+.workflow-record.cf-reveal {
   transform: translate3d(0, 1.1rem, 0);
 }
 
