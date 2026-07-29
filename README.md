@@ -164,6 +164,27 @@ And no — an IP *address* can't tell you who owns a file. Intellectual-property
 content fingerprints and provenance; IP addresses only ever matter server-side as abuse signals
 (rate limiting, repeat-infringer heuristics per *account*).
 
+### The retargeting blind spot
+
+Animation comparison has one limitation worth stating plainly, because it is structural rather
+than a tuning problem: **an animation retargeted onto a different skeleton is not detectable by
+this engine, at all.**
+
+The engine compares animations by joint name. Two rigs with different bone names share zero
+tracks, so coverage is zero and the pair is a trivial non-match — not a low score, a
+by-construction miss. The test set excludes cross-rig pairs for exactly this reason
+(`copyDetectionCases.ts`: *"Cross-rig pairs are forbidden — they trivially non-match via zero
+coverage and validate nothing"*), which is the right testing call and does mean the scorecard's
+recall figures say nothing about this case.
+
+That matters because *download → retarget onto your own rig → publish* is a realistic theft
+route, and it is the one route CreatorFlow's numbers do not cover. Skeleton-independent matching
+(normalising to end-effector trajectories rather than named joints) is the work that would close
+it; see [`docs/TIER3-ROADMAP.md`](docs/TIER3-ROADMAP.md).
+
+A clear result means **no conflict was found in the registries and rigs we checked**. It has never
+meant more than that, and here is one concrete shape of what it excludes.
+
 ## The desktop companion
 
 The JavaFX app manages a local library offline: projects, drag-and-drop imports, the same
