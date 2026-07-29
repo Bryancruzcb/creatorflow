@@ -24,11 +24,23 @@ const FLOOR_PX = 11;
  * @see VISUAL-TECHNIQUE-PLAN.md item 6 for the migration order.
  */
 const UNMIGRATED = new Set([
-  'landing', 'app-overview', 'app-evidence', 'app-assets', 'app-releases',
-  'app-sources', 'app-settings', 'app-gallery', 'app-motion', 'app-stress',
+  // Both are blocked on files owned by an open PR, NOT on work left undone here. `landing`'s
+  // remaining eighteen are all `.atlas-*` and `.hero-roblox-path` rules living in
+  // `03-comparison.css` / `02-evidence.css` / `01-base.css`; `app-evidence`'s four are two
+  // `0.62rem` declarations in `02-evidence.css`. Editing those mid-review hands that author a
+  // conflict, so they stay on the ratchet with the reason recorded rather than half-migrated.
+  'landing',
+  'app-evidence',
 ]);
 // app-project came off: it measured 48 offenders down to 0, the largest single surface in the
 // baseline and the one holding the app's smallest rendered text at 6.08px. It is enforced now.
+//
+// Eight more came off together: app-assets (14 -> 0), app-overview (8), app-settings (8),
+// app-stress (4), app-releases (3), app-gallery (2), app-sources (1) and app-motion (1). 161
+// literal sub-11px declarations across 11 files were banded onto the scale — under 0.58rem to
+// --text-3xs, under 0.64rem to --text-2xs, the rest to --text-xs — so relative order survived the
+// lift instead of collapsing onto the floor. app-motion's last offender had no literal to migrate
+// at all: a `<small>` inheriting the UA's `font-size: smaller` inside an 11px footer.
 
 interface Offender { px: number; sel: string; text: string }
 

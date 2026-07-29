@@ -55,7 +55,7 @@
   border: 1px solid var(--hairline);
   border-radius: 8px; padding: 0.4rem 0.55rem;
 }
-.model-gallery-stats dt { font-size: 0.62rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
+.model-gallery-stats dt { font-size: var(--text-2xs); letter-spacing: 0.06em; text-transform: uppercase; color: var(--ink-dim); }
 .model-gallery-stats dd { margin: 0.1rem 0 0; font-size: 0.9rem; font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .model-gallery-picker { display: flex; flex-direction: column; gap: 0.6rem; min-width: 0; }
@@ -82,7 +82,7 @@
 .model-gallery-grid button.is-active { border-color: var(--blue-accent); background: color-mix(in srgb, var(--blue-accent) 10%, transparent); }
 .model-gallery-grid button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .model-gallery-grid button strong { font-size: 0.82rem; }
-.model-gallery-grid button small { font-size: 0.68rem; color: var(--ink-dim); }
+.model-gallery-grid button small { font-size: var(--text-xs); color: var(--ink-dim); }
 
 .model-gallery-foot {
   display: flex; align-items: baseline; justify-content: space-between; gap: 1rem; flex-wrap: wrap;

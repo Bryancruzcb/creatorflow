@@ -608,6 +608,19 @@
   stroke-width: 0.35;
 }
 
+/**
+ * The side elevation spans both columns on its own row rather than joining the auto-flow, because
+ * the grid places the top-down plot and its legend side by side and an extra item in that flow
+ * would push the legend out from beside the chart it labels.
+ *
+ * Shorter than the top-down plot on purpose: it carries one channel against progress, and giving
+ * it equal height would imply equal weight with the two-axis path above it.
+ */
+.motion-root-plot > .motion-root-elevation {
+  grid-column: 1 / -1;
+  height: 4.5rem;
+}
+
 /* The path is drawn as per-sample segments rather than one polyline, so each can carry its own
    opacity — that is how time direction is encoded: faint at the first sample, solid at the last.
    The candidate keeps its dash pattern, which stays the one non-colour channel distinguishing the

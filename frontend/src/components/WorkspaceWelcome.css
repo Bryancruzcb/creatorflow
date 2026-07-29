@@ -40,7 +40,7 @@
 
 .workspace-welcome-kicker {
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.14em;
   text-transform: uppercase;
   color: var(--review);

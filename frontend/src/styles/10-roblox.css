@@ -646,6 +646,17 @@
   font-size: var(--text-3xs);
 }
 
+/**
+ * `<small>` carries a UA `font-size: smaller`, shrinking it to roughly 0.8x its parent. Inside a
+ * footer already sitting on the 11px floor that renders at 9.17px — and there is no `9px` anywhere
+ * in the source to grep for, because the size comes from the user agent. It was the last sub-floor
+ * text on `app-motion` after every literal declaration in this file had already been migrated,
+ * which is precisely the case `type-floor.spec.ts` exists to catch and a source scan cannot.
+ */
+.motion-corpus-picker > footer small {
+  font-size: var(--text-3xs);
+}
+
 .motion-corpus-picker h2 {
   margin: var(--space-1) 0 var(--space-2);
   font-size: 1rem;

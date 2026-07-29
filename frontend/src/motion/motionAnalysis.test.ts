@@ -129,6 +129,39 @@ describe('rootPath / rootComparison (via analyzeMotionClips mode: root)', () => 
     expect(result.root?.candidate.drift).toBeGreaterThan(0);
   });
 
+  it('withholds the score when both clips stay in place, instead of scoring two identical points', () => {
+    /**
+     * The failure this prevents is not a wrong number, it is a CONFIDENT one. Two clips that never
+     * leave the origin are two identical points, so the kernel scores them ~100 — a green
+     * root-path match computed on no motion at all, sitting next to a blank chart.
+     *
+     * `available` stays true on purpose: the root track exists and its metrics are real. Only the
+     * comparison is withheld, and `inPlace` is what the surface reads to say why.
+     */
+    const stationary = (name: string) => new AnimationClip(name, 1, [new VectorKeyframeTrack(
+      'Body.position',
+      [0, 0.5, 1],
+      // A hop: vertical travel only, no X/Z displacement at all.
+      [0, 0, 0, 0, 0.4, 0, 0, 0, 0],
+    )]);
+    const result = analyzeMotionClips(stationary('Source'), stationary('Candidate'), { mode: 'root' });
+
+    expect(result.root?.available, 'the track exists, so this is not the unavailable state').toBe(true);
+    expect(result.root?.inPlace).toBe(true);
+    expect(result.root?.similarity, 'a score here would be confident and meaningless').toBeNull();
+    // The measurements themselves are still real and still shown.
+    expect(result.root?.candidate.verticalTravel).toBeGreaterThan(0);
+  });
+
+  it('still scores when only one clip is in place, because that is a real difference', () => {
+    const stationary = new AnimationClip('Stationary', 1, [new VectorKeyframeTrack('Body.position', [0, 1], [0, 0, 0, 0, 0, 0])]);
+    const travelling = new AnimationClip('Travelling', 1, [new VectorKeyframeTrack('Body.position', [0, 1], [0, 0, 0, 2, 0, 1])]);
+    const result = analyzeMotionClips(stationary, travelling, { mode: 'root' });
+
+    expect(result.root?.inPlace).toBe(false);
+    expect(result.root?.similarity).not.toBeNull();
+  });
+
   it('reports an honest unavailable state when neither clip has a root-pattern track', () => {
     const clip = new AnimationClip('NoRoot', 1, [new QuaternionKeyframeTrack('Head.quaternion', [0, 1], [0, 0, 0, 1, 0, 0, 0, 1])]);
     const result = analyzeMotionClips(clip, clip.clone(), { mode: 'root' });
