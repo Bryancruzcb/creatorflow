@@ -3,7 +3,7 @@
 Standing quality gates that run against **rendered** pages, not against source.
 
 ```
-npm run test:audit          # all seven gates, all 16 surfaces
+npm run test:audit          # all eight gates, all 16 surfaces
 npm run harness             # just the harness, at http://127.0.0.1:4176
 ```
 
@@ -251,6 +251,64 @@ it existed to watch. Fixed, re-canaried, fires now. A guard that has never been 
 guard nobody has tested.
 
 `:visited` and `:target` are not covered; neither is styled anywhere in this app.
+
+## `focus-ring.spec.ts`
+
+WCAG 1.4.11 on the focus ring itself: **3:1** against whatever it is drawn on. Three, not 4.5 — a
+ring is a graphical object, not text.
+
+`state-contrast.spec.ts` measures text colour while an element is focused and finds nothing, because
+none of the 25 focus rules in this app changes a text or background colour. **They all set
+`outline`.** So the entire focus treatment — the thing a keyboard user navigates by — was measured
+by nothing, and "focus: 0 findings" was reporting on rules that do not exist rather than the ones
+that do. axe has no rule for this; it is computed from the rendered page.
+
+`outline-offset` decides what "against" means. A positive offset draws the ring outside the element,
+so the adjacent colour is what is behind it; zero or negative overlaps the element, so its own
+background counts too and the worse of the two is asserted. Colours are composited **by the browser
+on a canvas** rather than parsed here — computed styles come back as `lab()`/`oklab()`, alpha is
+possible at every layer, and reimplementing colour conversion plus compositing in a test is how a
+gate ends up confidently wrong.
+
+### It asserts two different things
+
+**Ring contrast**, and **that focusing an element changes it at all.** The second exists because of
+what the first found.
+
+`.release-mode-research` carried a decorative dashed outline authored at `(0,2,0)`, and the global
+`button:focus-visible` is `(0,1,1)`. The decoration won, so that button showed **no focus ring at
+all** — a keyboard user got a 1px dashed amber line at **2.01:1**, identical to its resting state.
+Contrast measurement alone would have read the decoration and reported the button as fine, which is
+why the gate diffs the focused and unfocused signatures. `.release-map-node.selected` had the same
+`(0,2,0)` defect and was found by reading the stylesheets — the gate missed it only because no node
+is selected on load. Both are fixed.
+
+### What it counts instead of asserting
+
+Only an app-authored outline is honestly measurable, so two cases are budgeted per surface rather
+than asserted, the same shape `contrast.spec.ts` uses for nodes axe cannot resolve:
+
+- **The UA ring** (`outline-style: auto`). Chrome paints an adaptive two-tone ring and the computed
+  `outline-color` does not describe it — it reports `rgb(16, 16, 16)`, which against a near-black
+  surface would be a confident ~1:1 failure that is not real. A gate that invents failures gets
+  switched off as fast as one that misses them.
+- **No outline of its own.** Every such element here is an `input` whose affordance is drawn on a
+  sibling or on its wrapper via `:focus-within`.
+
+The budget assertion is not theoretical: it fired on first run, on three surfaces, against numbers
+that had been guessed rather than measured.
+
+### Not covered, and this one is load-bearing
+
+**Only `outline` is measured.** A focus affordance built from `box-shadow`, `border-color` or a
+wrapper's `:focus-within` is counted as unmeasurable, not checked. `CSS.forcePseudoState` also does
+not propagate to ancestors, so a wrapper's `:focus-within` never renders while this gate looks —
+`.product-search` uses exactly that pattern. Those elements are in the budget, which caps the hole
+without pretending to close it.
+
+Verified to fail three ways: dimming `--focus` (`#1e2f41 on #111210 = 1.38:1`, ×16), removing the
+specificity fix (`1 unchanged when focused [button.release-mode-research]`), and breaking the
+focusable selector (`no focusable element was found`).
 
 ## The harness (`../harness/`)
 
