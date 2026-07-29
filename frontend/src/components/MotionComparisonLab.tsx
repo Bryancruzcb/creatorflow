@@ -964,6 +964,44 @@ function RootPathPlot({ source, candidate, sourceName, candidateName }: {
     );
   });
 
+  /**
+   * Side elevation: the Y channel the top-down plot cannot show.
+   *
+   * A top-down X/Z projection discards vertical travel entirely, so a jump and a crouch and a walk
+   * on the flat all draw the same path. Vertical travel was computed and then only ever printed as
+   * a number next to the chart, which is not the same as being visible — a reader comparing two
+   * paths has no way to see that one of them leaves the ground.
+   *
+   * Y against progress, sharing one scale across both clips so their heights are comparable rather
+   * than each normalised to its own range. Points are already origin-relative, so 0 is where the
+   * clip started and the baseline means "back to standing height".
+   */
+  const verticalPeak = Math.max(
+    0.02,
+    ...source.points.map((point) => Math.abs(point.y)),
+    ...candidate.points.map((point) => Math.abs(point.y)),
+  );
+  const projectElevation = (point: { progress: number; y: number }) => ({
+    x: 8 + point.progress * 84,
+    y: 15 - (point.y / verticalPeak) * 9,
+  });
+  const toElevation = (path: RootPathClipResult, className: string) => path.points.slice(1).map((point, index) => {
+    const from = projectElevation(path.points[index]);
+    const to = projectElevation(point);
+    return (
+      <line
+        key={`elev-${className}-${index}`}
+        className={className}
+        x1={from.x.toFixed(2)}
+        y1={from.y.toFixed(2)}
+        x2={to.x.toFixed(2)}
+        y2={to.y.toFixed(2)}
+        // Same floor as the top-down segments, and for the same 1.4.11 reason.
+        opacity={(0.35 + 0.65 * point.progress).toFixed(3)}
+      />
+    );
+  });
+
   const marker = (path: RootPathClipResult, which: 'start' | 'end') => {
     const point = which === 'start' ? path.points[0] : path.points[path.points.length - 1];
     if (!point) return null;
@@ -1002,12 +1040,22 @@ function RootPathPlot({ source, candidate, sourceName, candidateName }: {
         {sourceEnd ? <circle className="root-end source" cx={sourceEnd.x} cy={sourceEnd.y} r="1.7" /> : null}
         {candidateEnd ? <circle className="root-end candidate" cx={candidateEnd.x} cy={candidateEnd.y} r="1.7" /> : null}
       </svg>
-      <div><span><i className="source" />{sourceName}</span><span><i className="candidate" />{candidateName}</span><small>Top-down X/Z path · origins aligned</small><small>{proxyLabel(source.trackName)} · {source.trackName}</small><small>{proxyLabel(candidate.trackName)} · {candidate.trackName}</small></div>
+      <div><span><i className="source" />{sourceName}</span><span><i className="candidate" />{candidateName}</span><small>Top-down X/Z path · origins aligned</small><small>Side elevation · Y against progress · peak {verticalPeak.toFixed(2)}</small><small>{proxyLabel(source.trackName)} · {source.trackName}</small><small>{proxyLabel(candidate.trackName)} · {candidate.trackName}</small></div>
       <dl className="motion-root-metrics">
         <div><dt>{sourceName}</dt><dd><span>Displacement <strong>{source.displacement.toFixed(2)}</strong></span><span>Path length <strong>{source.pathLength.toFixed(2)}</strong></span><span>Drift <strong>{source.drift.toFixed(2)}</strong></span><span>Vertical travel <strong>{source.verticalTravel.toFixed(2)}</strong></span></dd></div>
         <div><dt>{candidateName}</dt><dd><span>Displacement <strong>{candidate.displacement.toFixed(2)}</strong></span><span>Path length <strong>{candidate.pathLength.toFixed(2)}</strong></span><span>Drift <strong>{candidate.drift.toFixed(2)}</strong></span><span>Vertical travel <strong>{candidate.verticalTravel.toFixed(2)}</strong></span></dd></div>
       </dl>
-      {inPlaceCopy ? <p className="motion-root-in-place"><strong>In-place sample:</strong> {inPlaceCopy} Vertical travel still shows in the metrics. A Studio root channel would draw real travel.</p> : null}
+      <svg
+        className="motion-root-elevation"
+        viewBox="0 0 100 26"
+        role="img"
+        aria-label={`Side elevation. Vertical travel against clip progress for ${sourceName} and ${candidateName}, sharing one height scale. The centre line is the height each clip started at. Peak vertical travel across both is ${verticalPeak.toFixed(2)}.`}
+      >
+        <path d="M8 15H92" />
+        {toElevation(source, 'source')}
+        {toElevation(candidate, 'candidate')}
+      </svg>
+      {inPlaceCopy ? <p className="motion-root-in-place"><strong>In-place sample:</strong> {inPlaceCopy}{sourceInPlace && candidateInPlace ? ' Root-path match is withheld rather than scored: two paths that both collapse to a point are identical, so any number here would be confident and meaningless.' : ''} Vertical travel is drawn in the side elevation above. A Studio root channel would draw real travel.</p> : null}
     </div>
   );
 }
