@@ -862,6 +862,18 @@
   outline-offset: 2px;
 }
 
+/**
+ * Same defect as `.release-mode-research`, caught by reading the stylesheets rather than by the
+ * gate: this selection outline is (0,2,0) and `button:focus-visible` is (0,1,1), so a SELECTED node
+ * would show its selection ring while focused and nothing would mark it as the focused one. The
+ * audit did not flag it only because no node is selected on load, which is exactly the kind of
+ * conditional the next person would have to rediscover.
+ */
+.release-map-node.selected:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
 .release-map-node[data-state='blocked'] {
   border-left: 2px solid var(--blocked);
 }
