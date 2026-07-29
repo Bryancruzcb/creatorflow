@@ -17,7 +17,7 @@
 .atlas-stage-copy small,
 .atlas-stage-copy em {
   font-family: var(--font-mono);
-  font-size: 0.54rem;
+  font-size: var(--text-3xs);
   font-style: normal;
 }
 
@@ -102,7 +102,7 @@
 .atlas-detail span {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.56rem;
+  font-size: var(--text-3xs);
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -124,7 +124,7 @@
 
 .atlas-detail code {
   color: var(--ink-dim);
-  font-size: 0.58rem;
+  font-size: var(--text-2xs);
 }
 
 .atlas-caption {
@@ -135,7 +135,7 @@
   padding-top: var(--space-4);
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .atlas-caption p {
@@ -161,7 +161,7 @@
   padding: 0;
   text-align: left;
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
 }
 
 .match-link:hover,
@@ -200,7 +200,7 @@
 .match-record dt {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
 }
 
 .match-workbench-header h3 {
@@ -276,7 +276,7 @@
 .comparison-score small {
   margin-top: 0.2rem;
   color: var(--ink-dim);
-  font-size: 0.54rem;
+  font-size: var(--text-3xs);
 }
 
 .comparison-modebar {
@@ -302,7 +302,7 @@
   background: transparent;
   border: 0;
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 
@@ -315,7 +315,7 @@
 .comparison-modebar > span {
   max-width: 31rem;
   color: var(--ink-dim);
-  font-size: 0.66rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 
@@ -337,7 +337,7 @@
   color: var(--review);
   border: 1px solid color-mix(in srgb, var(--review) 34%, transparent);
   font-family: var(--font-mono);
-  font-size: 0.52rem;
+  font-size: var(--text-3xs);
   text-transform: uppercase;
   white-space: nowrap;
 }
@@ -353,7 +353,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--ink-muted);
-  font-size: 0.65rem;
+  font-size: var(--text-xs);
   text-align: right;
 }
 
@@ -423,7 +423,7 @@
   background: color-mix(in srgb, var(--desk) 88%, transparent);
   border: 1px solid var(--hairline-strong);
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: var(--text-2xs);
   pointer-events: none;
 }
 
@@ -630,7 +630,7 @@
   background: var(--desk);
   border: 1px solid var(--hairline-strong);
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: var(--text-2xs);
 }
 
 .comparison-label-a { left: var(--space-3); }
@@ -672,7 +672,7 @@
   padding-inline: var(--space-3);
   border-bottom: 1px solid var(--hairline);
   font-family: var(--font-mono);
-  font-size: 0.61rem;
+  font-size: var(--text-2xs);
 }
 
 .difference-register > header span,
@@ -718,7 +718,7 @@
 .difference-name > span {
   margin-bottom: 0.18rem;
   font-family: var(--font-mono);
-  font-size: 0.54rem;
+  font-size: var(--text-3xs);
 }
 
 .difference-name strong {
@@ -730,7 +730,7 @@
 .difference-row p {
   margin: 0;
   color: var(--ink-muted);
-  font-size: 0.67rem;
+  font-size: var(--text-xs);
   line-height: 1.45;
 }
 
@@ -747,7 +747,7 @@
   color: var(--ink-dim);
   border: 1px solid var(--hairline);
   font-family: var(--font-mono);
-  font-size: 0.52rem;
+  font-size: var(--text-3xs);
   font-style: normal;
   text-transform: uppercase;
   white-space: nowrap;
@@ -851,7 +851,7 @@
 .source-similarity {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: var(--text-2xs);
 }
 
 .source-similarity {
@@ -865,7 +865,7 @@
   gap: var(--space-3);
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.6rem;
+  font-size: var(--text-2xs);
 }
 
 .match-record h4 {
@@ -919,7 +919,7 @@
   background: var(--graphite);
   border: 1px solid var(--hairline);
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
 }
 
 .match-record-links a:hover {
@@ -989,7 +989,7 @@
     padding-right: var(--space-2);
     color: var(--ink-muted);
     font-family: var(--font-mono);
-    font-size: 0.55rem;
+    font-size: var(--text-3xs);
   }
 
   .tree-row.selected {
