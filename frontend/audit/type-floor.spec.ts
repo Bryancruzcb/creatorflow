@@ -23,24 +23,35 @@ const FLOOR_PX = 11;
  *
  * @see VISUAL-TECHNIQUE-PLAN.md item 6 for the migration order.
  */
-const UNMIGRATED = new Set([
-  // Both are blocked on files owned by an open PR, NOT on work left undone here. `landing`'s
-  // remaining eighteen are all `.atlas-*` and `.hero-roblox-path` rules living in
-  // `03-comparison.css` / `02-evidence.css` / `01-base.css`; `app-evidence`'s four are two
-  // `0.62rem` declarations in `02-evidence.css`. Editing those mid-review hands that author a
-  // conflict, so they stay on the ratchet with the reason recorded rather than half-migrated.
-  'landing',
-  'app-evidence',
-]);
-// app-project came off: it measured 48 offenders down to 0, the largest single surface in the
-// baseline and the one holding the app's smallest rendered text at 6.08px. It is enforced now.
-//
-// Eight more came off together: app-assets (14 -> 0), app-overview (8), app-settings (8),
-// app-stress (4), app-releases (3), app-gallery (2), app-sources (1) and app-motion (1). 161
-// literal sub-11px declarations across 11 files were banded onto the scale — under 0.58rem to
-// --text-3xs, under 0.64rem to --text-2xs, the rest to --text-xs — so relative order survived the
-// lift instead of collapsing onto the floor. app-motion's last offender had no literal to migrate
-// at all: a `<small>` inheriting the UA's `font-size: smaller` inside an 11px footer.
+/**
+ * EMPTY. Every one of the sixteen surfaces is now strictly enforced.
+ *
+ * The debt is gone, so the interesting part of this comment is what it cost and what it caught:
+ *
+ * - `app-project` came off first at 48 offenders, holding the app's smallest rendered text at
+ *   6.08px.
+ * - Eight came off together — app-assets (14), app-overview (8), app-settings (8), app-stress (4),
+ *   app-releases (3), app-gallery (2), app-sources (1), app-motion (1).
+ * - `landing` (39 -> 0) and `app-evidence` (4 -> 0) came off last, once the PR that owned
+ *   `01-base` / `02-evidence` / `03-comparison.css` had merged.
+ *
+ * 193 literal sub-11px declarations across 14 files were banded onto the scale rather than
+ * flattened onto the floor — under 0.58rem to --text-3xs, under 0.64rem to --text-2xs, the rest to
+ * --text-xs — so relative order survived the lift instead of collapsing into the one-size band the
+ * scale exists to undo.
+ *
+ * Two offenders had no literal to migrate at all: a `<small>` inheriting the UA's
+ * `font-size: smaller` inside a footer already on the floor. There is no `9px` in the source to
+ * grep for, which is the case this gate exists to catch and a source scan never can.
+ *
+ * The lift broke layout three times — text that fits at 8px does not always fit at 11px — and each
+ * was a single declaration found by bisecting, not by guessing. `overflow.spec.ts` caught all
+ * three; it is the only gate that runs at 390/820/1280 rather than 1440 alone.
+ *
+ * NOTHING GOES ON THIS LIST. A surface that regresses fails, which is the whole point of having
+ * spent the migration to empty it.
+ */
+const UNMIGRATED = new Set<string>([]);
 
 interface Offender { px: number; sel: string; text: string }
 
