@@ -164,7 +164,7 @@
 .core-milestone > span {
   color: var(--blue-accent);
   font-family: var(--font-mono);
-  font-size: 0.63rem;
+  font-size: var(--text-2xs);
 }
 
 .core-milestone div {
@@ -186,7 +186,7 @@
   margin-top: 0.12rem;
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.62rem;
+  font-size: var(--text-2xs);
 }
 
 .core-milestone a {
@@ -239,7 +239,7 @@
   overflow: hidden;
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.63rem;
+  font-size: var(--text-2xs);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -250,7 +250,7 @@
   padding-inline: var(--space-4);
   color: var(--ink-muted);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .state-dot {
@@ -415,7 +415,7 @@
   background: transparent;
   border: 1px solid transparent;
   border-radius: 4px;
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
   cursor: pointer;
 }
 
@@ -833,7 +833,7 @@
   color: var(--ink-dim);
   border-top: 1px solid var(--hairline);
   font-family: var(--font-mono);
-  font-size: 0.68rem;
+  font-size: var(--text-xs);
 }
 
 .site-footer a {
@@ -941,7 +941,7 @@
 .atlas-toolbar > div:first-child span {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: var(--text-2xs);
   text-transform: uppercase;
   letter-spacing: 0.06em;
 }
@@ -975,7 +975,7 @@
   background: transparent;
   border: 0;
   font-family: var(--font-mono);
-  font-size: 0.58rem;
+  font-size: var(--text-2xs);
   cursor: pointer;
 }
 
@@ -1049,7 +1049,7 @@
   margin-bottom: var(--space-6);
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.55rem;
+  font-size: var(--text-3xs);
 }
 
 .atlas-stage-icon {

@@ -4,15 +4,18 @@ import {
   BufferAttribute,
   Color,
   DoubleSide,
+  EdgesGeometry,
   Group,
+  LineBasicMaterial,
+  LineSegments,
   Material,
   Mesh,
   MeshBasicMaterial,
   Object3D,
   PerspectiveCamera,
   Raycaster,
-  Scene,
   SRGBColorSpace,
+  Scene,
   Texture,
   Vector2,
   Vector3,
@@ -415,12 +418,42 @@ async function applyDeviationHeatmap(
     mesh.material = material;
   });
 
-  source.traverse((child) => {
-    if (!(child instanceof Mesh)) return;
-    const material = new MeshBasicMaterial({ color: '#d7d9d2', wireframe: true, transparent: true, opacity: 0.12, depthWrite: false });
-    materials.add(material);
-    child.material = material;
-    child.renderOrder = 2;
+  /**
+   * The reference surface, as feature edges rather than a full-mesh wireframe.
+   *
+   * This used to set `wireframe: true` on every source mesh at 0.12 opacity. On the shipped
+   * 54,365-vertex ship that measured **115,251 line primitives per frame** — nearly double the
+   * 58,266 of the full-mesh wireframe already removed from the motion lab for the same reason, and
+   * against a 2,000 budget. `render-budget.spec.ts` did not reach this mode until now, and this
+   * file's own "not covered" note named it as the most likely place such an overlay would reappear.
+   * It had.
+   *
+   * The intent is worth keeping: the heatmap shades the CANDIDATE, so without some trace of the
+   * source there is no cue for where the reference extends past it — which is exactly what the
+   * legend's "no reference surface within range" count is about. `EdgesGeometry` keeps that cue and
+   * drops the rest: only edges whose adjacent faces exceed the threshold angle, so silhouette and
+   * hard features survive while the interior tessellation — which at 0.12 opacity read as grey
+   * haze, not as structure — does not.
+   */
+  const edgeMaterial = new LineBasicMaterial({ color: '#d7d9d2', transparent: true, opacity: 0.22, depthWrite: false });
+  materials.add(edgeMaterial);
+  /**
+   * Collected first, then mutated. Attaching the edges to the mesh itself does not work: `visible`
+   * is inherited in three, so hiding the mesh hides the very overlay meant to replace it — which
+   * measured as a clean `lines/f=0` and read as a pass. Zero line primitives here does not mean
+   * "budget respected", it means the reference surface is not drawn at all, so the assertion in
+   * render-budget.spec.ts now requires this to be above zero as well as under the ceiling.
+   */
+  const sourceMeshes: Mesh[] = [];
+  source.traverse((child) => { if (child instanceof Mesh) sourceMeshes.push(child); });
+  sourceMeshes.forEach((child) => {
+    const edges = new LineSegments(new EdgesGeometry(child.geometry, 60), edgeMaterial);
+    edges.position.copy(child.position);
+    edges.quaternion.copy(child.quaternion);
+    edges.scale.copy(child.scale);
+    edges.renderOrder = 2;
+    child.parent?.add(edges);
+    child.visible = false;
   });
 
   return { mean: outcome.mean, maximum: outcome.maximum, samples: outcome.samples, unmeasured: outcome.unmeasured };
