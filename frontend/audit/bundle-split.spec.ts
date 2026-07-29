@@ -33,6 +33,9 @@ const EAGER_CHUNK_CEILING = 450 * 1024;
 interface Script { name: string; bytes: number; phase: 'eager' | 'scrolled' }
 
 test('landing does not download the renderer before the rig is reached', async ({ page }) => {
+  // Loads the page twice over in effect — once eagerly, then again for the chunk the scroll pulls
+  // in — and decodes every script body to measure it. Well past the 30s default on a CI runner.
+  test.setTimeout(120_000);
   const pending: Promise<void>[] = [];
   const scripts: Script[] = [];
   let phase: Script['phase'] = 'eager';

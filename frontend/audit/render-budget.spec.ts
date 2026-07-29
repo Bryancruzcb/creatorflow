@@ -103,6 +103,17 @@ const MAX_LINE_PRIMITIVES_PER_FRAME = 2000;
 for (const target of TARGETS) {
   const surface = surfaces.find((s) => s.id === target.id);
   test(`renders · ${target.label}`, async ({ page }) => {
+    /**
+     * These four are the slowest tests in the suite and do not fit the 30s default on CI.
+     *
+     * Each one loads a surface, waits out a settle, drives an interaction and then waits again for
+     * frames to accumulate. The landing rig is the worst of them: it additionally fetches the
+     * ~600 kB renderer chunk it is deliberately code-split behind, decodes a glTF and runs the
+     * comparison engine before it draws anything. On a software rasteriser that overran 30s and
+     * failed at `readGlStats` — a timeout, not a rendering fault, but indistinguishable from one
+     * in the report.
+     */
+    test.setTimeout(150_000);
     expect(surface, `${target.id} is not in surfaces.ts`).toBeTruthy();
     await page.setViewportSize({ width: 1440, height: 1000 });
 
