@@ -12,11 +12,10 @@ import {
   ShieldCheck,
   X,
 } from 'lucide-react';
-import { motion, useReducedMotion, useScroll, useSpring, useTransform } from 'framer-motion';
-import { useEffect, useRef, useState } from 'react';
+import { motion, useReducedMotion, useScroll, useSpring } from 'framer-motion';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AssetArtwork } from './components/AssetArtwork';
-import { MatchFinding, SourceRecordSheet } from './components/DossierArtwork';
-import './components/DossierArtwork.css';
+import './components/DossierStage.css';
 import { BrandMark } from './components/BrandMark';
 import { EvidenceAtlas } from './components/EvidenceAtlas';
 import { HeroWorkspace } from './components/HeroWorkspace';
@@ -29,8 +28,14 @@ import './components/LandingTreatment.css';
 import './components/WorkflowScrub.css';
 import { PreflightWorkspace } from './components/PreflightWorkspace';
 import { ProductWorkspace } from './components/ProductWorkspace';
-import { StatusMark } from './components/StatusMark';
 import { workflowSteps } from './data';
+
+/**
+ * three is ~600 kB and is otherwise absent from the landing bundle, so the rig arrives on its own
+ * chunk and only once the section is close. `ProductWorkspace` already splits its four viewers the
+ * same way; a marketing page paying the renderer's download cost on first paint would be worse.
+ */
+const DossierStage = lazy(() => import('./components/DossierStage').then((module) => ({ default: module.DossierStage })));
 
 function scrollTo(id: string) {
   document.getElementById(id)?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
@@ -170,38 +175,52 @@ function WorkflowSection() {
   );
 }
 
+/**
+ * Was three tilted paper sheets and a three-point bullet list.
+ *
+ * All of it asserted that evidence travels with an exception and none of it showed one, so a
+ * reader had to take the section's own headline on faith after a wall of prose. It now runs the
+ * comparison engine live against two clips on the sample rig and colours the joints the engine
+ * flags — the claim and its proof are the same object. See `components/DossierStage.tsx`.
+ */
 function DossierSection() {
   const ref = useRef<HTMLElement>(null);
-  const reduceMotion = useReducedMotion();
-  const { scrollYProgress } = useScroll({ target: ref, offset: ['start end', 'end start'] });
-  const leftY = useTransform(scrollYProgress, [0, 1], reduceMotion ? [0, 0] : [70, -50]);
-  const rightY = useTransform(scrollYProgress, [0, 1], reduceMotion ? [0, 0] : [25, -85]);
+  const [near, setNear] = useState(false);
+
+  /**
+   * Hold the chunk back until the section is roughly a screen away.
+   *
+   * `lazy` alone would still fetch three as soon as React rendered the boundary, which on this
+   * page is immediately — the section is mounted at the top of the tree even though it sits well
+   * below the fold.
+   */
+  useEffect(() => {
+    const node = ref.current;
+    if (!node || near) return;
+    if (typeof IntersectionObserver === 'undefined') {
+      setNear(true);
+      return;
+    }
+    const observer = new IntersectionObserver((entries) => {
+      if (!entries.some((entry) => entry.isIntersecting)) return;
+      setNear(true);
+      observer.disconnect();
+    }, { rootMargin: '600px 0px' });
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, [near]);
 
   return (
     <section className="dossier-section" id="product" ref={ref} aria-labelledby="dossier-title">
       <div className="dossier-copy">
         <p className="section-index">Evidence before confidence</p>
         <h2 id="dossier-title">Every exception arrives with context.</h2>
-        <p>The file, its source, its license, and the human decision stay together.</p>
-        <ul className="dossier-points">
-          <li><Fingerprint size={17} /><span><strong>Deterministic checks</strong>Exact hashes, image and audio fingerprints, and metadata.</span></li>
-          <li><FolderLock size={17} /><span><strong>Local by default</strong>Files stay on your machine. Registries receive fingerprints only.</span></li>
-          <li><FileArchive size={17} /><span><strong>Portable release record</strong>Export the evidence and every human decision as one manifest.</span></li>
-        </ul>
+        <p>Two clips from one rig. Every joint the check flags is lit on the model — pick one.</p>
       </div>
 
-      <div className="dossier-stage" aria-label="Layered evidence dossier">
-        <motion.div className="dossier-sheet dossier-sprite" style={{ y: leftY }}><span>The finding</span><MatchFinding /></motion.div>
-        <motion.div className="dossier-sheet dossier-license" style={{ y: rightY }}><span>The record</span><SourceRecordSheet /></motion.div>
-        <div className="dossier-sheet dossier-manifest">
-          <div className="manifest-pin" aria-hidden="true" />
-          <span>Release manifest</span>
-          <h3>Northwind</h3>
-          <dl><div><dt>Version</dt><dd>1.2.0</dd></div><div><dt>Files</dt><dd>248</dd></div><div><dt>Blocked</dt><dd>2</dd></div></dl>
-          <div className="manifest-rule" />
-          <StatusMark value="review" />
-        </div>
-      </div>
+      <Suspense fallback={<div className="evidence-rig-placeholder" aria-hidden="true" />}>
+        {near ? <DossierStage /> : <div className="evidence-rig-placeholder" aria-hidden="true" />}
+      </Suspense>
     </section>
   );
 }

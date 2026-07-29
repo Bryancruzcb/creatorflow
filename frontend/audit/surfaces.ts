@@ -20,7 +20,9 @@ export interface Surface {
 }
 
 export const surfaces: Surface[] = [
-  { id: 'landing', url: `${APP}/`, ready: 'h1' },
+  // Heavy since the dossier section became a live rig: the landing page now mounts a WebGL
+  // context of its own, and without the settle delay every audit measured it mid-load.
+  { id: 'landing', url: `${APP}/`, ready: 'h1', heavy: true },
   { id: 'app-overview', url: `${APP}/#workspace?view=overview`, ready: '.product-workspace' },
   { id: 'app-evidence', url: `${APP}/#workspace?view=evidence`, ready: '.product-workspace' },
   { id: 'app-assets', url: `${APP}/#workspace?view=assets`, ready: '.product-workspace' },
