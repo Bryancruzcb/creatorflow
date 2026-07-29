@@ -17,6 +17,23 @@ import { open, surfaces } from './surfaces';
 /** Measured on this build; see the table in audit/README.md. */
 const TARGETS = [
   {
+    id: 'landing',
+    label: 'landing dossier rig',
+    /**
+     * Scroll to the section before measuring.
+     *
+     * The rig is held back behind an IntersectionObserver so three is not downloaded by a visitor
+     * who never reaches the section, and `createCanvasRenderLoop` suspends it again whenever it is
+     * offscreen. Measuring from the top of the page therefore reports zero contexts and zero
+     * frames — which is correct behaviour and would read here as a broken viewer.
+     */
+    prepare: async (page: import('@playwright/test').Page) => {
+      await page.locator('#product').scrollIntoViewIfNeeded();
+      await page.waitForSelector('.evidence-rig-canvas', { timeout: 20_000 });
+      await page.waitForTimeout(2500);
+    },
+  },
+  {
     id: 'app-gallery',
     label: 'model gallery',
     prepare: null as null | ((page: import('@playwright/test').Page) => Promise<void>),
@@ -49,11 +66,20 @@ const TARGETS = [
     label: 'heavy asset viewer',
     // The heavy viewer is opt-in: the surface renders a list and a still until you ask for the
     // model. Measuring without this click reports zero and would read as a broken viewer.
+    /**
+     * Waits for the canvas rather than only sleeping.
+     *
+     * The fixed 5s settle was enough while three GPU-heavy surfaces ran concurrently. The landing
+     * rig makes four, and under that much contention this occasionally measured a viewer that had
+     * clicked but not yet uploaded its geometry — reported as "no geometry was submitted", which
+     * reads like the defect the gate exists to catch rather than the timing artefact it was.
+     */
     prepare: async (page: import('@playwright/test').Page) => {
       const load = page.getByRole('button', { name: /Load 3D model/i }).first();
       if (await load.count()) {
         await load.click();
-        await page.waitForTimeout(5000);
+        await page.waitForSelector('canvas', { timeout: 30_000 }).catch(() => undefined);
+        await page.waitForTimeout(6000);
       }
     },
   },
