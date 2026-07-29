@@ -7,14 +7,14 @@
     "robot:hold:Dance": true,
     "robot:rescale:Dance": true,
     "robot:relocate:Dance": true,
-    "robot:mirror:Dance": true,
+    "robot:mirror:Dance": false,
     "robot:reupload:Death": true,
     "robot:retime-fast:Death": true,
     "robot:retime-slow:Death": true,
     "robot:hold:Death": true,
     "robot:rescale:Death": true,
     "robot:relocate:Death": true,
-    "robot:mirror:Death": true,
+    "robot:mirror:Death": false,
     "robot:reupload:Idle": true,
     "robot:retime-fast:Idle": true,
     "robot:retime-slow:Idle": true,
@@ -125,7 +125,7 @@
     "robot:neg:Death-vs-Wave": false,
     "robot:neg:Death-vs-Yes": false,
     "robot:neg:Idle-vs-Jump": false,
-    "robot:neg:Idle-vs-No": true,
+    "robot:neg:Idle-vs-No": false,
     "robot:neg:Idle-vs-Punch": false,
     "robot:neg:Idle-vs-Running": false,
     "robot:neg:Idle-vs-Sitting": false,
@@ -134,7 +134,7 @@
     "robot:neg:Idle-vs-Walking": false,
     "robot:neg:Idle-vs-WalkJump": false,
     "robot:neg:Idle-vs-Wave": false,
-    "robot:neg:Idle-vs-Yes": true,
+    "robot:neg:Idle-vs-Yes": false,
     "robot:neg:Jump-vs-No": false,
     "robot:neg:Jump-vs-Punch": false,
     "robot:neg:Jump-vs-Running": false,
@@ -166,7 +166,7 @@
     "robot:neg:Running-vs-Standing": false,
     "robot:neg:Running-vs-ThumbsUp": false,
     "robot:neg:Running-vs-Walking": false,
-    "robot:neg:Running-vs-WalkJump": true,
+    "robot:neg:Running-vs-WalkJump": false,
     "robot:neg:Running-vs-Wave": false,
     "robot:neg:Running-vs-Yes": false,
     "robot:neg:Sitting-vs-Standing": false,
@@ -234,11 +234,11 @@
     "riggedFigure:mirror:animation_0": false
   },
   "recall": {
-    "hit": 122,
+    "hit": 120,
     "total": 133
   },
   "falsePositives": {
-    "hit": 4,
+    "hit": 1,
     "total": 97
   }
 }

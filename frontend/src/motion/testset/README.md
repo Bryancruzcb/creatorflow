@@ -7,10 +7,12 @@ prints a recall / false-positive scorecard. Since the Phase 1b cutover the live 
 IS the graded v2: `analyzeMotionClips`'s shape/timing modes run `clipToNormalized` →
 `compareMotion` (DTW + de-weight + coverage-attenuated composition); the old TS
 heuristic engine is deleted from shape/timing, while loop and root remain TS-only
-add-on views. Thresholds: the UI review threshold (85) is a UI preference for
-surfacing review candidates; the registry verdict bands live in the engine
-(HIGH ≥ 90, MODERATE ≥ 70) — so this scorecard and the tuned one differ only in
-the 85–90 flag band. Per-case flag outcomes are pinned in
+add-on views. Thresholds: the UI review threshold (90 since issue #43) is a UI
+preference for surfacing review candidates; the registry verdict bands live in
+the engine (HIGH ≥ 90, MODERATE ≥ 70). The two now coincide numerically but stay
+different things — one is what a person is shown, the other is what the engine
+concludes — so they are still reported separately rather than merged. Per-case
+flag outcomes are pinned in
 `scorecard.baseline.json` — an engine change that moves any case across the flag
 threshold fails CI until the baseline is regenerated on purpose:
 
@@ -62,9 +64,11 @@ expect the baseline to need a rerun afterwards.
 `compareNormalized`) on the same case list and pins `scorecard.ported.baseline.json`
 (regenerate deliberately: `UPDATE_MOTION_PORTED_BASELINE=1 npm test`; PowerShell:
 `$env:UPDATE_MOTION_PORTED_BASELINE = '1'; npm test; Remove-Item Env:UPDATE_MOTION_PORTED_BASELINE`).
-The two engines use different flag thresholds by design (live UI: score ≥ 85;
-ported: its own ≥ 90 HIGH band), so compare the two scorecards side by side, not
-row-by-row against a shared bar. The live app runs v2 since the Phase 1b cutover;
+The two engines flag on different grounds by design (live UI: the review-threshold
+preference, 90 since issue #43; ported: its own ≥ 90 HIGH band). Those are the same
+number today and still not the same rule — the UI one is a per-device preference a
+person can move, the band is engine behaviour — so compare the two scorecards side
+by side, not row-by-row against a shared bar. The live app runs v2 since the Phase 1b cutover;
 see "v2 web engine (Phase 1b)" below for the graded engine and its parity anchor.
 
 ## v2 web engine (Phase 1b)
@@ -118,16 +122,24 @@ of scope entirely**. Real accuracy against real Roblox animations remains uncoll
 operating point the product ships, and commits the curve (`sweep.baseline.json`) so a tuning change
 has to show its cost. Regenerate with `UPDATE_MOTION_SWEEP_BASELINE=1 npm test`.
 
-At the time of writing, the shipped threshold (85) is **not** the precision-optimal choice on this
-set — 90 removes three of the four false positives for two true positives, and scores a slightly
-better F1:
+The sweep is what moved the operating point from 85 to 90 (issue #43, decided 2026-07-29):
 
 | threshold | precision | recall | F1 |
 | --- | --- | --- | --- |
-| 85 (shipped) | 0.968 | 0.917 | 0.942 |
-| 90 | **0.992** | 0.902 | **0.945** |
+| 85 (was shipped) | 0.968 | 0.917 | 0.942 |
+| **90 (shipped)** | **0.992** | 0.902 | **0.945** |
 
-Given the product's stated priority — a false accusation is the worst output it can produce — that
-is a live argument for moving the operating point. Deliberately not changed here: the threshold is
-a product decision, and the friend test may reprice it against real data.
+Five of 231 cases moved, all from flagged to unflagged — three false positives removed
+(`neg:Idle-vs-No`, `neg:Idle-vs-Yes`, `neg:Running-vs-WalkJump`) against two true positives lost
+(`mirror:Dance`, `mirror:Death`).
+
+Both losses landing in `mirror` is the reason this was worth taking rather than a coincidence to
+note. Mirror recall was 42.1% at 85 and is 31.6% at 90 — a class the engine only ever detected by
+accident, because mirroring a quaternion is an improper reflection rather than a sign flip, and one
+that issue #16 exists to fix properly with mirror canonicalization. The two cases given up here are
+in the one category already known to be broken; the three false positives removed are in the
+category the product says matters most.
+
+The friend test may still reprice this against real Roblox data, which is a better reason to move
+it again than a better F1 would be.
 

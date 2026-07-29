@@ -38,7 +38,7 @@ export const DEFAULT_WORKSPACE_PREFERENCES: Readonly<WorkspacePreferences> = Obj
   autoplay: true,
   poseTrail: true,
   previewQuality: 'balanced',
-  reviewThreshold: 85,
+  reviewThreshold: 90,
   releaseDefaultView: 'guided',
 });
 
