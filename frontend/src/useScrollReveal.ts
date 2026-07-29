@@ -18,12 +18,12 @@ import { prefersReducedMotion } from './motion/preferences';
 
 const TARGETS = [
   '.workflow-heading',
-  '.workflow-list > li',
+  '.workflow-record',
   '.atlas-narrative',
   '.atlas-scene',
   '.atlas-caption',
   '.dossier-copy',
-  '.dossier-stage',
+  '.evidence-rig',
   '.why-statement',
   '.why-comparison',
   '.truth-line',
