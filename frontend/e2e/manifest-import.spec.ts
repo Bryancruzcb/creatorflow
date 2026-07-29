@@ -3,14 +3,29 @@ import path from 'node:path';
 
 const realManifest = path.resolve('public/assets/creatorflow-real-assets-manifest.json');
 
-async function openProjectMenu(page: Page) {
-  // A first-visit welcome dialog covers the page in a fresh browser context and intercepts
-  // pointer events until dismissed; it only ever shows once per (real) visitor.
-  const dismissWelcome = page.getByRole('button', { name: 'Dismiss welcome' });
-  if (await dismissWelcome.isVisible().catch(() => false)) {
-    await dismissWelcome.click();
-  }
+/**
+ * Suppress the first-visit welcome dialog before any page script runs.
+ *
+ * This is the fix for a coin-flip flake, not tidying. The dialog covers the page in a fresh context
+ * and swallows pointer events, and `openProjectMenu` used to handle it with
+ * `if (await dismissWelcome.isVisible())` — an INSTANTANEOUS check with no waiting. The dialog
+ * decides whether to mount by reading localStorage during render, so the check races it: lose the
+ * race and the branch is skipped, the dialog then appears, and every later interaction fails with
+ * "element(s) not found" from a locator that has nothing to do with the dialog.
+ *
+ * It failed three CI runs and passed two while I was watching, and I called it a flake and moved on
+ * once. It is a race with a cause, and this removes the cause rather than widening a timeout.
+ *
+ * `addInitScript` runs before the app, so the dialog never mounts at all. Key must match
+ * WELCOME_KEY in WorkspaceWelcome.tsx — audit/surfaces.ts does the same thing for the same reason.
+ */
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    try { localStorage.setItem('creatorflow:welcomed', '1'); } catch { /* private mode */ }
+  });
+});
 
+async function openProjectMenu(page: Page) {
   const switcher = page.getByRole('button', { name: /Switch project\. Current dataset:/ });
   await switcher.focus();
   await page.keyboard.press('Enter');
