@@ -1,0 +1,359 @@
+/**
+ * The evidence rig: a live model on the left, the evidence for whatever you clicked on the right.
+ *
+ * Namespaced away from the `.dossier-*` sheet styles it replaces rather than reusing those class
+ * names. The old composition was three absolutely-positioned sheets inside a 52rem-tall stage, and
+ * inheriting any of that geometry into a WebGL viewport would have meant unpicking it by trial. A
+ * separate namespace also means the two can coexist for as long as it takes to delete the old one.
+ */
+
+.evidence-rig {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: stretch;
+}
+
+/**
+ * The panel stops being a sidebar below this width and becomes the block underneath.
+ *
+ * Chosen from the panel's own content rather than a device: the joint chips need about 19rem
+ * before `UpperLeg.R 50%` starts wrapping mid-chip, and the viewport needs roughly 32rem before
+ * the rig is too small to pick a limb out of. Below their sum there is no side-by-side worth
+ * having.
+ */
+@media (min-width: 62rem) {
+  .evidence-rig {
+    grid-template-columns: minmax(0, 1fr) minmax(19rem, 22rem);
+  }
+}
+
+/**
+ * Holds the section's height before the chunk arrives.
+ *
+ * The rig is deliberately not fetched until the section is close, so without a reserved box the
+ * whole page below it jumps by roughly 26rem at the moment it mounts — the layout shift would be
+ * caused by the very optimisation meant to make the page feel fast.
+ */
+.evidence-rig-placeholder {
+  min-height: 24rem;
+  border: 1px solid var(--hairline);
+}
+
+@media (min-width: 62rem) {
+  .evidence-rig-placeholder {
+    min-height: 30rem;
+  }
+}
+
+/* ---------------------------------------------------------------- viewport */
+
+/**
+ * Height comes from the row, width from the column. Never the other way round.
+ *
+ * This was authored with `aspect-ratio: 16 / 11`, which looked right and was not: a grid item
+ * stretches to the row height by default, and an aspect-ratio on a stretched item resolves the
+ * WIDTH from that height. The row is as tall as the evidence panel, so the viewport computed
+ * itself at 1105px inside a 920px column and covered the panel — chips included, which is why
+ * they could not be clicked. `width: 100%` pins the width to the column and lets the stretch do
+ * what it was already going to do.
+ */
+.evidence-rig-viewport {
+  position: relative;
+  width: 100%;
+  min-width: 0;
+  min-height: 24rem;
+  margin: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(120% 90% at 50% 8%, oklch(28% 0.012 240) 0%, oklch(19% 0.008 240) 62%, oklch(16% 0.006 240) 100%);
+  border: 1px solid var(--hairline);
+}
+
+@media (min-width: 62rem) {
+  .evidence-rig-viewport {
+    min-height: 30rem;
+  }
+}
+
+.evidence-rig-canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  cursor: grab;
+  /**
+   * One finger rotates the rig; vertical drags still scroll the page.
+   *
+   * Without this the canvas swallows touch entirely, and a visitor who happens to start a scroll
+   * with their thumb on the model gets stuck on the section — a landing page that traps the scroll
+   * is worse than one with no 3D at all.
+   */
+  touch-action: pan-y;
+}
+
+.evidence-rig-canvas:active {
+  cursor: grabbing;
+}
+
+.evidence-rig-poster {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: var(--space-4);
+  justify-items: center;
+  padding: var(--space-6);
+  text-align: center;
+  background: inherit;
+}
+
+.evidence-rig-poster img {
+  width: min(11rem, 45%);
+  height: auto;
+  opacity: 0.32;
+}
+
+.evidence-rig-poster span {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+}
+
+/* --------------------------------------------------------------- transport */
+
+.evidence-rig-transport {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4);
+  /* The rig's feet land here. Without a scrim the mono labels sit on the model and neither reads. */
+  background: linear-gradient(to top, oklch(14% 0.006 240 / 0.92), oklch(14% 0.006 240 / 0));
+}
+
+.evidence-rig-clips {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.evidence-rig-clips button,
+.evidence-rig-reset {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  background: oklch(22% 0.008 240 / 0.86);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+}
+
+.evidence-rig-clips button:hover,
+.evidence-rig-reset:hover {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+
+.evidence-rig-clips button[aria-pressed='true'] {
+  color: var(--ink);
+  background: var(--blue-solid);
+  border-color: var(--blue-solid);
+}
+
+/* ------------------------------------------------------------------- panel */
+
+.evidence-rig-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-width: 0;
+  padding: var(--space-6);
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+}
+
+.evidence-rig-head {
+  display: grid;
+  gap: var(--space-2);
+}
+
+.evidence-rig-eyebrow {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.evidence-rig-overall {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.evidence-rig-overall span {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+}
+
+/* ------------------------------------------------------------------- chips */
+
+.evidence-rig-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.evidence-rig-chip {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-muted);
+  background: var(--graphite);
+  border: 1px solid var(--hairline);
+  cursor: pointer;
+}
+
+.evidence-rig-chip:hover {
+  color: var(--ink);
+  border-color: var(--hairline-strong);
+}
+
+.evidence-rig-chip[aria-pressed='true'] {
+  color: var(--ink);
+  background: var(--raised-strong);
+  border-color: var(--blue-accent);
+}
+
+.evidence-rig-chip em {
+  font-style: normal;
+  color: var(--ink-dim);
+}
+
+.evidence-rig-chip[aria-pressed='true'] em {
+  color: var(--ink-muted);
+}
+
+/**
+ * The chip's swatch is sampled from the same ramp that tints the mesh.
+ *
+ * That is the entire join between the two halves of this section: the colour on the chip and the
+ * colour on the limb come from one `sampleRamp` call each, against one score. If they ever drift
+ * apart the section is lying about which part it is pointing at.
+ */
+.evidence-rig-swatch {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px oklch(100% 0 0 / 0.16);
+}
+
+/* ------------------------------------------------------------------ detail */
+
+.evidence-rig-detail {
+  display: grid;
+  gap: var(--space-1);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hairline);
+}
+
+.evidence-rig-joint {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 1.05rem;
+  color: var(--ink);
+}
+
+.evidence-rig-score {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+}
+
+.evidence-rig-score strong {
+  font-weight: 500;
+  color: var(--review);
+}
+
+/* -------------------------------------------------------------- provenance */
+
+.evidence-rig-meta {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--hairline);
+}
+
+.evidence-rig-meta > div {
+  display: grid;
+  grid-template-columns: 6.5rem minmax(0, 1fr);
+  gap: var(--space-3);
+  align-items: baseline;
+}
+
+.evidence-rig-meta dt {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.evidence-rig-meta dd {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+  margin: 0;
+  /* Long attribution and filenames must wrap rather than push the panel wider than its column. */
+  min-width: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.85rem;
+  color: var(--ink);
+}
+
+.evidence-rig-local {
+  display: flex;
+  gap: var(--space-2);
+  align-items: flex-start;
+  margin: 0;
+  padding-top: var(--space-4);
+  font-size: 0.85rem;
+  color: var(--ink-muted);
+  border-top: 1px solid var(--hairline);
+}
+
+.evidence-rig-local > svg {
+  flex: none;
+  margin-top: 0.15rem;
+  color: var(--blue-accent);
+}
+
+/**
+ * Nothing moves for a visitor who asked for nothing to move.
+ *
+ * The rig still renders and stays clickable — the component freezes the mixer on the frame the
+ * engine reports as the largest difference, so the static pose is the one the section is actually
+ * about. This block only has to stop the idle spin's transition on the chips.
+ */
+@media (prefers-reduced-motion: reduce) {
+  .evidence-rig-chip,
+  .evidence-rig-clips button,
+  .evidence-rig-reset {
+    transition: none;
+  }
+}
