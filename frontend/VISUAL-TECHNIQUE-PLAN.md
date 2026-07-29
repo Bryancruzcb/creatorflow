@@ -38,6 +38,25 @@ compressed assets can load at all under the Pages base.
 
 ## Next, in order
 
+> **Status audit, 2026-07-29.** This section had gone stale in the direction that wastes the most
+> time: it lists finished work as "next", and item 1 says "do this first" when item 1 is done. Each
+> item below was re-checked against its own *Done when* criterion, which is why those criteria were
+> written as testable conditions in the first place.
+>
+> | item | status | evidence |
+> |---|---|---|
+> | 1. `sceneFoundation` in remaining viewers | **done** (stated criterion) | `new DirectionalLight` appears only in `motion/sceneFoundation.ts`; all four viewers import it. The "visually identical" half is unverified — no gate renders one asset through all four. |
+> | 2. Shader-based deviation channel | **delivered, differently** | Per-vertex distance shaded through one perceptual ramp with a legend in stated units — but as its own `heatmap` mode, not by replacing `overlay`. Overlay still superimposes two meshes. |
+> | 3. Phase-spaced pose trail | **done** | Three members (`TRAIL_OPACITY = [0.5, 0.34, 0.2]`) at `TRAIL_SPACING = 0.075`; the clamp-to-zero that made frame zero silently do nothing is gone, and members with no history render nothing instead of stacking on the live pose. |
+> | 4. Root-path ribbon | **partly** | Start/end markers exist (`marker(path, 'start' \| 'end')`). Vertical travel and the degenerate in-place empty state are unverified. |
+> | 5. One perceptual ramp | **done** | `DEVIATION_RAMP` measured monotonic in luminance: 0.0155 → 0.0986 → 0.2139 → 0.3717 → 0.6651. `NO_DATA_HEX` (`#3a3a38`, luminance 0.0421) is distinct from the ramp maximum. |
+> | 5a. Heatmap performance | **done, measured** | See below — minutes to ~0.5 s on the asset it named. |
+> | 6. Type scale | **in progress** | `app-project` migrated and enforced; 84 rules across 10 surfaces remain. |
+>
+> So the real remaining work in this section is **item 4's unverified half, item 6, and the
+> "visually identical" check item 1 never got.** Everything else is history and is kept below for
+> the reasoning, not as a to-do list.
+
 ### 1. Adopt `sceneFoundation` in the remaining viewers
 `GlbComparisonViewer`, `HeavyAssetViewer`, `AnimatedAssetViewer` still build their own rigs. Their
 key lights sit at 4.1 / 4.4 / 4.6 against the shared rig's 2.4, and their pixel-ratio caps differ,
@@ -98,31 +117,49 @@ provenance tool a high score is the *review* case. The scenario pills already ge
 *Done when:* one ramp, monotonic in luminance, colour-blind safe, with a legend above 11px, and
 "no data" visually distinct from "maximum".
 
-### 5a. The deviation heatmap is too slow to use on a real component — KNOWN, UNFIXED
+### 5a. The deviation heatmap was too slow to use on a real component — FIXED, MEASURED
 
-Found by finally driving the view on a real asset, which only became possible once the showcase
-ships were actually deployed. Selecting **Deviation heatmap** on the ~52k-triangle ship hull leaves
-"Computing normalized surface deviation…" on screen for **minutes**, and Chrome reports the
-renderer as unresponsive. It is a main-thread nearest-neighbour search over up to 60,000 source
-points for every vertex of the target.
+**Corrected 2026-07-29.** This section said "KNOWN, UNFIXED" and prescribed getting the search off
+the main thread. That work landed and nobody came back to update this file, so the plan has been
+telling readers to go and do a finished job.
 
-Two exact optimisations are already in (neither changes the result):
+What it used to say, and it was true when written: selecting **Deviation heatmap** on the
+~52k-triangle ship hull left "Computing normalized surface deviation…" on screen for **minutes**
+with Chrome reporting the renderer unresponsive, because it was a main-thread nearest-neighbour
+search over up to 60,000 source points for every vertex of the target.
 
-- scan only the shell at each search radius instead of rescanning the inner cells — 153 cell
-  lookups per vertex down to at most 125;
-- stop as soon as the best hit is closer than the next ring could possibly contain.
+Three things fixed it, none of which changed a single reported number:
 
-They help, and they are not enough: the early-exit only pays off when a near neighbour exists, and
-the whole point of this view is components that differ. The grid was also rekeyed from
-`${x}:${y}:${z}` template literals to packed integers, removing ~10 million string allocations.
+- scan only the shell at each search radius instead of rescanning the inner cells — 153 cell lookups
+  per vertex down to at most 125;
+- stop as soon as the best hit is closer than the next ring could possibly contain;
+- **the search moved to a worker** (`motion/deviation.worker.ts`, spawned by `HeavyAssetViewer`),
+  with real fractional progress on a `role="progressbar"` and `AbortSignal` cancellation. The grid
+  was also rekeyed from `${x}:${y}:${z}` template literals to packed integers, removing ~10 million
+  string allocations.
 
-**The real fix is to get it off the main thread** — a worker, or chunking across frames with real
-progress — not further micro-optimisation. Until then the feature is effectively unusable on
-anything large, and the "Computing…" state is indefinite rather than slow.
+Measured on the asset this section named — `dutch-ship-large-01.glb`, driven through the real UI in
+Chrome at 1440, timed from clicking **Deviation heatmap** to the legend appearing:
 
-Do not "fix" this by quietly cutting the sample count. The legend reports how many vertices were
-sampled, and trading measurement precision for speed without saying so is the kind of quiet
-inaccuracy the rest of this work exists to remove.
+| run | time | result |
+|---|---|---|
+| 1 | 555 ms | mean 1.14% · max 7.70% of frame · 54,365 vertices sampled |
+| 2 | 510 ms | identical |
+| 3 | 506 ms | identical |
+
+Minutes to about half a second, with the same sample count and the same figures in all three runs —
+so this is the same computation, not a cheapened one. The `AbortSignal` path also means a cancelled
+search now throws rather than resolving `{ mean: 0, maximum: 0, samples: 0 }`, which used to read as
+a flawless match over zero evidence.
+
+Do not "fix" any future slowness by quietly cutting the sample count. The legend reports how many
+vertices were sampled, and trading measurement precision for speed without saying so is the kind of
+quiet inaccuracy the rest of this work exists to remove.
+
+**Still true, and not measured here:** this is one component of one asset. Nothing establishes the
+ceiling — a pair with no near neighbours anywhere defeats the early exit, which is the case the old
+note correctly worried about. `render-budget.spec.ts` does not reach the comparison modes, so no
+gate holds this number.
 
 ### 6. Type scale — much bigger than this file used to claim
 
