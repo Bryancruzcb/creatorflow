@@ -25,10 +25,10 @@ import { useScrollReveal } from './useScrollReveal';
 import './components/MotionField.css';
 import './components/LandingReveal.css';
 import './components/LandingTreatment.css';
-import './components/WorkflowScrub.css';
+import { WorkflowRecord } from './components/WorkflowRecord';
+import './components/WorkflowRecord.css';
 import { PreflightWorkspace } from './components/PreflightWorkspace';
 import { ProductWorkspace } from './components/ProductWorkspace';
-import { workflowSteps } from './data';
 
 /**
  * three is ~600 kB and is otherwise absent from the landing bundle, so the rig arrives on its own
@@ -99,78 +99,25 @@ function AtlasSection() {
   );
 }
 
+/**
+ * Was four rows of prose, each ending in a label naming an artefact it never showed.
+ *
+ * The steps are unchanged — they were already the right four. Each one now reveals the part of a
+ * real release manifest it produces, so the section demonstrates "carry the proof forward"
+ * instead of asserting it. See `components/WorkflowRecord.tsx`.
+ *
+ * The scroll-scrubbed rail went with it. It was a position readout for a list that no longer
+ * exists, and a second progress indicator beside the step buttons would compete with them.
+ */
 function WorkflowSection() {
-  const ref = useRef<HTMLElement>(null);
-  const reduceMotion = useReducedMotion();
-  // The rail is a position readout, not an ornament: it says how far through the four
-  // accountable steps the reader is, and each step marks itself once the rail passes it.
-  //
-  // Written straight to the DOM as a custom property rather than held in React state. Two
-  // reasons: driving it through state re-renders the whole section on every scroll frame, and
-  // the state update also raced the scroll badly enough that the rendered fill disagreed with
-  // the measured position. useScroll({ target }) was tried first and mis-measured inside the
-  // shell's `overflow: clip`, snapping 0 to 1 with nothing in between.
-  useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-
-    if (reduceMotion) {
-      el.style.setProperty('--cf-progress', '1');
-      el.querySelectorAll('li').forEach((li) => li.setAttribute('data-reached', 'true'));
-      return;
-    }
-
-    let queued = false;
-    function measure() {
-      queued = false;
-      const node = ref.current;
-      if (!node) return;
-      const rect = node.getBoundingClientRect();
-      const start = window.innerHeight * 0.78;   // begins as the section rises past 78% of the fold
-      const end = window.innerHeight * 0.55;     // completes as its base clears 55%
-      const span = rect.height + start - end;
-      const progress = span <= 0 ? 1 : Math.min(1, Math.max(0, (start - rect.top) / span));
-
-      node.style.setProperty('--cf-progress', progress.toFixed(4));
-      const items = node.querySelectorAll('li');
-      const reached = Math.ceil(progress * items.length);
-      items.forEach((li, index) => li.setAttribute('data-reached', index < reached ? 'true' : 'false'));
-    }
-    function queue() {
-      if (queued) return;
-      queued = true;
-      requestAnimationFrame(measure);
-    }
-
-    measure();
-    window.addEventListener('scroll', queue, { passive: true });
-    window.addEventListener('resize', queue, { passive: true });
-    return () => {
-      window.removeEventListener('scroll', queue);
-      window.removeEventListener('resize', queue);
-    };
-  }, [reduceMotion]);
-
   return (
-    <section className="workflow-section" id="workflow" ref={ref} aria-labelledby="workflow-title">
+    <section className="workflow-section" id="workflow" aria-labelledby="workflow-title">
       <div className="workflow-heading">
         <p className="section-index">Four steps</p>
         <h2 id="workflow-title">How it works.</h2>
-        
+        <p>One file, from scan to manifest. Pick a step to see what it writes down.</p>
       </div>
-      <ol className="workflow-list cf-scrubbed">
-        <span className="cf-rail" aria-hidden="true">
-          <i />
-        </span>
-        {workflowSteps.map((step, index) => (
-          <li key={step.title} data-reached="false">
-            <div className="workflow-number">{String(index + 1).padStart(2, '0')}</div>
-            <div className="workflow-copy"><h3>{step.title}</h3><p>{step.body}</p></div>
-            <div className="workflow-output"><span>Output</span><strong>{step.output}</strong></div>
-            <ArrowRight size={18} aria-hidden="true" />
-          </li>
-        ))}
-      </ol>
+      <WorkflowRecord />
     </section>
   );
 }

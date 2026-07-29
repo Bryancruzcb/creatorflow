@@ -30,7 +30,9 @@
 .atlas-stage-copy strong {
   min-height: 2.5rem;
   margin: var(--space-2) 0;
-  overflow-wrap: anywhere;
+  /* `anywhere` broke filenames mid-token; the <wbr> marks in `breakable()` carry the wrapping now,
+     and `break-word` is the fallback for anything still too long to fit. */
+  overflow-wrap: break-word;
   color: var(--ink);
   font-size: 0.72rem;
   font-weight: 500;
@@ -995,28 +997,6 @@
   .tree-row.selected {
     color: var(--ink);
     background: var(--raised);
-  }
-
-  .workflow-list li {
-    grid-template-columns: 3.5rem minmax(0, 1.25fr) minmax(11rem, 0.75fr) auto;
-    align-items: center;
-    min-height: 8rem;
-  }
-
-  .workflow-output {
-    display: block;
-    color: var(--ink-muted);
-  }
-
-  .workflow-output span,
-  .workflow-output strong {
-    display: block;
-  }
-
-  .workflow-output strong {
-    margin-top: var(--space-1);
-    font-size: 0.75rem;
-    font-weight: 400;
   }
 
   .why-comparison {

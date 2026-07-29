@@ -1,0 +1,266 @@
+/**
+ * "How it works": steps on the left, the record they build on the right.
+ *
+ * Replaces the scrubbed four-row list, which spent 879px of page on 79 words and left the whole
+ * right half of the section empty. The width it was wasting is now the panel.
+ */
+
+.workflow-record {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-6);
+  align-items: start;
+}
+
+/**
+ * Side by side once the panel can hold a manifest path without wrapping it to three lines.
+ *
+ * Below that the steps sit above the record, which is the correct reading order anyway: pick a
+ * step, then look at what it produced.
+ */
+@media (min-width: 62rem) {
+  .workflow-record {
+    grid-template-columns: minmax(20rem, 0.85fr) minmax(0, 1.15fr);
+    gap: var(--space-8);
+  }
+}
+
+/* ------------------------------------------------------------------- steps */
+
+.workflow-steps {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.workflow-step {
+  display: grid;
+  grid-template-columns: 2rem minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: start;
+  width: 100%;
+  padding: var(--space-4);
+  text-align: left;
+  background: transparent;
+  border: 1px solid transparent;
+  border-top-color: var(--hairline);
+  cursor: pointer;
+}
+
+.workflow-steps li:last-child .workflow-step {
+  border-bottom-color: var(--hairline);
+}
+
+.workflow-step:hover {
+  background: var(--graphite);
+}
+
+.workflow-step[data-state='active'] {
+  background: var(--raised);
+  border-color: var(--hairline-strong);
+}
+
+.workflow-step-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 2rem;
+  height: 1.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+  border: 1px solid var(--hairline);
+}
+
+.workflow-step[data-state='active'] .workflow-step-index {
+  color: var(--ink);
+  background: var(--blue-solid);
+  border-color: var(--blue-solid);
+}
+
+.workflow-step[data-state='done'] .workflow-step-index {
+  color: var(--blue-accent);
+  border-color: var(--blue-accent);
+}
+
+.workflow-step-copy {
+  display: grid;
+  gap: var(--space-1);
+  min-width: 0;
+}
+
+.workflow-step-copy strong {
+  font-size: 1.05rem;
+  font-weight: 500;
+  color: var(--ink-muted);
+}
+
+.workflow-step[data-state='active'] .workflow-step-copy strong {
+  color: var(--ink);
+}
+
+.workflow-step-copy small {
+  font-size: 0.85rem;
+  color: var(--ink-dim);
+}
+
+/**
+ * Only the active step carries its body copy.
+ *
+ * Four descriptions stacked is the wall of prose this section was, and three of them are always
+ * about a step the visitor is not looking at.
+ */
+.workflow-step:not([data-state='active']) .workflow-step-copy small {
+  display: none;
+}
+
+.workflow-step-produces {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  white-space: nowrap;
+}
+
+.workflow-step[data-state='active'] .workflow-step-produces {
+  color: var(--blue-accent);
+}
+
+/* ------------------------------------------------------------------- panel */
+
+.workflow-panel {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  margin: 0;
+  background: var(--raised);
+  border: 1px solid var(--hairline);
+}
+
+.workflow-panel-head {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.workflow-panel-kicker {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.workflow-panel-file {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  color: var(--ink);
+  /* A manifest path is one long token; it wraps at any character rather than widening the grid. */
+  overflow-wrap: anywhere;
+}
+
+/**
+ * Held at a steady height so stepping through does not move the page.
+ *
+ * The record grows by design, and without a floor the section grew with it — clicking step four
+ * pushed everything below the fold down by several hundred pixels, right after the visitor had
+ * clicked something. The empty space on the early steps is the room the record is going to fill.
+ */
+.workflow-panel-body {
+  display: grid;
+  align-content: start;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+
+@media (min-width: 62rem) {
+  .workflow-panel-body {
+    min-height: 27rem;
+  }
+}
+
+/* ------------------------------------------------------------------ fields */
+
+.workflow-fields {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0;
+}
+
+.workflow-fields > div {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: var(--space-4);
+  align-items: baseline;
+}
+
+/* Hashes, paths and licence strings get the full width instead of a cramped second column. */
+.workflow-fields > div[data-block='true'] {
+  grid-template-columns: minmax(0, 1fr);
+  gap: var(--space-1);
+}
+
+.workflow-fields dt {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  color: var(--ink-dim);
+}
+
+.workflow-fields dd {
+  min-width: 0;
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.workflow-match {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: var(--space-4);
+  font-size: 0.9rem;
+  color: var(--ink-muted);
+  background: var(--graphite);
+  border-left: 2px solid var(--review);
+}
+
+.workflow-match strong {
+  font-size: 1.15rem;
+  font-weight: 500;
+  color: var(--review);
+}
+
+.workflow-match small {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--ink-dim);
+}
+
+/**
+ * The exported document, scrolling inside its own box.
+ *
+ * Focusable because a scrollable region that only responds to a mouse strands keyboard users at
+ * the top of it, and this is the one place on the page where the full record is legible.
+ */
+.workflow-json {
+  max-height: 20rem;
+  margin: 0;
+  padding: var(--space-4);
+  overflow: auto;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  line-height: 1.55;
+  color: var(--ink-muted);
+  background: var(--graphite);
+  border: 1px solid var(--hairline);
+}
+
+.workflow-json code {
+  white-space: pre;
+}
