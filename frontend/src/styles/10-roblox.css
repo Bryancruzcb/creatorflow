@@ -585,6 +585,16 @@
   font-size: var(--text-3xs);
 }
 
+/* The engine-provenance line (#102): which algorithm produced the stored numbers. */
+.motion-live-result-engine {
+  margin: 0;
+  padding: var(--space-2) var(--space-6) var(--space-3);
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font-size: var(--text-3xs);
+  line-height: 1.5;
+}
+
 .motion-live-result > div {
   display: grid;
   grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(5rem, 0.5fr));
