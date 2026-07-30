@@ -1,13 +1,13 @@
 {
   "items" : [ {
-    "projectId" : 1,
-    "name" : "junit1633186413265928101",
-    "adoptedAt" : "2026-07-28T20:57:06.758084300Z",
     "activeScanRunId" : null,
+    "adoptedAt" : "2026-01-01T00:00:00Z",
     "experience" : {
-      "universeId" : 90110,
+      "experienceName" : "Test Experience",
       "placeId" : 1818,
-      "experienceName" : "Test Experience"
-    }
+      "universeId" : 90110
+    },
+    "name" : "contract-fixture-workspace",
+    "projectId" : 1
   } ]
 }

@@ -6,6 +6,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ArrayNode;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.fasterxml.jackson.databind.node.TextNode;
 import creatorflow.TestMedia;
 import creatorflow.db.AuditRepository;
 import creatorflow.db.AnimationComparisonRepository;
@@ -43,10 +46,15 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -761,10 +769,112 @@ class LocalBridgeServerTest {
         for (Capture capture : captures) {
             HttpResponse<String> response = get(capture.path(), cookie);
             assertEquals(200, response.statusCode(), capture.path() + " did not return 200");
-            Files.writeString(out.resolve(capture.name() + ".json"),
-                    json.writerWithDefaultPrettyPrinter()
-                            .writeValueAsString(json.readTree(response.body())));
+            String stabilised = json.writerWithDefaultPrettyPrinter()
+                    .writeValueAsString(stabilise(json.readTree(response.body())));
+            assertNoPerRunValueSurvived(capture.name(), stabilised);
+            Files.writeString(out.resolve(capture.name() + ".json"), stabilised);
         }
+    }
+
+    /**
+     * Fails if a value that changes every run reached the file.
+     *
+     * A stability bug in {@link #stabilise} cannot fail this test the honest way — you would have
+     * to run it twice and diff, which no CI job does. So the check is inverted: these four strings
+     * are known to be freshly generated for THIS run, and none of them may appear in what gets
+     * written. Add a capture carrying a live token or a real port and this fails immediately rather
+     * than several months later as unexplained {@code git status} noise.
+     *
+     * The limit is worth stating: this knows only about the volatile values it is told about. A
+     * brand-new kind of per-run value still gets through, which is why {@code stabilise} matches
+     * timestamps and UUIDs by shape rather than trusting this list to stay complete.
+     */
+    private void assertNoPerRunValueSurvived(String name, String written) {
+        List<String> perRun = List.of(csrf, origin.toString(),
+                directory.toString(), directory.getFileName().toString());
+        for (String value : perRun) {
+            assertFalse(written.contains(value),
+                    name + ".json still carries a value that is regenerated every run (" + value
+                            + "), so committing it would dirty the tree on the next mvn run. See #97.");
+        }
+    }
+
+    private static final String STABLE_CSRF_TOKEN = "contract-fixture-csrf-token";
+    private static final String STABLE_ORIGIN = "http://127.0.0.1:0";
+    private static final String STABLE_INSTANT = "2026-01-01T00:00:00Z";
+    private static final String STABLE_UUID = "00000000-0000-0000-0000-000000000000";
+    private static final String STABLE_WORKSPACE = "contract-fixture-workspace";
+
+    private static final Pattern UUID_SHAPED =
+            Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
+    private static final Pattern INSTANT_SHAPED =
+            Pattern.compile("^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d+)?Z$");
+
+    /**
+     * Makes a captured response byte-identical from one run to the next, in place.
+     *
+     * Recording the raw bodies meant every {@code mvn verify} left modified fixtures in the working
+     * tree (#97). That is worse than untidy: it trains whoever sees it to {@code git checkout} the
+     * fixtures without reading them, which is precisely how a real field rename would get
+     * discarded, and it makes {@code git status} unreliable for the concurrent-agent workflow this
+     * repository actually uses.
+     *
+     * Five things vary per run, and they are not all values:
+     *
+     * <ol>
+     *   <li>the CSRF token, freshly random per server start;</li>
+     *   <li>the origin, which carries an ephemeral port;</li>
+     *   <li>wall-clock timestamps;</li>
+     *   <li>the scan-run UUID;</li>
+     *   <li>the project name, which is this test's {@code @TempDir} directory name.</li>
+     * </ol>
+     *
+     * And <strong>field order</strong>, which is the one worth knowing about. Some of these
+     * payloads are assembled with {@code Map.of}, whose iteration order is randomised per JVM by
+     * design — so key order is not stable even with every value pinned. Fields are therefore
+     * written sorted. JSON object order is not part of the contract; the TypeScript client reads by
+     * key, so imposing an order loses nothing and is the only way these files can be stable at all.
+     *
+     * Normalising values costs nothing these fixtures are for either. Their job is to catch drift
+     * in field names, types and nesting — a renamed, retyped or re-nested field still changes the
+     * file and still fails {@code contract.test.ts}, which asserts shapes rather than contents.
+     * What is deliberately NOT done is dropping keys: {@code csrfToken} vanishing entirely is
+     * exactly the kind of break worth failing on, so the key stays and only its value is pinned.
+     *
+     * Timestamps and UUIDs are matched by value shape rather than by field name, so a newly added
+     * one is stabilised the first time it appears instead of quietly restarting the churn. The
+     * one-off diff that ADDS the new key still shows up, which is the part a human should see.
+     */
+    private JsonNode stabilise(JsonNode node) {
+        if (node instanceof ObjectNode object) {
+            // Read the field names before touching anything: replacing values while iterating an
+            // ObjectNode's own field iterator mutates what is being walked.
+            List<String> fields = new ArrayList<>();
+            object.fieldNames().forEachRemaining(fields::add);
+            Collections.sort(fields);
+            Map<String, JsonNode> sorted = new LinkedHashMap<>();
+            for (String field : fields) sorted.put(field, stabiliseValue(field, object.get(field)));
+            object.removeAll();
+            object.setAll(sorted);
+        } else if (node instanceof ArrayNode array) {
+            array.forEach(this::stabilise);
+        }
+        return node;
+    }
+
+    private JsonNode stabiliseValue(String field, JsonNode value) {
+        if (!value.isTextual()) return stabilise(value);
+        if (field.equals("csrfToken")) return TextNode.valueOf(STABLE_CSRF_TOKEN);
+        if (field.equals("origin")) return TextNode.valueOf(STABLE_ORIGIN);
+        String text = value.textValue();
+        if (INSTANT_SHAPED.matcher(text).matches()) return TextNode.valueOf(STABLE_INSTANT);
+        if (UUID_SHAPED.matcher(text).matches()) return TextNode.valueOf(STABLE_UUID);
+        // Substring rather than equality: the temp directory shows up bare as the project name and
+        // could show up again inside an absolute path.
+        String withoutTempDir = text
+                .replace(directory.toString(), STABLE_WORKSPACE)
+                .replace(directory.getFileName().toString(), STABLE_WORKSPACE);
+        return withoutTempDir.equals(text) ? value : TextNode.valueOf(withoutTempDir);
     }
 
     private HttpResponse<String> get(String path, String requestCookie) throws Exception {
