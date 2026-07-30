@@ -3,7 +3,7 @@
  * engine-specific piece, so Phase 1's ported engine (and every later change)
  * gets graded by swapping the adapter — the cases and metrics never move.
  * The current-engine adapter mirrors the live registry path exactly:
- * compareClips with mode 'shape', jointScope 'full', 48 samples, threshold 85;
+ * compareClips with mode 'shape', jointScope 'full', 48 samples, threshold 90;
  * flagged = tone !== 'neutral' (review or blocked), same as the UI.
  */
 import type { AnimationClip } from 'three';
@@ -60,7 +60,7 @@ export function runScorecard(cases: CopyDetectionCase[], adapter: EngineAdapter)
 
 export function currentEngineAdapter(): EngineAdapter {
   return (source, candidate) => {
-    const result = compareClips(source, candidate, { mode: 'shape', jointScope: 'full', sampleCount: 48, reviewThreshold: 85 });
+    const result = compareClips(source, candidate, { mode: 'shape', jointScope: 'full', sampleCount: 48, reviewThreshold: 90 });
     return { score: result.primaryValue, flagged: result.tone !== 'neutral', exact: result.exactCurveData };
   };
 }
@@ -68,7 +68,7 @@ export function currentEngineAdapter(): EngineAdapter {
 /**
  * Phase 1a ported engine: the faithful Java-algorithm port behind the lossy
  * clip adapter. Flag semantics use the ported engine's OWN verdict bands
- * (>=90 HIGH or exact), NOT the current engine's 85 threshold — the two
+ * (>=90 HIGH or exact), NOT the current engine's 90 threshold — the two
  * scorecards are reported side by side, not on a shared threshold.
  */
 export function portedEngineAdapter(): EngineAdapter {

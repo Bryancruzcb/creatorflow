@@ -456,7 +456,7 @@ export function analyzeMotionClips(
   const mode = options.mode ?? 'shape';
   const jointScope = options.jointScope ?? 'full';
   const sampleCount = Math.max(12, Math.round(options.sampleCount ?? 48));
-  const reviewThreshold = Math.max(50, Math.min(100, options.reviewThreshold ?? 85));
+  const reviewThreshold = Math.max(50, Math.min(100, options.reviewThreshold ?? 90));
   const scopedSource = selectedTracks(source, jointScope);
   const scopedCandidate = selectedTracks(candidate, jointScope);
   const scopedSourceClip = new AnimationClip(source.name, source.duration, scopedSource);

@@ -12,7 +12,7 @@ import { loadAllRigFixtures } from './fixtureLoader';
 import { currentEngineAdapter, formatSweep, runScorecard, runThresholdSweep } from './scorecard';
 
 const THRESHOLDS = [60, 65, 70, 75, 80, 85, 90, 95];
-const SHIPPED_THRESHOLD = 85;
+const SHIPPED_THRESHOLD = 90;
 
 const baselinePath = fileURLToPath(new URL('./sweep.baseline.json', import.meta.url));
 const scorecard = runScorecard(buildCases(loadAllRigFixtures().filter(isGradableRig)), currentEngineAdapter());
