@@ -61,6 +61,8 @@ export interface MotionAnalysisResult {
   durationSimilarity: number;
   coverage: number;
   exactCurveData: boolean;
+  /** True when the primary result came from comparing the candidate mirror-image (issue #16). */
+  mirrored: boolean;
   commonTracks: number;
   sourceTracks: number;
   candidateTracks: number;
@@ -468,6 +470,10 @@ export function analyzeMotionClips(
   const v2 = normalizedSource.keyframes.length === 0 || normalizedCandidate.keyframes.length === 0
     ? null
     : compareMotion(normalizedSource, normalizedCandidate, { sampleCount: sampleCount + 1 });
+  // Reported unconditionally: even in loop/root modes the pose/timing side numbers come from this
+  // v2 result, so the flag states where THOSE came from. The verdict suffix below is what stays
+  // mode-gated, because loop/root verdicts describe their own metrics.
+  const mirrored = v2?.mirrored ?? false;
   const pose = v2 ? Math.round(v2.posePercent) : 0;
   const durationSimilarity = v2 ? Math.round(v2.durationPercent) : 0;
   const timing = v2 ? Math.round(v2.timingPercent) : 0;
@@ -545,6 +551,10 @@ export function analyzeMotionClips(
   } else {
     verdict = relationshipVerdict(primaryValue ?? 0, mode, reviewThreshold);
     if ((primaryValue ?? 0) >= reviewThreshold) tone = 'review';
+    // "These match" and "these match once you mirror one of them" are different claims, and this
+    // product's output is evidence — so the mirrored orientation must be named wherever the number
+    // it produced is shown. Appended to the verdict sentence, which is what every surface renders.
+    if (mirrored) verdict += ' — matched as a mirror image';
   }
   if (exactCurveData && mode !== 'loop') tone = 'blocked';
 
@@ -563,6 +573,7 @@ export function analyzeMotionClips(
     durationSimilarity,
     coverage: coveragePercent,
     exactCurveData,
+    mirrored,
     commonTracks: commonNames.length,
     sourceTracks: scopedSource.length,
     candidateTracks: scopedCandidate.length,
