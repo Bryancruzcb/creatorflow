@@ -1,22 +1,22 @@
 {
   "items" : [ {
-    "id" : 1,
-    "scanRunId" : "19200da6-c7e5-4090-a947-220744aab3fd",
-    "ordinal" : 1,
-    "relativePath" : "art/walk.rbxm",
+    "audioFingerprint" : null,
+    "dHash" : "01",
     "fileName" : "walk.rbxm",
     "fileType" : "rbxm",
-    "sizeBytes" : 128,
-    "sha256" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
-    "width" : 64,
+    "findings" : [ ],
     "height" : 64,
-    "dHash" : "01",
+    "id" : 1,
+    "ordinal" : 1,
     "pHash" : "02",
-    "audioFingerprint" : null,
+    "relativePath" : "art/walk.rbxm",
+    "scanRunId" : "00000000-0000-0000-0000-000000000000",
+    "sha256" : "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "sizeBytes" : 128,
     "verification" : "CLEAR",
-    "findings" : [ ]
+    "width" : 64
   } ],
-  "scanRunId" : "19200da6-c7e5-4090-a947-220744aab3fd",
   "limit" : 100,
-  "offset" : 0
+  "offset" : 0,
+  "scanRunId" : "00000000-0000-0000-0000-000000000000"
 }
