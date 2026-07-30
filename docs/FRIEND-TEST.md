@@ -64,6 +64,12 @@ connection**, and allow the HTTP-permission prompt Studio raises.
 1. **[live-Studio]** Enter two Animation IDs the signed-in user can access.
    Compare. Confirm the comparison lands in the desktop workspace's evidence
    history.
+
+   > **Expect different numbers than the Motion Lab (#102).** Studio-submitted
+   > comparisons are scored by the desktop's Java v1 engine; the Motion Lab runs
+   > the v2 web engine. Same clips, different algorithms — v1 also cannot detect
+   > mirrored copies. The evidence card says which engine scored it; a mismatch
+   > between the card and the Lab is the split, not a bug.
 2. Now deliberately break things and **write down the exact error copy** — this
    is the data the next build step needs:
    - **[live-Studio]** an animation ID the user does NOT own (wrong owner / private)
