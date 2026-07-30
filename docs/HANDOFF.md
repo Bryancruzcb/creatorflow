@@ -49,11 +49,22 @@ npm --prefix frontend run typecheck
 npm --prefix frontend run build
 ```
 
-- Full Java suite: `mvn -B verify` — passes in CI. Locally on Bryan's Windows box, core's
-  `followedSymlinkCannotEscapeTheSelectedRoot` fails (symlink creation needs Developer Mode);
-  build core with `-DskipTests`, then test `desktop`/`server` normally. 91 Java tests as of
-  this writing; frontend suite (22 tests), typecheck, and build are enforced by the `frontend`
-  CI job.
+- **JDK 24 or newer is required, and `JAVA_HOME` is what decides it — not `java` on PATH.**
+  PR #92 raised `maven.compiler.release` to 24 for JavaFX 26. Maven compiles with the JDK that
+  `JAVA_HOME` points at, so a machine with JDK 26 on PATH but `JAVA_HOME` still aimed at a 21
+  install fails at compile with:
+
+  ```
+  [ERROR] Fatal error compiling: error: release version 24 not supported
+  ```
+
+  Check with `mvn -version` (it prints the JDK it will use), not `java -version`. CI pins
+  `java-version: '24'` in `ci.yml`, so this only ever bites locally — which is exactly why it
+  went unnoticed until it blocked `mvn -pl desktop javafx:run`, the first step of the friend
+  test.
+
+- Full Java suite: `mvn -B verify` — passes in CI, and passes locally once the JDK above is
+  right. Frontend suite, typecheck, and build are enforced by the `frontend` CI job.
 - Desktop shell against the built frontend:
 
   ```bash

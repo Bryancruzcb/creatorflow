@@ -9,6 +9,7 @@ import creatorflow.TestMedia;
 import creatorflow.model.VerificationStatus;
 import creatorflow.verification.OriginalityEngine;
 import java.awt.image.BufferedImage;
+import java.nio.file.FileSystemException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
@@ -16,6 +17,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -135,12 +137,32 @@ class ProjectScannerTest {
                 problem.code() == ScanProblem.Code.UNREADABLE));
     }
 
+    /**
+     * Skips only where the machine cannot make a symlink at all — never where containment fails.
+     *
+     * Creating one on Windows needs {@code SeCreateSymbolicLinkPrivilege}, which a stock account
+     * does not hold, so this errored during setup on every developer machine without Developer
+     * Mode and left {@code mvn -pl core test} red out of the box. The handoff's advice was to build
+     * core with {@code -DskipTests}, which silences twenty-nine other tests to work around one.
+     *
+     * The guard wraps the setup call and nothing else. If the link is created, every assertion
+     * below runs exactly as before, so CI and any Linux machine still enforce the containment rule
+     * this test exists for. An abort is reported as skipped-with-reason rather than passing
+     * quietly, so the coverage gap stays visible where it applies.
+     */
     @Test
     void followedSymlinkCannotEscapeTheSelectedRoot() throws Exception {
         Path outside = Files.createTempFile(dir.getParent(), "creatorflow-outside-", ".svg");
         try {
             Files.writeString(outside, "<svg/>");
-            Files.createSymbolicLink(dir.resolve("outside.svg"), outside);
+            try {
+                Files.createSymbolicLink(dir.resolve("outside.svg"), outside);
+            } catch (FileSystemException | UnsupportedOperationException cannotLink) {
+                Assumptions.abort("This machine cannot create symbolic links, so the containment "
+                        + "rule cannot be exercised here (Windows needs SeCreateSymbolicLinkPrivilege, "
+                        + "granted by Developer Mode or an elevated shell). CI enforces it. Cause: "
+                        + cannotLink);
+            }
 
             ScanResult result = new ProjectScanner().scanDetailed(dir, "Containment", "1",
                     SourceEvidenceResolver.unresolved(),
