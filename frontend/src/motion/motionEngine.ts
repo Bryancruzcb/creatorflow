@@ -7,6 +7,9 @@
  *      tiny-overlap false accusations without the old harmonic mean's full-coverage inflation.
  *   2. (Task 4) position de-weighted 0.42 -> 0.25 toward rotation (handoff finding 7).
  *   3. (Task 5) banded DTW replaces lockstep sampling; warp-aware timing composite.
+ *   4. (Issue #16) mirror canonicalization: the pair is scored in both orientations and the
+ *      better one kept, because a mirrored copy moves the performance across joints and every
+ *      score here is computed per joint by name. Reported via `mirrored` on the result.
  * compareNormalized in motionEngineCore stays parity-locked to Java — v2 composes
  * its exported primitives and NEVER changes them.
  */
@@ -15,6 +18,7 @@ import {
   type NormalizedJointScore, type NormalizedVerdict, type PoseBlendWeights, type PoseSample, type PoseDelta,
   canonicalCurvesEqual, poseDelta, round, sample, trackMetadataPercent, tracks,
 } from './motionEngineCore';
+import { mirrorNormalized } from './mirrorCanonical';
 
 export const ENGINE_V2_VERSION = 'creatorflow.motion-comparison/v2-web';
 
@@ -24,7 +28,12 @@ export const V2_POSE_WEIGHTS: PoseBlendWeights = { position: 0.25, rotation: 0.6
 export interface MotionEngineOptions {
   sampleCount?: number;
   poseWeights?: PoseBlendWeights;
+  /** Off disables the mirrored second orientation (divergence 4). Default on. */
+  mirrorAware?: boolean;
 }
+
+/** The band `verdictFor` calls HIGH_SIMILARITY, named because mirror short-circuiting reads it. */
+const HIGH_SIMILARITY_PERCENT = 90;
 
 export interface MotionComparisonV2 {
   engineVersion: string;
@@ -40,6 +49,14 @@ export interface MotionComparisonV2 {
   frameScores: Array<{ sampleIndex: number; posePercent: number }>;
   commonJointCount: number;
   allJointCount: number;
+  /**
+   * True when these numbers come from comparing the candidate MIRRORED.
+   *
+   * Carried out of the engine rather than kept internal because the product's output is evidence
+   * shown to a person, and "these two match" and "these two match once you mirror one of them" are
+   * different claims. A caller that ignores this reports the first when it means the second.
+   */
+  mirrored: boolean;
 }
 
 function durationPercentOf(source: NormalizedAnimationJson, candidate: NormalizedAnimationJson): number {
@@ -55,10 +72,48 @@ function verdictFor(exact: boolean, overallPercent: number): NormalizedVerdict {
   return 'LOW_SIMILARITY';
 }
 
+/**
+ * Divergence 4 (issue #16): score the pair in both orientations and keep the better.
+ *
+ * A mirrored copy moves the left limb's performance onto the right limb's joints, and every score
+ * below is computed per joint by NAME — so the direct comparison lines the mirrored right arm up
+ * against the original right arm and the pose score collapses. It was undetectable on three of the
+ * four graded rigs. Neither DTW nor coverage can help: the misalignment is across joints, not time.
+ *
+ * Taking a maximum over two comparisons can only RAISE scores, so it can only add false positives,
+ * never remove one — which runs straight at this product's standing constraint that a false
+ * accusation is the worst output it can produce. Three things hold that down:
+ *
+ *   1. `mirrorNormalized` returns null unless the clip has real left/right joint pairs, so an
+ *      unmirrorable clip gets one comparison, not a free second draw at the maximum.
+ *   2. An already-decided pair short-circuits. Exact curve data, or a direct score already in the
+ *      HIGH band, needs no second orientation — the verdict cannot improve, so the extra work and
+ *      the extra draw are both skipped. The number reported is then the direct one.
+ *   3. It is graded. The cost of this change is the negatives' false-positive rate in
+ *      `scorecard.baseline.json`, not the mirror recall it recovers.
+ *
+ * The mirror model itself is approximate (see `mirrorCanonical.ts`) — it inverts the same
+ * simplified reflection the fixtures are generated from, so treat the recovered mirror recall as
+ * partly self-fulfilling and the false-positive number as the real result.
+ */
 export function compareMotion(
   source: NormalizedAnimationJson,
   candidate: NormalizedAnimationJson,
   options: MotionEngineOptions = {},
+): MotionComparisonV2 {
+  const direct = compareOriented(source, candidate, options);
+  if (options.mirrorAware === false) return direct;
+  if (direct.exactCurveData || direct.overallPercent >= HIGH_SIMILARITY_PERCENT) return direct;
+  const mirroredCandidate = mirrorNormalized(candidate, source);
+  if (!mirroredCandidate) return direct;
+  const mirrored = compareOriented(source, mirroredCandidate, options);
+  return mirrored.overallPercent > direct.overallPercent ? { ...mirrored, mirrored: true } : direct;
+}
+
+function compareOriented(
+  source: NormalizedAnimationJson,
+  candidate: NormalizedAnimationJson,
+  options: MotionEngineOptions,
 ): MotionComparisonV2 {
   const sampleCount = Math.max(13, Math.round(options.sampleCount ?? 49));
   const weights = options.poseWeights ?? V2_POSE_WEIGHTS;
@@ -222,5 +277,6 @@ export function compareMotion(
     frameScores,
     commonJointCount: commonJoints.length,
     allJointCount: allJoints.length,
+    mirrored: false,
   };
 }
