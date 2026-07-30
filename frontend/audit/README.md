@@ -32,27 +32,22 @@ Surfaces listed in `UNMIGRATED` are known debt: they log their count and smalles
 output instead of failing. **It is a ratchet — entries come off as surfaces migrate, and nothing
 may be added.** A regression on an already-clean surface fails immediately.
 
-Current debt, measured on `8e996db2`: **84 rules across 10 of 16 surfaces.**
+**The ratchet is empty. All 16 surfaces are strictly enforced.**
 
-| surface | rules | smallest |
-|---|---|---|
-| `landing` | 39 | 7.2px |
-| `app-assets` | 14 | 7.84px |
-| `app-overview` | 8 | 7.68px |
-| `app-settings` | 8 | 9.6px |
-| `app-evidence` | 4 | 9.92px |
-| `app-stress` | 4 | 10.4px |
-| `app-releases` | 3 | 9.12px |
-| `app-gallery` | 2 | 9.92px |
-| `app-motion` | 1 | 9.17px |
-| `app-sources` | 1 | 8.96px |
+```ts
+const UNMIGRATED = new Set<string>([]);
+```
 
-`app-project` is **not** on this list any more: it was the largest block at 48 rules and held the
-app's smallest rendered text at 6.08px, and it is now migrated and strictly enforced. An earlier
-version of this section still listed it as the biggest debt, which is how a ratchet quietly starts
-lying about which end it is at. Migration order is in
-[`../VISUAL-TECHNIQUE-PLAN.md`](../VISUAL-TECHNIQUE-PLAN.md) item 6; `landing` is both the largest
-remaining block and the first surface a stranger sees.
+The last entries came off in #93. There is no longer a debt table here, and the rule is simply the
+second half of the ratchet: nothing may be added. Any surface that renders text below the floor
+fails immediately, including `landing`, which was the final and largest block at 39 rules and is
+the first surface a stranger sees.
+
+Two earlier revisions of this section were wrong in the same direction — one still named
+`app-project` as the biggest debt after it had been migrated, and one published an 84-rule table
+after the set had been emptied. A ratchet that reports stale numbers is worse than one that reports
+none, because the number is the only thing anyone reads. If you empty an entry, delete its row in
+the same change.
 
 ## `render-budget.spec.ts`
 
