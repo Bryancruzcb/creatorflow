@@ -768,10 +768,14 @@ compareButton.Activated:Connect(function()
 			local comparisonId = tostring(comparison.id or "saved")
 			local verdict = tostring(comparison.verdict or "comparison complete")
 			local exactText = comparison.exactCurveData and " Exact normalized data." or ""
+			-- A score found by mirroring one clip is a different claim from a score found as
+			-- submitted, so it is stated rather than folded into the percentage. The web surface
+			-- says this too; saying it in only one place is how the two routes start disagreeing.
+			local mirroredText = comparison.mirrored and " Matched MIRRORED, not as submitted." or ""
 			setStatus(
 				"success",
 				"Evidence saved · " .. formatScore(comparison.overallScore),
-				string.format("%s · %s.%s Open CreatorFlow to inspect record %s.", sourceId .. " ↔ " .. candidateId, verdict, exactText, comparisonId)
+				string.format("%s · %s.%s%s Open CreatorFlow to inspect record %s.", sourceId .. " ↔ " .. candidateId, verdict, exactText, mirroredText, comparisonId)
 			)
 		end
 	end)

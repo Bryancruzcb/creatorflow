@@ -426,6 +426,128 @@ class LocalBridgeServerTest {
                 .get("items").size());
     }
 
+    /**
+     * Pins WHICH engine the plugin route scores on, and that a mirrored match says so.
+     *
+     * <p>Issue #102 survived because nothing asserted this. The route called v1 while every browser
+     * surface called v2, and the only existing test of it compared two identical animations — a pair
+     * both engines score 100, so it could not tell them apart. A silent revert to v1 would have
+     * passed the whole suite.
+     *
+     * <p>The mirrored pair is the sharpest available probe: before this change it was undetectable
+     * through this route by construction, so a `true` here cannot be produced by v1 at all.
+     */
+    @Test
+    void pluginRouteScoresOnEngineV2AndNamesAMirroredMatch() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        /*
+         * Asymmetric performance on a mirrorable rig, and it must differ in ROTATION, not only in
+         * position.
+         *
+         * A first version of this fixture used identity rotations everywhere. Rotation carries 0.65
+         * of v2's pose blend, so two clips with identical rotations score about 90 on the direct
+         * comparison alone — which lands in the HIGH band and short-circuits the mirror branch
+         * before it runs. The test then failed for the right reason: nothing had been mirrored.
+         */
+        List<double[]> first = List.of(
+                yaw(0.30, 40.0), yaw(0.10, 10.0), yaw(0.20, 25.0), yaw(-0.15, -5.0));
+        List<double[]> second = List.of(
+                yaw(0.50, 70.0), yaw(0.05, -15.0), yaw(0.35, 50.0), yaw(-0.25, -20.0));
+        String source = mirrorableClip("2001", JOINTS, first, second);
+        // The same performance reflected. Built by negating the emitted transform rather than by
+        // recomputing from a negated angle, so the mirror is bitwise exact and cannot fail on
+        // Math.sin(-x) not being exactly -Math.sin(x). The reflection MODEL is graded independently
+        // by the parity oracle; what this test exercises is the route, the view and the JSON.
+        String mirrored = mirrorableClip("2002", MIRRORED_JOINTS, reflectAll(first), reflectAll(second));
+
+        HttpResponse<String> compared = pluginRequest("POST", "/plugin/v1/motion-comparisons", token,
+                "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":" + source
+                        + ",\"candidate\":" + mirrored + "}");
+        assertEquals(201, compared.statusCode(), compared.body());
+        JsonNode view = json.readTree(compared.body());
+        assertEquals("creatorflow.motion-comparison/v2-web", view.get("algorithmVersion").asText(),
+                "the plugin route must score on the same engine the browser does");
+        assertTrue(view.get("mirrored").asBoolean(), "a mirrored copy must be reported as mirrored");
+        assertFalse(view.get("exactCurveData").asBoolean(),
+                "a mirrored pair is not byte-identical, so it must not claim exact curve data");
+        assertEquals(100, view.get("overallScore").asInt());
+
+        // A pair sharing no joint names cannot be mirrored, so the flag must come back false —
+        // otherwise `mirrored` could be stuck true and the assertion above would prove nothing.
+        String unrelated = """
+                {"assetId":"2003","name":"Other","duration":1.0,"looped":false,"priority":"Movement","keyframes":[
+                  {"time":0.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                  {"time":1.0,"poses":[{"jointPath":"Root/Torso","transform":[0.4,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                ]}
+                """;
+        JsonNode plain = json.readTree(pluginRequest("POST", "/plugin/v1/motion-comparisons", token,
+                "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":" + source
+                        + ",\"candidate\":" + unrelated + "}").body());
+        assertFalse(plain.get("mirrored").asBoolean(),
+                "a pair with no shared left/right joints cannot be mirrored");
+    }
+
+    /** Two mutual left/right pairs, and the same names with the sides swapped. */
+    private static final List<String> JOINTS = List.of("ArmL", "ArmR", "LegL", "LegR");
+    private static final List<String> MIRRORED_JOINTS = List.of("ArmR", "ArmL", "LegR", "LegL");
+
+    /** Row-major 3x3 yaw inside the 12-component transform, at position x along the mirror axis. */
+    private static double[] yaw(double x, double degrees) {
+        double angle = Math.toRadians(degrees);
+        double cosine = Math.cos(angle);
+        double sine = Math.sin(angle);
+        return new double[] {x, 0.0, 0.0, cosine, 0.0, sine, 0.0, 1.0, 0.0, -sine, 0.0, cosine};
+    }
+
+    /** Reflection across the YZ plane: negate x and the four off-diagonal entries R -> M R M flips. */
+    private static List<double[]> reflectAll(List<double[]> transforms) {
+        List<double[]> reflected = new ArrayList<>(transforms.size());
+        for (double[] transform : transforms) {
+            double[] copy = transform.clone();
+            for (int index : new int[] {0, 4, 5, 6, 9}) {
+                copy[index] = copy[index] == 0.0 ? 0.0 : -copy[index];
+            }
+            reflected.add(copy);
+        }
+        return reflected;
+    }
+
+    private static String mirrorableClip(
+            String assetId, List<String> joints, List<double[]> first, List<double[]> second) {
+        StringBuilder body = new StringBuilder();
+        body.append("{\"assetId\":\"").append(assetId)
+                .append("\",\"name\":\"Mirrorable\",\"duration\":1.0,\"looped\":false,")
+                .append("\"priority\":\"Movement\",\"keyframes\":[");
+        body.append(keyframeJson(0.0, joints, first)).append(',');
+        body.append(keyframeJson(1.0, joints, second));
+        body.append("]}");
+        return body.toString();
+    }
+
+    private static String keyframeJson(double time, List<String> joints, List<double[]> transforms) {
+        StringBuilder frame = new StringBuilder("{\"time\":" + time + ",\"poses\":[");
+        for (int i = 0; i < joints.size(); i++) {
+            if (i > 0) {
+                frame.append(',');
+            }
+            frame.append("{\"jointPath\":\"").append(joints.get(i)).append("\",\"transform\":[");
+            double[] transform = transforms.get(i);
+            for (int j = 0; j < transform.length; j++) {
+                if (j > 0) {
+                    frame.append(',');
+                }
+                frame.append(transform[j]);
+            }
+            frame.append("],\"weight\":1,\"easingStyle\":\"Linear\",\"easingDirection\":\"InOut\"}");
+        }
+        return frame.append("]}").toString();
+    }
+
     @Test
     void listsAndRevokesPluginPairingsWithoutExposingTokenOrHash() throws Exception {
         ObjectMapper json = new ObjectMapper();
