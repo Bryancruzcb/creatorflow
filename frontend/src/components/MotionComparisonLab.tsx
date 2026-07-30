@@ -71,17 +71,39 @@ const jointScopes: Array<{ id: MotionJointScope; label: string }> = [
 /**
  * Human name for the engine a stored Studio comparison was scored by (#102).
  *
- * Evidence submitted from the Studio plugin is scored by the desktop's Java engine, while this lab
- * scores with the v2 web engine — genuinely different algorithms that can put different numbers on
- * the same pair, and v1 cannot detect mirrored copies. The record has always carried
- * `algorithmVersion`; not showing it invited reading two engines' numbers as one scale. Unknown
- * versions fall through verbatim rather than being guessed at — if a future engine string appears,
- * showing it raw is honest and a mapping here is a one-line follow-up.
+ * The record has always carried `algorithmVersion`; not showing it invited reading two engines'
+ * numbers as one scale. Unknown versions fall through verbatim rather than being guessed at — if a
+ * future engine string appears, showing it raw is honest and a mapping here is a one-line follow-up.
  */
 export function comparisonEngineLabel(algorithmVersion: string): string {
   if (algorithmVersion === 'creatorflow.motion-comparison/v1') return 'desktop v1 engine';
   if (algorithmVersion === 'creatorflow.motion-comparison/v2-web') return 'v2 web engine';
   return algorithmVersion;
+}
+
+/**
+ * What the engine name MEANS for the reader, or null when there is nothing to warn about.
+ *
+ * The plugin route now scores on v2 — the same algorithm this lab runs, bound to it by
+ * `parity/v2Parity.test.ts` — so for a v2 record there is no discrepancy to explain and claiming one
+ * would be its own small lie. The caveat still belongs on **v1** records, which were scored before
+ * the route moved and cannot be rescored: those really are a different algorithm, and really cannot
+ * see a mirrored copy.
+ *
+ * This is why the sentence is conditional rather than fixed. An unconditional "the same clips can
+ * score differently" was accurate when every plugin comparison came from v1, and became false for
+ * new records the moment the route changed.
+ */
+export function comparisonEngineCaveat(algorithmVersion: string): string | null {
+  if (algorithmVersion === 'creatorflow.motion-comparison/v2-web') {
+    return 'the same engine the Motion Lab above runs, so these numbers are on one scale.';
+  }
+  if (algorithmVersion === 'creatorflow.motion-comparison/v1') {
+    return 'recorded before the plugin route moved to v2. That is a different algorithm: the same '
+      + 'clips can score differently there, and it does not detect mirrored copies.';
+  }
+  // An unrecognised engine gets no reassurance and no specific warning — only the raw name above.
+  return null;
 }
 
 export function compareClips(source: AnimationClip, candidate: AnimationClip, options?: MotionAnalysisOptions): MotionAnalysisResult {
@@ -1583,7 +1605,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
                 </div>
               </div> : <div className="motion-desktop-boundary"><AlertTriangle size={16} /><span><strong>The demo above still works.</strong><small>For real Roblox IDs, open the CreatorFlow desktop app and a local project.</small></span></div>}
               {bridgeMessage ? <p className="motion-bridge-message" role="status">{bridgeMessage}</p> : null}
-              {latestComparison ? <article className="motion-live-result"><header><span><i />Latest Studio evidence</span><time dateTime={latestComparison.createdAt}>{new Date(latestComparison.createdAt).toLocaleString()}</time></header><div><span><small>Animation IDs</small><strong>{latestComparison.sourceAssetId} ↔ {latestComparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{latestComparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{latestComparison.posePercent}%</strong></span><span><small>Timing</small><strong>{latestComparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{latestComparison.coveragePercent}%</strong></span></div><footer><strong>{latestComparison.verdict}</strong><span>{latestComparison.exactCurveData ? 'Exact canonical curves' : 'Similarity signal'} · evidence ID {latestComparison.id.slice(0, 8)}</span></footer><p className="motion-live-result-engine">Scored by the {comparisonEngineLabel(latestComparison.algorithmVersion)} at submission. The Motion Lab above runs the v2 web engine — the same clips can score differently, and the desktop v1 engine does not detect mirrored copies.</p></article> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison.</p> : null}
+              {latestComparison ? <article className="motion-live-result"><header><span><i />Latest Studio evidence</span><time dateTime={latestComparison.createdAt}>{new Date(latestComparison.createdAt).toLocaleString()}</time></header><div><span><small>Animation IDs</small><strong>{latestComparison.sourceAssetId} ↔ {latestComparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{latestComparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{latestComparison.posePercent}%</strong></span><span><small>Timing</small><strong>{latestComparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{latestComparison.coveragePercent}%</strong></span></div><footer><strong>{latestComparison.verdict}</strong><span>{latestComparison.exactCurveData ? 'Exact canonical curves' : 'Similarity signal'} · evidence ID {latestComparison.id.slice(0, 8)}</span></footer><p className="motion-live-result-engine">Scored by the {comparisonEngineLabel(latestComparison.algorithmVersion)} at submission{comparisonEngineCaveat(latestComparison.algorithmVersion) ? <> — {comparisonEngineCaveat(latestComparison.algorithmVersion)}</> : '.'}</p></article> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison.</p> : null}
               <section className="motion-authoring-boundary"><AlertTriangle size={17} /><div><strong>Compare here; author and publish in Roblox Studio.</strong><p>CreatorFlow reads the supplied curves without changing them.</p></div><dl><div><dt>Available now</dt><dd>Read · compare · preview · fingerprint</dd></div><div><dt>Not an editor</dt><dd>Rig controls · curve timeline · Roblox upload</dd></div></dl></section>
             </section>
           </details>
