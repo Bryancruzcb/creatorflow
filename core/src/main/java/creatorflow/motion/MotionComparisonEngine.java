@@ -21,10 +21,23 @@ public final class MotionComparisonEngine {
     public static final String ALGORITHM_VERSION = "creatorflow.motion-comparison/v1";
 
     private static final int SAMPLE_COUNT = 49;
-    private static final double POSITION_DECAY = 2.25;
-    private static final double ROTATION_DECAY = 1.8;
+    static final double POSITION_DECAY = 2.25;
+    static final double ROTATION_DECAY = 1.8;
+
+    /**
+     * The per-pose blend v1 applies. Passed to {@link #delta} rather than inlined so
+     * {@link MotionComparisonEngineV2} can supply its own de-weighted values without a second copy
+     * of the delta primitive — one implementation, two callers. The numbers here are v1's original
+     * literals unchanged, and the parity oracle proves it: regenerating it after this change
+     * produces a byte-identical file.
+     */
+    static final PoseBlendWeights V1_POSE_WEIGHTS = new PoseBlendWeights(0.42, 0.50, 0.08);
 
     private MotionComparisonEngine() {
+    }
+
+    /** Blend of position, rotation and weight similarity into a single pose percentage. */
+    record PoseBlendWeights(double position, double rotation, double weight) {
     }
 
     public static MotionComparisonResult compare(MotionComparisonRequest request) {
@@ -63,7 +76,7 @@ public final class MotionComparisonEngine {
             for (String joint : commonJoints) {
                 PoseSample sourcePose = sample(sourceTracks.get(joint), sourceTime);
                 PoseSample candidatePose = sample(candidateTracks.get(joint), candidateTime);
-                PoseDelta delta = delta(sourcePose, candidatePose);
+                PoseDelta delta = delta(sourcePose, candidatePose, V1_POSE_WEIGHTS);
                 accumulators.get(joint).add(delta);
                 frameTotal += delta.posePercent();
             }
@@ -182,7 +195,7 @@ public final class MotionComparisonEngine {
                 .toList();
     }
 
-    private static Map<String, List<TrackKey>> tracks(NormalizedAnimation animation) {
+    static Map<String, List<TrackKey>> tracks(NormalizedAnimation animation) {
         Map<String, List<TrackKey>> tracks = new TreeMap<>();
         for (NormalizedKeyframe frame : sortedFrames(animation)) {
             for (NormalizedPose pose : frame.poses()) {
@@ -200,7 +213,7 @@ public final class MotionComparisonEngine {
         return tracks;
     }
 
-    private static PoseSample sample(List<TrackKey> track, double time) {
+    static PoseSample sample(List<TrackKey> track, double time) {
         if (track.size() == 1 || time <= track.getFirst().time()) {
             return track.getFirst().sample();
         }
@@ -221,20 +234,20 @@ public final class MotionComparisonEngine {
                 left.weight() + (right.weight() - left.weight()) * fraction);
     }
 
-    private static PoseDelta delta(PoseSample source, PoseSample candidate) {
+    static PoseDelta delta(PoseSample source, PoseSample candidate, PoseBlendWeights weights) {
         double positionDelta = source.position().distance(candidate.position());
         double rotationDelta = source.rotation().angleTo(candidate.rotation());
         double weightDelta = Math.abs(source.weight() - candidate.weight());
         double positionPercent = 100.0 * Math.exp(-POSITION_DECAY * positionDelta);
         double rotationPercent = 100.0 * Math.exp(-ROTATION_DECAY * rotationDelta);
         double weightPercent = 100.0 * Math.max(0.0, 1.0 - weightDelta);
-        double posePercent = positionPercent * 0.42
-                + rotationPercent * 0.50
-                + weightPercent * 0.08;
+        double posePercent = positionPercent * weights.position()
+                + rotationPercent * weights.rotation()
+                + weightPercent * weights.weight();
         return new PoseDelta(posePercent, positionDelta, rotationDelta);
     }
 
-    private static double trackMetadataPercent(List<TrackKey> source, List<TrackKey> candidate) {
+    static double trackMetadataPercent(List<TrackKey> source, List<TrackKey> candidate) {
         int samples = Math.max(source.size(), candidate.size());
         double total = 0.0;
         for (int i = 0; i < samples; i++) {
@@ -316,12 +329,12 @@ public final class MotionComparisonEngine {
         target.append(Double.toHexString(canonical)).append('|');
     }
 
-    private static double round(double value, int places) {
+    static double round(double value, int places) {
         double factor = Math.pow(10.0, places);
         return Math.round(value * factor) / factor;
     }
 
-    private record TrackKey(
+    record TrackKey(
             double time,
             Vector3 position,
             Quaternion rotation,
@@ -334,14 +347,14 @@ public final class MotionComparisonEngine {
         }
     }
 
-    private record PoseSample(Vector3 position, Quaternion rotation, double weight) {
+    record PoseSample(Vector3 position, Quaternion rotation, double weight) {
     }
 
-    private record PoseDelta(
+    record PoseDelta(
             double posePercent, double positionDelta, double rotationDelta) {
     }
 
-    private record Vector3(double x, double y, double z) {
+    record Vector3(double x, double y, double z) {
 
         Vector3 lerp(Vector3 other, double fraction) {
             return new Vector3(
@@ -358,7 +371,7 @@ public final class MotionComparisonEngine {
         }
     }
 
-    private record Quaternion(double w, double x, double y, double z) {
+    record Quaternion(double w, double x, double y, double z) {
 
         static Quaternion fromRotationMatrix(List<Double> values) {
             double m00 = values.get(3);
