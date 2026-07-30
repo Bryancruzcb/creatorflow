@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FRONTEND = path.resolve(here, '..', '..', 'frontend');
 const OUT = path.resolve(here, '..', 'public', 'captures');
+const TIMINGS_PATH = path.join(OUT, 'timings.json');
 const URL_BASE = 'http://127.0.0.1:4175';
 const SIZE = { width: 1920, height: 1080 };
 
@@ -99,6 +100,33 @@ async function runScan(page) {
   };
 }
 
+/**
+ * The five decisions the release bar's own button leaves open, and the button the evidence
+ * supports for each. "Resolve sample exceptions" only clears four of the sample's nine open
+ * decisions (avocado, barramundi, icon set, ambient loop), so the gate stays shut on these
+ * five; each is recorded the way a person would record it, from the evidence panel.
+ */
+const REMAINING_DECISIONS = [
+  ['water_bottle_camp_v02.glb', 'Attach license record'], // verified CC0 upstream, ready to attach
+  ['rock_cluster_03.fbx', 'Attach license record'], // in-house; the 38% match is category-level only
+  ['hero_run_cycle@2x.png', 'Attach license record'], // in-house; 24% pose resemblance, different build
+  ['northwind_display_semibold.otf', 'Exclude from release'], // vendor handoff, web rights unconfirmed
+  ['launch_trailer_cut_07.mov', 'Exclude from release'], // mixed footage, cue sheet incomplete
+];
+
+/** Drives the release gate from "Release needs a decision" to "Ready to export", by clicking. */
+async function openReleaseGate(page) {
+  await page.getByRole('button', { name: 'Resolve sample exceptions' }).click();
+  for (const [asset, action] of REMAINING_DECISIONS) {
+    await page.locator('.asset-select', { hasText: asset }).click();
+    const decide = page.locator('.resolution-actions').getByRole('button', { name: action });
+    await decide.waitFor();
+    await decide.click();
+  }
+  await page.locator('.release-summary.ready').waitFor();
+  await page.getByText('Ready to export').waitFor();
+}
+
 const BEATS = {
   /** Landing page at rest. The push-in happens in Remotion, not here. */
   async open(page, mark) {
@@ -107,6 +135,76 @@ const BEATS = {
     mark();
     await page.mouse.move(960, 540);
     await page.waitForTimeout(HOLD.open * 1000);
+  },
+
+  /** The scan starting and completing. The beat begins just before the click. */
+  async scan(page, mark) {
+    const go = await runScan(page);
+    mark();
+    await go();
+    // Full HOLD after the animation: the explicit waits alone must reach HOLD.scan even if the
+    // scan animation is instant, or captureScene's length assert becomes a coin flip.
+    await page.waitForTimeout(HOLD.scan * 1000);
+  },
+
+  /** A match arrives: open the investigation workbench from a ledger match link. */
+  async finding(page, mark) {
+    const go = await runScan(page);
+    await go();
+    const matchLink = page.locator('.match-link').first();
+    await matchLink.waitFor();
+    mark();
+    await matchLink.hover();
+    await page.waitForTimeout(900);
+    await matchLink.click();
+    await page.locator('#match-workbench-title').waitFor(); // "Trace the finding before making the call."
+    await page.locator('[aria-label="Matching source records"]').waitFor();
+    await page.locator('#difference-register-title').hover(); // "Detected deltas"
+    await page.waitForTimeout(HOLD.finding * 1000); // explicit waits alone must reach HOLD.finding
+  },
+
+  /** The evidence panel: checked, declared and decided for one selected asset. No clicks on decisions. */
+  async evidence(page, mark) {
+    const go = await runScan(page);
+    await go();
+    const flagged = page.locator('.match-link').first();
+    await flagged.waitFor();
+    const row = page.locator('.asset-select').nth(1);
+    mark();
+    await row.click();
+    // The panel is already mounted, so waiting on it proves nothing; wait for the row to
+    // actually own the selection, which is what the panel is about to redraw for.
+    await page.waitForFunction(() => document.querySelectorAll('.asset-ledger tbody tr')[1]?.classList.contains('selected'));
+    await page.locator('.decision-panel .decision-finding').waitFor();
+    await page.locator('.decision-panel h3').hover();
+    await page.waitForTimeout(2000);
+    await page.locator('.decision-finding').hover();
+    await page.waitForTimeout(HOLD.evidence * 1000 - 2000); // 2s + 20s of explicit waits = HOLD.evidence
+  },
+
+  /** The release gate: open decisions block, resolving unblocks, the manifest exports. */
+  async manifest(page, mark) {
+    const go = await runScan(page);
+    await go();
+    const summary = page.locator('.release-summary');
+    await summary.waitFor();
+    mark();
+    await summary.hover(); // "Release needs a decision · N need review" — the open state, on screen
+    await page.waitForTimeout(4000);
+    await openReleaseGate(page);
+    await page.waitForTimeout(2000);
+    await page.getByRole('button', { name: 'Export release manifest' }).first().click();
+    await page.waitForTimeout(HOLD.manifest * 1000 - 6000); // 4s + 2s + 13s of explicit waits = HOLD.manifest
+  },
+
+  /** The workspace at rest after export. */
+  async close(page, mark) {
+    const go = await runScan(page);
+    await go();
+    await openReleaseGate(page);
+    mark();
+    await page.mouse.move(960, 700);
+    await page.waitForTimeout(HOLD.close * 1000);
   },
 };
 
@@ -120,10 +218,19 @@ async function captureScene(browser, name, timings) {
   const video = page.video();
   await context.close();
   const tmp = await video.path();
+  const beatSeconds = (recordedMs - beatStartMs) / 1000;
+  if (beatSeconds < HOLD[name]) {
+    // Park the short clip under a name nothing consumes, so it stays inspectable without
+    // masquerading as this scene's footage or piling up run after run.
+    renameSync(tmp, path.join(OUT, `${name}.rejected.webm`));
+    throw new Error(`${name}: beat only ${beatSeconds.toFixed(1)}s, needs ${HOLD[name]}s`);
+  }
+  // Move the clip and record its timing in one step. Clips are renamed into place scene by
+  // scene, so writing timings.json only once at the end left every earlier scene with fresh
+  // footage and a stale entry whenever a later scene threw — a desync Remotion cannot detect.
   renameSync(tmp, path.join(OUT, `${name}.webm`));
   timings[name] = { beatStartMs, recordedMs };
-  const beatSeconds = (recordedMs - beatStartMs) / 1000;
-  if (beatSeconds < HOLD[name]) throw new Error(`${name}: beat only ${beatSeconds.toFixed(1)}s, needs ${HOLD[name]}s`);
+  writeFileSync(TIMINGS_PATH, JSON.stringify(timings, null, 2));
   console.log(`${name}: beat ${beatSeconds.toFixed(1)}s (trim ${beatStartMs}ms)`);
 }
 
@@ -137,10 +244,8 @@ const server = spawn('npm', ['run', 'preview', '--', '--port', '4175', '--strict
 try {
   await waitForServer(URL_BASE);
   const browser = await chromium.launch();
-  const timingsPath = path.join(OUT, 'timings.json');
-  const timings = existsSync(timingsPath) ? JSON.parse(readFileSync(timingsPath, 'utf8')) : {};
+  const timings = existsSync(TIMINGS_PATH) ? JSON.parse(readFileSync(TIMINGS_PATH, 'utf8')) : {};
   for (const name of wanted) await captureScene(browser, name, timings);
-  writeFileSync(timingsPath, JSON.stringify(timings, null, 2));
   await browser.close();
 } finally {
   await stopServer(server);
