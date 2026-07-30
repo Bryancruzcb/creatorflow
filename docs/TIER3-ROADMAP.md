@@ -45,6 +45,31 @@ joint tracks are not, which is the only credible route to the retargeting blind 
 the root README and issue #44. A clip retargeted onto a different rig keeps its end-effector
 trajectory shape while sharing zero joint names.
 
+### Why forward kinematics is mandatory here, not an optimisation
+
+It is tempting to attack the retargeting gap more cheaply — keep the current normalised
+representation and match tracks by curve *shape* instead of by name, discovering the joint
+correspondence rather than trusting the names. That cannot be graded, and the reason is worth
+recording because it looks like a testing problem and is actually a representation problem.
+
+To grade it you need a cross-rig positive. The only such fixture that can be built honestly from
+what the pipeline currently carries is "the same curves, every joint renamed" — and that is
+**byte-identical in construction to the `partial-coverage` negatives at `sharedCount = 0`**
+(`copyDetectionCases.ts`), which the test set deliberately labels as *not* evidence: "sharing one
+limb's curves with an otherwise unrelated rig is not theft evidence." Labelling the same
+construction a positive would make the set self-contradictory, and an engine tuned to satisfy both
+labels at once is being asked to distinguish cases that are identical in its input.
+
+That is the blind spot restated precisely: **it is not that the engine scores retargeted copies
+badly, it is that joint-name-keyed curve data does not contain the information needed to tell a
+retarget from an unrelated rig.** No amount of scoring work closes it. The representation has to
+change first — FK'd end-effector trajectories, which need the bind pose and parent chain that
+`clipToNormalized` drops on purpose — and only then does a gradeable fixture become constructible.
+
+So the order is forced: extend the adapter to carry hierarchy, build cross-rig fixtures against the
+new representation, and only then write a matcher. Anything that starts at the matcher is ungraded
+by construction, which in a tool whose output is evidence is the worst place to be.
+
 **Do not fingerprint raw quaternion components.** `q` and `−q` are the same rotation, so the raw
 components are not a function of the pose — the double cover would put identical poses at opposite
 ends of the vector space. The existing engine already handles this (`motionCurves`, the Shepperd
@@ -90,8 +115,13 @@ Revisit only with a real labelled corpus and a scorecard that measures false acc
 1. The friend test says teams want shared provenance at all (`ROADMAP.md` Phase E).
 2. A registry exists with enough registered animations that pairwise scanning is genuinely too
    slow — below roughly a thousand, it is not.
-3. Mirror canonicalisation (#16) has landed. Mirroring is currently detected by accident at 31.6%
-   recall, and a fingerprint built on top of an unfixed mirror gap would bake that gap into the
-   index.
+3. ~~Mirror canonicalisation (#16) has landed.~~ **Satisfied.** Mirroring used to be detected by
+   accident — 31.6% recall, and effectively 0% on three of the four graded rigs — and a fingerprint
+   built on top of that gap would have baked it into the index. #16 closed it by scoring each pair
+   in both orientations: mirror recall 6/19 → 19/19 with no added false positives at any threshold.
+   Note the caveat that came with it (`testset/README.md`): the canonicalisation inverts the same
+   simplified reflection the fixtures are generated from, so a real Blender- or Studio-produced
+   mirror is still unmeasured.
 
-None of the three hold today. The order matters more than the design does.
+The first two do not hold, and the order matters more than the design does. Precondition 1 is the
+friend test, which gates everything anyway.
