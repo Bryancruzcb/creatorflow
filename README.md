@@ -38,11 +38,29 @@ Swapping the old browser engine for that port is what moved the headline number:
 | False positives | 14/97 (14.4%) | **4/97 (4.1%)** |
 | Recall | 112/119 (94.1%) | 110/119 (92.4%) |
 
-The 1.7-point recall cost is two mirror cases, and it was a deliberate trade. Three tuning changes
+The 1.7-point recall cost was two mirror cases, and it was a deliberate trade. Three tuning changes
 went in on top — multiplicative-coverage composition, a position de-weight, and banded DTW — each
 graded separately against the same scorecard; net they bought recall back at no false-positive
-cost. The engine is pinned by 23 golden vectors and a parity test that fails if the port drifts
-from the Java reference.
+cost.
+
+Those are the cutover numbers, measured on the 119-positive set of the time. The set has since
+widened to four rigs, and two later changes moved the operating point again — the review threshold
+went to 90, and mirror canonicalization now scores every pair in both orientations, because a
+mirrored copy moves the performance across joints and every score is computed per joint by name:
+
+| | false positives | recall |
+| --- | --- | --- |
+| at the cutover (119 positives) | 4/97 (4.1%) | 110/119 (92.4%) |
+| today (133 positives) | **1/97 (1.0%)** | 133/133 |
+
+Read those two columns differently. The false-positive column is a real measurement. The recall
+column is not: the positives are programmatic derivations, and the mirror ones are undone by the
+same simplified reflection that generates them, so 133/133 means this set has been outgrown rather
+than that copy detection is solved. No cross-rig or real-Roblox case is in it at all — see the
+blind spot below.
+
+The engine is pinned by 23 golden vectors and a parity test that fails if the port drifts from the
+Java reference.
 
 <!-- SCREENSHOT — replace this comment before treating the README as done.
      Capture one frame of the preflight workspace showing a real BLOCKED release record: the

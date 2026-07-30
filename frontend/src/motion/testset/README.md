@@ -5,8 +5,9 @@ The safety net for every motion-engine change (handoff Phase 0). `npm test` runs
 `copyDetection.test.ts`, which grades the LIVE web engine over ~217 labeled cases and
 prints a recall / false-positive scorecard. Since the Phase 1b cutover the live engine
 IS the graded v2: `analyzeMotionClips`'s shape/timing modes run `clipToNormalized` →
-`compareMotion` (DTW + de-weight + coverage-attenuated composition); the old TS
-heuristic engine is deleted from shape/timing, while loop and root remain TS-only
+`compareMotion` (DTW + de-weight + coverage-attenuated composition + mirror
+canonicalization); the old TS heuristic engine is deleted from shape/timing, while
+loop and root remain TS-only
 add-on views. Thresholds: the UI review threshold (90 since issue #43) is a UI
 preference for surfacing review candidates; the registry verdict bands live in
 the engine (HIGH ≥ 90, MODERATE ≥ 70). The two now coincide numerically but stay
@@ -39,14 +40,21 @@ threshold fails CI until the baseline is regenerated on purpose:
 
 ## Honesty caveats
 
-- Mirrored fixtures swap left/right joints and reflect curves across the YZ plane.
-  That is a faithful mirror only insofar as the rigs are left/right symmetric (both
-  are, near enough). The live v2 baseline flags 8/17 mirrored fixtures (47.1%):
-  every hit is on the robot rig's symmetric holds and gross-motion clips
-  (Dance, Death, Idle, Jump, No, Sitting, Standing, Yes), while it misses all 3 fox
-  rig mirrors (Run, Survey, Walk) and 6 more robot clips (Punch, Running, ThumbsUp,
-  Walking, WalkJump, Wave). Dedicated mirror canonicalization — to close that gap on
-  purpose rather than by accident — is still Phase 3's job.
+- **The mirror recall number is now partly self-fulfilling — read the false-positive
+  rate instead.** Mirror canonicalization (#16) scores every pair in both orientations
+  (`mirrorCanonical.ts`), which took mirror recall from 6/19 to 19/19. But the
+  canonicalization inverts the *same* simplified reflection the fixtures are generated
+  from: both negate x and conjugate the rotation per joint, in the joint's LOCAL frame.
+  A true mirror reflects in world space and re-expresses the result in each bone's rest
+  frame, which needs the bind pose that `clipToNormalized` drops. So 19/19 measures
+  "the detector undoes the generator", and the honest result of that change is the
+  false-positive rate it cost, which was **zero at every threshold on the sweep**.
+  Whether it catches a mirror produced by Blender or Studio is unmeasured.
+- **The positives are saturated: 133/133 at every threshold up to the shipped 90.**
+  This set can no longer tell a good engine from a better one on laundering
+  resistance — only detect a regression. That is the set having been outgrown, not the
+  problem being solved. The next informative measurement has to come from harder
+  derivations or from real Roblox animations.
 - A scorecard number is a measurement, not a verdict. Precision (not flagging the
   innocent) outranks recall — a change that raises recall by raising the family/unrelated
   false-positive rate is a regression.
@@ -97,17 +105,23 @@ skips rigs under `MIN_ANIMATED_JOINTS`. On a one-joint rig "relocated in space" 
 animation" are indistinguishable from local transform data, and mirroring is near-identity — such
 a rig moves the headline percentages without exposing engine behaviour.
 
-**What widening the set revealed.** The old aggregate "mirror 47%" was carried entirely by one rig:
+**What widening the set revealed, and what closed it.** The old aggregate "mirror 47%" was carried
+entirely by one rig — mirrored animations were effectively undetected on every rig but robot, and
+robot only scored because that rig is symmetric enough for a mirrored clip to still resemble itself:
 
-| rig | mirror recall |
-| --- | --- |
-| robot | 8/14 |
-| fox | 0/3 |
-| cesiumMan | 0/1 |
-| riggedFigure | 0/1 |
+| rig | mirror recall, before #16 | after |
+| --- | --- | --- |
+| robot | 8/14 | 14/14 |
+| fox | 0/3 | 3/3 |
+| cesiumMan | 0/1 | 1/1 |
+| riggedFigure | 0/1 | 1/1 |
 
-Mirrored animations are **effectively undetected on every rig except robot**. Treat mirror
-detection as unimplemented (see the deferred mirror-canonicalization work), not as "partial".
+Mirror canonicalization (#16) closed it by scoring each pair in both orientations rather than by
+scoring better. The diagnosis that made it work: after reflecting, the six robot clips that still
+failed had a pose score of *exactly 100* and were losing on coverage alone — a one-armed
+performance (`Wave`, `ThumbsUp`, `Punch`) contains no left/right pair to find, because the
+counterpart joint is never keyed. Pairing across both clips being compared, rather than within one,
+took those from 4 pairs to 26. See the honesty caveat above before quoting the "after" column.
 
 **What the set still cannot tell you.** Positives are programmatic derivations of a clip against
 itself, so this measures *laundering resistance* — can the engine still recognise this exact clip
@@ -134,12 +148,28 @@ Five of 231 cases moved, all from flagged to unflagged — three false positives
 (`mirror:Dance`, `mirror:Death`).
 
 Both losses landing in `mirror` is the reason this was worth taking rather than a coincidence to
-note. Mirror recall was 42.1% at 85 and is 31.6% at 90 — a class the engine only ever detected by
+note. Mirror recall was 42.1% at 85 and 31.6% at 90 — a class the engine only ever detected by
 accident, because mirroring a quaternion is an improper reflection rather than a sign flip, and one
-that issue #16 exists to fix properly with mirror canonicalization. The two cases given up here are
-in the one category already known to be broken; the three false positives removed are in the
-category the product says matters most.
+that issue #16 existed to fix properly.
 
-The friend test may still reprice this against real Roblox data, which is a better reason to move
-it again than a better F1 would be.
+**Then #16 landed and gave both of them back.** `mirror:Dance` and `mirror:Death` are flagged again,
+so the threshold move's recall cost is now zero, and the curve is:
+
+| threshold | TP | FP | precision | recall | F1 |
+| --- | --- | --- | --- | --- | --- |
+| 85 | 133 | 4 | 0.971 | 1.000 | 0.985 |
+| **90 (shipped)** | **133** | **1** | **0.993** | **1.000** | **0.996** |
+| 95 | 127 | 1 | 0.992 | 0.955 | 0.973 |
+
+Mirror canonicalization added **no false positives at any threshold** — the FP column is unchanged
+from before it, at every row. That is the number worth trusting; the recall column is saturated and
+partly self-fulfilling (see the honesty caveats).
+
+One consequence for the gates: the old `precision > recall` assertion was a proxy for "this
+operating point favours precision", and it broke when recall reached 1.000 — precision went *up*
+(0.992 → 0.993) and the gate failed anyway. It is now written as what it meant: a hard cap of one
+flagged negative and a 0.99 precision floor at the shipped threshold.
+
+The friend test may still reprice all of this against real Roblox data, which is a better reason to
+move the threshold again than a better F1 would be.
 
