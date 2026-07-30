@@ -29,7 +29,7 @@ import java.util.HexFormat;
 import javax.imageio.ImageIO;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
@@ -89,7 +89,7 @@ class GalleryWebTest {
     void uploadPage_requiresLogin() throws Exception {
         mvc.perform(get("/upload"))
                 .andExpect(status().is3xxRedirection())
-                .andExpect(redirectedUrlPattern("**/login"));
+                .andExpect(redirectedUrl("/login"));
     }
 
     @Test
@@ -222,7 +222,10 @@ class GalleryWebTest {
                 .andExpect(status().isOk());
     }
 
-    private org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder upload(
+    // Spring Framework 7 reworked the request builders onto self-typed generics, so the multipart
+    // builder no longer widens to MockHttpServletRequestBuilder. The concrete type is what
+    // multipart() actually returns; perform() takes the common RequestBuilder either way.
+    private org.springframework.test.web.servlet.request.MockMultipartHttpServletRequestBuilder upload(
             byte[] bytes, String fileName, String username) {
         return multipart("/upload")
                 .file(new MockMultipartFile("file", fileName, "image/png", bytes))
