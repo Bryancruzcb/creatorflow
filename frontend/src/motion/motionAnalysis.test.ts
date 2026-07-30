@@ -51,6 +51,40 @@ describe('analyzeMotionClips mode dispatch', () => {
     expect(result.primaryLabel).not.toBe('Candidate loop continuity');
     expect(result.primaryLabel).not.toBe('Root-path match');
   });
+
+  it('names the mirrored orientation in the verdict a person is shown', () => {
+    // "These match" and "these match once you mirror one" are different claims. The engine has
+    // carried `mirrored` since #16 landed — but this function, its one live consumer, dropped it,
+    // which is exactly the failure the flag's own doc comment warns about. The verdict sentence is
+    // what every surface renders, so the claim lives there.
+    // The moving hand swings hard AND rotates, so the direct comparison (moving left hand vs a
+    // static left hand) lands well below the HIGH band and the mirrored orientation gets its turn.
+    // Rotation w flips sign under the y/z conjugation? No: (x,y,z,w) -> (x,-y,-z,w), so a pure
+    // y-axis spin (0, s, 0, c) mirrors to (0, -s, 0, c) — the same spin the other way.
+    const spin = Math.SQRT1_2;
+    const source = new AnimationClip('Source', 1, [
+      new VectorKeyframeTrack('HandL.position', [0, 0.5, 1], [1, 0, 0, 1, 3, 0, 1, 0, 0]),
+      new QuaternionKeyframeTrack('HandL.quaternion', [0, 1], [0, 0, 0, 1, 0, spin, 0, spin]),
+      new VectorKeyframeTrack('HandR.position', [0, 0.5, 1], [-1, 0, 0, -1, 0, 0, -1, 0, 0]),
+    ]);
+    // The mirror of `source`: names swapped, position x negated, quaternion y/z negated — so the
+    // performing hand is now the RIGHT one, spinning the opposite way.
+    const mirrored = new AnimationClip('Mirrored', 1, [
+      new VectorKeyframeTrack('HandR.position', [0, 0.5, 1], [-1, 0, 0, -1, 3, 0, -1, 0, 0]),
+      new QuaternionKeyframeTrack('HandR.quaternion', [0, 1], [0, 0, 0, 1, 0, -spin, 0, spin]),
+      new VectorKeyframeTrack('HandL.position', [0, 0.5, 1], [1, 0, 0, 1, 0, 0, 1, 0, 0]),
+    ]);
+
+    const caught = analyzeMotionClips(source, mirrored, { mode: 'shape' });
+    expect(caught.mirrored).toBe(true);
+    expect(caught.verdict).toMatch(/mirror image/);
+    // And an exact-bytes claim must never ride along with a mirrored match.
+    expect(caught.exactCurveData).toBe(false);
+
+    const direct = analyzeMotionClips(source, source.clone(), { mode: 'shape' });
+    expect(direct.mirrored).toBe(false);
+    expect(direct.verdict).not.toMatch(/mirror image/);
+  });
 });
 
 describe('loopContinuity (via analyzeMotionClips mode: loop)', () => {
