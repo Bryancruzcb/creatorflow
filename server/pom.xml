@@ -15,7 +15,7 @@
   <description>The CreatorFlow platform: community asset gallery, fingerprint registry, accounts and disputes.</description>
 
   <properties>
-    <spring-boot.version>3.5.3</spring-boot.version>
+    <spring-boot.version>4.1.0</spring-boot.version>
   </properties>
 
   <dependencyManagement>
@@ -60,6 +60,14 @@
     <dependency>
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-test</artifactId>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <!-- Boot 4 modularized the test slices out of spring-boot-test-autoconfigure:
+           @AutoConfigureMockMvc now lives in the per-technology spring-boot-webmvc-test,
+           which starter-test does not pull in on its own. -->
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-webmvc-test</artifactId>
       <scope>test</scope>
     </dependency>
     <dependency>
