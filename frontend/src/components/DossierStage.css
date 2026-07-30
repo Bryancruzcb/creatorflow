@@ -76,7 +76,27 @@
   }
 }
 
+/**
+ * Absolutely positioned so the canvas can NEVER size its own container.
+ *
+ * As an in-flow child with `height: 100%`, the canvas is circular with the row: the figure's
+ * height comes from the row, the row from its items' intrinsic heights, and the canvas's
+ * intrinsic height is its `height` ATTRIBUTE — which `renderer.setSize` writes as CSS pixels ×
+ * `pixelRatio`. Chrome usually resolves the cycle in the layout's favour, but not on every
+ * reflow: on a 150%-scaled Windows laptop (devicePixelRatio 1.5) a font swap or the
+ * loading→ready flip could consult the attribute, inflate the row ×1.5, and the ResizeObserver
+ * then wrote an attribute 1.5× bigger again — locking the blow-up in. The visible symptom was a
+ * rig viewport ~1130px tall whose robot filled the window with its head, with the clip buttons
+ * pushed below the fold.
+ *
+ * `position: absolute` removes the canvas from intrinsic sizing entirely, in every browser, at
+ * every pixel ratio — the figure's height is decided by the row and `min-height` alone, and the
+ * canvas only ever follows it. The transport and poster are already absolute, so the figure has
+ * no other in-flow content; its `min-height` is what holds it open.
+ */
 .evidence-rig-canvas {
+  position: absolute;
+  inset: 0;
   display: block;
   width: 100%;
   height: 100%;
