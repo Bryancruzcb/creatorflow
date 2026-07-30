@@ -26,7 +26,7 @@ access to — that's the point of the test).
 
 ## Setup (one time, ~10 minutes)
 
-Requires JDK 21+, Maven, Node 20+.
+Requires **JDK 24 or newer**, Maven, Node 20+.
 
 ```bash
 git clone https://github.com/Bryancruzcb/creatorflow.git && cd creatorflow

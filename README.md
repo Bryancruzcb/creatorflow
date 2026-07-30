@@ -4,8 +4,8 @@ Before a Roblox team publishes an update, CreatorFlow checks every changed asset
 snapshot of the last release and returns **PASS** or **BLOCKED**.
 
 [![CI](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml)
-![Java 21](https://img.shields.io/badge/Java-21-5d86b4)
-![JavaFX 21](https://img.shields.io/badge/JavaFX-21-5d86b4)
+![Java 24](https://img.shields.io/badge/Java-24-5d86b4)
+![JavaFX 26](https://img.shields.io/badge/JavaFX-26-5d86b4)
 ![React 19](https://img.shields.io/badge/React-19-5d86b4)
 
 It runs locally. A hardened `127.0.0.1` desktop bridge pairs with a Roblox Studio plugin and reads
@@ -66,7 +66,7 @@ in the CLI as it does in the desktop app.
 
 ## Quickstart
 
-Requires JDK 21+ and Maven.
+Requires **JDK 24 or newer** and Maven.
 
 ```bash
 git clone https://github.com/Bryancruzcb/creatorflow.git
