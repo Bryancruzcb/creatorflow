@@ -1,7 +1,9 @@
 package creatorflow.server.service;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.ObjectMapper;
+// Jackson 3 (Spring Boot 4's default): the auto-configured ObjectMapper bean is the
+// tools.jackson one, and its exceptions are unchecked JacksonException.
+import tools.jackson.core.JacksonException;
+import tools.jackson.databind.ObjectMapper;
 import creatorflow.server.domain.RegisteredAsset;
 import creatorflow.server.domain.UserAccount;
 import creatorflow.server.repo.RegisteredAssetRepository;
@@ -343,7 +345,7 @@ public class GalleryService {
         }
         try {
             return json.readValue(asset.getReportJson(), StoredReport.class);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             return StoredReport.empty();
         }
     }
@@ -351,7 +353,7 @@ public class GalleryService {
     private String writeReport(StoredReport report) {
         try {
             return json.writeValueAsString(report);
-        } catch (JsonProcessingException e) {
+        } catch (JacksonException e) {
             throw new IllegalStateException("Could not serialize originality report", e);
         }
     }
