@@ -67,7 +67,7 @@ function durationPercentOf(source: NormalizedAnimationJson, candidate: Normalize
 
 function verdictFor(exact: boolean, overallPercent: number): NormalizedVerdict {
   if (exact) return 'EXACT_CURVE_DATA';
-  if (overallPercent >= 90) return 'HIGH_SIMILARITY';
+  if (overallPercent >= HIGH_SIMILARITY_PERCENT) return 'HIGH_SIMILARITY';
   if (overallPercent >= 70) return 'MODERATE_SIMILARITY';
   return 'LOW_SIMILARITY';
 }
@@ -103,11 +103,33 @@ export function compareMotion(
 ): MotionComparisonV2 {
   const direct = compareOriented(source, candidate, options);
   if (options.mirrorAware === false) return direct;
-  if (direct.exactCurveData || direct.overallPercent >= HIGH_SIMILARITY_PERCENT) return direct;
+  // Band by verdict, not by re-comparing the ROUNDED overall against 90: verdictFor saw the
+  // unrounded value, and an 89.996 that rounds to 90.00 must not skip the orientation that could
+  // genuinely decide it.
+  if (direct.exactCurveData || direct.verdict === 'HIGH_SIMILARITY') return direct;
   const mirroredCandidate = mirrorNormalized(candidate, source);
   if (!mirroredCandidate) return direct;
   const mirrored = compareOriented(source, mirroredCandidate, options);
-  return mirrored.overallPercent > direct.overallPercent ? { ...mirrored, mirrored: true } : direct;
+  if (mirrored.overallPercent <= direct.overallPercent) return direct;
+  /**
+   * A perfect mirror is NOT exact curve data.
+   *
+   * The canonical-equality check inside the mirrored comparison sees source vs mirror(candidate) —
+   * and because the reflection is a bitwise-exact inverse of the mirroring transform, a cleanly
+   * mirrored copy comes back canonically EQUAL there. Passing that through as
+   * exactCurveData/EXACT_CURVE_DATA would be a byte-identity claim about a pair whose bytes are
+   * not identical: 14 of the 19 mirror fixtures did exactly that before this guard. Exactness is a
+   * statement about what was submitted, so it can only ever come from the direct orientation
+   * (which short-circuited above). The scores stand — they are real measurements of the mirrored
+   * orientation — but the claim is downgraded to what it is: the strongest possible similarity,
+   * found in the mirror.
+   */
+  return {
+    ...mirrored,
+    mirrored: true,
+    exactCurveData: false,
+    verdict: mirrored.exactCurveData ? 'HIGH_SIMILARITY' : mirrored.verdict,
+  };
 }
 
 function compareOriented(

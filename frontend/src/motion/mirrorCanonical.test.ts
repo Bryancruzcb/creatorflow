@@ -142,6 +142,23 @@ describe('compareMotion mirror awareness', () => {
     expect(result.overallPercent).toBeGreaterThanOrEqual(90);
   });
 
+  it('never claims exact curve data for a mirrored pair', () => {
+    // The reflection is a bitwise-exact inverse of the mirroring transform, so inside the mirrored
+    // comparison the canonical-equality check DOES fire for a clean mirror. Passing that through
+    // was a byte-identity claim about a pair whose bytes differ — 14 of the 19 mirror fixtures
+    // reported EXACT_CURVE_DATA before this was guarded. Exactness is a statement about what was
+    // submitted; only the direct orientation may ever assert it.
+    const result = compareMotion(source, mirroredCopy);
+    expect(result.mirrored).toBe(true);
+    expect(result.overallPercent).toBe(100);
+    expect(result.exactCurveData).toBe(false);
+    expect(result.verdict).toBe('HIGH_SIMILARITY');
+    // The direct orientation still asserts it, unchanged.
+    const identical = compareMotion(source, source);
+    expect(identical.exactCurveData).toBe(true);
+    expect(identical.verdict).toBe('EXACT_CURVE_DATA');
+  });
+
   it('reports the direct orientation when it is the better one', () => {
     expect(compareMotion(source, source).mirrored).toBe(false);
   });
