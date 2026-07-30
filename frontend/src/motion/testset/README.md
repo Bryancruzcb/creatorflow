@@ -79,7 +79,7 @@ person can move, the band is engine behaviour — so compare the two scorecards 
 by side, not row-by-row against a shared bar. The live app runs v2 since the Phase 1b cutover;
 see "v2 web engine (Phase 1b)" below for the graded engine and its parity anchor.
 
-## v2 web engine (Phase 1b)
+## v2 engine (Phase 1b)
 
 `tunedScorecard.test.ts` grades the v2 engine (`compareMotion`): the parity-proven
 Java kernel + three graded divergences — multiplicative coverage (no tiny-overlap
@@ -88,6 +88,33 @@ false accusations, no full-coverage inflation), position de-weighted 0.25/0.65/0
 composite. Baseline: `scorecard.tuned.baseline.json`, regenerated per graded stage
 (`UPDATE_MOTION_TUNED_BASELINE=1`). The parity-locked `compareNormalized` and its
 oracle test remain untouched as the Java-fidelity anchor.
+
+**v2 is no longer web-only** (issue #102). It exists in Java as
+`MotionComparisonEngineV2`, and the Studio plugin route
+(`POST /plugin/v1/motion-comparisons`) scores on it. Until that change the plugin
+route ran **v1** while every browser surface ran v2, so the same pair returned
+different percentages depending on which door it came through, and a mirrored copy
+was caught in the browser and missed through the plugin.
+
+Two implementations of one algorithm only stay one algorithm if something binds
+them, so they are bound the same way v1 is: `parity/v2Parity.test.ts` grades
+`compareMotion` against `motion-v2-parity-oracle.json`, generated from the Java
+engine by `MotionV2ParityOracleGeneratorTest`. That oracle carries all 23 v1 cases
+plus **7 mirror cases**, because not one v1 case has a left/right joint name — the
+mirror half of the port would otherwise be graded by nothing. The gate is
+sensitive: perturbing the pose weights by 0.01 on one side fails 17 of its cases.
+
+The version string stays `creatorflow.motion-comparison/v2-web` in both. It names
+the algorithm, not the implementation, and two parity-locked implementations
+reporting different strings would put two names for one algorithm back into the
+comparison table — the confusion #102 is about. Stored records already carry it.
+
+One thing pinned rather than fixed while porting: `MIRROR_MIN_PAIRS` is 2, but
+`buildMirrorMap` stores both directions of every mutual pair, so a **single** pair
+already clears it. The comment beside the constant describes a two-pair floor the
+code does not implement. Changing the real floor would move scores the web already
+ships, so it is a product decision, not a parity fix — recorded in
+`v2-mirror-single-pair-allowed`.
 
 ## Rig coverage and what these numbers do NOT prove (2026-07-26)
 

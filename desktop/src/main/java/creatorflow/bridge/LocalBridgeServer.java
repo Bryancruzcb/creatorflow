@@ -22,6 +22,7 @@ import creatorflow.manifest.ScanOptions;
 import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.opencloud.RateLimitedException;
 import creatorflow.motion.MotionComparisonEngine;
+import creatorflow.motion.MotionComparisonEngineV2;
 import creatorflow.motion.MotionComparisonRequest;
 import creatorflow.motion.MotionSnapshotKind;
 import creatorflow.motion.NormalizedAnimation;
@@ -269,7 +270,17 @@ public final class LocalBridgeServer implements AutoCloseable {
             requireMethod(exchange, "POST");
             JsonNode body = readJson(exchange, MAX_MOTION_REQUEST_BYTES);
             MotionComparisonRequest request = parseMotionRequest(body);
-            var result = MotionComparisonEngine.compare(request);
+            /*
+             * Engine v2, the same algorithm every browser surface uses (issue #102).
+             *
+             * This route scored on v1 until now, so a comparison submitted from Studio and the same
+             * comparison run in the web UI returned different percentages — and a mirrored copy was
+             * caught in the browser while staying invisible here. v1 remains in the tree as the
+             * parity oracle the TypeScript port is proven against; it is no longer what a person is
+             * shown. The two v2 implementations are bound by
+             * frontend/src/motion/parity/v2Parity.test.ts.
+             */
+            var result = MotionComparisonEngineV2.compare(request);
             NormalizedAnimation source = request.source();
             NormalizedAnimation candidate = request.candidate();
             AnimationComparisonRecord stored = animationComparisons.insert(
@@ -278,7 +289,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                     result.sourceFingerprint(), result.candidateFingerprint(),
                     roundedPercent(result.overallPercent()), roundedPercent(result.posePercent()),
                     roundedPercent(result.timingPercent()), roundedPercent(result.coveragePercent()),
-                    result.exactCurveData(), json.writeValueAsString(result), result.algorithmVersion(),
+                    result.exactCurveData(), json.writeValueAsString(result), result.engineVersion(),
                     PlaybackSettings.of(source.looped(), source.priority()),
                     PlaybackSettings.of(candidate.looped(), candidate.priority()));
             sendJson(exchange, 201, animationComparisonView(stored));
@@ -1070,6 +1081,15 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("coverageScore", record.coverageScore());
         view.put("exactCurveData", record.exactCurveData());
         view.put("verdict", verdictLabel(result.path("verdict").asText("")));
+        /*
+         * "These two match" and "these two match once you mirror one of them" are different claims
+         * (issue #104), so the flag travels to whoever reads the record — including the Studio
+         * plugin, which otherwise reports a mirrored match as a plain one.
+         *
+         * Read from the stored result JSON rather than a column: v1 records predate the concept
+         * entirely, and absent-means-false is the right reading for them.
+         */
+        view.put("mirrored", result.path("mirrored").asBoolean(false));
         view.put("algorithmVersion", record.algorithmVersion());
         view.put("createdAt", record.createdAt());
         view.put("result", result);

@@ -50,6 +50,13 @@ export interface LocalMotionComparison {
   coveragePercent: number;
   exactCurveData: boolean;
   verdict: string;
+  /**
+   * True when the score was found by comparing the candidate MIRRORED (#102, #104).
+   *
+   * Optional because records written before the plugin route moved to v2 have no such field, and
+   * absent is correctly read as false for them: the v1 engine could not detect a mirror at all.
+   */
+  mirrored?: boolean;
   algorithmVersion: string;
   createdAt: string;
   result: Record<string, unknown>;

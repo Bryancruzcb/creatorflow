@@ -65,11 +65,15 @@ connection**, and allow the HTTP-permission prompt Studio raises.
    Compare. Confirm the comparison lands in the desktop workspace's evidence
    history.
 
-   > **Expect different numbers than the Motion Lab (#102).** Studio-submitted
-   > comparisons are scored by the desktop's Java v1 engine; the Motion Lab runs
-   > the v2 web engine. Same clips, different algorithms — v1 also cannot detect
-   > mirrored copies. The evidence card says which engine scored it; a mismatch
-   > between the card and the Lab is the split, not a bug.
+   > **Expect the SAME numbers as the Motion Lab (#102 is fixed).** Studio-submitted
+   > comparisons and the Motion Lab both score on the v2 engine now, bound together
+   > by `frontend/src/motion/parity/v2Parity.test.ts`. The evidence card still names
+   > the scoring engine, because records submitted before the fix were scored by the
+   > desktop v1 engine and cannot be rescored.
+   >
+   > So the reading has inverted: on a card that says **v2 web engine**, a
+   > disagreement with the Lab on the same pair is a **bug worth reporting**, not an
+   > expected split. Only a card that says **desktop v1 engine** should differ.
 2. Now deliberately break things and **write down the exact error copy** — this
    is the data the next build step needs:
    - **[live-Studio]** an animation ID the user does NOT own (wrong owner / private)
