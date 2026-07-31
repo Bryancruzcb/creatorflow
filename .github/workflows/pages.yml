@@ -5,6 +5,11 @@
 # correctly report that they need the desktop app — nothing here talks to a scanner, and
 # no local data is involved.
 #
+# The comparison models are not in the repository — they are ~50 MB of Khronos CC0 GLBs, so
+# frontend/.gitignore excludes them and the build downloads them instead. Without that step
+# the site still deploys and still looks fine, and only the match workbench gives it away by
+# swapping in a still image, so a smoke run drives that view before anything is uploaded.
+#
 # One-time setup: repository Settings → Pages → Source: "GitHub Actions". Until that is
 # selected the deploy step fails with a "Pages site not found" style error.
 name: Pages
@@ -28,6 +33,12 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      # A project site lives at https://<user>.github.io/<repo>/, so assets must be requested
+      # from that subpath. vite.config.ts defaults to "/" for the desktop bridge, which serves
+      # the same bundle at the root. Set for the whole job because the smoke step previews the
+      # build and has to resolve the same base the build was made for.
+      VITE_BASE_PATH: /${{ github.event.repository.name }}/
     steps:
       - uses: actions/checkout@v7
 
@@ -41,14 +52,27 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # Digest-pinned against the hashes public/assets/ASSET-PROVENANCE.md publishes, so this
+      # fails loudly rather than deploying models the evidence chain does not describe.
+      - name: Fetch the upstream comparison models
+        run: npm run assets:khronos
+        working-directory: frontend
+
+      - name: Build the project derivatives
+        run: npm run assets:derive
+        working-directory: frontend
+
       - name: Build
         run: npm run build
         working-directory: frontend
-        env:
-          # A project site lives at https://<user>.github.io/<repo>/, so assets must be
-          # requested from that subpath. vite.config.ts defaults to "/" for the desktop
-          # bridge, which serves the same bundle at the root.
-          VITE_BASE_PATH: /${{ github.event.repository.name }}/
+
+      - name: Install the smoke browser
+        run: npx playwright install --with-deps chromium
+        working-directory: frontend
+
+      - name: Smoke the built site
+        run: npm run smoke:pages
+        working-directory: frontend
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v5
