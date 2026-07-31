@@ -1,43 +1,65 @@
 import React from 'react';
+import { AbsoluteFill } from 'remotion';
 import { c, font, sec } from '../theme';
-import { Root, useEnter, useProgress } from '../primitives';
+import { Footage } from '../Footage';
+import { Root, useEnter } from '../primitives';
 
 /**
  * Scene 6 — the close.
  *
  * Ends on the product's own line rather than a new one, and on a claim it can keep: knowing what
- * can ship is a statement about your own records, not a promise that nothing is stolen.
+ * can ship is a statement about your own records, not a promise that nothing is stolen. The
+ * workspace sits behind it, at rest after the export, so the last thing on screen is the software
+ * rather than a title card.
+ *
+ * No exit fade, by the original design: this is the last scene, and the repository line is the one
+ * thing a viewer might pause on.
  */
-export const Close: React.FC<{ durationInFrames: number }> = () => {
-  const rule = useProgress(sec(0.4), sec(1.6));
+export const Close: React.FC<{ durationInFrames: number }> = ({ durationInFrames }) => {
+  const title = useEnter(sec(0.2));
+  const tags = useEnter(sec(1.5));
+  const repo = useEnter(sec(2.2));
 
   return (
-    <Root>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
-        <div
-          style={{
-            ...useEnter(sec(0.2)),
-            fontSize: 96,
-            fontWeight: 500,
-            letterSpacing: '-0.035em',
-            lineHeight: 1.05,
-          }}
-        >
-          Know what can ship.
-        </div>
+    <AbsoluteFill>
+      {/* Darker than the shared default: the closing mono lines and the repository URL are thin
+          text over the ledger, and the URL is the one thing a viewer may need to read exactly. */}
+      <Footage scene="close" durationInFrames={durationInFrames} dim={0.7} />
+      <Root transparent>
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'flex-start' }}>
+          <div
+            style={{
+              ...title,
+              fontSize: 96,
+              fontWeight: 500,
+              letterSpacing: '-0.035em',
+              lineHeight: 1.05,
+            }}
+          >
+            Know what can ship.
+          </div>
 
-        <div style={{ width: `${rule * 640}px`, height: 1, background: c.hairlineStrong, margin: '46px 0 34px' }} />
+          <div
+            style={{
+              ...tags,
+              marginTop: 46,
+              display: 'flex',
+              gap: 46,
+              fontFamily: font.mono,
+              fontSize: 25,
+              color: c.inkMuted,
+            }}
+          >
+            <span>Runs on your machine</span>
+            <span>Roblox-first</span>
+            <span>Open source</span>
+          </div>
 
-        <div style={{ ...useEnter(sec(1.5)), display: 'flex', gap: 46, fontFamily: font.mono, fontSize: 25, color: c.inkMuted }}>
-          <span>Runs on your machine</span>
-          <span>Roblox-first</span>
-          <span>Open source</span>
+          <div style={{ ...repo, marginTop: 54, fontFamily: font.mono, fontSize: 27, color: c.blueAccent }}>
+            github.com/Bryancruzcb/creatorflow
+          </div>
         </div>
-
-        <div style={{ ...useEnter(sec(2.2)), marginTop: 54, fontFamily: font.mono, fontSize: 27, color: c.blueAccent }}>
-          github.com/Bryancruzcb/creatorflow
-        </div>
-      </div>
-    </Root>
+      </Root>
+    </AbsoluteFill>
   );
 };
