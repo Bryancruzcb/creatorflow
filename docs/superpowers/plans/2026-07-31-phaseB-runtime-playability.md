@@ -152,22 +152,37 @@ This task has no automated test harness (no Luau test framework exists or is bei
   ```
   Run this in Studio's command bar first (paste `Playability_selfTest()` after loading the script in a throwaway place) and confirm it prints nothing and returns `true` — if it warns, the helper has a bug; fix `markersDeclaredIn` before continuing.
 
-- [ ] **Step 3 — Add `probePlayability`, using Task 0's confirmed playback method.** Returns `nil` when no probe could run at all (rig fetch failed — becomes `NOT_VERIFIED` downstream); otherwise always returns a table with `ok`/`error` reflecting every check made, folding engine errors, loop mismatch, and (if in scope) marker mismatch into that single boolean rather than separate fields the UI would need to branch on. If Task 0 pinned the scrub method:
+  Then wire it to run automatically on every plugin load, matching how `Sha256.selfTest()` guards `Main.server.luau:15` in the legacy plugin — add near the top of `CreatorFlowAnimationBridge.lua`, immediately after `Playability_selfTest`'s own definition:
   ```lua
-  local function probePlayability(clip, rigType)
+  if not Playability_selfTest() then
+      warn("[CreatorFlow] Playability self-test failed — marker/report logic may be broken; playability checks will still run but their results may be unreliable.")
+  end
+  ```
+  Unlike `Sha256.selfTest()` (which refuses to load the whole plugin on failure, because a wrong hash could poison the shared registry), this warns rather than halts: a broken playability self-check degrades one evidence facet, not data integrity, so the rest of the plugin — Compare, pairing, everything already working — should keep functioning.
+
+- [ ] **Step 3 — Add `probePlayability`, using Task 0's confirmed playback method.** Takes the animation's **Roblox asset ID** (a string — the same `sourceId`/`candidateId` already computed by `normalizeAssetId` in the Compare handler), not the raw `KeyframeSequence` clip: `Humanoid:LoadAnimation` requires an `Animation` instance with an `AnimationId`, exactly like Task 0's spike script builds (`Instance.new("Animation")`, set `AnimationId`, then load that) — a `KeyframeSequence` cannot be passed to `LoadAnimation` directly. Building a fresh `Animation` here means this function needs no `KeyframeSequence` instance at all, so `readAnimation` does not need to change.
+
+  Returns `nil` when no probe could run at all (rig fetch failed — becomes `NOT_VERIFIED` downstream); otherwise always returns a table with `ok`/`error` reflecting every check made, folding engine errors, loop mismatch, and (if in scope) marker mismatch into that single boolean rather than separate fields the UI would need to branch on. Takes the clip's already-known declared `looped` boolean and marker-name list as parameters — both come from the same normalized data `readAnimation` already produces (`normalized.looped`, which is `clip.Loop` read in `normalizeKeyframeSequence` before the clip is destroyed), so `probePlayability` never needs the raw `KeyframeSequence` itself. If Task 0 pinned the scrub method:
+  ```lua
+  local function probePlayability(assetId, rigType, declaredLooped, declaredMarkers)
       local rig = fetchStandardRig(rigType)
       if not rig then
           return nil -- no probe could run — NOT_VERIFIED downstream, distinct from a probe that ran and failed
       end
       local scratchRig = rig:Clone()
       scratchRig.Parent = workspace
-      local declared = markersDeclaredIn(clip)
+      local animation = Instance.new("Animation")
+      animation.AnimationId = "rbxassetid://" .. assetId
       local fired = {}
       local result
       local ok, err = pcall(function()
           local humanoid = scratchRig:FindFirstChildOfClass("Humanoid")
-          local track = humanoid:LoadAnimation(clip)
-          for _, name in ipairs(declared) do
+          local track = humanoid:LoadAnimation(animation)
+          -- Roblox initializes track.Looped from the loaded clip's own authored Loop metadata.
+          -- Read it now, before anything else touches it, or the comparison below is comparing
+          -- declaredLooped against a value we set ourselves — a tautology, not a check.
+          local engineLooped = track.Looped
+          for _, name in ipairs(declaredMarkers) do
               track:GetMarkerReachedSignal(name):Connect(function()
                   table.insert(fired, name)
               end)
@@ -179,9 +194,9 @@ This task has no automated test harness (no Luau test framework exists or is bei
           end
           track:Stop()
 
-          local loopHonored = track.Looped == clip.Loop
+          local loopHonored = engineLooped == declaredLooped
           local missingMarker = nil
-          for _, name in ipairs(declared) do
+          for _, name in ipairs(declaredMarkers) do
               if not table.find(fired, name) then
                   missingMarker = name
                   break
@@ -203,42 +218,46 @@ This task has no automated test harness (no Luau test framework exists or is bei
       return result
   end
   ```
+  `declaredMarkers` is `{}` (empty) until Task 0 confirms `markersFired` is viable and `normalizeKeyframeSequence` is extended to also collect `Keyframe:GetMarkers()` names — with an empty list, the marker check is a no-op and every clip passes it trivially, which is correct (nothing declared, nothing to miss).
+
   If Task 0 instead pinned the real-time-`Heartbeat`-poll method, replace the scrub loop (the `for i = 0, samples do ... end` block) with the polling loop from Task 0 Step 3, keeping everything else — including `scratchRig:Destroy()` in both the success and `pcall`-failure paths — identical.
 
   If Task 0's note says `markersFired` was cut, delete the `fired`/`GetMarkerReachedSignal`/`missingMarker` logic entirely and drop straight to `result = loopHonored and { ok = true } or { ok = false, error = "Loop setting was not honored during playback." }`.
 
-- [ ] **Step 4 — Wire it into the existing Compare handler.** In `compareButton.Activated`'s callback (inside `runAction`), after both `readAnimation` calls currently return `source`/`sourceCounts` and `candidate`/`candidateCounts`, add:
+  Place `markersDeclaredIn` and `probePlayability` immediately after Step 1's `fetchStandardRig` block (before `local toolbar = plugin:CreateToolbar(...)`), and Step 2's `Playability_selfTest` immediately after `probePlayability` — all four must be declared, as `local function`s, before `compareButton.Activated`'s handler (~line 725 in the current file) captures them as upvalues; Lua requires the declaration to appear lexically earlier in the file.
+
+- [ ] **Step 4 — Wire it into the existing Compare handler.** `readAnimation` does not need to change — `probePlayability` takes the asset ID string and the already-normalized `looped`/marker data, both of which `readAnimation`'s existing return value (`source`/`candidate`, each with `.looped` per `normalizeKeyframeSequence`'s return table) already carries. In `compareButton.Activated`'s callback (inside `runAction`), after both `readAnimation` calls currently produce `source`/`sourceCounts` and `candidate`/`candidateCounts` (using the existing `sourceId`/`candidateId` locals already computed by `normalizeAssetId`), add:
   ```lua
   local playability = {
       source = {
-          r6 = probePlayability(sourceClip, "R6"),
-          r15 = probePlayability(sourceClip, "R15"),
+          r6 = probePlayability(sourceId, "R6", source.looped, {}),
+          r15 = probePlayability(sourceId, "R15", source.looped, {}),
       },
       candidate = {
-          r6 = probePlayability(candidateClip, "R6"),
-          r15 = probePlayability(candidateClip, "R15"),
+          r6 = probePlayability(candidateId, "R6", candidate.looped, {}),
+          r15 = probePlayability(candidateId, "R15", candidate.looped, {}),
       },
   }
   ```
-  This needs the raw `KeyframeSequence` instances (`sourceClip`/`candidateClip`), not just the normalized tables `readAnimation` currently returns. Modify `readAnimation` to also return the raw `clip` before it calls `clip:Destroy()` — change its final lines from:
+  (The `{}` fourth argument is the empty `declaredMarkers` placeholder from Step 3 — replace with the real marker list once Task 0 confirms `markersFired` is viable and `normalizeKeyframeSequence` is extended to collect it.)
+
+  Include `playability` in the existing `HttpService:JSONEncode({...})` call as a new top-level key alongside `schema`, `source`, `candidate` — change:
   ```lua
-  local normalizedOk, normalized, counters = pcall(normalizeKeyframeSequence, assetId, clip)
-  clip:Destroy()
-  if not normalizedOk then
-      error(errorText(normalized), 0)
-  end
-  return normalized, counters
+  local body = HttpService:JSONEncode({
+      schema = SCHEMA,
+      source = source,
+      candidate = candidate,
+  })
   ```
-  to defer destruction until after both the normalization AND the playability probes run — return the clip as a third value, destroy it in the caller once `probePlayability` has consumed it:
+  to:
   ```lua
-  local normalizedOk, normalized, counters = pcall(normalizeKeyframeSequence, assetId, clip)
-  if not normalizedOk then
-      clip:Destroy()
-      error(errorText(normalized), 0)
-  end
-  return normalized, counters, clip
+  local body = HttpService:JSONEncode({
+      schema = SCHEMA,
+      source = source,
+      candidate = candidate,
+      playability = playability,
+  })
   ```
-  Then in `compareButton.Activated`, capture the third return value from each `readAnimation` call, run the two probes per clip using it, destroy both clips once probing is done, and include `playability` in the existing `HttpService:JSONEncode({...})` body alongside `schema`, `source`, `candidate`.
 
 - [ ] **Step 5 — Manual live-Studio verification.** Install the updated plugin per `roblox-plugin/desktop-bridge/README.md`, pair it with a running desktop app, and run a real Compare on two accessible animation IDs. Confirm in Studio's Output window: no uncaught errors, both `probePlayability` calls return before the HTTP POST fires, and the POST body (add a temporary `print(HttpService:JSONEncode({...}))` before the `request(...)` call, remove it after) contains a `playability` key shaped as specified above.
 
@@ -560,12 +579,22 @@ This task has no automated test harness (no Luau test framework exists or is bei
     playability?: { source: AnimationPlayability; candidate: AnimationPlayability };
   ```
 
-- [ ] **Step 2 — Write the failing component test.** Create `frontend/src/components/AnimationSnapshotsPanel.playability.test.tsx`:
+- [ ] **Step 2 — Write the failing component test.** The component's early-return branch (`if (!bridgeClient || !project) { ... }`, `AnimationSnapshotsPanel.tsx:124`) shows a "Desktop bridge not connected" sample preview and never reaches the `latestComparison` rendering the new playability block lives in — passing `bridgeClient={null}` would test that disconnected branch, not this feature. Use a cast fake bridge client instead, the same pattern `LocalProjectWorkspace.ownership.test.tsx` already uses (`return client as unknown as LocalBridgeClient;`). The component's `refresh()` (called on mount via `useEffect`) calls `bridgeClient.listAnimationSnapshots(project.projectId)`, so the fake must resolve that call. Create `frontend/src/components/AnimationSnapshotsPanel.playability.test.tsx`:
   ```typescript
-  import { describe, expect, it } from 'vitest';
+  import { describe, expect, it, vi } from 'vitest';
   import { render, screen } from '@testing-library/react';
   import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
-  import type { LocalMotionComparison } from '../bridge/localBridge';
+  import type { LocalBridgeClient, LocalMotionComparison, LocalProjectSummary } from '../bridge/localBridge';
+
+  function makeBridgeClient(): LocalBridgeClient {
+    const client = {
+      listAnimationSnapshots: vi.fn().mockResolvedValue({ items: [] }),
+      captureAnimationSnapshot: vi.fn(),
+    };
+    return client as unknown as LocalBridgeClient;
+  }
+
+  const PROJECT: LocalProjectSummary = { projectId: 1, name: 'Test Project' };
 
   function comparison(overrides: Partial<LocalMotionComparison>): LocalMotionComparison {
     return {
@@ -582,12 +611,12 @@ This task has no automated test harness (no Luau test framework exists or is bei
 
   describe('AnimationSnapshotsPanel playability evidence', () => {
     it('shows Not verified when no playability report exists', () => {
-      render(<AnimationSnapshotsPanel bridgeClient={null} project={null} latestComparison={comparison({})} />);
+      render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({})} />);
       expect(screen.getAllByText(/not verified/i).length).toBeGreaterThan(0);
     });
 
     it('shows a clean-pass outcome as Verified, not a bare success mark alone', () => {
-      render(<AnimationSnapshotsPanel bridgeClient={null} project={null} latestComparison={comparison({
+      render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
         playability: {
           source: { r6: { ok: true }, r15: { ok: true } },
           candidate: { r6: { ok: true }, r15: { ok: true } },
@@ -598,7 +627,7 @@ This task has no automated test harness (no Luau test framework exists or is bei
     });
 
     it('shows an engine error as Verified with failed wording, never a bare success mark', () => {
-      render(<AnimationSnapshotsPanel bridgeClient={null} project={null} latestComparison={comparison({
+      render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
         playability: {
           source: { r6: { ok: false, error: 'Motion could not bind to R6.' }, r15: { ok: true } },
           candidate: { r6: { ok: true }, r15: { ok: true } },
@@ -609,7 +638,7 @@ This task has no automated test harness (no Luau test framework exists or is bei
 
     it('shows Not verified for a rig whose probe never ran, distinct from one that ran and failed', () => {
       // r6 is entirely absent (rig fetch failed) — must read NOT_VERIFIED, not a failed VERIFIED.
-      render(<AnimationSnapshotsPanel bridgeClient={null} project={null} latestComparison={comparison({
+      render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
         playability: {
           source: { r15: { ok: true } },
           candidate: { r6: { ok: true }, r15: { ok: true } },
@@ -731,7 +760,7 @@ This task has no automated test harness (no Luau test framework exists or is bei
   ```
   Expected: all pass.
 
-- [ ] **Step 2 — Run the full frontend suite including e2e.** Per this project's own established lesson (source-level checks miss bundler-interop bugs — see `docs/superpowers/plans/` history on the Ajv codegen incident), run the built-bundle e2e suite, not just vitest:
+- [ ] **Step 2 — Run the full frontend suite including e2e.** Source-level checks (vitest, typecheck) run against source and cannot see bugs that only exist in the built bundle — this project has hit that gap before with a CJS/ESM interop bug in generated validator code that only broke under the real bundler, invisible to every source-level check. Run the built-bundle e2e suite too, not just vitest:
   ```bash
   npm --prefix frontend run build
   npx --prefix frontend playwright test
