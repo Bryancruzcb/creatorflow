@@ -58,7 +58,7 @@ jobs:
       # hashes the fetch script, which is where both the upstream ref and the digests live, so
       # changing either mints a new key instead of pinning the cache to bytes nobody wants.
       - name: Cache the upstream comparison models
-        uses: actions/cache@v6
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: frontend/public/assets/*-source.glb
           key: khronos-sources-${{ hashFiles('frontend/scripts/fetch-khronos-sources.mjs') }}
