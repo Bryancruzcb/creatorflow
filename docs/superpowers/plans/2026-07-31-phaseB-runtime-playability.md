@@ -641,7 +641,11 @@ This task has no automated test harness (no Luau test framework exists or is bei
           candidate: { r6: { ok: true }, r15: { ok: true } },
         },
       })} />);
-      expect(screen.getByText(/motion could not bind to r6/i)).toBeInTheDocument();
+      // getByText already throws if no match exists — a complete assertion on its own. No
+      // .toBeInTheDocument() wrapper: this project has no jest-dom dependency or setupFiles
+      // entry anywhere (checked frontend/package.json and vitest.config.ts), so that matcher
+      // doesn't exist here and would throw a different error than the one being tested for.
+      screen.getByText(/motion could not bind to r6/i);
     });
 
     it('shows Not verified for a rig whose probe never ran, distinct from one that ran and failed', () => {
