@@ -6,8 +6,7 @@
   "description": "Remotion source for the CreatorFlow workflow explainer.",
   "scripts": {
     "studio": "remotion studio",
-    "render": "remotion render Explainer out/creatorflow-explainer.mp4 --crf=18",
-    "render:gif": "remotion render Explainer out/creatorflow-explainer.gif --codec=gif --every-nth-frame=2 --width=1280",
+    "render": "remotion render Explainer out/creatorflow-explainer.mp4",
     "still": "remotion still Explainer out/frame.png",
     "capture": "node capture/record.mjs"
   },

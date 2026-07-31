@@ -9,7 +9,6 @@ npx playwright install chromium
 npm run capture    # records real UI footage -> public/captures/ (needs frontend deps installed)
 npm run studio     # live editor at localhost:3000
 npm run render     # -> out/creatorflow-explainer.mp4
-npm run render:gif
 ```
 
 `npm run capture` builds and previews the real frontend, so it also needs that app's sample models
