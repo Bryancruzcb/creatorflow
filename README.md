@@ -9,6 +9,9 @@ asset against a snapshot of the last release and return an honest **PASS** or **
 ![JavaFX 26](https://img.shields.io/badge/JavaFX-26-5d86b4)
 ![React 19](https://img.shields.io/badge/React-19-5d86b4)
 
+**[Try the sample workspace in your browser](https://bryancruzcb.github.io/creatorflow/)** — it runs
+on authored sample data, and scanning your own files needs the desktop app.
+
 It runs locally. A `127.0.0.1` desktop bridge pairs with a Roblox Studio plugin and reads
 only normalized KeyframeSequence data — never raw asset files — so nothing leaves your machine.
 Changed assets are compared against insert-only SQLite snapshots, provenance findings are resolved
@@ -63,13 +66,26 @@ blind spot below.
 The engine is pinned by 23 golden vectors and a parity test that fails if the port drifts from the
 Java reference.
 
-<!-- SCREENSHOT — replace this comment before treating the README as done.
-     Capture one frame of the preflight workspace showing a real BLOCKED release record: the
-     verdict, the findings that caused it, and the named rollback target, all visible together.
-     A real run, not a mockup. Save as docs/screenshots/preflight-blocked.png, then:
+## What the workspace looks like
 
-![A BLOCKED release record, showing the findings that blocked it and the version to roll back to](docs/screenshots/preflight-blocked.png)
--->
+Both frames are a real run of the browser workspace on the built-in sample project — the same
+workspace the [live demo](https://bryancruzcb.github.io/creatorflow/) serves — captured by
+`frontend/scripts/capture-readme-shots.mjs`. First, the scan has finished and nothing has been
+decided, so the gate is shut:
+
+![The preflight workspace after a scan of the sample project: a twelve-row asset ledger with
+automated evidence and release state per file, an evidence panel for the selected asset, and a
+release bar reading "Release needs a decision · 3 blocked · 6 need review · 3 approved" with the
+export button disabled](docs/screenshots/preflight-blocked.png)
+
+Opening a finding gives the investigation view. Both halves are the real GLB files under a single
+locked camera — the project derivative on the left, the upstream Khronos original on the right — so
+a difference on screen is a difference in the models rather than one the viewer introduced:
+
+![The match investigation for avocado_foodstudy_v02.glb: the project model and the upstream Khronos
+model side by side in a 3D comparison labelled 99% match confidence and "not a pixel-difference
+percentage", above a delta register listing one visible base-color change and two record-only
+differences](docs/screenshots/preflight-evidence.png)
 
 ## How it's put together
 
@@ -387,12 +403,18 @@ pinned comments, feedback filtering).
 
 ## Development
 
-Regenerate the web screenshots (server running with the demo seed):
+Regenerate the two preflight screenshots in this README:
 
 ```bash
-chrome --headless=new --window-size=1440,960 --hide-scrollbars \
-       --screenshot=docs/screenshots/web-gallery.png http://localhost:8080/
+node frontend/scripts/capture-readme-shots.mjs
 ```
+
+It builds the frontend, serves it on vite preview, and drives the sample preflight in headless
+Chromium. Prerequisites: `npm install` in `frontend/`, `npx playwright install chromium`, and the
+five gitignored Khronos `*-source.glb` files downloaded into `frontend/public/assets/` followed by
+`npm --prefix frontend run assets:derive`. Without those models the comparison viewer falls back to
+a still image, and the script fails rather than photograph the fallback;
+`frontend/public/assets/ASSET-PROVENANCE.md` lists every upstream source and hash.
 
 Desktop screenshots: run `creatorflow.Main` with `-Dcreatorflow.screenshot.dir=docs/screenshots`
 and a throwaway `-Dcreatorflow.data.dir`.
