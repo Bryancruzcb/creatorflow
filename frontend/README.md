@@ -57,7 +57,7 @@ The authored sample data remains finite and deterministic. Standalone preview mo
 requests. Desktop-connected mode talks only to the authenticated same-origin `127.0.0.1` bridge;
 creative payloads stay local and the browser never receives an unrestricted project root path.
 
-The 3D evidence is not synthetic artwork. `npm run assets:derive` regenerates all five comparison derivatives, preserving upstream geometry and textures while applying one documented, visible material change plus project metadata. `npm run assets:ships` reproducibly packages Poly Haven's 4K glTF ship sources into self-contained GLBs without altering their geometry or textures. See `public/assets/ASSET-PROVENANCE.md`, the twelve stored license files, and `public/assets/creatorflow-real-assets-manifest.json`.
+The 3D evidence is not synthetic artwork. The five upstream sources are too large to commit, so `npm run assets:khronos` downloads them from a pinned Khronos commit and checks each one against the hash recorded in `public/assets/ASSET-PROVENANCE.md`. `npm run assets:derive` then regenerates all five comparison derivatives, preserving upstream geometry and textures while applying one documented, visible material change plus project metadata. `npm run assets:ships` reproducibly packages Poly Haven's 4K glTF ship sources into self-contained GLBs without altering their geometry or textures. See `public/assets/ASSET-PROVENANCE.md`, the twelve stored license files, and `public/assets/creatorflow-real-assets-manifest.json`.
 
 ## How this fits the existing Java repository
 
