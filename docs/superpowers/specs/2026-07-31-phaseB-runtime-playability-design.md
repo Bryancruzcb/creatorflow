@@ -34,8 +34,10 @@ already reads both animations in a Compare action via
 `AnimationClipProvider:GetAnimationClipAsync`. This phase adds a playback
 probe right after that read: load the same clip onto a cached Roblox-stock
 R6 and R15 dummy rig, play it, and observe what the *real* Roblox animation
-engine does. The result — one `PlayabilityReport` per animation, per rig —
-rides along in the same `/plugin/v1/motion-comparisons` submission that
+engine does. The result — one `PlayabilityReport` per animation, holding a
+`PlayabilityResult` for each of the two rigs (`{ r6: PlayabilityResult, r15:
+PlayabilityResult }`) — rides along in the same `/plugin/v1/motion-comparisons`
+submission that
 already happens, rather than a new endpoint, as a new top-level sibling
 field (not nested inside `source`/`candidate` — see Components below for
 why). The desktop bridge persists it next to the comparison record; the
@@ -66,13 +68,18 @@ TypeScript (frontend evidence view).
 
 ## Global constraints
 
-- **Honesty ceiling.** A `VERIFIED` playability result means "this clip
-  played on a live Roblox-stock R6/R15 dummy without an engine error, in
-  Studio, at this point in time." It does **not** mean the animation will
-  behave identically on the target experience's actual custom rig, if one
-  differs from Roblox's stock skeletons — that gap is out of scope for v1
-  and must be stated in the UI copy, the same way ownership `VERIFIED` is
-  scoped to "the facts were obtained," not "you have the right to use this."
+- **Honesty ceiling.** `VERIFIED` is the evidence *basis* — it means "a live
+  playback check actually ran on a Roblox-stock R6/R15 dummy in Studio, at
+  this point in time" — not a claim about the outcome. Exactly like
+  ownership (`OwnershipEvidence.verified()` is true for both `MATCH` and
+  `MISMATCH` — "we obtained authoritative facts," not "the facts are good"),
+  a clip that plays clean and a clip that throws an engine error are **both**
+  `VERIFIED`, distinguished by their outcome text, never by which tri-state
+  label is shown. Only "no check ran at all" (rig fetch failed, or the
+  comparison predates this feature) is `NOT_VERIFIED`. It also does not mean
+  the animation will behave identically on the target experience's actual
+  custom rig, if one differs from Roblox's stock skeletons — that gap is out
+  of scope for v1 and must be stated in the UI copy.
 - **Never auto-block; v1 doesn't gate-block at all.** A playability failure
   — an engine error, a marker that never fired, loop not honored — is
   surfaced as evidence on the comparison record, not fed into the release
@@ -133,9 +140,9 @@ scratch plugin, findings written to a short note (mirrors
 
 - [ ] **Step 1** — In Studio, find and pin the exact stock R6 and R15 dummy
       rig asset IDs to use (e.g. via `InsertService`'s catalog, or the same
-      rigs Roblox's own Animation Editor uses). Insert the R15 one, load a
-      known `KeyframeSequence` with at least one authored `PoseMarker`, and
-      `Humanoid:LoadAnimation` it.
+      rigs Roblox's own Animation Editor uses). Insert **both** (Step 4 needs
+      the R6 one too). On the R15 one, load a known `KeyframeSequence` with
+      at least one authored `PoseMarker`, and `Humanoid:LoadAnimation` it.
 - [ ] **Step 2** — Call `:Play()`, then advance `TimePosition` across evenly
       spaced samples (e.g. 30 samples across the clip's declared duration).
       Connect `MarkerReached` before playing; record whether it fires for
@@ -169,7 +176,9 @@ is cut from the v1 `PlayabilityReport` and only `ok`/`error`/`loopHonored`/
   dummy via `InsertService` once per Studio session (not per Compare); a
   fetch failure is non-fatal (see Error handling).
 - `probePlayability(clip: KeyframeSequence, rigType) -> PlayabilityResult`
-  — clones the cached rig into a scratch container, loads and plays the
+  (a single rig's result; two calls, for `"R6"` and `"R15"`, combine into
+  one `PlayabilityReport` per animation) — clones the cached rig into a
+  scratch container, loads and plays the
   clip per the Task 0 spike's confirmed method, wrapped in `pcall`, always
   destroys the clone before returning (success or failure).
 - Wired into the existing `compareButton.Activated` handler, right after
@@ -200,8 +209,13 @@ is cut from the v1 `PlayabilityReport` and only `ok`/`error`/`loopHonored`/
 - A new evidence block on the comparison record's detail view (where
   score/verdict/mirrored/exact-curve-data already render), using
   `EvidenceBasisMark.tsx`'s existing tri-state visual language: `VERIFIED`
-  when a report exists for that rig, `NOT_VERIFIED` when absent (old
-  comparison, or the plugin's rig fetch failed). This is display-only in
+  whenever a report exists for that rig — **regardless of pass or fail** —
+  with the pass/fail outcome shown as separate wording next to the mark
+  ("Plays clean" vs. "Engine error: `<message>`" vs. "Marker `<name>` never
+  fired"), never as the mark itself. `NOT_VERIFIED` only when no report
+  exists at all (old comparison, or the plugin's rig fetch failed). `DECLARED`
+  does not apply — nothing about this fact is human-entered — so only two of
+  the three tri-state values are ever used here. This is display-only in
   v1 — no decision-required flow, since that flow is built around
   gate-scoped `AssetEntry` decisions, a different object this data isn't
   bound to (see Architecture).
@@ -219,15 +233,16 @@ visible there; it does not touch the release gate in v1 (see Architecture).
 
 ## Error handling
 
-- **Rig fetch failure** (`InsertService` unreachable or asset missing):
-  playability for that rig type reads `NOT_VERIFIED` with the reason
-  "could not fetch a test rig" — Compare still completes and stores the
-  comparison data exactly as it does today. Mirrors the ownership
-  `UNVERIFIABLE` pattern (Phase A): an honest "could not check," never a
-  false `VERIFIED`.
+- **Rig fetch failure** (`InsertService` unreachable or asset missing): no
+  probe could run at all, so that rig type reads `NOT_VERIFIED` with the
+  reason "could not fetch a test rig" — Compare still completes and stores
+  the comparison data exactly as it does today. Mirrors the ownership
+  `UNVERIFIABLE` pattern (Phase A): an honest "could not check."
 - **Per-rig engine error** (clip fails to load/play on that specific rig):
-  captured as `{ ok: false, error: <engine message> }`, shown as-is — not
-  swallowed, not retried silently.
+  the probe *did* run, so this is `VERIFIED` with a failed outcome, captured
+  as `{ ok: false, error: <engine message> }` and shown as-is — not
+  swallowed, not retried, and never rendered as a bare success mark (see
+  Components' Frontend note).
 - **Partial result** (clean on R6, errors on R15): both shown independently,
   per the "never merged" constraint above.
 - **Cleanup is defensive**: rig-clone destruction happens in all paths
@@ -247,8 +262,10 @@ visible there; it does not touch the release gate in v1 (see Architecture).
   parsing (present and absent cases) and its persistence, following the
   existing pattern for the motion-comparison request tests.
 - **Frontend:** vitest/RTL coverage for the new evidence block on the
-  comparison detail view (all three tri-state cases, R6 and R15 shown and
-  tested independently), following the existing pattern used for that
+  comparison detail view — the two tri-state values actually in play here
+  (`VERIFIED` with a pass outcome, `VERIFIED` with a fail outcome,
+  `NOT_VERIFIED`; `DECLARED` is unused, see Components), R6 and R15 shown
+  and tested independently — following the existing pattern used for that
   view's other evidence marks.
 - **Task 0 spike** (above) gates all of this — nothing here is built until
   it answers Steps 2 and 4.
