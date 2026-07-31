@@ -15,8 +15,8 @@ npm run render:gif
 `npm run capture` builds and previews the real frontend, so it also needs that app's sample models
 on disk. The five Khronos glTF-Sample-Assets CC0 sources — `avocado-source.glb`,
 `boombox-source.glb`, `barramundi-source.glb`, `waterbottle-source.glb`, `lantern-source.glb` — are
-gitignored, so a fresh clone has to download them into `frontend/public/assets/` and then run
-`npm run assets:derive` in `frontend/` to build the matching derivatives. Skip that and the
+gitignored, so a fresh clone runs `npm run assets:khronos` and then `npm run assets:derive` in
+`frontend/` to download them and build the matching derivatives. Skip that and the
 workbench's 3D comparison falls back to "WebGL preview unavailable", which is what scene 3 will
 record. `frontend/public/assets/ASSET-PROVENANCE.md` lists every upstream source and hash.
 

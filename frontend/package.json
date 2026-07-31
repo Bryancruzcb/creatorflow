@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
+    "assets:khronos": "node scripts/fetch-khronos-sources.mjs",
     "assets:derive": "node scripts/derive-glb-assets.mjs",
     "assets:ships": "node scripts/fetch-polyhaven-ships.mjs",
     "assets:stress": "node scripts/generate-stress-fixtures.mjs",
@@ -16,6 +17,7 @@
     "typecheck": "npm run schema:check && tsc -b --pretty false",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "smoke:pages": "node scripts/smoke-pages.mjs",
     "harness": "vite --config vite.harness.config.ts",
     "test:audit": "playwright test --config playwright.audit.config.ts",
     "inspect:motion": "node scripts/inspect-motion.mjs"
