@@ -6,7 +6,7 @@
  *   docs/screenshots/preflight-evidence.png  the match investigation, both real GLBs rendered
  *
  * Needs the frontend dependencies installed, `npx playwright install chromium`, and the five
- * gitignored Khronos `*-source.glb` files in public/assets/ plus `npm run assets:derive` — see
+ * gitignored Khronos sources (`npm run assets:khronos`) plus `npm run assets:derive` — see
  * public/assets/ASSET-PROVENANCE.md. Without the models the comparison viewer falls back to a
  * still image, so the evidence capture fails rather than pass that off as a 3D comparison.
  *
@@ -88,7 +88,7 @@ async function shootPanel(page, selector, file) {
 
 /** A fresh workspace per shot: the sample scan only offers "Start local scan" from its idle state. */
 async function newWorkspacePage(browser) {
-  const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 2 });
+  const context = await browser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1.5 });
   const page = await context.newPage();
   await page.addInitScript(() => {
     try { localStorage.setItem('creatorflow:welcomed', '1'); } catch {}

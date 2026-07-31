@@ -411,10 +411,11 @@ node frontend/scripts/capture-readme-shots.mjs
 
 It builds the frontend, serves it on vite preview, and drives the sample preflight in headless
 Chromium. Prerequisites: `npm install` in `frontend/`, `npx playwright install chromium`, and the
-five gitignored Khronos `*-source.glb` files downloaded into `frontend/public/assets/` followed by
-`npm --prefix frontend run assets:derive`. Without those models the comparison viewer falls back to
-a still image, and the script fails rather than photograph the fallback;
-`frontend/public/assets/ASSET-PROVENANCE.md` lists every upstream source and hash.
+comparison models — `npm --prefix frontend run assets:khronos` downloads the five gitignored
+sources against the hashes in `frontend/public/assets/ASSET-PROVENANCE.md`, then
+`npm --prefix frontend run assets:derive` rebuilds the project derivatives. Without those models
+the comparison viewer falls back to a still image, and the script fails rather than photograph
+the fallback.
 
 Desktop screenshots: run `creatorflow.Main` with `-Dcreatorflow.screenshot.dir=docs/screenshots`
 and a throwaway `-Dcreatorflow.data.dir`.
