@@ -31,9 +31,9 @@ export const Finding: React.FC<{ durationInFrames: number }> = ({ durationInFram
       <Root transparent>
         <div style={{ position: 'relative' }}>
           <Kicker delay={sec(0.1)}>Step two</Kicker>
-          {/* Not "two animations look alike" — the curves on screen visibly diverge, and a heading
-              that fights its own picture makes a viewer distrust both. This frames what the
-              workbench is showing as the explanation it is. */}
+          {/* Not "two animations look alike" — the side-by-side models on screen are already
+              showing the difference, and a heading that fights its own picture makes a viewer
+              distrust both. This frames what the workbench is showing as the explanation it is. */}
           <Heading delay={sec(0.3)} size={64}>
             Something matched. Here is why.
           </Heading>

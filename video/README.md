@@ -26,7 +26,7 @@ record. `frontend/public/assets/ASSET-PROVENANCE.md` lists every upstream source
 |---|---|---|---|
 | 1 | `Open` | 8 | The question a creator already has before publishing |
 | 2 | `Scan` | 12 | What running it does, and the promise that makes it safe |
-| 3 | `Finding` | 17 | A match arrives, drawn rather than asserted |
+| 3 | `Finding` | 17 | A match arrives, recorded rather than asserted |
 | 4 | `Evidence` | 18 | Checked vs declared vs your call |
 | 5 | `Manifest` | 15 | The artefact you keep |
 | 6 | `Close` | 8 | — |
@@ -44,7 +44,7 @@ product that does — it reaches more people and nobody can check it.
 
 - **Similarity is never called copying.** Scene 3 ends on "Similar is not stolen" at full contrast,
   after the evidence rather than buried under it.
-- **Checked, declared and decided stay separate.** Scene 4 draws them differently on purpose; the
+- **Checked, declared and decided stay separate.** Scene 4 keeps them distinct on purpose; the
   whole product turns on who said a thing.
 - **The gate is filmed refusing to pass.** Scene 5 opens on "Release needs a decision", export
   greyed out and the blocked and needs-review counts on screen, and clears only once each one is

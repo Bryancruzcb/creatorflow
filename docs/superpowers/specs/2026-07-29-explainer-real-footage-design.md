@@ -20,6 +20,13 @@ Remotion. No hand-drawn slide content remains, including the open and close scen
 - Output artefacts: `out/creatorflow-explainer.mp4` and the GIF render, same
   resolution (1920×1080) and total length.
 
+**Addendum (2026-07-31):** the `open: 1` rule above — and the scene-5 row in the
+footage map below — is superseded. The real release gate cannot export while
+decisions are open, so that manifest state is unreachable from the export path,
+and the owner approved rewording the rule. The honesty moment is now the
+blocked-gate shot: "Release needs a decision" held on screen before any decision
+is recorded. The current rule text lives in `video/README.md`.
+
 ## Architecture
 
 Two stages, run in order:

@@ -9,8 +9,8 @@ import { Root, useEnter } from '../primitives';
  *
  * Ends on the product's own line rather than a new one, and on a claim it can keep: knowing what
  * can ship is a statement about your own records, not a promise that nothing is stolen. The
- * workspace sits behind it, at rest after the export, so the last thing on screen is the software
- * rather than a title card.
+ * workspace sits behind it, gate cleared and reading "Ready to export", so the last thing on screen
+ * is the software rather than a title card.
  *
  * No exit fade, by the original design: this is the last scene, and the repository line is the one
  * thing a viewer might pause on.
