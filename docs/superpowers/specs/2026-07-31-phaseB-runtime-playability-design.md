@@ -166,8 +166,9 @@ scratch plugin, findings written to a short note (mirrors
 
 **Completion test:** the note has a clear answer for Steps 2 and 4. If
 marker-firing cannot be made reliable by Step 3's fallback, `markersFired`
-is cut from the v1 `PlayabilityReport` and only `ok`/`error`/`loopHonored`/
-`durationMeasured` ship — re-scope, don't block the rest of the phase on it.
+is cut from the v1 `PlayabilityResult` and only `ok`/`error`/`loopHonored`/
+`durationMeasured` ship on each rig's result — re-scope, don't block the
+rest of the phase on it.
 
 ## Components
 
