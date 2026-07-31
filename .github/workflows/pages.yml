@@ -52,6 +52,18 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # Without this every push re-downloads ~50 MB from raw.githubusercontent.com, so a deploy
+      # fails whenever that host is throttling or down. Restoring a stale entry is safe: the fetch
+      # step below re-downloads any file whose sha256 does not match the digest it pins. The key
+      # hashes the fetch script, which is where both the upstream ref and the digests live, so
+      # changing either mints a new key instead of pinning the cache to bytes nobody wants.
+      - name: Cache the upstream comparison models
+        uses: actions/cache@v6
+        with:
+          path: frontend/public/assets/*-source.glb
+          key: khronos-sources-${{ hashFiles('frontend/scripts/fetch-khronos-sources.mjs') }}
+          restore-keys: khronos-sources-
+
       # Digest-pinned against the hashes public/assets/ASSET-PROVENANCE.md publishes, so this
       # fails loudly rather than deploying models the evidence chain does not describe.
       - name: Fetch the upstream comparison models
