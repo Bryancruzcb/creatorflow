@@ -197,7 +197,7 @@ const BEATS = {
     await page.waitForTimeout(HOLD.manifest * 1000 - 6000); // 4s + 2s + 13s of explicit waits = HOLD.manifest
   },
 
-  /** The workspace at rest after export. */
+  /** The workspace at rest with the gate cleared: every decision recorded, "Ready to export". */
   async close(page, mark) {
     const go = await runScan(page);
     await go();
