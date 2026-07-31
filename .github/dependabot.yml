@@ -1,6 +1,11 @@
 # Dependency security + freshness. Dependabot opens PRs when a dependency has a
 # newer version or a known vulnerability (an SCA scan, the cheapest rung of a real
 # security check). See docs/adding-animation-rigs.md's security notes.
+#
+# Each ecosystem waits a week before proposing a newly published version. Most
+# compromised releases are caught and yanked within days, so the delay keeps the
+# freshest — and riskiest — packages out of the update stream. Security advisories
+# bypass the cooldown, so known vulnerabilities are still proposed immediately.
 version: 2
 updates:
   - package-ecosystem: "npm"
@@ -8,6 +13,8 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
     groups:
       frontend-minor-and-patch:
         update-types: ["minor", "patch"]
@@ -17,8 +24,12 @@ updates:
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    cooldown:
+      default-days: 7
