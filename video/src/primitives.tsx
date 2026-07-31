@@ -40,12 +40,16 @@ export function useProgress(from: number, to: number) {
   });
 }
 
-export const Root: React.FC<{ children: React.ReactNode; opacity?: number }> = ({ children, opacity = 1 }) => (
+export const Root: React.FC<{ children: React.ReactNode; opacity?: number; transparent?: boolean }> = ({
+  children,
+  opacity = 1,
+  transparent = false,
+}) => (
   <div
     style={{
       width: '100%',
       height: '100%',
-      background: c.desk,
+      background: transparent ? 'transparent' : c.desk,
       color: c.ink,
       fontFamily: font.sans,
       display: 'flex',
