@@ -52,10 +52,9 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private static String clientKey(HttpServletRequest request) {
-        String forwarded = request.getHeader("X-Forwarded-For");
-        if (forwarded != null && !forwarded.isBlank()) {
-            return forwarded.split(",")[0].strip();
-        }
+        // X-Forwarded-For is client-controlled: keying on it lets a caller mint a fresh
+        // bucket per request and walk past the throttle. The server is served directly
+        // (no trusted proxy), so the socket address is the only honest identity.
         return request.getRemoteAddr() == null ? "unknown" : request.getRemoteAddr();
     }
 }
