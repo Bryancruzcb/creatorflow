@@ -152,6 +152,8 @@ This task has no automated test harness (no Luau test framework exists or is bei
   ```
   Run this in Studio's command bar first (paste `Playability_selfTest()` after loading the script in a throwaway place) and confirm it prints nothing and returns `true` — if it warns, the helper has a bug; fix `markersDeclaredIn` before continuing.
 
+  `markersDeclaredIn` has no caller in the shipped feature yet — `probePlayability` (Step 3) takes `declaredMarkers` as a parameter rather than deriving it from a clip, and until Task 0 confirms `markersFired` is viable that parameter is always `{}` (see Step 3/Step 4). This helper is where marker extraction plugs in once that happens: `normalizeKeyframeSequence` gets extended to call it per-keyframe and fold the results into `normalized.markers`, which Step 4's `compareButton.Activated` wiring then passes as `source.markers`/`candidate.markers` in place of today's `{}` literals. Until then it's self-tested but unused — that's expected, not a bug.
+
   Then wire it to run automatically on every plugin load, matching how `Sha256.selfTest()` guards `Main.server.luau:15` in the legacy plugin — add near the top of `CreatorFlowAnimationBridge.lua`, immediately after `Playability_selfTest`'s own definition:
   ```lua
   if not Playability_selfTest() then
@@ -610,9 +612,15 @@ This task has no automated test harness (no Luau test framework exists or is bei
   }
 
   describe('AnimationSnapshotsPanel playability evidence', () => {
+    // EvidenceBasisMark renders with `compact` here (Task 3 Step 4), which suppresses its text
+    // label — only the icon renders, wrapped in a <span title={description}>. The title is set
+    // unconditionally regardless of `compact`, so it's what these tests query to tell VERIFIED
+    // apart from NOT_VERIFIED; the outcome wording ("Plays clean" / error text / "Not checked")
+    // comes from Task 3 Step 4's own <small>, not from EvidenceBasisMark, and is asserted directly.
     it('shows Not verified when no playability report exists', () => {
       render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({})} />);
-      expect(screen.getAllByText(/not verified/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByTitle(/did not or cannot check this/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByText(/not checked/i).length).toBeGreaterThan(0);
     });
 
     it('shows a clean-pass outcome as Verified, not a bare success mark alone', () => {
@@ -622,7 +630,7 @@ This task has no automated test harness (no Luau test framework exists or is bei
           candidate: { r6: { ok: true }, r15: { ok: true } },
         },
       })} />);
-      expect(screen.getAllByText(/verified/i).length).toBeGreaterThan(0);
+      expect(screen.getAllByTitle(/computed by creatorflow/i).length).toBeGreaterThan(0);
       expect(screen.getAllByText(/plays clean/i).length).toBeGreaterThan(0);
     });
 
