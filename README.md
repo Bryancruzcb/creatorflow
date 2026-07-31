@@ -1,14 +1,15 @@
 # CreatorFlow
 
-Before a Roblox team publishes an update, CreatorFlow checks every changed asset against a
-snapshot of the last release and returns **PASS** or **BLOCKED**.
+A personal experimentation project. It started at a hackathon and became the sandbox where I
+explore one workflow end to end: before a Roblox team publishes an update, check every changed
+asset against a snapshot of the last release and return an honest **PASS** or **BLOCKED**.
 
 [![CI](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml/badge.svg)](https://github.com/Bryancruzcb/creatorflow/actions/workflows/ci.yml)
 ![Java 24](https://img.shields.io/badge/Java-24-5d86b4)
 ![JavaFX 26](https://img.shields.io/badge/JavaFX-26-5d86b4)
 ![React 19](https://img.shields.io/badge/React-19-5d86b4)
 
-It runs locally. A hardened `127.0.0.1` desktop bridge pairs with a Roblox Studio plugin and reads
+It runs locally. A `127.0.0.1` desktop bridge pairs with a Roblox Studio plugin and reads
 only normalized KeyframeSequence data — never raw asset files — so nothing leaves your machine.
 Changed assets are compared against insert-only SQLite snapshots, provenance findings are resolved
 with a required reason, and the run emits a deterministic release manifest naming exactly which
@@ -117,8 +118,8 @@ Full detail in [`docs/STRATEGIC-REDIRECT.md`](docs/STRATEGIC-REDIRECT.md) and th
 ## Legacy: the community gallery
 
 > **Frozen (2026-07-17).** Everything from here down describes the pre-redirect community-gallery
-> product. The code is real, tested, and still builds (`server/` + the desktop "Community registry"
-> settings card), but it is **not** the current product and receives no new work. It is kept green
+> direction. The code is real, tested, and still builds (`server/` + the desktop "Community registry"
+> settings card), but it is **not** the current focus and receives no new work. It is kept green
 > as a candidate to later repurpose as a shared cross-team provenance registry. The release-preflight
 > workflow described at the top of this file does not use the Spring server at all.
 
@@ -238,7 +239,7 @@ See [`roblox-plugin/README.md`](roblox-plugin/README.md) for setup and the roadm
 
 ## Release-manifest milestone
 
-`creatorflow-core` now has the first production slice of the release-preflight direction:
+`creatorflow-core` now has the first working slice of the release-preflight direction:
 
 - `ProjectScanner` recursively inventories supported creative files using project-relative paths.
 - Every file runs through the existing SHA-256, image, audio, and metadata layers.
@@ -261,7 +262,7 @@ on top of the built-in exclusions — e.g. this repository's own dogfood scan ne
 `--exclude stress-fixtures`, whose deliberately duplicated test textures would otherwise
 hard-block the release gate.
 
-The hardened scanner also exposes configurable exclusions, ordered progress events, cancellation with a usable partial manifest, per-file failure isolation, dependency findings, and symlink containment. The desktop module now owns a loopback-only local bridge and migrated workflow store for project selection, immutable scan runs, source evidence, append-only decisions, releases, and workspace restoration.
+The scanner also supports configurable exclusions, ordered progress events, cancellation with a usable partial manifest, per-file failure isolation, dependency findings, and symlink containment. The desktop module now owns a loopback-only local bridge and migrated workflow store for project selection, insert-only scan runs, source evidence, append-only decisions, releases, and workspace restoration.
 
 To run the desktop-owned browser workspace directly from a frontend build:
 
@@ -334,8 +335,8 @@ The command exits `0` when the release passes, `2` when policy blocks it, and `3
 | `GET /api/v1/disputes/mine` | `X-Api-Key` | disputes you filed and disputes against your assets |
 
 Server data lives in `~/.creatorflow-server` (H2 database + content-addressed files). Auth is
-per-account API keys for clients and session login for browsers; the documented production path
-is JWT/OAuth with rotating credentials.
+per-account API keys for clients and session login for browsers; a hosted deployment would need
+JWT/OAuth with rotating credentials first.
 
 ## Architecture
 
@@ -367,7 +368,7 @@ flowchart LR
 a plain library, so a fingerprint means exactly the same thing on both sides. The Java test suites
 across the three modules (`mvn verify`) cover: engine algorithms, persistence, importer + registry escalation, the
 REST API, the full web flow (signup → upload → duplicate blocked → similar flagged → files served
-hardened), and the review layer (version lineage vs foreign similarity, stack-only compare,
+under the no-script CSP), and the review layer (version lineage vs foreign similarity, stack-only compare,
 pinned comments, feedback filtering).
 
 ## Roadmap

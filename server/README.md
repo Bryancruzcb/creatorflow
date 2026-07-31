@@ -2,9 +2,9 @@
 
 **Status: frozen as of the 2026-07-17 strategic redirect. Kept green, no new feature work.**
 
-This Spring Boot module is the pre-redirect **community-gallery / originality-registry** product
+This Spring Boot module is the pre-redirect **community-gallery / originality-registry** direction
 (gallery, accounts, uploads, `/api/v1` verify/register/mappings, disputes, rate limiting). It is
-real, tested, and still builds, but it is **not** part of the current product — a local-first
+real, tested, and still builds, but it is **not** part of the current focus — a local-first
 Roblox release-preflight tool (see the repo [`README.md`](../README.md) and
 [`docs/STRATEGIC-REDIRECT.md`](../docs/STRATEGIC-REDIRECT.md)).
 
