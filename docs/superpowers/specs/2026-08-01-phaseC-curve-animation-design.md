@@ -179,7 +179,11 @@ that means once Task 0 answers Step 4 for real.
 - `normalizeCurveAnimation` — per Task 0's confirmed read API, samples every
   position/rotation-equivalent channel at the chosen fixed interval across the clip's
   duration, producing the identical `{time, poses}` shape `normalizeKeyframeSequence`
-  returns. `jointPath`/`transform`/`weight` carry the sampled data; `easingStyle`/
+  returns. `jointPath`/`transform` carry the sampled data. `weight`/`easingStyle`/
+  `easingDirection` are all fixed defaults, not sampled values: Roblox's curve
+  channels are continuous value-over-time data with no per-channel authored blend
+  weight the way `KeyframeSequence`'s `Pose.Weight` works, so `weight` is fixed to
+  `1` (full weight — the honest default when there's nothing to blend). `easingStyle`/
   `easingDirection` — which describe *interpolation between authored keyframes*, a
   concept that doesn't apply to a value sampled directly off a continuous curve — are
   fixed to `"Linear"`/`"InOut"` for every sampled pose, the same values already used as

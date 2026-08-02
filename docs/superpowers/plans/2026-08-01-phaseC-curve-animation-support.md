@@ -139,7 +139,7 @@ disclosed-limitation behavior for exactly that case.
   `/plugin/v1/motion-comparisons`, consumed by Task 2.
 
 - [ ] **Step 1 — Replace the CurveAnimation rejection with a dispatch.** In
-      `readAnimation` (`CreatorFlowAnimationBridge.lua:809-828` today), change:
+      `readAnimation` (`CreatorFlowAnimationBridge.lua:809-830` today), change:
       ```lua
       local clip = clipOrError
       if clip:IsA("CurveAnimation") then
@@ -258,7 +258,10 @@ disclosed-limitation behavior for exactly that case.
           local counters = { poses = 0 }
           for _, time in ipairs(sampleTimesFor(duration)) do
               local poses = {}
-              local seenPaths = {}
+              -- No seenPaths/duplicate-path guard here, unlike appendPose's version of this loop:
+              -- channelsByPath is a Lua table keyed by joint path, so duplicate keys are
+              -- structurally impossible -- the guard exists there because appendPose walks a
+              -- recursive Pose tree that COULD contain a repeated path; this loop can't.
               for jointPath, channel in pairs(channelsByPath) do
                   -- <TASK_0_CONFIRMED_EVALUATION>(channel, time) must return a CFrame
                   -- (or the 12 raw components) at this sample time -- the exact call
@@ -268,13 +271,16 @@ disclosed-limitation behavior for exactly that case.
                   for index, value in ipairs(components) do
                       components[index] = roundNumber(value, jointPath)
                   end
-                  seenPaths[jointPath] = true
                   table.insert(poses, {
                       jointPath = jointPath,
                       transform = components,
-                      weight = 1, -- sampled data has no authored blend weight; full weight is the honest default
-                      easingStyle = "Linear", -- interpolation between authored keyframes doesn't apply to a
-                      easingDirection = "InOut", -- value sampled directly off a continuous curve -- see spec
+                      -- weight/easingStyle/easingDirection are all fixed defaults, not sampled
+                      -- values: curve channels have no per-channel authored blend weight the way
+                      -- KeyframeSequence's Pose.Weight works, and "interpolation between authored
+                      -- keyframes" doesn't apply to a value read directly off a continuous curve.
+                      weight = 1,
+                      easingStyle = "Linear",
+                      easingDirection = "InOut",
                   })
                   counters.poses += 1
                   if counters.poses > MAX_POSES then
@@ -604,25 +610,7 @@ disclosed-limitation behavior for exactly that case.
               PlaybackSettings.of(true, "Movement"), PlaybackSettings.of(false, "Action"), null, null, null);
       ```
 
-- [ ] **Step 9 — Parse the wire fields and pass them through in `LocalBridgeServer`.**
-      In the `/plugin/v1/motion-comparisons` handler, after the existing `playability`
-      parsing this phase's predecessor added, add:
-      ```java
-      String sourceKind = text(body, "sourceKind", null);
-      String candidateKind = text(body, "candidateKind", null);
-      ```
-      and add `sourceKind, candidateKind` as two new trailing arguments to the
-      `animationComparisons.insert(...)` call (after the existing `playabilityJson`
-      argument).
-
-- [ ] **Step 10 — Surface both fields in `animationComparisonView`.** After the
-      existing `record.playabilityJson().ifPresent(...)` block, add:
-      ```java
-      record.sourceClipKind().ifPresent(kind -> view.put("sourceKind", kind));
-      record.candidateClipKind().ifPresent(kind -> view.put("candidateKind", kind));
-      ```
-
-- [ ] **Step 11 — Write the failing bridge-endpoint test.** Add to
+- [ ] **Step 9 — Write the failing bridge-endpoint test.** Add to
       `LocalBridgeServerTest.java`, following the existing `playability` test's
       pattern:
       ```java
@@ -661,42 +649,38 @@ disclosed-limitation behavior for exactly that case.
       }
       ```
 
-- [ ] **Step 12 — Run it to verify it fails, then implement Steps 9-10 if not already
-      done, then verify it passes.**
+- [ ] **Step 10 — Run it to verify it fails.**
       ```bash
       mvn -pl desktop -am -Dtest=LocalBridgeServerTest#motionComparisonAcceptsAndReturnsOptionalClipKinds test
       ```
-      Expected: FAIL first (parsing not wired), PASS after Steps 9-10 are in place.
+      Expected: FAIL — the response has no `sourceKind`/`candidateKind` keys yet,
+      failing the first `assertEquals`.
 
-- [ ] **Step 13 — Add the snapshot-pinning guard.** In `LocalBridgeServer.java`, near
-      the top of the class next to other constants, add:
+- [ ] **Step 11 — Parse the wire fields and pass them through in `LocalBridgeServer`.**
+      In the `/plugin/v1/motion-comparisons` handler, after the existing `playability`
+      parsing this phase's predecessor added, add:
       ```java
-      /**
-       * Set to true only once Phase C's Task 0 spike confirms curve sampling is
-       * genuinely deterministic run-to-run. Until then, pinning a CURVE_SAMPLED side as
-       * a snapshot risks a false "this animation changed" report from sampling noise,
-       * not a real change -- the worst class of output this app can produce.
-       */
-      private static final boolean CURVE_SAMPLED_SNAPSHOTS_ALLOWED = false;
+      String sourceKind = text(body, "sourceKind", null);
+      String candidateKind = text(body, "candidateKind", null);
       ```
-      In the `PROJECT_ANIMATION_SNAPSHOTS` handler's `POST` branch (the
-      `requireMutation` path), after loading `comparison` and before the
-      `switch (side...)` block, add:
-      ```java
-      String requestedClipKind = "source".equalsIgnoreCase(side)
-              ? comparison.sourceClipKind().orElse(null)
-              : comparison.candidateClipKind().orElse(null);
-      if (!CURVE_SAMPLED_SNAPSHOTS_ALLOWED && "CURVE_SAMPLED".equals(requestedClipKind)) {
-          throw new HttpError(400,
-                  "This side was read by sampling a CurveAnimation, not an exact keyframe read. "
-                          + "Pinning it as a drift-detection reference isn't reliable yet.");
-      }
-      ```
-      **If Task 0's spike note confirms sampling is deterministic**, change the
-      constant to `true` instead of adding this restriction — do not leave a
-      known-safe capability disabled.
+      and add `sourceKind, candidateKind` as two new trailing arguments to the
+      `animationComparisons.insert(...)` call (after the existing `playabilityJson`
+      argument).
 
-- [ ] **Step 14 — Write the failing test for the guard.** Add to
+- [ ] **Step 12 — Surface both fields in `animationComparisonView`.** After the
+      existing `record.playabilityJson().ifPresent(...)` block, add:
+      ```java
+      record.sourceClipKind().ifPresent(kind -> view.put("sourceKind", kind));
+      record.candidateClipKind().ifPresent(kind -> view.put("candidateKind", kind));
+      ```
+
+- [ ] **Step 13 — Run the test again; verify it passes.**
+      ```bash
+      mvn -pl desktop -am -Dtest=LocalBridgeServerTest#motionComparisonAcceptsAndReturnsOptionalClipKinds test
+      ```
+      Expected: PASS.
+
+- [ ] **Step 14 — Write the failing test for the snapshot-pinning guard.** Add to
       `LocalBridgeServerTest.java`:
       ```java
       @Test
@@ -736,15 +720,49 @@ disclosed-limitation behavior for exactly that case.
       (`LocalBridgeServerTest.java:1051-1060`) — distinct from the body-less `post(...)`
       used above for `project-picker`/`plugin-pairings`, which don't take a body.
 
-- [ ] **Step 15 — Run it to verify it fails, implement Step 13 if not already done,
-      verify it passes, then run the full desktop suite.**
+- [ ] **Step 15 — Run it to verify it fails.**
+      ```bash
+      mvn -pl desktop -am -Dtest=LocalBridgeServerTest#animationSnapshotRejectsACurveSampledSideByDefault test
+      ```
+      Expected: FAIL — `pinSource` currently succeeds (201) with no guard in place, failing the `assertEquals(400, ...)`.
+
+- [ ] **Step 16 — Add the snapshot-pinning guard.** In `LocalBridgeServer.java`, near
+      the top of the class next to other constants, add:
+      ```java
+      /**
+       * Set to true only once Phase C's Task 0 spike confirms curve sampling is
+       * genuinely deterministic run-to-run. Until then, pinning a CURVE_SAMPLED side as
+       * a snapshot risks a false "this animation changed" report from sampling noise,
+       * not a real change -- the worst class of output this app can produce.
+       */
+      private static final boolean CURVE_SAMPLED_SNAPSHOTS_ALLOWED = false;
+      ```
+      In the `PROJECT_ANIMATION_SNAPSHOTS` handler's `POST` branch (the
+      `requireMutation` path), after loading `comparison` and before the
+      `switch (side...)` block, add:
+      ```java
+      String requestedClipKind = "source".equalsIgnoreCase(side)
+              ? comparison.sourceClipKind().orElse(null)
+              : comparison.candidateClipKind().orElse(null);
+      if (!CURVE_SAMPLED_SNAPSHOTS_ALLOWED && "CURVE_SAMPLED".equals(requestedClipKind)) {
+          throw new HttpError(400,
+                  "This side was read by sampling a CurveAnimation, not an exact keyframe read. "
+                          + "Pinning it as a drift-detection reference isn't reliable yet.");
+      }
+      ```
+      **If Task 0's spike note confirms sampling is deterministic**, change the
+      constant to `true` instead of adding this restriction — do not leave a
+      known-safe capability disabled.
+
+- [ ] **Step 17 — Run the guard test again; verify it passes, then run the full
+      desktop suite.**
       ```bash
       mvn -pl desktop -am -Dtest=LocalBridgeServerTest#animationSnapshotRejectsACurveSampledSideByDefault test
       mvn -pl desktop -am test
       ```
       Expected: all tests pass.
 
-- [ ] **Step 16 — Commit.**
+- [ ] **Step 18 — Commit.**
       ```bash
       git add desktop/src/main/resources/creatorflow/db/migrations/V014__animation_comparison_clip_kind.sql \
               desktop/src/main/java/creatorflow/db/SchemaMigrator.java \
@@ -991,10 +1009,25 @@ disclosed-limitation behavior for exactly that case.
       verification end-to-end: pair the updated plugin, run a real Compare with a
       `CurveAnimation` on at least one side, confirm the desktop workspace's Animation
       Snapshots panel shows the sampled-data qualifier and disabled Pin buttons for
-      that side (or enabled, if Task 0 confirmed determinism and Task 2 Step 13 set
+      that side (or enabled, if Task 0 confirmed determinism and Task 2 Step 16 set
       `CURVE_SAMPLED_SNAPSHOTS_ALLOWED = true`).
 
-- [ ] **Step 4 — Push and open the PR.**
+- [ ] **Step 4 — Update the two READMEs that describe CurveAnimation as rejected.**
+      Both are now stale once this phase ships:
+      - `roblox-plugin/desktop-bridge/README.md:129` (manual QA checklist item "a
+        `CurveAnimation` is rejected with the v0.1 limitation instead of being treated
+        as empty data") and `:136` ("Only `KeyframeSequence` is normalized.
+        `CurveAnimation` uses a different channel representation and is deliberately
+        rejected until CreatorFlow has a curve-aware canonical format.") — replace
+        with a description matching what actually ships (sampled and compared, with
+        the `sourceKind`/`candidateKind` provenance tag, and the v1 scope limit to
+        position/rotation channels).
+      - `README.md:325` ("The first slice supports `KeyframeSequence` assets.
+        `CurveAnimation`... explicitly outside v0.1.") — same update.
+      Both should also state plainly whether snapshot pinning for curve-sampled sides
+      shipped enabled or blocked, per Task 0's actual determinism finding.
+
+- [ ] **Step 5 — Push and open the PR.**
       ```bash
       git push -u origin claude/phaseC-curve-animation-support
       gh pr create --title "Phase C: CurveAnimation support" --body "..."
