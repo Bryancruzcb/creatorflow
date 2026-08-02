@@ -140,6 +140,7 @@ Run these before handing the plugin to another developer:
 - [ ] **Permissions:** an inaccessible or deleted asset produces a Roblox permission/loading error and creates no evidence record.
 - [ ] **Curve clip:** comparing a `CurveAnimation` on at least one side creates a record built from sampled poses, and the desktop workspace's Animation Snapshots panel labels that side “Sampled from a curve — not an exact read.” with its Pin buttons still enabled.
 - [ ] **Curve with nothing to compare:** a `CurveAnimation` carrying no position/rotation curve on a joint path is rejected with that reason instead of being treated as empty data.
+- [ ] **Sampled exactness wording:** comparing the same `CurveAnimation` against itself finishes with “Exact match of curve-sampled data (20/s), not an authored-keyframe read.” in the plugin status line — not the plain “Exact normalized data.” a keyframe pair gets.
 - [ ] **Restart:** restarting CreatorFlow keeps the pairing valid — the SAME token still connects after relaunch (until its 8-hour expiry). Revoking the pairing from the desktop app makes the plugin's next request fail with the pairing-required error.
 - [ ] **HTTP denial:** denying the Studio network prompt results in a useful recovery message.
 - [ ] **Persistence:** close and reopen the dock widget; the URL, token, and recent IDs remain filled in.
@@ -152,6 +153,8 @@ Run these before handing the plugin to another developer:
 - The normalized evidence includes joint transforms, hierarchy, blend weight, and easing. It does not yet include keyframe markers, authored rig geometry, facial animation channels, or an avatar preview model.
 - Duplicate joint paths or duplicate keyframes at the same six-decimal timestamp are rejected because v0.1 cannot order those cases unambiguously.
 - A client-side safety limit stops sequences above 20,000 pose samples or requests above 2 MiB.
+- A `CurveAnimation` longer than about 100 seconds is refused before sampling: 20 samples per second past that point exceeds the 2,000-keyframe limit the desktop app accepts per side. Clips on a fuller rig hit the 2 MiB request ceiling earlier, at roughly 13 seconds for 16 joints.
+- The 20-samples-per-second rate is fixed. It is part of the fingerprint of every sampled clip, so changing it would make every pinned snapshot of a sampled clip report as changed even though the asset never moved.
 - The pairing token is stored locally in Studio plugin settings for this friend-test build. Treat it as short-lived and do not reuse it as an account credential.
 - A high similarity score is a review signal. It is not proof of authorship, infringement, or intent; source files, timestamps, licenses, and creator statements remain the stronger evidence.
 

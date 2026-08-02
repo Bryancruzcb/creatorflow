@@ -13,6 +13,10 @@ local HEALTH_PATH = "/plugin/v1/health"
 local COMPARE_PATH = "/plugin/v1/motion-comparisons"
 local MAX_REQUEST_BYTES = 2 * 1024 * 1024
 local MAX_POSES = 20000
+-- Mirrors MAX_MOTION_KEYFRAMES in LocalBridgeServer.java. Checked here so a clip that would be
+-- refused by the desktop app fails while the person is still looking at Studio, with a sentence
+-- naming the actual limit, instead of coming back as a bare 400 after a full sample-and-send.
+local MAX_SAMPLED_KEYFRAMES = 2000
 local ROUNDING_SCALE = 1000000
 
 local SETTINGS = {
@@ -191,15 +195,31 @@ if not Playability_selfTest() then
 	warn("[CreatorFlow] Playability self-test failed — marker/report logic may be broken; playability checks will still run but their results may be unreliable.")
 end
 
--- Sample rate for CurveAnimation clips, chosen against the two hard limits in this file for an
--- R15-shaped rig (16 joint paths) with BOTH sides of a comparison curve-sampled in one body:
+-- Sample rate for CurveAnimation clips, chosen against the three hard limits below. The first two
+-- are stated for an R15-shaped rig (16 joint paths) with BOTH sides of a comparison curve-sampled
+-- in one body; the third counts keyframes, so it does not care how many joints a clip carries:
 --   MAX_REQUEST_BYTES: 2 MiB / ~250 B per JSON-encoded pose = ~8300 poses per request
---     -> ~4150 per side / 16 joints = ~260 samples -> ~13 s per clip. This binds first.
+--     -> ~4150 per side / 16 joints = ~260 samples -> ~13 s per clip.
 --   MAX_POSES: 20000 per clip / 16 joints = 1250 samples -> ~62 s per clip.
+--   MAX_SAMPLED_KEYFRAMES: 2000 samples -> ~100 s per clip, whatever the channel count.
+-- Which one binds first depends on how many channels the clip carries, because only the third
+-- counts samples rather than poses. On a full rig the byte ceiling binds (~13 s at 16 joints); it
+-- stays tighter than MAX_POSES throughout, so that limit never actually decides. On a sparse clip
+-- -- a prop, a door, two joints -- 2000 samples arrive long before 2 MiB does, and below roughly
+-- four sampled channels (fewer when both sides are sampled) the keyframe cap is the real ceiling
+-- at ~100 s. That sparse case is why it is checked at all: it is the one shape of clip that clears
+-- both of the other two limits and is still refused by the desktop app.
 -- 13 s covers Roblox emote/attack/idle clips (1-5 s) several times over; 30/s would cut that
 -- byte ceiling to ~8 s per clip, and 15/s buys ~17 s at 67 ms resolution. 50 ms per sample is
 -- already far denser than the handful of keyframes an authored KeyframeSequence carries over
 -- the same span, which is the fidelity bar a sampled clip has to clear to compare against one.
+--
+-- FROZEN once sampled snapshots exist, for the same reason ROUNDING_SCALE is. This number is part
+-- of the fingerprint identity of every CURVE_SAMPLED clip: change it and every sampled clip
+-- fingerprints differently, so each pinned sampled snapshot reports CHANGED on an asset nobody
+-- touched — drift detection lying in the one direction that costs a person real time. Retuning it
+-- is therefore not a tuning change: it needs an algorithmVersion bump and a re-pin of every
+-- sampled snapshot, decided deliberately.
 local CURVE_SAMPLES_PER_SECOND = 20
 
 --- Sample grid for one clip: 0, a sample every 1/CURVE_SAMPLES_PER_SECOND, and the exact end.
@@ -226,6 +246,24 @@ local function sampleTimesFor(duration)
 	return times
 end
 
+--- How many samples sampleTimesFor(duration) would emit, WITHOUT building the grid.
+--- Pure arithmetic on purpose: this answers the question before a table exists, so a clip whose
+--- Length is minutes (or nonsense) is refused instead of allocating a multi-million entry table on
+--- the way to the error. The stepped count is ceil(duration/step); the exact end sample is appended
+--- unless it lands inside roundNumber's resolution of the last stepped one, in which case
+--- sampleTimesFor replaces that one and the count does not grow. Pinned by the self-test below.
+local function sampleCountFor(duration)
+	if duration <= 0 then
+		return 1
+	end
+	local step = 1 / CURVE_SAMPLES_PER_SECOND
+	local stepped = math.ceil(duration / step)
+	if duration - (stepped - 1) * step < 1 / ROUNDING_SCALE then
+		return stepped
+	end
+	return stepped + 1
+end
+
 local function CurveSampling_selfTest()
 	local passed = true
 	local times = sampleTimesFor(0)
@@ -249,6 +287,21 @@ local function CurveSampling_selfTest()
 			break
 		end
 		previous = rounded
+	end
+	-- The keyframe-cap pre-check trusts sampleCountFor to answer for a grid it never builds, so the
+	-- two have to agree. Small durations only: the whole point of the formula is that the guard
+	-- never materializes a long one, and materializing one here to prove it would defeat that.
+	for _, duration in ipairs({ 0, 0.02, 0.1, 0.5, 1, 1.05, 2, 3.3 }) do
+		if sampleCountFor(duration) ~= #sampleTimesFor(duration) then
+			warn(string.format(
+				"[CreatorFlow] Curve sampling self-test FAILED: sampleCountFor(%s) = %d but the grid has %d samples.",
+				tostring(duration),
+				sampleCountFor(duration),
+				#sampleTimesFor(duration)
+			))
+			passed = false
+			break
+		end
 	end
 	return passed
 end
@@ -956,6 +1009,21 @@ local function normalizeCurveAnimation(assetId, clip)
 		error("Animation " .. assetId .. " has no duration to sample.", 0)
 	end
 
+	-- Counted, not sampled: the desktop app refuses more than MAX_SAMPLED_KEYFRAMES keyframes per
+	-- side, and a sparse-channel clip can pass the pose and byte limits and still blow through that
+	-- one. Answering it here also means a nonsense clip.Length never allocates its grid.
+	local sampleCount = sampleCountFor(duration)
+	if sampleCount > MAX_SAMPLED_KEYFRAMES then
+		error(string.format(
+			"Animation %s is too long to sample at %d/s: %d keyframes exceeds the limit of %d. Curve clips up to ~%d s are supported.",
+			assetId,
+			CURVE_SAMPLES_PER_SECOND,
+			sampleCount,
+			MAX_SAMPLED_KEYFRAMES,
+			math.floor(MAX_SAMPLED_KEYFRAMES / CURVE_SAMPLES_PER_SECOND)
+		), 0)
+	end
+
 	local hasAnyChannel = false
 	for _ in pairs(channelsByPath) do
 		hasAnyChannel = true
@@ -1151,7 +1219,14 @@ compareButton.Activated:Connect(function()
 		return function()
 			local comparisonId = tostring(comparison.id or "saved")
 			local verdict = tostring(comparison.verdict or "comparison complete")
-			local exactText = comparison.exactCurveData and " Exact normalized data." or ""
+			-- "Exact" on a sampled side is exactness about the sampled reconstruction, not about the
+			-- authored keyframes a reader hears in it: two sampled re-uploads of one asset match
+			-- exactly because sampling is deterministic. The web evidence card says the same thing.
+			local sampledSide = sourceKind == "CURVE_SAMPLED" or candidateKind == "CURVE_SAMPLED"
+			local exactText = ""
+			if comparison.exactCurveData then
+				exactText = sampledSide and string.format(" Exact match of curve-sampled data (%d/s), not an authored-keyframe read.", CURVE_SAMPLES_PER_SECOND) or " Exact normalized data."
+			end
 			-- A score found by mirroring one clip is a different claim from a score found as
 			-- submitted, so it is stated rather than folded into the percentage. The web surface
 			-- says this too; saying it in only one place is how the two routes start disagreeing.
