@@ -98,7 +98,7 @@ TypeScript (frontend evidence view).
   class of error `ROADMAP.md`'s standing constraints call out as the worst possible
   output ("when in doubt, under-flag"). **If Task 0 finds sampling is not
   deterministic, `CURVE_SAMPLED` sides must be excluded from snapshot pinning in v1**
-  (see Components → Frontend) rather than let a known-unreliable fingerprint feed a
+  (see Components → Frontend and Desktop bridge) rather than let a known-unreliable fingerprint feed a
   drift-detection feature that has no way to express "might not actually have changed."
 - **No live playback simulation or building ships until the Task 0 spike confirms the
   underlying API assumptions.** See Task 0.
@@ -303,7 +303,10 @@ frontend renders the provenance qualifier alongside existing evidence.
   behavior is a manually-verified live-Studio step once Task 0's real API contract
   exists to code against.
 - **Desktop bridge:** JUnit coverage for the new optional field parsing and persistence,
-  following the exact pattern Phase B's `playability` field used.
+  following the exact pattern Phase B's `playability` field used — plus a case for the
+  animation-snapshot endpoint's `CURVE_SAMPLED` rejection (if Task 0 finds sampling
+  isn't deterministic and this ships): capturing a snapshot from a `CURVE_SAMPLED` side
+  is rejected with a clear reason, and from a `KEYFRAME` side still succeeds.
 - **Frontend:** vitest/RTL coverage for the new provenance qualifier rendering,
   following the `AnimationSnapshotsPanel.playability.test.tsx` pattern (including its
   `// @vitest-environment jsdom` requirement — this project scopes jsdom per-file, not
