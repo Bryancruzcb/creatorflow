@@ -1,12 +1,12 @@
 # CreatorFlow Animation Bridge for Roblox Studio
 
-This local Studio plugin reads two animation IDs that the signed-in creator is already allowed to access, normalizes their `KeyframeSequence` joint data, and sends one comparison request to the CreatorFlow desktop app on `127.0.0.1`.
+This local Studio plugin reads two animation IDs that the signed-in creator is already allowed to access, normalizes their joint data, and sends one comparison request to the CreatorFlow desktop app on `127.0.0.1`.
 
 It does **not** bypass Roblox asset permissions, download a place, or send the request to a hosted service. The first prototype is an evidence and similarity tool, not a plagiarism verdict.
 
 ## What the plugin captures
 
-For each accessible `KeyframeSequence`, the plugin records:
+For each accessible animation clip, the plugin records:
 
 - animation asset ID, clip name, duration, loop setting, and priority;
 - keyframe times, ordered by time;
@@ -14,6 +14,14 @@ For each accessible `KeyframeSequence`, the plugin records:
 - the pose's 12 rounded `CFrame` components, blend weight (`Pose.Weight`), easing style, and easing direction.
 
 Floating-point values are checked for finiteness and rounded to six decimal places. Pose paths and keyframes are sorted before the JSON is created. The desktop app computes and stores the fingerprints and comparison; the plugin does not claim that similar motion proves copying.
+
+### CurveAnimation clips
+
+A `CurveAnimation` stores continuous channels instead of authored keyframes, so there is no keyframe list to read. The plugin samples it instead: 20 samples per second plus one at the exact clip end, evaluating each joint's `Position` and `Rotation` curves into the same 12-component `CFrame` a `KeyframeSequence` pose carries. Everything after that — fingerprints, joint scores, storage — treats a sampled clip like an authored one. Sampled poses carry fixed `weight = 1`, `Linear`, `InOut` values, because a curve channel has no authored blend weight or easing to read.
+
+Sampling is a reconstruction, not an exact read, so every comparison records how each side was read. `sourceKind` and `candidateKind` are `KEYFRAME` or `CURVE_SAMPLED`, and that tag travels from the request body through the SQLite record and the view JSON into the desktop workspace, where the Animation Snapshots panel labels a sampled side “Sampled from a curve — not an exact read.”
+
+Sampled sides can still be pinned as drift-detection snapshots. That was measured before it was allowed: a live-Studio spike on 2026-08-02 sampled the same clip twice, and again after a full register/refetch round trip, and every value came back bit-identical — so a sampled fingerprint does not wobble and cannot fake a “this animation changed” report. The decision stays reversible in one line: `CURVE_SAMPLED_SNAPSHOTS_ALLOWED` in the desktop app's `LocalBridgeServer.java`, mirrored by `CURVE_SAMPLED_PINNING_BLOCKED` in the workspace's `AnimationSnapshotsPanel.tsx`.
 
 ## Requirements
 
@@ -110,9 +118,13 @@ The JSON shape is:
       }
     ]
   },
-  "candidate": { "...": "same shape as source" }
+  "candidate": { "...": "same shape as source" },
+  "sourceKind": "KEYFRAME",
+  "candidateKind": "CURVE_SAMPLED"
 }
 ```
+
+`sourceKind` and `candidateKind` sit at the top level rather than inside `source`/`candidate`, because those two objects are parsed straight into the desktop app's `NormalizedAnimation` and it rejects unknown properties.
 
 CreatorFlow should reply with the persisted comparison view, including at least `id` and `overallScore`; the plugin also displays `verdict` and `exactCurveData` when present.
 
@@ -126,14 +138,16 @@ Run these before handing the plugin to another developer:
 - [ ] **Exact pair:** comparing an accessible animation ID with itself creates one record and reports exact normalized data / a full score.
 - [ ] **Different pair:** comparing two accessible motion clips creates a record with fingerprints and component scores.
 - [ ] **Permissions:** an inaccessible or deleted asset produces a Roblox permission/loading error and creates no evidence record.
-- [ ] **Clip type:** a `CurveAnimation` is rejected with the v0.1 limitation instead of being treated as empty data.
+- [ ] **Curve clip:** comparing a `CurveAnimation` on at least one side creates a record built from sampled poses, and the desktop workspace's Animation Snapshots panel labels that side “Sampled from a curve — not an exact read.” with its Pin buttons still enabled.
+- [ ] **Curve with nothing to compare:** a `CurveAnimation` carrying no position/rotation curve on a joint path is rejected with that reason instead of being treated as empty data.
 - [ ] **Restart:** restarting CreatorFlow keeps the pairing valid — the SAME token still connects after relaunch (until its 8-hour expiry). Revoking the pairing from the desktop app makes the plugin's next request fail with the pairing-required error.
 - [ ] **HTTP denial:** denying the Studio network prompt results in a useful recovery message.
 - [ ] **Persistence:** close and reopen the dock widget; the URL, token, and recent IDs remain filled in.
 
 ## Known v0.1 limitations
 
-- Only `KeyframeSequence` is normalized. `CurveAnimation` uses a different channel representation and is deliberately rejected until CreatorFlow has a curve-aware canonical format.
+- `CurveAnimation` sampling reads position and rotation channels on rig-joint paths only. A curve clip with none of those is rejected with that reason rather than compared as empty data. `FloatCurve` and `MarkerCurve` channels are ignored, and a sampled clip reports no keyframe markers.
+- A joint's `Rotation` child may be an `EulerRotationCurve` or a `RotationCurve`. Only the `EulerRotationCurve` shape has been exercised against a real asset; the `RotationCurve` branch is written and reviewed but untested in Studio, so treat a clip that uses it as unverified.
 - Roblox decides which animation assets the Studio session may read. Ownership, group ownership, transfer, moderation, or experience permission problems cannot be bypassed by the plugin.
 - The normalized evidence includes joint transforms, hierarchy, blend weight, and easing. It does not yet include keyframe markers, authored rig geometry, facial animation channels, or an avatar preview model.
 - Duplicate joint paths or duplicate keyframes at the same six-decimal timestamp are rejected because v0.1 cannot order those cases unambiguously.
@@ -147,4 +161,6 @@ Run these before handing the plugin to another developer:
 - `KeyframeSequence:GetKeyframes()`: <https://create.roblox.com/docs/reference/engine/classes/KeyframeSequence#GetKeyframes>
 - `Keyframe:GetPoses()`: <https://create.roblox.com/docs/reference/engine/classes/Keyframe#GetPoses>
 - `Pose:GetSubPoses()`: <https://create.roblox.com/docs/reference/engine/classes/Pose#GetSubPoses>
+- `Vector3Curve:GetValueAtTime()` for a joint's sampled position: <https://create.roblox.com/docs/reference/engine/classes/Vector3Curve#GetValueAtTime>
+- `EulerRotationCurve:GetRotationAtTime()` for a joint's sampled rotation: <https://create.roblox.com/docs/reference/engine/classes/EulerRotationCurve#GetRotationAtTime>
 - `HttpService:RequestAsync()`: <https://create.roblox.com/docs/reference/engine/classes/HttpService#RequestAsync>
