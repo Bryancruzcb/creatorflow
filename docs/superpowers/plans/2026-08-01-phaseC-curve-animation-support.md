@@ -118,7 +118,7 @@ written to `docs/superpowers/plans/2026-08-01-phaseC-task0-spike-note.md`.
 **Completion test:** the note has a clear, real answer for Steps 2 and 4. If Step 4
 finds sampling is not bit-identical even after the existing `roundNumber`/
 `ROUNDING_SCALE` rounding absorbs small differences, that is not a reason to abandon
-the phase — Task 1 Step 3 and Task 2 Step 7 below already default to the safe,
+the phase — Task 1 Step 3 and Task 2 Step 16 below already default to the safe,
 disclosed-limitation behavior for exactly that case.
 
 ---
@@ -982,7 +982,9 @@ disclosed-limitation behavior for exactly that case.
 
 ## Task 4 — Full-suite verification and PR
 
-**Files:** none (verification only).
+**Files:**
+- Modify: `roblox-plugin/desktop-bridge/README.md`
+- Modify: `README.md`
 
 - [ ] **Step 1 — Run the full Java suite.**
       ```bash
@@ -1027,7 +1029,13 @@ disclosed-limitation behavior for exactly that case.
       Both should also state plainly whether snapshot pinning for curve-sampled sides
       shipped enabled or blocked, per Task 0's actual determinism finding.
 
-- [ ] **Step 5 — Push and open the PR.**
+- [ ] **Step 5 — Commit the README updates.**
+      ```bash
+      git add roblox-plugin/desktop-bridge/README.md README.md
+      git commit -m "docs: describe shipped CurveAnimation support instead of the old rejection"
+      ```
+
+- [ ] **Step 6 — Push and open the PR.**
       ```bash
       git push -u origin claude/phaseC-curve-animation-support
       gh pr create --title "Phase C: CurveAnimation support" --body "..."
