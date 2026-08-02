@@ -23,8 +23,10 @@ keyframe read.
 "are all explicitly validation-gated behind [the friend test]... This is a human blocker
 and it cannot be worked around." That friend test was cancelled by the project owner on
 2026-07-30 and will not happen — recorded when Phase B was scoped, not re-litigated
-here. Phase B shipped anyway, by explicit owner decision to build B/C/D/E despite the
-gate never being satisfiable; this phase proceeds under the same decision, not a new one.
+here. Phase B's own spec documents an owner decision to build B specifically, "picked
+over C/D/E" — it left C/D/E unresolved for later, not pre-approved. Proceeding with C
+now is a separate, new owner decision to keep going despite the gate, not a claim that
+Phase B's decision already covers it.
 Two separate documents (`ROADMAP.md` and the triage doc) both flag the same technical
 blocker — "needs a deterministic curve canonical format first" — as the reason this was
 never started. `CreatorFlowAnimationBridge.lua`'s `readAnimation` explicitly rejects
@@ -157,10 +159,16 @@ to `docs/superpowers/plans/2026-08-01-phaseC-task0-spike-note.md`.
 
 **Completion test:** the note has a clear, real answer for Steps 2 and 4. If Step 4
 finds sampling is not deterministic even after rounding, that is not a reason to abandon
-the phase — it becomes a disclosed limitation (comparisons involving a curve-sourced
-side are labeled as such, and re-running an export might not be byte-identical for that
-side specifically), scoped down exactly the way Phase B scoped down "priority honored"
-and "rig-topology mismatch detection" rather than silently shipping a false guarantee.
+the phase — it becomes a disclosed limitation, scoped down exactly the way Phase B
+scoped down "priority honored" and "rig-topology mismatch detection" rather than
+silently shipping a false guarantee: comparisons involving a curve-sourced side are
+labeled as such and may not re-export byte-identical, **and** — because a stale
+fingerprint is a much bigger deal for drift-detection than for a one-off comparison —
+snapshot pinning is disabled for `CURVE_SAMPLED` sides, enforced both in the frontend
+(the Pin button, with a stated reason) and server-side (`LocalBridgeServer`'s
+animation-snapshot capture endpoint rejects it too, so the restriction isn't just a
+bypassable UI affordance). See Global Constraints and Components below for exactly what
+that means once Task 0 answers Step 4 for real.
 
 ## Components
 
@@ -223,6 +231,19 @@ and "rig-topology mismatch detection" rather than silently shipping a false guar
   `INSERT` column + placeholder, `map()` column read, view field. `NULL` (absent) means
   "not recorded" — for comparisons made before this phase shipped, not an unknown clip
   kind claimed as `KEYFRAME` by default.
+- **If (and only if) Task 0 finds sampling is not deterministic: the
+  animation-snapshot capture endpoint enforces the pinning restriction server-side, not
+  just in the UI.** `LocalBridgeServer`'s handler for
+  `POST .../animation-snapshots` already loads the source `AnimationComparisonRecord`
+  to build the snapshot from — it has `source_clip_kind`/`candidate_clip_kind`
+  available on that same record with no extra lookup. Reject the request (an honest
+  error naming why, not a silent no-op) when the requested side's `clip_kind` is
+  `CURVE_SAMPLED`. This mirrors how `MAX_POSES`/`MAX_REQUEST_BYTES` already get both a
+  client-side pre-check *and* server-side enforcement (`validateMotionEnvelope`) rather
+  than trusting the plugin UI alone — the same double-enforcement is warranted here
+  because a disabled button is bypassable (a stale tab, a direct API call) and this
+  restriction exists specifically to prevent a false "your animation changed" report,
+  not a soft preference.
 
 **Frontend:**
 - Wherever a comparison's per-side evidence renders (`AnimationSnapshotsPanel.tsx`,
