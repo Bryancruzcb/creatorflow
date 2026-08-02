@@ -112,7 +112,10 @@ Revisit only with a real labelled corpus and a scorecard that measures false acc
 
 ## What would have to be true first
 
-1. The friend test says teams want shared provenance at all (`ROADMAP.md` Phase E).
+1. Real teams use shared provenance at all (`ROADMAP.md` Phase E). *(2026-08-02: the friend
+   test that was to prove demand is permanently cancelled; Phase E is approved to build by
+   owner decision. The precondition is now "Phase E ships and real teams adopt it" — still
+   unmet, so nothing here unlocks.)*
 2. A registry exists with enough registered animations that pairwise scanning is genuinely too
    slow — below roughly a thousand, it is not.
 3. ~~Mirror canonicalisation (#16) has landed.~~ **Satisfied.** Mirroring used to be detected by
@@ -123,5 +126,5 @@ Revisit only with a real labelled corpus and a scorecard that measures false acc
    simplified reflection the fixtures are generated from, so a real Blender- or Studio-produced
    mirror is still unmeasured.
 
-The first two do not hold, and the order matters more than the design does. Precondition 1 is the
-friend test, which gates everything anyway.
+The first two do not hold, and the order matters more than the design does. Precondition 1 now
+rides on Phase E shipping and being adopted, which gates everything anyway.

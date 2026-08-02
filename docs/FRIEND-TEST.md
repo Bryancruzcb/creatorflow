@@ -1,5 +1,11 @@
 # Friend test — Roblox animation preflight, first real run
 
+> **Status (2026-07-30): cancelled permanently by the project owner — the
+> friend session will not happen.** This runbook is kept because its steps are
+> the live-Studio validation script: if that validation ever runs, it runs as
+> the owner's solo session using this document. Track A ([offline]) already
+> passed on 2026-07-20 (`TRACK-A-RESULTS-2026-07-20.md`).
+
 The single highest-value next step (see `ROBLOX_WORKFLOW_RESEARCH.md`, "Product
 boundary for the friend test"): one animator pairs Roblox Studio to a local
 CreatorFlow project, reads two animations they can actually access, compares

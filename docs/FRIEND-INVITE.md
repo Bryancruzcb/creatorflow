@@ -1,5 +1,8 @@
 # Friend-test invite — copy-paste kit
 
+> **Status (2026-07-30): the friend test was cancelled permanently — this kit
+> is historical.** See `ROADMAP.md` for the gate-closure record.
+
 Everything you need to schedule the live session. Written for you to send, not to hand over as-is.
 
 ## What you're asking for

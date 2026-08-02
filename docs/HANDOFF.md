@@ -13,7 +13,16 @@ facts win. Read `ROBLOX_WORKFLOW_RESEARCH.md` for the landscape research behind 
 
 ## Where things stand
 
-`main` is green (both CI jobs) and contains, newest first:
+**As of 2026-08-02:** `main` is green on all **three** CI jobs (`build`,
+`desktop-windows`, `frontend`). Shipped since the July-13 snapshot below:
+ownership verification Phase A (#33/#38, 2026-07-24), the stylesheet split
+(#67), JavaFX 26 (#92, desktop launch verified 2026-08-02), Spring Boot 4
+(#107), the runtime playability probe Phase B (#118), and Phase C
+(CurveAnimation) is in review as PR #119. The friend test was **cancelled
+permanently by the project owner on 2026-07-30** — see `ROADMAP.md` for the
+gate-closure record; phases proceed by per-phase owner decision.
+
+The July-13 snapshot (still accurate as history), newest first:
 
 - Frontend CI job + friend-test runbook (`docs/FRIEND-TEST.md`) + session handoff.
 - **Three review fixes** (`1f138d1`, `8339462`, `00cfd40`): bridge accepts `localhost` Host;
@@ -76,6 +85,13 @@ npm --prefix frontend run build
   The workspace URL is printed to the console at startup. (The old
   `-Djavafx.options="..."` form silently failed to forward these properties —
   verified 2026-07-20; the desktop pom now forwards them itself.)
+
+  **Desktop launch on JavaFX 26.0.2 verified 2026-08-02** (the validation issue #11's close
+  comment asked for): window renders, dashboard populates with demo data
+  (`-Dcreatorflow.demo=true`), SQLite writes land in the configured
+  `-Dcreatorflow.data.dir`. Startup logs two JDK restricted-method warnings
+  (`javafx.graphics` and sqlite-jdbc native loads); when a future JDK enforces them, add
+  `--enable-native-access=javafx.graphics,ALL-UNNAMED` to the javafx-maven-plugin options.
 
 - Luau/Rojo aren't installed globally; grab `luau-compile` and `rojo` from their GitHub
   releases to syntax-check plugins / build the registry plugin
@@ -211,26 +227,43 @@ Confirmed-major, still open:
    `analyzeMotionClips` under both modes, `loopContinuity`/`rootPath`/`rootComparison`
    behavior, and a parity check (dynamically derived from `motionEngineCore.poseDelta`, not
    hand-copied constants) that the ported pose component agrees with it on synthetic cases.
-2. **`localBridge.ts` has zero tests** — it's the only integration contract with the Java
-   bridge.
-3. **`styles.css`** is a 12,360-line monolith fighting six `*.premium.css` override files;
-   contains verified-dead selectors (`.motion-variant-control`, `.dependency-tree`,
-   `.hero-artifact`, …).
-4. **`frontend/NEXT-IMPROVEMENTS.md`** (and parts of `RESUME-AND-INTERVIEW.md`,
-   `STRATEGY.md`, `ROBLOX_BUILD_ORDER.md`) describe shipped features as future work or cite
-   stale numbers/APIs. Fix before Bryan uses them for interviews.
+2. **`localBridge.ts` has zero tests** — *resolved (real-path coverage, PR #38 and after).*
+   `frontend/src/bridge/localBridge.test.ts` now covers detect, key status, the request
+   wrapper, ownership verification, SSE subscribe, and followScan (33 tests across 6 describe
+   blocks), plus `wire.test.ts` / `contract.test.ts` / `pluginPairings.test.ts` beside it.
+3. **`styles.css` monolith** — *resolved 2026-07-28 (PR #67, after #66's rendered-output
+   harness and a 128-dead-rule purge).* Split into 11 ordered slab files +
+   `frontend/src/styles/index.css`, byte-identical output, slab order test-enforced
+   (`styles/slabOrder.test.ts`). Deeper per-rule consolidation is optional follow-up work —
+   the cascade is position-dependent in documented places, so any rule move needs the
+   harness. Tracked in #120.
+4. **Stale `frontend/*.md` docs** — *resolved 2026-07-26 (PR #41, "honest docs").*
 
-Notable verified minors (full list in the July 13 session's workflow output): posePercent
-averages over common joints only, so a 1-of-3-joint copy scores HIGH_SIMILARITY;
-`Looped`/`priority` are validated but ignored by fingerprints (flipping Looped still reports
-EXACT_CURVE_DATA); `PluginPairingService.revoke` has no production caller (tokens live 8h, no
-rotation surface); repositories sort `Instant.toString()` lexicographically (mis-orders across
-fractional-digit widths); `followScan`'s adaptive polling is dead code; SSE reconnect replays
-up to 4,000 events (no `?after=` resume).
+Notable verified minors from the July-13 review — **re-verified against code 2026-08-02;
+all but one are since fixed**:
+
+- posePercent still averages over common joints only, but the Phase 1b coverage guard
+  multiplies the overall score by coverage on every production path (web v2 + desktop
+  bridge V2), so a 1-of-3-joint copy scores LOW_SIMILARITY, not HIGH (regression-tested).
+  Only the legacy v1 engines keep the unguarded blend and they are parity/test-only.
+- `Looped`/`priority` are still excluded from the curve fingerprint — now a **documented,
+  deliberate** definition (`PlaybackSettings.java`: EXACT_CURVE_DATA is a curve-data-only
+  claim), with snapshot change-detection recording looped/priority beside the fingerprint
+  and classifying a Looped-only flip as CHANGED. Residual: the comparison-result view does
+  not yet surface a "playback settings differ" indicator — tracked in #121.
+- `PluginPairingService.revoke` — fixed: reachable via
+  `POST /api/v1/projects/{id}/plugin-pairings/{pairingId}/revoke` and a Revoke button in
+  the pairing list; issue + list + revoke complete the rotation surface.
+- `Instant.toString()` lexicographic sort — fixed: `creatorflow.db.Timestamps` writes
+  fixed-width nine-digit fractions everywhere and migration `V011` rewrote legacy rows.
+- `followScan` adaptive polling — fixed in the Phase 2 pass (self-rescheduling timeout).
+- SSE reconnect replay — fixed: the events route honors `Last-Event-ID` (and `?after=`),
+  frames carry `id:` lines, so a reconnect resumes instead of replaying up to 4,000 events.
 
 ## July 13–14 skills-execution pass (branch `claude/skills-execution`)
 
-Ran the plan in `docs/SKILLS_EXECUTION_PLAN.md`. Phases 1–2 done; 3–5 open.
+Ran the plan in `docs/SKILLS_EXECUTION_PLAN.md`. All five phases done; merged as PR #1
+(2026-07-14).
 
 **Phase 1 — security audit (Semgrep + manual).** Semgrep 1.169.0 (OSS, no Pro) over
 `server/`, `core/`, `desktop/`, `frontend/src/` in important-only mode with Trail of Bits /
@@ -258,15 +291,15 @@ dropped (`setInterval(..., polling ? 600 : 900)` read `polling` once when it was
 converted to a self-rescheduling `setTimeout`. Baseline stayed green: 24 frontend tests (was
 22), typecheck, build; core 13 / server 25 / desktop 24; full reactor compiles.
 
-**Still open from Phase 2 (lower priority, not fixed):** `MotionComparisonLab.tsx` `MotionStage`
-runs a permanent `requestAnimationFrame` loop even when paused/static instead of using
-`motion/renderLoop.ts`'s demand-aware scheduler; exported `matches[].matchedAssetId` uses the
-match's own array index rather than a referenced asset ordinal (passes the validator's range
-check only because match arrays are short — no unambiguous correct value since matches point at
-external registry records); `ProductWorkspace.tsx:650` sets state after an `await` without
-re-checking `controller.signal.aborted`. The four previously-known majors (dual scoring
-algorithms, `localBridge.ts` still under-tested beyond `followScan`, the `styles.css` monolith,
-and stale `frontend/*.md` docs) remain.
+**Phase 2 leftovers — status re-verified 2026-08-02:** `matchedAssetId` is fixed
+(`releaseManifest.ts` resolves the real 1-based asset ordinal by file name and records
+unresolvable external matches as `EXTERNAL_MATCH` findings; regression-tested) and the
+`ProductWorkspace` abort race is fixed (every awaited bridge call re-checks
+`controller.signal.aborted` before setState). `MotionStage`'s render loop got an idle-cadence
+mitigation (#51: ~11fps while paused instead of full rate) but still renders a static scene
+forever instead of using `motion/renderLoop.ts`'s demand-driven scheduler like its four
+sibling viewers — the full port is in flight. The four previously-known majors are all
+resolved (see the findings list above).
 
 **Phase 3 — immutable animation snapshots (build-order #3), shipped TDD-first.** A snapshot
 captures one animation's canonical fingerprint at a moment, tagged `LAST_KNOWN_GOOD` /
@@ -290,36 +323,39 @@ modeled/browser results visually separate from measured/Studio ones). See `docs/
 
 **Phase 5 — wrap-up done.** Full verification green: frontend 27 tests + typecheck + build; core
 48 (excl. the env-only symlink test), desktop 27, server 25 — 100 Java tests, full reactor
-compiles. Branch `claude/skills-execution` holds the whole run; not yet pushed/PR'd (awaiting
-Bryan's call on integration).
+compiles. The run merged to `main` as PR #1 on 2026-07-14 (see
+`CONSOLIDATION-REPORT.md`).
 
-## Known gaps before the friend test
+## Known gaps needing a live Studio session (owner-only)
+
+The friend test was **cancelled permanently on 2026-07-30**; live-Studio validation happens
+as the owner's solo run or not at all. These gaps remain real and need that session:
 
 1. Install the desktop-bridge plugin in Roblox Studio and run the manual checklist in
-   `roblox-plugin/desktop-bridge/README.md` with two Animation IDs your friend can actually
-   access.
+   `roblox-plugin/desktop-bridge/README.md` with two accessible Animation IDs.
 2. Verify the `AnimationClipProvider:GetAnimationClipAsync()` behavior against the current
    Studio client and record the exact error copy for private, deleted, moderated, and
    wrong-owner assets.
 3. Confirm the local bridge survives desktop restart, token rotation, Studio HTTP denial, and
    a request near the 2 MiB boundary.
-4. Add `CurveAnimation` only after defining a deterministic curve-channel canonical format.
-   The current friend-test plugin intentionally accepts `KeyframeSequence` only.
-5. Add a published-ID runtime probe on R6/R15 before claiming that an animation will play
-   correctly in the target experience.
+4. ~~Add `CurveAnimation`~~ — Phase C does exactly this on a deterministic curve canonical
+   format; in review as PR #119.
+5. ~~Add a published-ID runtime probe on R6/R15~~ — shipped as Phase B (#118). Residual:
+   the plugin's `RIG_ASSET_IDS` R6/R15 entries are `0` placeholders until a live Studio
+   session fills them (Rig Builder → copy asset ID).
 6. Add an experience permission graph before claiming that an Animation ID is ready for both
    test and production.
 
 ## What to build next, in order
 
-1. **Friend test** — `docs/FRIEND-TEST.md` is the runbook. Everything automatable is done; a
-   human session in Studio is the blocker. Fix only what it surfaces.
+1. ~~**Friend test**~~ — cancelled permanently 2026-07-30 (see `ROADMAP.md`).
 2. **Join the two halves**: motion-comparison evidence should be able to cite a registry asset
    ("94% similar to WalkCycle V3, registered by mira, mapped to ID 222 under your group"). The
    fingerprint is the join key. This is the feature no first-party Roblox tool can replicate —
    Roblox doesn't know two asset IDs are the same creative work; CreatorFlow does.
 3. **Team registries**: the server API is per-account; a shared account works for demos, real
-   teams need memberships.
+   teams need memberships. *(This is Phase E territory — approved to build by owner decision
+   2026-08-02, see `ROADMAP.md`.)*
 4. From GPT's original build order: creator/group/experience ownership and permission context
    per Animation ID *(the creator/owner/group-ownership match shipped 2026-07-24 — see
    Ownership verification above; a fuller permission graph remains)*; last-known-good and
@@ -348,9 +384,3 @@ several are 10–102 MB each. Their metadata can render without the payload. Use
 release artifacts before distributing the complete asset pack; do not push the 100 MB+ files
 directly to GitHub.
 
-## Working-tree caution
-
-Several local files named `* 2.java` were present beside canonical Java files. They are
-byte-for-byte copies of the tracked originals and are intentionally ignored rather than
-committed. Do not delete them without confirming with the user, and do not add compiler
-exclusions merely to accommodate them in Git.

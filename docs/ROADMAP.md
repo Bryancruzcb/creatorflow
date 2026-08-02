@@ -49,18 +49,24 @@ or auto-block; generic scanned files with only a `sha256`/path have no Roblox id
 and stay `NOT_VERIFIED`; export never calls the network. Completes redirect
 milestone item 6.
 
-## The gate before more building: validate
+## The validation gate is closed (2026-07-30)
 
-The redirect's own final instruction is to **validate with a real Roblox dev
-before expanding the roadmap** — the friend test in [`FRIEND-TEST.md`](FRIEND-TEST.md).
-Track A (solo, offline) can be run today. What a real user trips on reorders
-everything below.
+The redirect's final instruction was to **validate with a real Roblox dev** —
+the friend test in [`FRIEND-TEST.md`](FRIEND-TEST.md). Track A (solo, offline)
+ran and passed on 2026-07-20. The live half was **cancelled permanently by the
+project owner on 2026-07-30 and will not happen**. Live-Studio validation
+happens as the owner's solo run or not at all.
+
+That makes the old *(validation-gated)* labels dead: no phase can satisfy that
+gate anymore. Phases proceed by explicit per-phase owner decision instead — as
+Phase B (decision recorded 2026-07-31 in its design spec) and Phase C (separate
+decision, 2026-08-01) already did.
 
 ## Next phases
 
 Ordered from "completes the core" to "expands scope". Phase A (below) shipped
 2026-07-24 ahead of the friend test — it *finished* a promise the tool already
-made rather than adding new scope; the friend test now exercises it.
+made rather than adding new scope.
 
 ### Phase A — Real ownership & permission verification  ✓ shipped 2026-07-24
 Turned the always-`NOT_VERIFIED` ownership evidence into *verified where Roblox's
@@ -71,24 +77,35 @@ to Y" check = no; anything above the ceiling stays NOT_VERIFIED). Details under
 [Done — Phase A](#done--phase-a-real-ownership-verification-2026-07-24). Plan:
 [`superpowers/plans/2026-07-17-phaseA-ownership-verification.md`](superpowers/plans/2026-07-17-phaseA-ownership-verification.md).
 
-### Phase B — Runtime playability probe  *(validation-gated)*
-Before "ready to ship", check the animation actually plays on the target rig
-(R6/R15), respects loop/priority/markers, and loads clean. On-mission (release
-confidence); needs deeper live-Studio integration.
+### Phase B — Runtime playability probe  ✓ shipped 2026-08-02 (#118)
+Checks the animation actually plays on the target rig (R6/R15), respects
+loop/priority/markers, and loads clean. One residual, owner-only: the
+desktop-bridge plugin's `RIG_ASSET_IDS` R6/R15 entries are still `0`
+placeholders — filling them needs a live Studio session (Rig Builder → copy
+asset ID); until then the probe's standard-rig path no-ops gracefully. The
+structural rig-compatibility follow-on (a rig-incompatible animation still
+reports ok) is tracked in #122.
 
-### Phase C — CurveAnimation support  *(validation-gated)*
-The plugin reads only `KeyframeSequence` today; add curve-based animations
-(needs a deterministic curve canonical format first).
+### Phase C — CurveAnimation support  *(in review — PR #119)*
+The plugin reads only `KeyframeSequence` today; PR #119 adds curve-based
+animations on a deterministic curve canonical format. Built by owner decision
+(2026-08-01, recorded in its design spec); awaiting owner review plus the
+owner's solo live-Studio checklist.
 
-### Phase D — Team polish  *(validation-gated)*
-Batch decisions, a smoother BLOCKED-resolution flow, the `styles.css` monolith
-cleanup, and the held dependency majors (Spring Boot 4 #8, JavaFX 26 #11 — the
-latter needs a desktop-launch verification pass).
+### Phase D — Team polish  *(next — owner decision 2026-08-02)*
+What remains: batch decisions and a smoother BLOCKED-resolution flow. The other
+two former scope items are already done — the `styles.css` monolith was split
+into ordered slabs by #67 (2026-07-28; deeper per-rule consolidation is parked
+in #120), and both held dependency majors
+shipped: JavaFX 26 via #92 (2026-07-29) and Spring Boot 4 via #107
+(2026-07-30).
 
-### Phase E — Shared team provenance  *(only if validated)*
+### Phase E — Shared team provenance  *(approved to build — owner decision 2026-08-02)*
 The honest rebirth of the old cloud registry: not a public "copied/not-copied"
 judge, but a shared store so a team's members check provenance against each
-other. Build only if the friend test proves real multi-user demand.
+other. The friend-test demand gate is closed (see above); the owner approved
+building this phase on 2026-08-02. It is expected to explicitly repurpose the
+frozen `server/` tree — the phase's design spec records that call.
 
 ## Standing constraints (every phase)
 

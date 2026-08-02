@@ -51,9 +51,9 @@ compressed assets can load at all under the Pages base.
 > | 4. Root-path ribbon | **partly** | Start/end markers exist (`marker(path, 'start' \| 'end')`). Vertical travel and the degenerate in-place empty state are unverified. |
 > | 5. One perceptual ramp | **done** | `DEVIATION_RAMP` measured monotonic in luminance: 0.0155 → 0.0986 → 0.2139 → 0.3717 → 0.6651. `NO_DATA_HEX` (`#3a3a38`, luminance 0.0421) is distinct from the ramp maximum. |
 > | 5a. Heatmap performance | **done, measured** | See below — minutes to ~0.5 s on the asset it named. |
-> | 6. Type scale | **in progress** | `app-project` migrated and enforced; 84 rules across 10 surfaces remain. |
+> | 6. Type scale | **done** (2026-07-29, #93) | The audit ratchet is empty — `frontend/audit/type-floor.spec.ts`'s `UNMIGRATED` set is `[]` and all 16 surfaces are strictly enforced (`frontend/audit/README.md`). |
 >
-> So the real remaining work in this section is **item 4's unverified half, item 6, and the
+> So the real remaining work in this section is **item 4's unverified half and the
 > "visually identical" check item 1 never got.** Everything else is history and is kept below for
 > the reasoning, not as a to-do list.
 
