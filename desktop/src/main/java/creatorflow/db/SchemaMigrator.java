@@ -26,7 +26,8 @@ final class SchemaMigrator {
             new Migration(9, "plugin_pairings", "/creatorflow/db/migrations/V009__plugin_pairings.sql"),
             new Migration(10, "ownership_verifications", "/creatorflow/db/migrations/V010__ownership_verifications.sql"),
             new Migration(11, "sortable_timestamps", "/creatorflow/db/migrations/V011__sortable_timestamps.sql"),
-            new Migration(12, "playback_settings", "/creatorflow/db/migrations/V012__playback_settings.sql"));
+            new Migration(12, "playback_settings", "/creatorflow/db/migrations/V012__playback_settings.sql"),
+            new Migration(13, "animation_comparison_playability", "/creatorflow/db/migrations/V013__animation_comparison_playability.sql"));
 
     private final Connection connection;
 

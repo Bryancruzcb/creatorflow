@@ -426,6 +426,39 @@ class LocalBridgeServerTest {
                 .get("items").size());
     }
 
+    @Test
+    void motionComparisonAcceptsAndReturnsOptionalPlayability() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        String animation = """
+                {
+                  "assetId":"%s","name":"Walk","duration":1.0,"looped":true,
+                  "priority":"Movement","keyframes":[
+                    {"time":0.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                    {"time":1.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                  ]
+                }
+                """;
+        String withPlayability = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("3001") + ",\"candidate\":" + animation.formatted("3002")
+                + ",\"playability\":{\"source\":{\"r6\":{\"ok\":true}},\"candidate\":{\"r6\":{\"ok\":false,\"error\":\"boom\"}}}}";
+        HttpResponse<String> compared = pluginRequest("POST", "/plugin/v1/motion-comparisons", token, withPlayability);
+        assertEquals(201, compared.statusCode(), compared.body());
+        assertTrue(json.readTree(compared.body()).has("playability"));
+        assertTrue(json.readTree(compared.body()).get("playability").get("source").get("r6").get("ok").asBoolean());
+
+        String withoutPlayability = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("4001") + ",\"candidate\":" + animation.formatted("4002") + "}";
+        HttpResponse<String> comparedNoPlayability = pluginRequest(
+                "POST", "/plugin/v1/motion-comparisons", token, withoutPlayability);
+        assertEquals(201, comparedNoPlayability.statusCode(), comparedNoPlayability.body());
+        assertFalse(json.readTree(comparedNoPlayability.body()).has("playability"));
+    }
+
     /**
      * Pins WHICH engine the plugin route scores on, and that a mirrored match says so.
      *
