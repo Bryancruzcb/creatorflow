@@ -24,5 +24,11 @@ public record AnimationComparisonRecord(
         String algorithmVersion,
         PlaybackSettings sourceSettings,
         PlaybackSettings candidateSettings,
+        String playabilityJsonRaw,
         Instant createdAt) {
+
+    /** Raw playability JSON, if a probe ran for this comparison — absent for anything checked before this field existed. */
+    public java.util.Optional<String> playabilityJson() {
+        return java.util.Optional.ofNullable(playabilityJsonRaw);
+    }
 }

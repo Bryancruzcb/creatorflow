@@ -14,6 +14,7 @@ import {
   snapshotStatusTone,
   sortSnapshotsForDisplay,
 } from '../motion/snapshots';
+import { EvidenceBasisMark } from './EvidenceBasisMark';
 import './AnimationSnapshotsPanel.css';
 
 type LoadState = 'idle' | 'loading' | 'ready' | 'error';
@@ -171,6 +172,29 @@ export function AnimationSnapshotsPanel({ bridgeClient, project, latestCompariso
                   <strong>{clip.name}</strong>
                   <small>{clip.label} · ID {clip.id}</small>
                 </div>
+                {(() => {
+                  const report = latestComparison?.playability?.[clip.side];
+                  return (
+                    <div className="animation-snapshots-side-playability">
+                      {(['r6', 'r15'] as const).map((rig) => {
+                        const rigResult = report?.[rig];
+                        return (
+                          <div key={rig} className="animation-snapshots-playability-row">
+                            <span className="animation-snapshots-playability-label">{rig.toUpperCase()}</span>
+                            <EvidenceBasisMark basis={rigResult ? 'VERIFIED' : 'NOT_VERIFIED'} compact />
+                            <small>
+                              {!rigResult
+                                ? 'Not checked'
+                                : rigResult.ok
+                                  ? 'Plays clean'
+                                  : rigResult.error ?? 'Playback error'}
+                            </small>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
                 <div className="animation-snapshots-side-actions">
                   {KINDS.map((kind) => (
                     <button

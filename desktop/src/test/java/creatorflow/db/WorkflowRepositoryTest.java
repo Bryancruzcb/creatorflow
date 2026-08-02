@@ -43,7 +43,7 @@ class WorkflowRepositoryTest {
             try (var statement = database.connection().createStatement();
                  var result = statement.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(result.next());
-                assertEquals(12, result.getInt(1));
+                assertEquals(13, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }
@@ -132,7 +132,7 @@ class WorkflowRepositoryTest {
                     1.25, 1.18, "a".repeat(64), "b".repeat(64),
                     88, 91, 76, 100, false,
                     "{\"verdict\":\"MODERATE_SIMILARITY\"}", "creatorflow.motion-compare/v0.1",
-                    PlaybackSettings.of(true, "Movement"), PlaybackSettings.of(false, "Action"));
+                    PlaybackSettings.of(true, "Movement"), PlaybackSettings.of(false, "Action"), null);
             comparisonId = record.id();
             assertEquals(1, repository.forProject(projectId, 25, 0).size());
             assertEquals("1002", repository.findById(comparisonId).orElseThrow().candidateAssetId());
