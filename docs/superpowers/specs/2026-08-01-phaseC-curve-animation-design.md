@@ -18,11 +18,16 @@ same fidelity `KeyframeSequence` assets already get — without building a secon
 comparison engine, and without ever claiming sampled data is as exact as a direct
 keyframe read.
 
-**Why this phase, why now:** `docs/ROADMAP.md` names Phase C next after B in the
-post-redirect sequence. Two separate documents (`ROADMAP.md` and
-`docs/superpowers/plans/2026-07-29-codebase-triage.md`) both flag the same blocker —
-"needs a deterministic curve canonical format first" — as the reason this was never
-started. `CreatorFlowAnimationBridge.lua`'s `readAnimation` explicitly rejects
+**Why this phase, why now:** `docs/ROADMAP.md` marks Phase C `(validation-gated)`, and
+`docs/superpowers/plans/2026-07-29-codebase-triage.md` states plainly that Phases B/C/D/E
+"are all explicitly validation-gated behind [the friend test]... This is a human blocker
+and it cannot be worked around." That friend test was cancelled by the project owner on
+2026-07-30 and will not happen — recorded when Phase B was scoped, not re-litigated
+here. Phase B shipped anyway, by explicit owner decision to build B/C/D/E despite the
+gate never being satisfiable; this phase proceeds under the same decision, not a new one.
+Two separate documents (`ROADMAP.md` and the triage doc) both flag the same technical
+blocker — "needs a deterministic curve canonical format first" — as the reason this was
+never started. `CreatorFlowAnimationBridge.lua`'s `readAnimation` explicitly rejects
 `CurveAnimation` today (`roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua:809-818`):
 "CreatorFlow v0.1 compares KeyframeSequence assets only; curve-channel normalization is
 planned separately." This phase is that plan.
@@ -75,10 +80,24 @@ TypeScript (frontend evidence view).
   `source`/`candidate` straight into `NormalizedAnimation` via Jackson, whose
   `ObjectMapper` does not disable `FAIL_ON_UNKNOWN_PROPERTIES` — an unknown field nested
   in either object would throw on every submission.
-- **Determinism is inherited, not re-derived.** Because sampled output uses the identical
+- **Determinism is inherited, not re-derived — and one real consumer depends on it more
+  than comparisons do.** Because sampled output uses the identical
   `roundNumber`/`ROUNDING_SCALE` path already used for keyframe poses, byte-determinism
-  guarantees already proven for that path apply unchanged — contingent on Task 0
-  confirming curve sampling itself is deterministic run-to-run (see below).
+  guarantees already proven for that path apply unchanged, *contingent on Task 0
+  confirming curve sampling itself is deterministic run-to-run* (see Task 0 Step 4).
+  A one-off comparison surviving non-determinism is low-stakes (the score might jitter
+  slightly run-to-run, disclosed via `sourceKind`). **Animation snapshots
+  (`motion_snapshots`, "last-known-good"/"last-published" pinning,
+  `AnimationSnapshotsPanel.tsx`) are not** — `MotionSnapshots.classify`
+  (`core/src/main/java/creatorflow/motion/MotionSnapshots.java`) determines
+  UNCHANGED/CHANGED by fingerprint equality alone, with no knowledge of `sourceKind`.
+  If sampling isn't bit-identical run-to-run, re-pinning a genuinely-unchanged
+  `CURVE_SAMPLED` asset would report a false CHANGED — exactly the "false accusation"
+  class of error `ROADMAP.md`'s standing constraints call out as the worst possible
+  output ("when in doubt, under-flag"). **If Task 0 finds sampling is not
+  deterministic, `CURVE_SAMPLED` sides must be excluded from snapshot pinning in v1**
+  (see Components → Frontend) rather than let a known-unreliable fingerprint feed a
+  drift-detection feature that has no way to express "might not actually have changed."
 - **No live playback simulation or building ships until the Task 0 spike confirms the
   underlying API assumptions.** See Task 0.
 
@@ -107,7 +126,19 @@ to `docs/superpowers/plans/2026-08-01-phaseC-task0-spike-note.md`.
       reads `clip.Loop` and `clip.Priority.Name` directly off the `KeyframeSequence`
       instance. Confirm `CurveAnimation` exposes the same (or find the actual
       equivalent) — if it doesn't, record what the normalized `looped`/`priority` fields
-      should default to for curve-sourced clips.
+      should default to for curve-sourced clips. **This choice is not cosmetic:**
+      whatever `looped` value `normalizeCurveAnimation` produces becomes
+      `declaredLooped` in `probePlayability(sourceId, "R6", source.looped, sourceMarkers)`
+      (`CreatorFlowAnimationBridge.lua:893-899`), which compares it against the *real*
+      engine-observed `track.Looped` from actually playing the clip
+      (`local loopHonored = engineLooped == declaredLooped`, line 249). A wrong default
+      here doesn't just mislabel one field — it makes every curve-sourced clip fail the
+      Phase B playability probe's loop check spuriously. If no reliable equivalent
+      exists, record that explicitly rather than guessing a default, so the
+      implementation plan can decide whether to default to "unknown" (skip the
+      loop-honored check for curve-sourced clips, disclosed the same way the
+      priority-honored check is already skipped) instead of a value that's actively
+      likely to be wrong.
 - [ ] **Step 4 — Confirm sampling is deterministic.** Read the same curve at the same
       time value twice (or across two separate script runs) and confirm identical
       output. If it is not bit-identical, determine whether the existing
@@ -149,15 +180,28 @@ and "rig-topology mismatch detection" rather than silently shipping a false guar
   choice has precedent rather than being invented here. `markers` defaults to an empty
   list — `CurveAnimation`'s data model is per-property curves, not per-keyframe objects
   a marker could be authored on the way `KeyframeSequence`'s `Keyframe:GetMarkers()`
-  works, and Task 0 does not investigate whether any equivalent concept exists; if a
-  future phase finds one, this is where it plugs in, same as Phase B's own
-  `markersDeclaredIn` started as a deliberate stub before being wired up for real.
-  Returns the same `(normalized, counters, markers)` triple `readAnimation` already
-  expects, so its caller in `compareButton.Activated` needs no changes beyond what's
-  described below. A clip with zero position/rotation channels is rejected with a clear
+  works, and Task 0 does not investigate whether any equivalent concept exists. If a
+  future phase finds one, it plugs in the same way Phase B's shipped marker collection
+  actually works: gathered inline while already iterating the clip's structure
+  (`normalizeKeyframeSequence`, `CreatorFlowAnimationBridge.lua:776-782`) and deduped via
+  the pure, self-tested `dedupeMarkerNames` helper (lines 163-173) — not a separate
+  extractor function kept apart from the data it reads.
+  Returns the same `(normalized, counters, markers)` triple `normalizeKeyframeSequence`
+  already produces — `normalizeCurveAnimation` and `normalizeKeyframeSequence` must have
+  matching return shapes, since `readAnimation` calls whichever one applies through the
+  same `pcall`. A clip with zero position/rotation channels is rejected with a clear
   message, the same pattern as the existing zero-keyframes rejection.
-- `compareButton.Activated`'s wiring gains a `sourceKind`/`candidateKind` pair (`"KEYFRAME"`
-  or `"CURVE_SAMPLED"`, set by whichever branch `readAnimation` took) included as new
+- **`readAnimation` itself gains a 4th return value: `kind`** (`"KEYFRAME"` or
+  `"CURVE_SAMPLED"`), literal-set by `readAnimation` based on which of
+  `normalizeKeyframeSequence`/`normalizeCurveAnimation` it called — not carried inside
+  `normalized` (that table becomes `source`/`candidate` verbatim in the JSON body,
+  deserialized straight into `NormalizedAnimation`, so an extra field there would hit
+  the same `FAIL_ON_UNKNOWN_PROPERTIES` failure already avoided for `playability` — see
+  Global Constraints). This is the same shape of extension `markers` already was: a
+  value `readAnimation` returns *alongside* `normalized`, never inside it.
+  `compareButton.Activated` captures it as `sourceKind`/`candidateKind`
+  (`local source, sourceCounts, sourceMarkers, sourceKind = readAnimation(sourceId)`,
+  matching the existing 3-value capture it already does today) and includes both as new
   top-level fields in the `HttpService:JSONEncode({...})` body, alongside `schema`,
   `source`, `candidate`, and (from Phase B) `playability`.
 
@@ -187,14 +231,25 @@ and "rig-topology mismatch detection" rather than silently shipping a false guar
   from a score found as submitted, so it is stated rather than folded into the
   percentage" — the same reasoning applies here: a score found by *sampling* a curve is
   a different claim from a score found by reading exact keyframe data).
+- **Conditional on Task 0 Step 4's determinism finding:** if sampling is confirmed
+  deterministic, the existing "Pin a reference" buttons
+  (`AnimationSnapshotsPanel.tsx`'s `pin(clip.side, kind)`) work unchanged for
+  `CURVE_SAMPLED` sides. If Task 0 finds it is *not* deterministic, those buttons must
+  be disabled for a `CURVE_SAMPLED` side specifically, with a visible reason ("Sampled
+  data isn't stable enough to detect drift reliably — pin the source
+  `KeyframeSequence` instead, if one exists") — not a silent restriction, and not
+  something deferred past this phase, since shipping the sampling capability without
+  this guard would let a known-false-positive path reach the exact feature `ROADMAP.md`
+  singles out for zero tolerance on false accusations.
 
 ## Data flow
 
 Compare pressed → plugin reads each animation's clip type → `KeyframeSequence` takes the
 existing unchanged path; `CurveAnimation` takes the new sampling path → both produce the
-identical normalized shape, tagged with their `sourceKind`/`candidateKind` → one JSON
-payload (existing `source`/`candidate`/`playability` fields, unchanged, plus the new
-`sourceKind`/`candidateKind` top-level fields) POSTed to the existing
+identical normalized shape via `readAnimation`, which also returns which path it took as
+a separate 4th value (`kind`, never embedded in the normalized shape itself) → one JSON
+payload (existing `source`/`candidate`/`playability` fields, unchanged, plus new
+top-level `sourceKind`/`candidateKind` fields alongside them) POSTed to the existing
 `/plugin/v1/motion-comparisons` endpoint (no schema-string bump, same reasoning as
 Phase B) → `LocalBridgeServer` parses the new fields independently and persists them →
 frontend renders the provenance qualifier alongside existing evidence.
@@ -206,9 +261,12 @@ frontend renders the provenance qualifier alongside existing evidence.
   transparency/color channels) — mirrors `normalizeKeyframeSequence`'s existing
   zero-keyframes rejection style.
 - **Sampling determinism gap (if Task 0 finds one):** disclosed per-comparison via the
-  `sourceKind` field already being surfaced — no separate error path needed, since the
-  provenance tag itself is the honest signal; a re-export producing different bytes for
-  a `CURVE_SAMPLED` side is a stated, known property of sampled data, not a bug to catch.
+  `sourceKind` field already being surfaced, and — because comparisons alone are
+  low-stakes but snapshot drift-detection is not (see Global Constraints) —
+  additionally enforced by disabling snapshot pinning for `CURVE_SAMPLED` sides. A
+  re-export producing different comparison bytes for a `CURVE_SAMPLED` side is a
+  stated, known property of sampled data, not a bug to catch; a snapshot silently
+  reporting false drift from the same cause is a bug this phase must not ship.
 - **`MAX_POSES`/`MAX_REQUEST_BYTES` exceeded by sampling at the chosen rate:** the
   existing `validateMotionEnvelope` limits already enforce this server-side; the plugin
   should also pre-check client-side before attempting the HTTP request, matching how
