@@ -155,21 +155,33 @@ local function fetchStandardRig(rigType)
 	return rig
 end
 
-local function markersDeclaredIn(normalized)
-	local declared = {}
-	-- v0.1's normalized form has no marker data -- if a future change extends
-	-- normalizeKeyframeSequence to also collect Keyframe:GetMarkers() names per keyframe, read
-	-- them here. Until then this returns an empty list and probePlayability's marker check is a
-	-- no-op (every declared-empty check trivially passes).
-	return declared
+--- First-occurrence-order dedup. normalizeKeyframeSequence collects one marker name per
+--- occurrence across all keyframes; a marker authored on several keyframes (or repeated on
+--- purpose) must only appear once in the declared list, or probePlayability's "did every
+--- declared marker fire at least once" check would demand N fires for a marker that only
+--- ever needs to fire once.
+local function dedupeMarkerNames(names)
+	local seen = {}
+	local unique = {}
+	for _, name in ipairs(names) do
+		if not seen[name] then
+			seen[name] = true
+			table.insert(unique, name)
+		end
+	end
+	return unique
 end
 
 local function Playability_selfTest()
 	local passed = true
-	-- markersDeclaredIn on an empty normalized table returns an empty table, not nil.
-	local emptyResult = markersDeclaredIn({})
+	local deduped = dedupeMarkerNames({ "a", "b", "a", "c", "b" })
+	if #deduped ~= 3 or deduped[1] ~= "a" or deduped[2] ~= "b" or deduped[3] ~= "c" then
+		warn("[CreatorFlow] Playability self-test FAILED: dedupeMarkerNames did not dedupe in first-occurrence order.")
+		passed = false
+	end
+	local emptyResult = dedupeMarkerNames({})
 	if type(emptyResult) ~= "table" or #emptyResult ~= 0 then
-		warn("[CreatorFlow] Playability self-test FAILED: markersDeclaredIn did not return an empty table for empty input.")
+		warn("[CreatorFlow] Playability self-test FAILED: dedupeMarkerNames did not return an empty table for empty input.")
 		passed = false
 	end
 	return passed
@@ -739,6 +751,7 @@ local function normalizeKeyframeSequence(assetId, clip)
 	local duration = 0
 	local counters = { poses = 0 }
 	local priorTime = nil
+	local rawMarkerNames = {}
 	for _, keyframe in ipairs(keyframes) do
 		local time = roundNumber(keyframe.Time, "keyframe time")
 		if priorTime ~= nil and time == priorTime then
@@ -759,6 +772,14 @@ local function normalizeKeyframeSequence(assetId, clip)
 			time = time,
 			poses = poses,
 		})
+
+		-- Collected for the playability probe's marker-fired check (probePlayability), not sent
+		-- over the wire: adding a field here would ride inside the JSON-encoded `source`/
+		-- `candidate` objects the server parses straight into NormalizedAnimation, whose Jackson
+		-- ObjectMapper rejects unknown properties. Kept as a separate return value instead.
+		for _, marker in ipairs(keyframe:GetMarkers()) do
+			table.insert(rawMarkerNames, marker.Name)
+		end
 	end
 
 	return {
@@ -768,7 +789,7 @@ local function normalizeKeyframeSequence(assetId, clip)
 		looped = clip.Loop,
 		priority = clip.Priority.Name,
 		keyframes = normalizedKeyframes,
-	}, counters
+	}, counters, dedupeMarkerNames(rawMarkerNames)
 end
 
 local function readAnimation(assetId)
@@ -801,12 +822,12 @@ local function readAnimation(assetId)
 		error("Animation " .. assetId .. " returned unsupported clip type " .. className .. ".", 0)
 	end
 
-	local normalizedOk, normalized, counters = pcall(normalizeKeyframeSequence, assetId, clip)
+	local normalizedOk, normalized, counters, markers = pcall(normalizeKeyframeSequence, assetId, clip)
 	clip:Destroy()
 	if not normalizedOk then
 		error(errorText(normalized), 0)
 	end
-	return normalized, counters
+	return normalized, counters, markers
 end
 
 local function formatScore(value)
@@ -862,19 +883,19 @@ compareButton.Activated:Connect(function()
 		safeSetSetting(SETTINGS.sourceId, sourceId)
 		safeSetSetting(SETTINGS.candidateId, candidateId)
 
-		local source, sourceCounts = readAnimation(sourceId)
+		local source, sourceCounts, sourceMarkers = readAnimation(sourceId)
 		setStatus("working", "Source normalized", string.format("Read %d keyframes and %d poses. Reading candidate…", #source.keyframes, sourceCounts.poses))
-		local candidate, candidateCounts = readAnimation(candidateId)
+		local candidate, candidateCounts, candidateMarkers = readAnimation(candidateId)
 
 		setStatus("working", "Checking playability…", "Playing both clips on stock R6/R15 dummies in Studio.")
 		local playability = {
 			source = {
-				r6 = probePlayability(sourceId, "R6", source.looped, markersDeclaredIn(source)),
-				r15 = probePlayability(sourceId, "R15", source.looped, markersDeclaredIn(source)),
+				r6 = probePlayability(sourceId, "R6", source.looped, sourceMarkers),
+				r15 = probePlayability(sourceId, "R15", source.looped, sourceMarkers),
 			},
 			candidate = {
-				r6 = probePlayability(candidateId, "R6", candidate.looped, markersDeclaredIn(candidate)),
-				r15 = probePlayability(candidateId, "R15", candidate.looped, markersDeclaredIn(candidate)),
+				r6 = probePlayability(candidateId, "R6", candidate.looped, candidateMarkers),
+				r15 = probePlayability(candidateId, "R15", candidate.looped, candidateMarkers),
 			},
 		}
 
