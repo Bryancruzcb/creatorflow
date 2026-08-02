@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, within } from '@testing-library/react';
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
 import type { LocalBridgeClient, LocalMotionComparison, LocalProjectSummary } from '../bridge/localBridge';
 
@@ -27,6 +27,22 @@ function comparison(overrides: Partial<LocalMotionComparison>): LocalMotionCompa
   };
 }
 
+/**
+ * The one side card for a given asset ID, so a provenance assertion can name the side it
+ * means. Document-wide text queries cannot tell the two sides apart, and a qualifier
+ * rendered on the wrong side -- or on both -- is exactly the regression worth catching:
+ * it would claim an exactly-read clip is an approximation.
+ */
+function sideFor(assetId: string): HTMLElement {
+  const side = screen.getByText(new RegExp(`ID ${assetId}\\b`)).closest('.animation-snapshots-side');
+  if (!side) throw new Error(`No side card rendered for asset ${assetId}`);
+  return side as HTMLElement;
+}
+
+function pinButtonsIn(scope: HTMLElement): HTMLButtonElement[] {
+  return within(scope).getAllByRole('button', { name: /last known good|last published/i }) as HTMLButtonElement[];
+}
+
 // vitest.config.ts does not enable `globals`, so Testing Library never registers its
 // automatic afterEach cleanup and every render would otherwise pile up in the same
 // document. The absence assertions below query the whole body, so a leftover render
@@ -49,18 +65,23 @@ describe('AnimationSnapshotsPanel clip provenance', () => {
     expect(pinButtons.every((button) => !(button as HTMLButtonElement).disabled)).toBe(true);
   });
 
-  it('shows a sampled-data qualifier for a CURVE_SAMPLED side while pinning stays enabled', () => {
+  it('qualifies only the CURVE_SAMPLED side, not the KEYFRAME one, while pinning stays enabled', () => {
     render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
       sourceKind: 'CURVE_SAMPLED',
       candidateKind: 'KEYFRAME',
     })} />);
-    expect(screen.getAllByText(/sampled from a curve/i).length).toBeGreaterThan(0);
+    // Asserted per side, not document-wide: the qualifier belongs to the sampled side alone.
+    // getByText throws on a second match, so this also pins "once on that side"; the
+    // document-wide count and the candidate's absence together rule out a source/candidate
+    // mix-up and a qualifier leaking onto both sides.
+    expect(within(sideFor('1001')).getByText(/sampled from a curve/i)).toBeTruthy();
+    expect(within(sideFor('1002')).queryByText(/sampled from a curve/i)).toBeNull();
+    expect(screen.getAllByText(/sampled from a curve/i)).toHaveLength(1);
     // Regression guard on the shipped-open configuration: the desktop bridge ships
     // CURVE_SAMPLED_SNAPSHOTS_ALLOWED = true (Task 0 measured sampling as deterministic),
-    // so a sampled side is labeled honestly but still fully pinnable. If the server guard
-    // is ever flipped shut, this expectation flips with it.
-    const pinButtons = screen.getAllByRole('button', { name: /last known good|last published/i });
-    expect(pinButtons.every((button) => !(button as HTMLButtonElement).disabled)).toBe(true);
+    // so a sampled side is labeled honestly but still fully pinnable -- checked on the
+    // sampled side itself. If the server guard is ever flipped shut, this flips with it.
+    expect(pinButtonsIn(sideFor('1001')).every((button) => !button.disabled)).toBe(true);
   });
 
   it('leaves a KEYFRAME side fully pinnable', () => {
@@ -69,5 +90,9 @@ describe('AnimationSnapshotsPanel clip provenance', () => {
       candidateKind: 'KEYFRAME',
     })} />);
     expect(screen.queryByText(/sampled from a curve/i)).toBeNull();
+    // "Fully pinnable" is the other half of the claim in this test's name: a directly-read
+    // clip carries no qualifier AND nothing about its provenance disables pinning it.
+    const pinButtons = screen.getAllByRole('button', { name: /last known good|last published/i });
+    expect(pinButtons.every((button) => !(button as HTMLButtonElement).disabled)).toBe(true);
   });
 });
