@@ -1,3 +1,20 @@
+---
+type: task0-prep
+project: CreatorFlow
+phase: C
+date: 2026-08-02
+---
+
+# Phase C Task 0 — pre-Studio research prep
+
+> **DECIDED 2026-08-02 — the `KeyframeSequenceProvider` shortcut is a NO-GO.** A second,
+> deliberately adversarial 4-agent probe ruled it out on evidence before spending any
+> Studio time on it. See "Decision: the provider shortcut is ruled out" at the bottom of
+> this document. Consequences already applied here: **Script 6 and open questions 7 and 8
+> are struck**, and **Script 5 (Position × Rotation composition order) is promoted** to
+> first among the real-asset scripts, since it is now the only remaining unknown that can
+> invalidate the design.
+
 ## What the research settled
 
 All four agents independently sourced these from the same primaries (create.roblox.com engine reference + the `Roblox/creator-docs` YAML source of truth + robloxapi dumps). Treat these as safe to write code against.
@@ -64,8 +81,8 @@ Phrased as questions a command-bar script answers. Numbers map to the scripts be
 4. **Is `GetRotationAtTime`'s returned CFrame rotation-only (zero `.Position`)?** Assumed, never stated. → Script 3
 5. **Is sampling bit-identical run-to-run, and does 6-decimal rounding absorb any drift?** This is Task 0 Step 4, and it decides whether `CURVE_SAMPLED` sides get excluded from snapshot pinning. → Script 4
 6. **How do `Position` and `Rotation` compose into the joint transform — `CFrame.new(p) * rot` or `rot * CFrame.new(p)`?** The docs say only that one "drives local translation" and the other "drives local rotation". Composition order is **stated nowhere**. Every sampled CFrame is wrong if this is backwards, and it will be wrong in a way that still produces plausible-looking numbers. → Script 5
-7. **Does `KeyframeSequenceProvider:GetKeyframeSequenceAsync` bake a `CurveAnimation` into a `KeyframeSequence` for you?** The live engine warning says it does ("Automatically converting it to a KeyframeSequence, but this will be slow"); the official docs say the class "does not support the newer AnimationClip". If the engine bake is faithful, **Phase C collapses from a hand-written sampler to a provider swap plus a perf warning**. Ten minutes of testing could delete most of the implementation plan. Also unknown: what `Weight`/`EasingStyle` it synthesizes, its sampling density, and whether markers survive. → Script 6
-8. **Does `AnimationClipProvider:GetClipEvaluatorAsync` offer a cleaner sampling surface?** The method exists in the reference **with no description at all** and zero devforum usage. → Script 6
+7. ~~**Does `KeyframeSequenceProvider:GetKeyframeSequenceAsync` bake a `CurveAnimation` into a `KeyframeSequence` for you?**~~ **STRUCK 2026-08-02 — answered NO-GO on evidence without needing Studio.** The bake is real (the engine warning is verbatim-confirmed) but provably lossy at the schema level and undocumented in its sampling density, which for a comparison tool is disqualifying. See the decision section at the bottom.
+8. ~~**Does `AnimationClipProvider:GetClipEvaluatorAsync` offer a cleaner sampling surface?**~~ **STRUCK 2026-08-02.** A code search across all of `Roblox/creator-docs` returns exactly one hit: a YAML entry with an empty summary and empty description. Both doc pages 404; the robloxapi page is a members-less stub. There are no published members to call.
 9. **Is any public asset ID actually a `CurveAnimation`?** See below — none confirmed. → Script 7
 10. **What sample rate fits under `MAX_POSES = 20000` for a real rig?** Task 0 Step 5. → Script 8
 11. **Do animation event markers survive the Studio KeyframeSequence→CurveAnimation conversion at all?** Devforum reports of marker listeners silently failing post-conversion suggest historically lossy. → Script 1 + Script 6
@@ -100,7 +117,15 @@ Know what this costs you: the conversion is **one-way**, Studio's own dialog war
 
 Every script is defensive: anything at medium/low confidence is `pcall`-probed and **printed**, never assumed. If a method name is wrong you get a line saying so instead of a stack trace.
 
-**Run order:** 2 → 1 → 3 → 4 → 8 on a synthetic fixture to get moving, then repeat 1/3/4/8 against a real uploaded asset, then 5, 6, 7. If Script 2 says the classes are not creatable, author first (section A) and start at 1.
+**Run order (revised 2026-08-02):** `2 → 1 → 3 → 4 → 8` on a synthetic fixture to get
+moving, then against a real uploaded asset run **5 first** (composition order — now the
+only remaining unknown that can invalidate the design, so it should fail fast if it's
+going to), then repeat `1 → 3 → 4 → 8`, then 7 as a bonus. If Script 2 says the classes
+are not creatable, author first (section A) and start at 1.
+
+**Script 6 is struck** — the `KeyframeSequenceProvider` shortcut it tested was ruled out
+on evidence 2026-08-02 without needing Studio. It is left in place below, marked, purely
+so the reasoning is visible; do not run it.
 
 ---
 
@@ -428,7 +453,7 @@ If neither candidate matches, print `observed` and reconstruct by hand — do **
 
 ---
 
-**6. Could the engine do the whole bake for us, and does a ClipEvaluator exist?** Requires a real uploaded asset ID that Script 1 confirmed is a `CurveAnimation`.
+**6. ~~Could the engine do the whole bake for us, and does a ClipEvaluator exist?~~ — STRUCK 2026-08-02, DO NOT RUN.** Ruled out on evidence without Studio (see the decision section at the bottom). Kept only so the reasoning stays visible.
 
 ```lua
 local ASSET_ID = 0 -- real uploaded CurveAnimation id
@@ -562,3 +587,58 @@ Arithmetic to expect (not research — check it against the script's output): R1
 ## Confidence assessment
 
 This de-risked Task 0 substantially more than expected. Steps 2 and 3 — the two the spec called the gate — are effectively answered from documentation: the read API is real, the method names are confirmed from the YAML source of truth by four independent agents, and `Loop`/`Priority` live on the shared `AnimationClip` base so the spec's elaborate Step 3 contingency is dead weight. What survives is a short list of genuinely undocumented things, and only one of them can invalidate the design: **the Position × Rotation composition order** (Script 5), which is unstated everywhere and will produce plausible-but-wrong CFrames if guessed. Realistic worst case in Studio is not "the API doesn't exist" — it's a slow start: `Instance.new` on the curve classes turns out to be blocked, so every test needs an authored-and-published asset, and the Curve Editor conversion is fiddly enough that Step 1 eats an hour before any of scripts 3-6 can run. Second-worst is Script 4 finding sampling non-deterministic even after 1e-6 rounding, which doesn't kill the phase but does force the snapshot-pinning lockout in both the frontend and `LocalBridgeServer`. The genuine upside case is Script 6: if `KeyframeSequenceProvider` really does bake curves faithfully, most of the Phase C implementation plan can be deleted in favor of a provider swap — run Script 6 early, because it is the cheapest test with the largest possible payoff.
+---
+
+## Decision: the provider shortcut is ruled out (2026-08-02)
+
+A second, deliberately adversarial 4-agent probe investigated one question: could Phase C
+skip the hand-written sampler by relying on `KeyframeSequenceProvider`'s auto-conversion?
+**Verdict: no-go, decided on evidence, without spending Studio time.**
+
+The premise was not imaginary — the engine warning is real and verbatim-confirmed:
+*"Using deprecated KeyframeSequenceProvider to load the CurveAnimation \"<name>\".
+Automatically converting it to a KeyframeSequence, but this will be slow."* A bake exists.
+It is still the wrong thing to build on:
+
+1. **Lossy at the schema level, provably.** Curve keys carry `Enum.KeyInterpolationMode`
+   (Constant/Linear/Cubic) plus independent `LeftTangent`/`RightTangent` floats, *per
+   channel* — a `Vector3Curve` is three `FloatCurve`s that may disagree. The target
+   `PoseBase` declares only one `EasingStyle`/`EasingDirection` for the pose's single
+   CFrame. Two tangent floats per key per channel have nowhere to land, and X cannot ease
+   differently from Y. (`PoseEasingStyle.Cubic` is itself deprecated with a known
+   editor-vs-runtime direction bug.)
+2. **The bake's sample density and time grid are undocumented everywhere** — four agents
+   searched the docs site, the creator-docs YAML, robloxapi, and the DevForum search API.
+   For a comparison tool the time grid *is* the contract: an opaque grid on one side means
+   a native-KeyframeSequence side and a baked-curve side are scored on different grids
+   with different interpolation semantics, and the similarity number silently absorbs that
+   pipeline difference as if it were motion difference. There is no field in the output to
+   disclose it.
+3. **Documented silent-empty failure on this exact API family.** A staff-acknowledged,
+   still-unfixed caching bug returns an empty `KeyframeSequence` on a repeat fetch of the
+   same asset ID. CreatorFlow fetches two assets per comparison, and
+   `roblox-plugin/desktop-bridge/README.md:129` specifically requires that a
+   `CurveAnimation` never be *"treated as empty data."*
+4. **Official language points away, twice.** `KeyframeSequenceProvider` is deprecated with
+   *"does not support the newer `Class.AnimationClip`"*; Studio's own conversion dialog
+   warns curve clips *"may not work with third party Studio Plugins"* — which is exactly
+   what CreatorFlow is.
+5. **It wouldn't save the work it appears to.** Roblox staff explicitly recommend
+   `Vector3Curve:GetValueAtTime` / `EulerRotationCurve:GetRotationAtTime`, which do the
+   tangent math internally. The "hand-written sampler" is a loop over a grid *we choose* —
+   not a Hermite implementation.
+
+**Counter-evidence, recorded honestly:** one accepted DevForum answer (Feb–Mar 2026) shows
+a developer successfully using `KeyframeSequenceProvider` on a curve animation and reading
+keyframes *and their markers*. So the path probably does return populated data. That
+raises the odds the bake "works" and changes nothing about points 1–4 — it was used to
+recover marker *times*, not pose CFrames for scoring.
+
+**Net effect on the plan:** it stands as written and gets slightly smaller. Task 0 Steps
+2/4/5 remain the gate; Step 3 stays dead weight (`Loop`/`Priority` live on the shared
+`AnimationClip` base); Task 1 Step 3's `normalizeCurveAnimation` is confirmed as the right
+approach by staff recommendation; Task 2 Step 16's snapshot-pinning guard is unaffected
+(still gated on Script 4's determinism finding); and
+`CreatorFlowAnimationBridge.lua:797` keeps using `AnimationClipProvider:GetAnimationClipAsync`,
+which is documented to handle a clip *"regardless of the underlying type"* — only line
+810's hard-reject becomes the dispatch, exactly as Task 1 Step 1 already specified.
