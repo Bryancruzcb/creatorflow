@@ -283,6 +283,9 @@ public final class LocalBridgeServer implements AutoCloseable {
             var result = MotionComparisonEngineV2.compare(request);
             NormalizedAnimation source = request.source();
             NormalizedAnimation candidate = request.candidate();
+            JsonNode playabilityNode = body.path("playability");
+            String playabilityJson = playabilityNode.isMissingNode() || playabilityNode.isNull()
+                    ? null : playabilityNode.toString();
             AnimationComparisonRecord stored = animationComparisons.insert(
                     pairing.projectId(), source.assetId(), candidate.assetId(),
                     source.name(), candidate.name(), source.duration(), candidate.duration(),
@@ -291,7 +294,8 @@ public final class LocalBridgeServer implements AutoCloseable {
                     roundedPercent(result.timingPercent()), roundedPercent(result.coveragePercent()),
                     result.exactCurveData(), json.writeValueAsString(result), result.engineVersion(),
                     PlaybackSettings.of(source.looped(), source.priority()),
-                    PlaybackSettings.of(candidate.looped(), candidate.priority()));
+                    PlaybackSettings.of(candidate.looped(), candidate.priority()),
+                    playabilityJson);
             sendJson(exchange, 201, animationComparisonView(stored));
             return;
         }
@@ -1092,6 +1096,13 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("mirrored", result.path("mirrored").asBoolean(false));
         view.put("algorithmVersion", record.algorithmVersion());
         view.put("createdAt", record.createdAt());
+        record.playabilityJson().ifPresent(raw -> {
+            try {
+                view.put("playability", json.readTree(raw));
+            } catch (IOException error) {
+                throw new IllegalStateException("Stored playability JSON is invalid", error);
+            }
+        });
         view.put("result", result);
         view.put("creatorFlowUrl", origin + "/#workspace?view=motion");
         return view;

@@ -127,6 +127,150 @@ local function errorText(value)
 	return text
 end
 
+local InsertService = game:GetService("InsertService")
+
+local RIG_ASSET_IDS = {
+	R6 = 0, -- TODO: insert a stock R6 dummy via Studio's Avatar tab -> Rig Builder, copy its asset ID here
+	R15 = 0, -- TODO: same, for R15
+}
+
+local rigCache = {}
+
+local function fetchStandardRig(rigType)
+	if rigCache[rigType] then
+		return rigCache[rigType]
+	end
+	local ok, model = pcall(function()
+		return InsertService:LoadAsset(RIG_ASSET_IDS[rigType])
+	end)
+	if not ok or not model then
+		return nil
+	end
+	local rig = model:FindFirstChildWhichIsA("Model")
+	if rig then
+		rig.Parent = nil
+	end
+	model:Destroy()
+	rigCache[rigType] = rig
+	return rig
+end
+
+--- First-occurrence-order dedup. normalizeKeyframeSequence collects one marker name per
+--- occurrence across all keyframes; a marker authored on several keyframes (or repeated on
+--- purpose) must only appear once in the declared list, or probePlayability's "did every
+--- declared marker fire at least once" check would demand N fires for a marker that only
+--- ever needs to fire once.
+local function dedupeMarkerNames(names)
+	local seen = {}
+	local unique = {}
+	for _, name in ipairs(names) do
+		if not seen[name] then
+			seen[name] = true
+			table.insert(unique, name)
+		end
+	end
+	return unique
+end
+
+local function Playability_selfTest()
+	local passed = true
+	local deduped = dedupeMarkerNames({ "a", "b", "a", "c", "b" })
+	if #deduped ~= 3 or deduped[1] ~= "a" or deduped[2] ~= "b" or deduped[3] ~= "c" then
+		warn("[CreatorFlow] Playability self-test FAILED: dedupeMarkerNames did not dedupe in first-occurrence order.")
+		passed = false
+	end
+	local emptyResult = dedupeMarkerNames({})
+	if type(emptyResult) ~= "table" or #emptyResult ~= 0 then
+		warn("[CreatorFlow] Playability self-test FAILED: dedupeMarkerNames did not return an empty table for empty input.")
+		passed = false
+	end
+	return passed
+end
+
+if not Playability_selfTest() then
+	warn("[CreatorFlow] Playability self-test failed — marker/report logic may be broken; playability checks will still run but their results may be unreliable.")
+end
+
+local PLAYABILITY_MAX_WAIT_SECONDS = 10 -- from the Task 0 spike: enough for a non-looping clip to
+                                          -- finish, and a safe cap for a looping one (IsPlaying
+                                          -- never goes false on its own for those)
+
+--- Loads `assetId` onto a scratch clone of the named stock rig and plays it in real time (not
+--- scrubbed -- the Task 0 spike found TimePosition scrubbing does not reliably fire markers).
+--- Returns nil when no probe could run at all (rig fetch failed) -- NOT_VERIFIED downstream,
+--- distinct from a probe that ran and failed. Otherwise always returns { ok, error? }: pcall
+--- succeeding is not proof the clip actually played (Task 0 found an invalid asset ID reports
+--- ok:true from pcall, with the real failure surfacing ~130ms later as an uncatchable async
+--- warning) so this also checks the track actually started and reports a sane Length.
+local function probePlayability(assetId, rigType, declaredLooped, declaredMarkers)
+	local rig = fetchStandardRig(rigType)
+	if not rig then
+		return nil
+	end
+	local scratchRig = rig:Clone()
+	scratchRig.Parent = workspace
+	local animation = Instance.new("Animation")
+	animation.AnimationId = "rbxassetid://" .. assetId
+	local fired = {}
+	local result
+	local ok, err = pcall(function()
+		local humanoid = scratchRig:FindFirstChildOfClass("Humanoid")
+		local track = humanoid:LoadAnimation(animation)
+		-- Roblox initializes track.Looped from the loaded clip's own authored Loop metadata.
+		-- Read it now, before anything else touches it, or the comparison below is comparing
+		-- declaredLooped against a value we set ourselves -- a tautology, not a check.
+		local engineLooped = track.Looped
+		for _, name in ipairs(declaredMarkers) do
+			track:GetMarkerReachedSignal(name):Connect(function()
+				table.insert(fired, name)
+			end)
+		end
+
+		track:Play()
+		local everPlayed = false
+		local waited = 0
+		while waited < PLAYABILITY_MAX_WAIT_SECONDS do
+			if track.IsPlaying then
+				everPlayed = true
+			end
+			if everPlayed and not track.IsPlaying then
+				break -- a non-looping clip finished on its own
+			end
+			task.wait(0.1)
+			waited += 0.1
+		end
+		track:Stop()
+
+		if not everPlayed then
+			result = { ok = false, error = "Animation never started playing (load likely failed asynchronously)." }
+		elseif not (track.Length > 0) then
+			result = { ok = false, error = "Animation reported an invalid length." }
+		else
+			local loopHonored = engineLooped == declaredLooped
+			local missingMarker = nil
+			for _, name in ipairs(declaredMarkers) do
+				if not table.find(fired, name) then
+					missingMarker = name
+					break
+				end
+			end
+
+			if not loopHonored then
+				result = { ok = false, error = "Loop setting was not honored during playback." }
+			elseif missingMarker then
+				result = { ok = false, error = "Marker '" .. missingMarker .. "' never fired." }
+			else
+				result = { ok = true }
+			end
+		end
+	end)
+	scratchRig:Destroy()
+	if not ok then
+		return { ok = false, error = errorText(err) }
+	end
+	return result
+end
+
 local toolbar = plugin:CreateToolbar("CreatorFlow")
 local toolbarButton = toolbar:CreateButton(
 	"CreatorFlowAnimationBridge",
@@ -607,6 +751,7 @@ local function normalizeKeyframeSequence(assetId, clip)
 	local duration = 0
 	local counters = { poses = 0 }
 	local priorTime = nil
+	local rawMarkerNames = {}
 	for _, keyframe in ipairs(keyframes) do
 		local time = roundNumber(keyframe.Time, "keyframe time")
 		if priorTime ~= nil and time == priorTime then
@@ -627,6 +772,14 @@ local function normalizeKeyframeSequence(assetId, clip)
 			time = time,
 			poses = poses,
 		})
+
+		-- Collected for the playability probe's marker-fired check (probePlayability), not sent
+		-- over the wire: adding a field here would ride inside the JSON-encoded `source`/
+		-- `candidate` objects the server parses straight into NormalizedAnimation, whose Jackson
+		-- ObjectMapper rejects unknown properties. Kept as a separate return value instead.
+		for _, marker in ipairs(keyframe:GetMarkers()) do
+			table.insert(rawMarkerNames, marker.Name)
+		end
 	end
 
 	return {
@@ -636,7 +789,7 @@ local function normalizeKeyframeSequence(assetId, clip)
 		looped = clip.Loop,
 		priority = clip.Priority.Name,
 		keyframes = normalizedKeyframes,
-	}, counters
+	}, counters, dedupeMarkerNames(rawMarkerNames)
 end
 
 local function readAnimation(assetId)
@@ -669,12 +822,12 @@ local function readAnimation(assetId)
 		error("Animation " .. assetId .. " returned unsupported clip type " .. className .. ".", 0)
 	end
 
-	local normalizedOk, normalized, counters = pcall(normalizeKeyframeSequence, assetId, clip)
+	local normalizedOk, normalized, counters, markers = pcall(normalizeKeyframeSequence, assetId, clip)
 	clip:Destroy()
 	if not normalizedOk then
 		error(errorText(normalized), 0)
 	end
-	return normalized, counters
+	return normalized, counters, markers
 end
 
 local function formatScore(value)
@@ -730,14 +883,27 @@ compareButton.Activated:Connect(function()
 		safeSetSetting(SETTINGS.sourceId, sourceId)
 		safeSetSetting(SETTINGS.candidateId, candidateId)
 
-		local source, sourceCounts = readAnimation(sourceId)
+		local source, sourceCounts, sourceMarkers = readAnimation(sourceId)
 		setStatus("working", "Source normalized", string.format("Read %d keyframes and %d poses. Reading candidate…", #source.keyframes, sourceCounts.poses))
-		local candidate, candidateCounts = readAnimation(candidateId)
+		local candidate, candidateCounts, candidateMarkers = readAnimation(candidateId)
+
+		setStatus("working", "Checking playability…", "Playing both clips on stock R6/R15 dummies in Studio.")
+		local playability = {
+			source = {
+				r6 = probePlayability(sourceId, "R6", source.looped, sourceMarkers),
+				r15 = probePlayability(sourceId, "R15", source.looped, sourceMarkers),
+			},
+			candidate = {
+				r6 = probePlayability(candidateId, "R6", candidate.looped, candidateMarkers),
+				r15 = probePlayability(candidateId, "R15", candidate.looped, candidateMarkers),
+			},
+		}
 
 		local body = HttpService:JSONEncode({
 			schema = SCHEMA,
 			source = source,
 			candidate = candidate,
+			playability = playability,
 		})
 		if #body > MAX_REQUEST_BYTES then
 			error(

@@ -60,6 +60,22 @@ export interface LocalMotionComparison {
   algorithmVersion: string;
   createdAt: string;
   result: Record<string, unknown>;
+  /**
+   * Present only when the Studio plugin ran a live playback probe on stock R6/R15 dummies for
+   * this comparison. Absent means "not checked" — never read as a failure.
+   */
+  playability?: { source: AnimationPlayability; candidate: AnimationPlayability };
+}
+
+export interface RigPlayability {
+  ok: boolean;
+  error?: string;
+}
+
+export interface AnimationPlayability {
+  /** Absent, not null, when that rig's probe never ran at all (e.g. the rig fetch failed) — reads NOT_VERIFIED, never a failed VERIFIED. */
+  r6?: RigPlayability;
+  r15?: RigPlayability;
 }
 
 export type AnimationSnapshotKind = 'LAST_KNOWN_GOOD' | 'LAST_PUBLISHED';
