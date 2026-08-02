@@ -80,6 +80,22 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final int MAX_MOTION_KEYFRAMES = 2_000;
     private static final int MAX_MOTION_POSES = 20_000;
     private static final String MOTION_INPUT_SCHEMA = "creatorflow.roblox-motion/v0.1";
+    /**
+     * Whether a CURVE_SAMPLED side may be pinned as a drift-detection snapshot.
+     *
+     * <p>Snapshots decide UNCHANGED/CHANGED by fingerprint equality alone, so pinning a side whose
+     * fingerprint wobbled run-to-run would report "this animation changed" when nothing did — the
+     * worst class of output this app can produce. Phase C's Task 0 spike measured it rather than
+     * assuming: 31 samples across a clip came back bit-identical twice within a run AND across a
+     * full register/refetch round trip, live in Studio on 2026-08-02
+     * (docs/superpowers/plans/2026-08-01-phaseC-task0-spike-note.md, §4). Sampling is
+     * deterministic, so this ships {@code true} — a known-safe capability does not ship disabled.
+     *
+     * <p>It stays a constant rather than disappearing: if that confidence is ever invalidated (a
+     * Roblox sampling change, a new interpolation path), flipping this to {@code false} re-blocks
+     * pinning in one line.
+     */
+    private static final boolean CURVE_SAMPLED_SNAPSHOTS_ALLOWED = true;
     private static final Pattern PROJECT_SCANS = Pattern.compile("^/api/v1/projects/(\\d+)/scan-runs$");
     private static final Pattern PROJECT_ASSETS = Pattern.compile("^/api/v1/projects/(\\d+)/assets$");
     private static final Pattern PROJECT_RELEASES = Pattern.compile("^/api/v1/projects/(\\d+)/releases$");
@@ -286,6 +302,8 @@ public final class LocalBridgeServer implements AutoCloseable {
             JsonNode playabilityNode = body.path("playability");
             String playabilityJson = playabilityNode.isMissingNode() || playabilityNode.isNull()
                     ? null : playabilityNode.toString();
+            String sourceKind = text(body, "sourceKind", null);
+            String candidateKind = text(body, "candidateKind", null);
             AnimationComparisonRecord stored = animationComparisons.insert(
                     pairing.projectId(), source.assetId(), candidate.assetId(),
                     source.name(), candidate.name(), source.duration(), candidate.duration(),
@@ -295,7 +313,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                     result.exactCurveData(), json.writeValueAsString(result), result.engineVersion(),
                     PlaybackSettings.of(source.looped(), source.priority()),
                     PlaybackSettings.of(candidate.looped(), candidate.priority()),
-                    playabilityJson);
+                    playabilityJson, sourceKind, candidateKind);
             sendJson(exchange, 201, animationComparisonView(stored));
             return;
         }
@@ -499,6 +517,14 @@ public final class LocalBridgeServer implements AutoCloseable {
                 AnimationComparisonRecord comparison = animationComparisons.findById(comparisonId)
                         .filter(record -> record.projectId() == projectId)
                         .orElseThrow(() -> new HttpError(404, "Animation comparison not found"));
+                String requestedClipKind = "source".equalsIgnoreCase(side)
+                        ? comparison.sourceClipKind().orElse(null)
+                        : comparison.candidateClipKind().orElse(null);
+                if (!CURVE_SAMPLED_SNAPSHOTS_ALLOWED && "CURVE_SAMPLED".equals(requestedClipKind)) {
+                    throw new HttpError(400,
+                            "This side was read by sampling a CurveAnimation, not an exact keyframe read. "
+                                    + "Pinning it as a drift-detection reference isn't reliable yet.");
+                }
                 MotionSnapshotRecord snapshot = switch (side.toLowerCase(java.util.Locale.ROOT)) {
                     case "source" -> motionSnapshots.capture(projectId, comparison.sourceAssetId(), kind,
                             comparisonId, comparison.sourceName(), comparison.sourceDuration(),
@@ -1103,6 +1129,8 @@ public final class LocalBridgeServer implements AutoCloseable {
                 throw new IllegalStateException("Stored playability JSON is invalid", error);
             }
         });
+        record.sourceClipKind().ifPresent(kind -> view.put("sourceKind", kind));
+        record.candidateClipKind().ifPresent(kind -> view.put("candidateKind", kind));
         view.put("result", result);
         view.put("creatorFlowUrl", origin + "/#workspace?view=motion");
         return view;
