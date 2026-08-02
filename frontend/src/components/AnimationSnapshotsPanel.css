@@ -112,6 +112,17 @@
   font-size: var(--text-2xs);
   color: var(--ink-dim);
 }
+.animation-snapshots-side-playability { display: flex; flex-direction: column; gap: 0.25rem; }
+.animation-snapshots-playability-row { display: flex; align-items: center; gap: 0.4rem; }
+.animation-snapshots-playability-label {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-weight: 600;
+  color: var(--ink-dim);
+  min-width: 1.75rem;
+}
+.animation-snapshots-playability-row small { color: var(--ink-dim); font-size: var(--text-2xs); }
+
 .animation-snapshots-side-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .animation-snapshots-side-actions button {
   flex: 1 1 auto;
