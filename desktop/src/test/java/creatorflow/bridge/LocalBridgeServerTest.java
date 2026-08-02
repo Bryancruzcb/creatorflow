@@ -491,6 +491,24 @@ class LocalBridgeServerTest {
         assertEquals(201, comparedNoKinds.statusCode(), comparedNoKinds.body());
         assertFalse(json.readTree(comparedNoKinds.body()).has("sourceKind"));
         assertFalse(json.readTree(comparedNoKinds.body()).has("candidateKind"));
+
+        // A kind outside the two the app knows is rejected rather than stored verbatim. The
+        // pinning guard compares the STORED value against the literal "CURVE_SAMPLED", so a
+        // lowercase or invented spelling reaching the column would slip past that guard the day
+        // it is flipped shut — the wrong direction for a safety switch to fail in.
+        String lowercaseKind = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("8101") + ",\"candidate\":" + animation.formatted("8102")
+                + ",\"sourceKind\":\"curve_sampled\",\"candidateKind\":\"KEYFRAME\"}";
+        HttpResponse<String> rejectedSource = pluginRequest(
+                "POST", "/plugin/v1/motion-comparisons", token, lowercaseKind);
+        assertEquals(400, rejectedSource.statusCode(), rejectedSource.body());
+
+        String unknownCandidateKind = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("8201") + ",\"candidate\":" + animation.formatted("8202")
+                + ",\"sourceKind\":\"KEYFRAME\",\"candidateKind\":\"PROCEDURAL\"}";
+        HttpResponse<String> rejectedCandidate = pluginRequest(
+                "POST", "/plugin/v1/motion-comparisons", token, unknownCandidateKind);
+        assertEquals(400, rejectedCandidate.statusCode(), rejectedCandidate.body());
     }
 
     /**

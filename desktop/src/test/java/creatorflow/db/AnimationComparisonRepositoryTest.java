@@ -70,6 +70,15 @@ class AnimationComparisonRepositoryTest {
         assertEquals(Optional.empty(), withoutKinds.sourceClipKind());
         assertEquals(Optional.empty(), withoutKinds.candidateClipKind());
 
-        assertEquals(Optional.of("KEYFRAME"), repo.findById(withKinds.id()).orElseThrow().sourceClipKind());
+        // Both kinds re-read from the database, with DIFFERENT values on the two sides: asserting
+        // only the source side would stay green if map() ever read the two columns crossed, and a
+        // comparison that reports the sampled side as the exactly-read one is worse than no label.
+        AnimationComparisonRecord reread = repo.findById(withKinds.id()).orElseThrow();
+        assertEquals(Optional.of("KEYFRAME"), reread.sourceClipKind());
+        assertEquals(Optional.of("CURVE_SAMPLED"), reread.candidateClipKind());
+
+        AnimationComparisonRecord rereadWithout = repo.findById(withoutKinds.id()).orElseThrow();
+        assertEquals(Optional.empty(), rereadWithout.sourceClipKind());
+        assertEquals(Optional.empty(), rereadWithout.candidateClipKind());
     }
 }
