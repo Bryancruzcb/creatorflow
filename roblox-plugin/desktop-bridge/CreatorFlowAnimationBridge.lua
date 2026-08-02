@@ -127,6 +127,138 @@ local function errorText(value)
 	return text
 end
 
+local InsertService = game:GetService("InsertService")
+
+local RIG_ASSET_IDS = {
+	R6 = 0, -- TODO: insert a stock R6 dummy via Studio's Avatar tab -> Rig Builder, copy its asset ID here
+	R15 = 0, -- TODO: same, for R15
+}
+
+local rigCache = {}
+
+local function fetchStandardRig(rigType)
+	if rigCache[rigType] then
+		return rigCache[rigType]
+	end
+	local ok, model = pcall(function()
+		return InsertService:LoadAsset(RIG_ASSET_IDS[rigType])
+	end)
+	if not ok or not model then
+		return nil
+	end
+	local rig = model:FindFirstChildWhichIsA("Model")
+	if rig then
+		rig.Parent = nil
+	end
+	model:Destroy()
+	rigCache[rigType] = rig
+	return rig
+end
+
+local function markersDeclaredIn(normalized)
+	local declared = {}
+	-- v0.1's normalized form has no marker data -- if a future change extends
+	-- normalizeKeyframeSequence to also collect Keyframe:GetMarkers() names per keyframe, read
+	-- them here. Until then this returns an empty list and probePlayability's marker check is a
+	-- no-op (every declared-empty check trivially passes).
+	return declared
+end
+
+local function Playability_selfTest()
+	local passed = true
+	-- markersDeclaredIn on an empty normalized table returns an empty table, not nil.
+	local emptyResult = markersDeclaredIn({})
+	if type(emptyResult) ~= "table" or #emptyResult ~= 0 then
+		warn("[CreatorFlow] Playability self-test FAILED: markersDeclaredIn did not return an empty table for empty input.")
+		passed = false
+	end
+	return passed
+end
+
+if not Playability_selfTest() then
+	warn("[CreatorFlow] Playability self-test failed — marker/report logic may be broken; playability checks will still run but their results may be unreliable.")
+end
+
+local PLAYABILITY_MAX_WAIT_SECONDS = 10 -- from the Task 0 spike: enough for a non-looping clip to
+                                          -- finish, and a safe cap for a looping one (IsPlaying
+                                          -- never goes false on its own for those)
+
+--- Loads `assetId` onto a scratch clone of the named stock rig and plays it in real time (not
+--- scrubbed -- the Task 0 spike found TimePosition scrubbing does not reliably fire markers).
+--- Returns nil when no probe could run at all (rig fetch failed) -- NOT_VERIFIED downstream,
+--- distinct from a probe that ran and failed. Otherwise always returns { ok, error? }: pcall
+--- succeeding is not proof the clip actually played (Task 0 found an invalid asset ID reports
+--- ok:true from pcall, with the real failure surfacing ~130ms later as an uncatchable async
+--- warning) so this also checks the track actually started and reports a sane Length.
+local function probePlayability(assetId, rigType, declaredLooped, declaredMarkers)
+	local rig = fetchStandardRig(rigType)
+	if not rig then
+		return nil
+	end
+	local scratchRig = rig:Clone()
+	scratchRig.Parent = workspace
+	local animation = Instance.new("Animation")
+	animation.AnimationId = "rbxassetid://" .. assetId
+	local fired = {}
+	local result
+	local ok, err = pcall(function()
+		local humanoid = scratchRig:FindFirstChildOfClass("Humanoid")
+		local track = humanoid:LoadAnimation(animation)
+		-- Roblox initializes track.Looped from the loaded clip's own authored Loop metadata.
+		-- Read it now, before anything else touches it, or the comparison below is comparing
+		-- declaredLooped against a value we set ourselves -- a tautology, not a check.
+		local engineLooped = track.Looped
+		for _, name in ipairs(declaredMarkers) do
+			track:GetMarkerReachedSignal(name):Connect(function()
+				table.insert(fired, name)
+			end)
+		end
+
+		track:Play()
+		local everPlayed = false
+		local waited = 0
+		while waited < PLAYABILITY_MAX_WAIT_SECONDS do
+			if track.IsPlaying then
+				everPlayed = true
+			end
+			if everPlayed and not track.IsPlaying then
+				break -- a non-looping clip finished on its own
+			end
+			task.wait(0.1)
+			waited += 0.1
+		end
+		track:Stop()
+
+		if not everPlayed then
+			result = { ok = false, error = "Animation never started playing (load likely failed asynchronously)." }
+		elseif not (track.Length > 0) then
+			result = { ok = false, error = "Animation reported an invalid length." }
+		else
+			local loopHonored = engineLooped == declaredLooped
+			local missingMarker = nil
+			for _, name in ipairs(declaredMarkers) do
+				if not table.find(fired, name) then
+					missingMarker = name
+					break
+				end
+			end
+
+			if not loopHonored then
+				result = { ok = false, error = "Loop setting was not honored during playback." }
+			elseif missingMarker then
+				result = { ok = false, error = "Marker '" .. missingMarker .. "' never fired." }
+			else
+				result = { ok = true }
+			end
+		end
+	end)
+	scratchRig:Destroy()
+	if not ok then
+		return { ok = false, error = errorText(err) }
+	end
+	return result
+end
+
 local toolbar = plugin:CreateToolbar("CreatorFlow")
 local toolbarButton = toolbar:CreateButton(
 	"CreatorFlowAnimationBridge",
@@ -734,10 +866,23 @@ compareButton.Activated:Connect(function()
 		setStatus("working", "Source normalized", string.format("Read %d keyframes and %d poses. Reading candidate…", #source.keyframes, sourceCounts.poses))
 		local candidate, candidateCounts = readAnimation(candidateId)
 
+		setStatus("working", "Checking playability…", "Playing both clips on stock R6/R15 dummies in Studio.")
+		local playability = {
+			source = {
+				r6 = probePlayability(sourceId, "R6", source.looped, markersDeclaredIn(source)),
+				r15 = probePlayability(sourceId, "R15", source.looped, markersDeclaredIn(source)),
+			},
+			candidate = {
+				r6 = probePlayability(candidateId, "R6", candidate.looped, markersDeclaredIn(candidate)),
+				r15 = probePlayability(candidateId, "R15", candidate.looped, markersDeclaredIn(candidate)),
+			},
+		}
+
 		local body = HttpService:JSONEncode({
 			schema = SCHEMA,
 			source = source,
 			candidate = candidate,
+			playability = playability,
 		})
 		if #body > MAX_REQUEST_BYTES then
 			error(
