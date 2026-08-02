@@ -191,6 +191,72 @@ if not Playability_selfTest() then
 	warn("[CreatorFlow] Playability self-test failed — marker/report logic may be broken; playability checks will still run but their results may be unreliable.")
 end
 
+-- Sample rate for CurveAnimation clips, chosen against the two hard limits in this file for an
+-- R15-shaped rig (16 joint paths) with BOTH sides of a comparison curve-sampled in one body:
+--   MAX_REQUEST_BYTES: 2 MiB / ~250 B per JSON-encoded pose = ~8300 poses per request
+--     -> ~4150 per side / 16 joints = ~260 samples -> ~13 s per clip. This binds first.
+--   MAX_POSES: 20000 per clip / 16 joints = 1250 samples -> ~62 s per clip.
+-- 13 s covers Roblox emote/attack/idle clips (1-5 s) several times over; 30/s would cut that
+-- byte ceiling to ~8 s per clip, and 15/s buys ~17 s at 67 ms resolution. 50 ms per sample is
+-- already far denser than the handful of keyframes an authored KeyframeSequence carries over
+-- the same span, which is the fidelity bar a sampled clip has to clear to compare against one.
+local CURVE_SAMPLES_PER_SECOND = 20
+
+--- Sample grid for one clip: 0, a sample every 1/CURVE_SAMPLES_PER_SECOND, and the exact end.
+--- The end sample REPLACES the last stepped one when the two sit closer together than
+--- roundNumber's resolution: a 0.5 s clip's tenth accumulated step lands on 0.49999999999999994,
+--- which rounds to the same 0.5 the appended end does, and the desktop bridge rejects an
+--- animation carrying two keyframes at the same time.
+local function sampleTimesFor(duration)
+	if duration <= 0 then
+		return { 0 }
+	end
+	local times = {}
+	local step = 1 / CURVE_SAMPLES_PER_SECOND
+	local t = 0
+	while t < duration do
+		table.insert(times, t)
+		t += step
+	end
+	if duration - times[#times] < 1 / ROUNDING_SCALE then
+		times[#times] = duration
+	else
+		table.insert(times, duration)
+	end
+	return times
+end
+
+local function CurveSampling_selfTest()
+	local passed = true
+	local times = sampleTimesFor(0)
+	if #times ~= 1 or times[1] ~= 0 then
+		warn("[CreatorFlow] Curve sampling self-test FAILED: sampleTimesFor(0) must return a single 0 sample.")
+		passed = false
+	end
+	local nonEmpty = sampleTimesFor(1)
+	if #nonEmpty < 2 or nonEmpty[1] ~= 0 or nonEmpty[#nonEmpty] ~= 1 then
+		warn("[CreatorFlow] Curve sampling self-test FAILED: sampleTimesFor(1) must start at 0 and end at the duration.")
+		passed = false
+	end
+	-- 0.5 s is the duration that catches a missing end-sample guard, where an unguarded grid
+	-- emits two samples that round onto the same keyframe time.
+	local previous = nil
+	for _, time in ipairs(sampleTimesFor(0.5)) do
+		local rounded = roundNumber(time, "sample time")
+		if previous ~= nil and rounded <= previous then
+			warn("[CreatorFlow] Curve sampling self-test FAILED: sample times must stay distinct and increasing after rounding.")
+			passed = false
+			break
+		end
+		previous = rounded
+	end
+	return passed
+end
+
+if not CurveSampling_selfTest() then
+	warn("[CreatorFlow] Curve sampling self-test failed — sampled CurveAnimation comparisons may be unreliable.")
+end
+
 local PLAYABILITY_MAX_WAIT_SECONDS = 10 -- from the Task 0 spike: enough for a non-looping clip to
                                           -- finish, and a safe cap for a looping one (IsPlaying
                                           -- never goes false on its own for those)
@@ -792,6 +858,161 @@ local function normalizeKeyframeSequence(assetId, clip)
 	}, counters, dedupeMarkerNames(rawMarkerNames)
 end
 
+--- Builds the joint path exactly as appendPose builds it for a KeyframeSequence's Pose tree --
+--- trimmed segment names, "(unnamed)" for a blank one, joined with "/", no leading separator --
+--- so a CURVE_SAMPLED clip's joint keys byte-match a KEYFRAME clip's for the same rig. A
+--- CurveAnimation nests one Folder per joint under the clip and hangs that joint's
+--- "Position"/"Rotation" curves off the innermost Folder, so the path is that Folder ancestry.
+--- Returns nil for a curve that is not under any joint Folder, which has no joint identity.
+local function curveJointPath(curve, clip)
+	local segments = {}
+	local node = curve.Parent
+	while node ~= nil and node ~= clip do
+		local segment = trim(node.Name)
+		if segment == "" then
+			segment = "(unnamed)"
+		end
+		table.insert(segments, 1, segment)
+		node = node.Parent
+	end
+	if node ~= clip or #segments == 0 then
+		return nil
+	end
+	return table.concat(segments, "/")
+end
+
+--- Groups every position/rotation curve in the clip under its joint path. v0.1 reads position
+--- and rotation only: a FloatCurve is either an axis child of one of those two (already read
+--- through its parent) or an authored custom channel with no pose equivalent, and a MarkerCurve
+--- carries no transform at all.
+local function collectCurveChannels(clip)
+	local channelsByPath = {}
+	for _, descendant in ipairs(clip:GetDescendants()) do
+		local isPosition = descendant:IsA("Vector3Curve")
+		local isRotation = descendant:IsA("EulerRotationCurve") or descendant:IsA("RotationCurve")
+		if isPosition or isRotation then
+			local jointPath = curveJointPath(descendant, clip)
+			if jointPath then
+				local channel = channelsByPath[jointPath]
+				if not channel then
+					channel = {}
+					channelsByPath[jointPath] = channel
+				end
+				if isPosition then
+					channel.position = descendant
+				else
+					channel.rotation = descendant
+				end
+			end
+		end
+	end
+	return channelsByPath
+end
+
+--- Evaluates one joint's channels at `time` into the CFrame Roblox's own animator produces.
+--- The Task 0 spike read Motor6D.Transform out of a real playtest and confirmed the composition
+--- is CFrame.new(position) * rotation, not the reverse: rotating the translation instead
+--- produces a plausible-looking but silently wrong transform. A joint with only one of the two
+--- curves gets the identity for the other. Sampling outside the keyed range clamps to the first
+--- or last key, so the t=0 and t=duration samples are safe.
+local function sampleChannelCFrame(channel, time)
+	local x, y, z = 0, 0, 0
+	if channel.position then
+		-- A per-axis nil means that axis was never keyed, which is no authored motion, so 0.
+		local values = channel.position:GetValueAtTime(time)
+		if values then
+			x = values[1] or 0
+			y = values[2] or 0
+			z = values[3] or 0
+		end
+	end
+
+	local rotation = CFrame.identity
+	if channel.rotation then
+		if channel.rotation:IsA("EulerRotationCurve") then
+			rotation = channel.rotation:GetRotationAtTime(time)
+		else
+			-- RotationCurve branch: UNTESTED against a real asset -- the Task 0 spike only
+			-- exercised EulerRotationCurve, and the docs say a joint's Rotation child may be
+			-- either class. This one exposes GetValueAtTime rather than GetRotationAtTime, and
+			-- it returns a nullable CFrame: nil means the curve holds no keys, so no rotation.
+			rotation = channel.rotation:GetValueAtTime(time) or CFrame.identity
+		end
+	end
+
+	return CFrame.new(x, y, z) * rotation
+end
+
+--- Samples a CurveAnimation into the same {time, poses} shape normalizeKeyframeSequence returns,
+--- so everything downstream of readAnimation treats a sampled clip exactly like an authored one.
+local function normalizeCurveAnimation(assetId, clip)
+	local channelsByPath = collectCurveChannels(clip)
+
+	-- Rounded up front so a non-finite Length errors through roundNumber's own message instead of
+	-- slipping past the check below into the sample loop; rounding twice is a no-op, so the
+	-- payload's duration is the same value either way.
+	local duration = roundNumber(clip.Length, "duration")
+	if duration <= 0 then
+		error("Animation " .. assetId .. " has no duration to sample.", 0)
+	end
+
+	local hasAnyChannel = false
+	for _ in pairs(channelsByPath) do
+		hasAnyChannel = true
+		break
+	end
+	if not hasAnyChannel then
+		error("Animation " .. assetId .. " has no position/rotation curve channels CreatorFlow can compare.", 0)
+	end
+
+	local normalizedKeyframes = {}
+	local counters = { poses = 0 }
+	for _, time in ipairs(sampleTimesFor(duration)) do
+		local poses = {}
+		-- No seenPaths/duplicate-path guard here, unlike appendPose's version of this loop:
+		-- channelsByPath is a Lua table keyed by joint path, so duplicate keys are structurally
+		-- impossible. That guard exists there because appendPose walks a recursive Pose tree that
+		-- COULD contain a repeated path; this loop cannot.
+		for jointPath, channel in pairs(channelsByPath) do
+			local components = { sampleChannelCFrame(channel, time):GetComponents() }
+			for index, value in ipairs(components) do
+				components[index] = roundNumber(value, jointPath)
+			end
+			table.insert(poses, {
+				jointPath = jointPath,
+				transform = components,
+				-- weight/easingStyle/easingDirection are fixed defaults, not sampled values: a
+				-- curve channel carries no authored per-channel blend weight the way Pose.Weight
+				-- does, and "interpolation between authored keyframes" says nothing about a value
+				-- read straight off a continuous curve.
+				weight = 1,
+				easingStyle = "Linear",
+				easingDirection = "InOut",
+			})
+			counters.poses += 1
+			if counters.poses > MAX_POSES then
+				error(string.format("Animation exceeds the v0.1 safety limit of %d poses.", MAX_POSES), 0)
+			end
+		end
+		table.sort(poses, function(a, b)
+			return a.jointPath < b.jointPath
+		end)
+		table.insert(normalizedKeyframes, {
+			time = roundNumber(time, "keyframe time"),
+			poses = poses,
+		})
+	end
+
+	return {
+		assetId = assetId,
+		name = clip.Name,
+		duration = duration,
+		looped = clip.Loop,
+		priority = clip.Priority.Name,
+		keyframes = normalizedKeyframes,
+	}, counters, {} -- markers: a CurveAnimation has no per-keyframe marker concept to declare
+end
+
 local function readAnimation(assetId)
 	local ok, clipOrError = pcall(function()
 		return AnimationClipProvider:GetAnimationClipAsync("rbxassetid://" .. assetId)
@@ -807,27 +1028,20 @@ local function readAnimation(assetId)
 	end
 
 	local clip = clipOrError
-	if clip:IsA("CurveAnimation") then
-		clip:Destroy()
-		error(
-			"Animation "
-				.. assetId
-				.. " is a CurveAnimation. CreatorFlow v0.1 compares KeyframeSequence assets only; curve-channel normalization is planned separately.",
-			0
-		)
-	end
-	if not clip:IsA("KeyframeSequence") then
+	local isCurve = clip:IsA("CurveAnimation")
+	if not isCurve and not clip:IsA("KeyframeSequence") then
 		local className = clip.ClassName
 		clip:Destroy()
 		error("Animation " .. assetId .. " returned unsupported clip type " .. className .. ".", 0)
 	end
 
-	local normalizedOk, normalized, counters, markers = pcall(normalizeKeyframeSequence, assetId, clip)
+	local normalizeFn = isCurve and normalizeCurveAnimation or normalizeKeyframeSequence
+	local normalizedOk, normalized, counters, markers = pcall(normalizeFn, assetId, clip)
 	clip:Destroy()
 	if not normalizedOk then
 		error(errorText(normalized), 0)
 	end
-	return normalized, counters, markers
+	return normalized, counters, markers, (isCurve and "CURVE_SAMPLED" or "KEYFRAME")
 end
 
 local function formatScore(value)
@@ -883,9 +1097,9 @@ compareButton.Activated:Connect(function()
 		safeSetSetting(SETTINGS.sourceId, sourceId)
 		safeSetSetting(SETTINGS.candidateId, candidateId)
 
-		local source, sourceCounts, sourceMarkers = readAnimation(sourceId)
+		local source, sourceCounts, sourceMarkers, sourceKind = readAnimation(sourceId)
 		setStatus("working", "Source normalized", string.format("Read %d keyframes and %d poses. Reading candidate…", #source.keyframes, sourceCounts.poses))
-		local candidate, candidateCounts, candidateMarkers = readAnimation(candidateId)
+		local candidate, candidateCounts, candidateMarkers, candidateKind = readAnimation(candidateId)
 
 		setStatus("working", "Checking playability…", "Playing both clips on stock R6/R15 dummies in Studio.")
 		local playability = {
@@ -904,6 +1118,10 @@ compareButton.Activated:Connect(function()
 			source = source,
 			candidate = candidate,
 			playability = playability,
+			-- Top level, not nested inside source/candidate: those two objects are parsed
+			-- straight into NormalizedAnimation, whose ObjectMapper rejects unknown properties.
+			sourceKind = sourceKind,
+			candidateKind = candidateKind,
 		})
 		if #body > MAX_REQUEST_BYTES then
 			error(
