@@ -80,6 +80,19 @@ TypeScript (frontend evidence view).
   the animation will behave identically on the target experience's actual
   custom rig, if one differs from Roblox's stock skeletons — that gap is out
   of scope for v1 and must be stated in the UI copy.
+
+  **Confirmed live in the Task 0 spike (`docs/superpowers/plans/2026-07-31-phaseB-task0-spike-note.md`,
+  finding 3): an `ok:true` result does not mean every joint the clip targets
+  actually exists on the rig it was tested against.** Roblox does not error —
+  synchronously, asynchronously, or via any log line — when an animation's
+  channels don't match a rig's joint names; it silently plays whatever does
+  match and ignores the rest. `probePlayability`'s checks (pcall success,
+  sane `Length`, confirmed `IsPlaying`) all still pass in this case. v1 does
+  not attempt to detect it (would need comparing the clip's declared joint
+  paths against each stock rig's known joint-name set — a structural
+  compatibility check, not a playback probe, and out of scope here). UI copy
+  for a `VERIFIED`/`ok:true` result must say the clip *loaded and played* on
+  the stock rig, never that every joint it targets was confirmed present.
 - **Never auto-block; v1 doesn't gate-block at all.** A playability failure
   — an engine error, a marker that never fired, loop not honored — is
   surfaced as evidence on the comparison record, not fed into the release

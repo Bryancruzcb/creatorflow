@@ -162,10 +162,18 @@ This task has no automated test harness (no Luau test framework exists or is bei
   ```
   Unlike `Sha256.selfTest()` (which refuses to load the whole plugin on failure, because a wrong hash could poison the shared registry), this warns rather than halts: a broken playability self-check degrades one evidence facet, not data integrity, so the rest of the plugin — Compare, pairing, everything already working — should keep functioning.
 
-- [ ] **Step 3 — Add `probePlayability`, using Task 0's confirmed playback method.** Takes the animation's **Roblox asset ID** (a string — the same `sourceId`/`candidateId` already computed by `normalizeAssetId` in the Compare handler), not the raw `KeyframeSequence` clip: `Humanoid:LoadAnimation` requires an `Animation` instance with an `AnimationId`, exactly like Task 0's spike script builds (`Instance.new("Animation")`, set `AnimationId`, then load that) — a `KeyframeSequence` cannot be passed to `LoadAnimation` directly. Building a fresh `Animation` here means this function needs no `KeyframeSequence` instance at all, so `readAnimation` does not need to change.
+- [ ] **Step 3 — Add `probePlayability`, using Task 0's confirmed findings.** Task 0 (spike note: `docs/superpowers/plans/2026-07-31-phaseB-task0-spike-note.md`) settled two design questions with real data from a live Studio session:
+  1. **Playback method is real-time-poll, not scrub.** `TimePosition` scrubbing fired 0/1 markers on a known-marked clip; real-time playback polled via `task.wait` fired reliably (2/2 expected fires over a 10s window on a looping clip). The scrub approach from earlier drafts of this plan is dead — do not implement it.
+  2. **`pcall` alone is not a reliable failure signal.** A genuinely broken animation (`rbxassetid://1`, an invalid ID) returned `ok: true, err: nil` from `pcall` — the real failure surfaced ~130ms later as an async engine-logged warning, uncatchable by any wrapping `pcall`. `probePlayability` must not trust `pcall` success as proof the clip is fine; it also checks that `track.Length` is a sane positive number and that `track.IsPlaying` genuinely went `true` after `:Play()`.
 
-  Returns `nil` when no probe could run at all (rig fetch failed — becomes `NOT_VERIFIED` downstream); otherwise always returns a table with `ok`/`error` reflecting every check made, folding engine errors, loop mismatch, and (if in scope) marker mismatch into that single boolean rather than separate fields the UI would need to branch on. Takes the clip's already-known declared `looped` boolean and marker-name list as parameters — both come from the same normalized data `readAnimation` already produces (`normalized.looped`, which is `clip.Loop` read in `normalizeKeyframeSequence` before the clip is destroyed), so `probePlayability` never needs the raw `KeyframeSequence` itself. If Task 0 pinned the scrub method:
+  Takes the animation's **Roblox asset ID** (a string — the same `sourceId`/`candidateId` already computed by `normalizeAssetId` in the Compare handler), not the raw `KeyframeSequence` clip: `Humanoid:LoadAnimation` requires an `Animation` instance with an `AnimationId`, exactly like Task 0's spike script built (`Instance.new("Animation")`, set `AnimationId`, then load that) — a `KeyframeSequence` cannot be passed to `LoadAnimation` directly. Building a fresh `Animation` here means this function needs no `KeyframeSequence` instance at all, so `readAnimation` does not need to change.
+
+  Returns `nil` when no probe could run at all (rig fetch failed — becomes `NOT_VERIFIED` downstream); otherwise always returns a table with `ok`/`error` reflecting every check made — engine errors, a track that never actually started, loop mismatch, and marker mismatch — folded into that single boolean rather than separate fields the UI would need to branch on. Takes the clip's already-known declared `looped` boolean and marker-name list as parameters — both come from the same normalized data `readAnimation` already produces (`normalized.looped`, which is `clip.Loop` read in `normalizeKeyframeSequence` before the clip is destroyed), so `probePlayability` never needs the raw `KeyframeSequence` itself:
   ```lua
+  local PLAYABILITY_MAX_WAIT_SECONDS = 10 -- from Task 0's spike: enough for a non-looping clip to
+                                            -- finish, and a safe cap for a looping one (IsPlaying
+                                            -- never goes false on its own for those)
+
   local function probePlayability(assetId, rigType, declaredLooped, declaredMarkers)
       local rig = fetchStandardRig(rigType)
       if not rig then
@@ -189,28 +197,46 @@ This task has no automated test harness (no Luau test framework exists or is bei
                   table.insert(fired, name)
               end)
           end
+
           track:Play()
-          local samples = 30
-          for i = 0, samples do
-              track.TimePosition = (i / samples) * track.Length
+          local everPlayed = false
+          local waited = 0
+          while waited < PLAYABILITY_MAX_WAIT_SECONDS do
+              if track.IsPlaying then
+                  everPlayed = true
+              end
+              if everPlayed and not track.IsPlaying then
+                  break -- a non-looping clip finished on its own
+              end
+              task.wait(0.1)
+              waited += 0.1
           end
           track:Stop()
 
-          local loopHonored = engineLooped == declaredLooped
-          local missingMarker = nil
-          for _, name in ipairs(declaredMarkers) do
-              if not table.find(fired, name) then
-                  missingMarker = name
-                  break
-              end
-          end
-
-          if not loopHonored then
-              result = { ok = false, error = "Loop setting was not honored during playback." }
-          elseif missingMarker then
-              result = { ok = false, error = "Marker '" .. missingMarker .. "' never fired." }
+          -- Task 0's finding: pcall succeeding is not proof the clip actually played. A sane
+          -- Length and a confirmed IsPlaying transition are the real signal a broken async load
+          -- (which pcall cannot see) would fail to produce.
+          if not everPlayed then
+              result = { ok = false, error = "Animation never started playing (load likely failed asynchronously)." }
+          elseif not (track.Length > 0) then
+              result = { ok = false, error = "Animation reported an invalid length." }
           else
-              result = { ok = true }
+              local loopHonored = engineLooped == declaredLooped
+              local missingMarker = nil
+              for _, name in ipairs(declaredMarkers) do
+                  if not table.find(fired, name) then
+                      missingMarker = name
+                      break
+                  end
+              end
+
+              if not loopHonored then
+                  result = { ok = false, error = "Loop setting was not honored during playback." }
+              elseif missingMarker then
+                  result = { ok = false, error = "Marker '" .. missingMarker .. "' never fired." }
+              else
+                  result = { ok = true }
+              end
           end
       end)
       scratchRig:Destroy()
@@ -220,13 +246,18 @@ This task has no automated test harness (no Luau test framework exists or is bei
       return result
   end
   ```
-  `declaredMarkers` is `{}` (empty) until Task 0 confirms `markersFired` is viable and `normalizeKeyframeSequence` is extended to also collect `Keyframe:GetMarkers()` names — with an empty list, the marker check is a no-op and every clip passes it trivially, which is correct (nothing declared, nothing to miss).
-
-  If Task 0 instead pinned the real-time-`Heartbeat`-poll method, replace the scrub loop (the `for i = 0, samples do ... end` block) with the polling loop from Task 0 Step 3, keeping everything else — including `scratchRig:Destroy()` in both the success and `pcall`-failure paths — identical.
-
-  If Task 0's note says `markersFired` was cut, delete the `fired`/`GetMarkerReachedSignal`/`missingMarker` logic entirely and drop straight to `result = loopHonored and { ok = true } or { ok = false, error = "Loop setting was not honored during playback." }`.
+  `declaredMarkers` is `{}` for clips with no authored markers (the common case) — with an empty list, the marker check is a no-op and every clip passes it trivially, which is correct (nothing declared, nothing to miss). When present, it's populated by `markersDeclaredIn` via the wiring described in Step 2 above.
 
   Place `markersDeclaredIn` and `probePlayability` immediately after Step 1's `fetchStandardRig` block (before `local toolbar = plugin:CreateToolbar(...)`), and Step 2's `Playability_selfTest` immediately after `probePlayability` — all four must be declared, as `local function`s, before `compareButton.Activated`'s handler (~line 725 in the current file) captures them as upvalues; Lua requires the declaration to appear lexically earlier in the file.
+
+  **Rig asset IDs are not yet pinned** (Task 0's spike note: the live session ended before an R6 dummy got inserted). `fetchStandardRig`'s `RIG_ASSET_IDS` table (Step 1 above) needs two real numeric IDs before this can run for real. Until then, use `0` with an explicit comment — this repo already ships exactly this kind of placeholder for a value only obtainable from inside Studio/a Roblox account (`CreatorFlowAnimationBridge.lua`'s own toolbar icon: `"rbxassetid://0" -- TODO: upload an icon and drop the ID in`, in the legacy `roblox-plugin/src/Main.server.luau`). Follow that precedent:
+  ```lua
+  local RIG_ASSET_IDS = {
+      R6 = 0, -- TODO: insert a stock R6 dummy via Studio's Avatar tab → Rig Builder, copy its asset ID here
+      R15 = 0, -- TODO: same, for R15
+  }
+  ```
+  This means Task 1 Step 5 (manual live-Studio verification, below) cannot pass end-to-end until someone with Studio access fills these in — a real, explicit gap, not a silent one. Everything else in Tasks 1–3 (the Java/TypeScript sides, all automated tests) does not depend on these values and can proceed regardless.
 
 - [ ] **Step 4 — Wire it into the existing Compare handler.** `readAnimation` does not need to change — `probePlayability` takes the asset ID string and the already-normalized `looped`/marker data, both of which `readAnimation`'s existing return value (`source`/`candidate`, each with `.looped` per `normalizeKeyframeSequence`'s return table) already carries. In `compareButton.Activated`'s callback (inside `runAction`), after both `readAnimation` calls currently produce `source`/`sourceCounts` and `candidate`/`candidateCounts` (using the existing `sourceId`/`candidateId` locals already computed by `normalizeAssetId`), add:
   ```lua
