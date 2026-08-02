@@ -21,6 +21,12 @@ type LoadState = 'idle' | 'loading' | 'ready' | 'error';
 
 const KINDS: AnimationSnapshotKind[] = ['LAST_KNOWN_GOOD', 'LAST_PUBLISHED'];
 
+// Mirrors CURVE_SAMPLED_SNAPSHOTS_ALLOWED in LocalBridgeServer.java: Task 0 confirmed
+// curve sampling is deterministic (live Studio, 2026-08-02), so pinning sampled sides
+// is allowed. If the server constant is ever flipped to false, flip this too so the
+// UI doesn't offer an action the server will reject.
+const CURVE_SAMPLED_PINNING_BLOCKED = false;
+
 // Labeled example rows so the panel demonstrates itself in the browser preview (no desktop
 // bridge). Deliberately shown under a "Sample preview" banner — never mistakable for real data.
 const SAMPLE_SNAPSHOTS: LocalAnimationSnapshot[] = [
@@ -166,49 +172,57 @@ export function AnimationSnapshotsPanel({ bridgeClient, project, latestCompariso
             {([
               { side: 'source' as const, label: 'Reference', id: latestComparison.sourceAssetId, name: latestComparison.sourceName },
               { side: 'candidate' as const, label: 'Candidate', id: latestComparison.candidateAssetId, name: latestComparison.candidateName },
-            ]).map((clip) => (
-              <div className="animation-snapshots-side" key={clip.side}>
-                <div className="animation-snapshots-side-id">
-                  <strong>{clip.name}</strong>
-                  <small>{clip.label} · ID {clip.id}</small>
+            ]).map((clip) => {
+              const clipKind = clip.side === 'source' ? latestComparison?.sourceKind : latestComparison?.candidateKind;
+              const sampledAndBlocked = CURVE_SAMPLED_PINNING_BLOCKED && clipKind === 'CURVE_SAMPLED';
+              return (
+                <div className="animation-snapshots-side" key={clip.side}>
+                  <div className="animation-snapshots-side-id">
+                    <strong>{clip.name}</strong>
+                    <small>{clip.label} · ID {clip.id}</small>
+                  </div>
+                  {clipKind === 'CURVE_SAMPLED' ? (
+                    <p className="animation-snapshots-sampled-note">Sampled from a curve — not an exact read.</p>
+                  ) : null}
+                  {(() => {
+                    const report = latestComparison?.playability?.[clip.side];
+                    return (
+                      <div className="animation-snapshots-side-playability">
+                        {(['r6', 'r15'] as const).map((rig) => {
+                          const rigResult = report?.[rig];
+                          return (
+                            <div key={rig} className="animation-snapshots-playability-row">
+                              <span className="animation-snapshots-playability-label">{rig.toUpperCase()}</span>
+                              <EvidenceBasisMark basis={rigResult ? 'VERIFIED' : 'NOT_VERIFIED'} compact />
+                              <small>
+                                {!rigResult
+                                  ? 'Not checked'
+                                  : rigResult.ok
+                                    ? 'Plays clean'
+                                    : rigResult.error ?? 'Playback error'}
+                              </small>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
+                  <div className="animation-snapshots-side-actions">
+                    {KINDS.map((kind) => (
+                      <button
+                        key={kind}
+                        type="button"
+                        disabled={busy !== null || sampledAndBlocked}
+                        title={sampledAndBlocked ? "Sampled data isn't stable enough to detect drift reliably yet." : undefined}
+                        onClick={() => { void pin(clip.side, kind); }}
+                      >
+                        {busy === `${clip.side}:${kind}` ? 'Pinning…' : snapshotKindLabel(kind)}
+                      </button>
+                    ))}
+                  </div>
                 </div>
-                {(() => {
-                  const report = latestComparison?.playability?.[clip.side];
-                  return (
-                    <div className="animation-snapshots-side-playability">
-                      {(['r6', 'r15'] as const).map((rig) => {
-                        const rigResult = report?.[rig];
-                        return (
-                          <div key={rig} className="animation-snapshots-playability-row">
-                            <span className="animation-snapshots-playability-label">{rig.toUpperCase()}</span>
-                            <EvidenceBasisMark basis={rigResult ? 'VERIFIED' : 'NOT_VERIFIED'} compact />
-                            <small>
-                              {!rigResult
-                                ? 'Not checked'
-                                : rigResult.ok
-                                  ? 'Plays clean'
-                                  : rigResult.error ?? 'Playback error'}
-                            </small>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-                <div className="animation-snapshots-side-actions">
-                  {KINDS.map((kind) => (
-                    <button
-                      key={kind}
-                      type="button"
-                      disabled={busy !== null}
-                      onClick={() => { void pin(clip.side, kind); }}
-                    >
-                      {busy === `${clip.side}:${kind}` ? 'Pinning…' : snapshotKindLabel(kind)}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <p className="animation-snapshots-empty">Run a comparison from the Studio bridge above, then pin its reference or candidate as a snapshot.</p>

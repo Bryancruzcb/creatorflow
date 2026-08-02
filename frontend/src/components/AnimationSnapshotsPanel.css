@@ -123,6 +123,13 @@
 }
 .animation-snapshots-playability-row small { color: var(--ink-dim); font-size: var(--text-2xs); }
 
+.animation-snapshots-sampled-note {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
 .animation-snapshots-side-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
 .animation-snapshots-side-actions button {
   flex: 1 1 auto;

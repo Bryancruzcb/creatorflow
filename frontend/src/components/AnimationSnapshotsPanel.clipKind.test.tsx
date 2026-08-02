@@ -1,0 +1,73 @@
+// @vitest-environment jsdom
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
+import type { LocalBridgeClient, LocalMotionComparison, LocalProjectSummary } from '../bridge/localBridge';
+
+function makeBridgeClient(): LocalBridgeClient {
+  const client = {
+    listAnimationSnapshots: vi.fn().mockResolvedValue({ items: [] }),
+    captureAnimationSnapshot: vi.fn(),
+  };
+  return client as unknown as LocalBridgeClient;
+}
+
+const PROJECT: LocalProjectSummary = { projectId: 1, name: 'Test Project' };
+
+function comparison(overrides: Partial<LocalMotionComparison>): LocalMotionComparison {
+  return {
+    id: 'cmp-1', projectId: 1, sourceAssetId: '1001', candidateAssetId: '1002',
+    sourceName: 'Walk', candidateName: 'Walk Candidate',
+    sourceDuration: 1, candidateDuration: 1,
+    sourceFingerprint: 'fp1', candidateFingerprint: 'fp2',
+    overallPercent: 100, posePercent: 100, timingPercent: 100, coveragePercent: 100,
+    exactCurveData: true, verdict: 'EXACT_CURVE_DATA', algorithmVersion: 'motion-v2',
+    createdAt: new Date().toISOString(), result: {},
+    ...overrides,
+  };
+}
+
+// vitest.config.ts does not enable `globals`, so Testing Library never registers its
+// automatic afterEach cleanup and every render would otherwise pile up in the same
+// document. The absence assertions below query the whole body, so a leftover render
+// from a previous case would make them fail (or pass) for the wrong reason. Same
+// explicit cleanup the LocalProjectWorkspace component tests use.
+afterEach(() => {
+  cleanup();
+});
+
+describe('AnimationSnapshotsPanel clip provenance', () => {
+  // This case is a regression guard, not a RED/GREEN test: absent clip kind means
+  // "behave exactly like before this feature existed," so both assertions are true
+  // whether or not the provenance rendering has been added yet. It won't fail in the
+  // RED step -- that's expected, unlike the CURVE_SAMPLED qualifier assertion below,
+  // which does fail until the rendering lands.
+  it('shows no provenance label and enables pinning when clip kind is absent', () => {
+    render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({})} />);
+    expect(screen.queryByText(/sampled from a curve/i)).toBeNull();
+    const pinButtons = screen.getAllByRole('button', { name: /last known good|last published/i });
+    expect(pinButtons.every((button) => !(button as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it('shows a sampled-data qualifier for a CURVE_SAMPLED side while pinning stays enabled', () => {
+    render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
+      sourceKind: 'CURVE_SAMPLED',
+      candidateKind: 'KEYFRAME',
+    })} />);
+    expect(screen.getAllByText(/sampled from a curve/i).length).toBeGreaterThan(0);
+    // Regression guard on the shipped-open configuration: the desktop bridge ships
+    // CURVE_SAMPLED_SNAPSHOTS_ALLOWED = true (Task 0 measured sampling as deterministic),
+    // so a sampled side is labeled honestly but still fully pinnable. If the server guard
+    // is ever flipped shut, this expectation flips with it.
+    const pinButtons = screen.getAllByRole('button', { name: /last known good|last published/i });
+    expect(pinButtons.every((button) => !(button as HTMLButtonElement).disabled)).toBe(true);
+  });
+
+  it('leaves a KEYFRAME side fully pinnable', () => {
+    render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
+      sourceKind: 'KEYFRAME',
+      candidateKind: 'KEYFRAME',
+    })} />);
+    expect(screen.queryByText(/sampled from a curve/i)).toBeNull();
+  });
+});
