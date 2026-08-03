@@ -45,6 +45,7 @@ import {
 } from '../motion/motionAnalysis';
 import { DEVIATION_RAMP, NO_DATA_HEX, SIMILARITY_RAMP, rampGradientCss, sampleRampCss, sampleRampInto, type RampSample } from '../motion/ramp';
 import { frameIndexAt, frameStops, stepFrame } from '../motion/clipFrames';
+import { createCanvasRenderLoop, type CanvasRenderLoop } from '../motion/renderLoop';
 import { createStudioScene } from '../motion/sceneFoundation';
 import { useWorkspacePreferences } from '../preferences/workspacePreferences';
 import { MetadataInspector } from './MetadataInspector';
@@ -470,7 +471,7 @@ function setGroupOpacity(group: Group, opacity: number) {
   });
 }
 
-function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewFocus, previewLayout, showOnion, previewQuality, onReady, progress, playing, onProgress }: {
+export function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewFocus, previewLayout, showOnion, previewQuality, onReady, progress, playing, onProgress }: {
   glbUrl: string;
   sourceName: string;
   candidateName: string;
@@ -508,22 +509,35 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
     candidateAnimatedBones: Set<string>;
   } | null>(null);
   const gltfAnimationsRef = useRef<AnimationClip[]>([]);
+  const renderLoopRef = useRef<CanvasRenderLoop | null>(null);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
 
-  useEffect(() => { progressRef.current = progress; }, [progress]);
-  useEffect(() => { playingRef.current = playing; }, [playing]);
+  /**
+   * Every prop the render reads lives behind a ref, so React re-rendering the stage does not by
+   * itself repaint the canvas. Each of these is therefore also a wake-up: without the invalidate
+   * a scrub or a view change would sit unseen until something else happened to ask for a frame.
+   */
+  useEffect(() => {
+    progressRef.current = progress;
+    renderLoopRef.current?.invalidate();
+  }, [progress]);
+  useEffect(() => {
+    playingRef.current = playing;
+    // sync() starts the playing cadence or tears it down. The invalidate buys the one frame a
+    // pause still owes: it is the frame that reports the final phase back to the controls, which
+    // the throttle would otherwise swallow with no later frame to carry it.
+    renderLoopRef.current?.invalidate();
+    renderLoopRef.current?.sync();
+  }, [playing]);
   useEffect(() => {
     selectionRef.current = { sourceName, candidateName, analysisMode, previewFocus, previewLayout, showOnion, previewQuality };
+    renderLoopRef.current?.invalidate();
   }, [analysisMode, candidateName, previewFocus, previewLayout, previewQuality, showOnion, sourceName]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
     let stopped = false;
-    let frame = 0;
-    let idleTimer = 0;
-    let inViewport = true;
-    let pageVisible = !document.hidden;
     let last = performance.now();
     let lastUi = 0;
     setStatus('loading');
@@ -655,6 +669,10 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       gltfAnimationsRef.current = gltf.animations;
       onReady(gltf.animations);
       setStatus('ready');
+      // The loop has been idle over an empty scene until now; nothing else will ask for the first
+      // frame of the rig, and sync() picks the cadence back up if the stage mounted already playing.
+      renderLoopRef.current?.invalidate();
+      renderLoopRef.current?.sync();
     }, undefined, () => { if (!stopped) setStatus('error'); });
 
     const resize = () => {
@@ -662,39 +680,27 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
       renderer.setSize(Math.max(1, Math.floor(rect.width)), Math.max(1, Math.floor(rect.height)), false);
       camera.aspect = rect.width / Math.max(1, rect.height);
       camera.updateProjectionMatrix();
+      renderLoopRef.current?.invalidate();
     };
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     resize();
-    const schedule = () => {
-      if (idleTimer) { window.clearTimeout(idleTimer); idleTimer = 0; }
-      if (!stopped && inViewport && pageVisible && frame === 0) frame = requestAnimationFrame(render);
-    };
 
     /**
-     * Idle cadence.
+     * Frame cadence.
      *
-     * This stage used to re-render at the full display rate whenever it was on screen, including
-     * while paused on a static pose — four skinned meshes, two rebuilt skeleton line buffers and
-     * two ghost mixers, every frame, for an image that was not changing. It is the most expensive
-     * viewer in the app and was the only one that never idled.
+     * This is the most expensive viewer in the app — four skinned meshes, two rebuilt skeleton
+     * line buffers and eight mixers per frame — so a frame it does not need is the most expensive
+     * frame in the app. It runs on the shared scheduler for exactly that reason: while paused and
+     * untouched it draws nothing at all, and every wake-up has to be named.
      *
-     * Rather than convert it to the demand-driven scheduler the other viewers use (that is a
-     * larger change to this file's state handling, and worth doing on its own), it now simply
-     * drops to ~11fps once playback is paused and the camera has settled. Scrubbing or orbiting
-     * returns it to full rate on the next tick, so the worst case is under 90ms of latency
-     * before the first frame of an interaction.
+     * The named wake-ups are the props behind the refs above (scrub, playback, selection, layout,
+     * quality, trail), the rig arriving, a resize, and the camera. The camera one is why
+     * `controls.update()`'s return value is no longer read: OrbitControls dispatches 'change' from
+     * inside update() whenever it actually moves the camera, so the tail of a damped orbit keeps
+     * invalidating itself frame by frame until it settles, and then stops on its own.
      */
-    const scheduleIdle = () => {
-      if (stopped || !inViewport || !pageVisible || frame !== 0 || idleTimer) return;
-      idleTimer = window.setTimeout(() => {
-        idleTimer = 0;
-        if (!stopped && inViewport && pageVisible && frame === 0) frame = requestAnimationFrame(render);
-      }, 90);
-    };
     const render = (now: number) => {
-      frame = 0;
-      if (stopped || !inViewport || !pageVisible) return;
       const delta = Math.max(0, Math.min(0.05, (now - last) / 1000));
       last = now;
       if (playingRef.current) progressRef.current = (progressRef.current + delta / 2.7) % 1;
@@ -819,49 +825,39 @@ function MotionStage({ glbUrl, sourceName, candidateName, analysisMode, previewF
           runtime.candidateTrail.forEach((member) => { member.scope.line.visible = false; });
         }
       }
-      // OrbitControls.update() reports whether the camera actually moved, which covers the tail
-      // of damped motion after the pointer is released.
-      const cameraMoving = controls.update();
+      controls.update();
       renderer.render(scene, camera);
-      if (now - lastUi > 90) {
+      /**
+       * The 90ms throttle exists so playback does not drive a React render per frame, and it can
+       * only be a throttle while more frames are coming. A paused stage draws no further frames,
+       * so a throttled-away report would be permanent: the phase readout, the slider thumb, the
+       * scrubber playhead and the frame-step target would all sit up to 90ms of playback behind
+       * the pose actually on the canvas, and stay there. The last frame of a pause always reports.
+       */
+      if (!playingRef.current || now - lastUi > 90) {
         lastUi = now;
         onProgress(progressRef.current);
       }
-      if (playingRef.current || cameraMoving) schedule();
-      else scheduleIdle();
     };
-    const suspend = () => {
-      if (frame) {
-        cancelAnimationFrame(frame);
-        frame = 0;
-      }
-      if (idleTimer) {
-        window.clearTimeout(idleTimer);
-        idleTimer = 0;
-      }
-    };
-    const stageObserver = new IntersectionObserver(([entry]) => {
-      inViewport = entry.isIntersecting;
-      last = performance.now();
-      if (inViewport) schedule();
-      else suspend();
-    }, { rootMargin: '160px' });
-    stageObserver.observe(canvas);
-    const handleVisibility = () => {
-      pageVisible = !document.hidden;
-      last = performance.now();
-      if (pageVisible) schedule();
-      else suspend();
-    };
-    document.addEventListener('visibilitychange', handleVisibility);
-    schedule();
+    const renderLoop = createCanvasRenderLoop({
+      canvas,
+      render,
+      shouldRenderContinuously: () => playingRef.current,
+      // Playback is the only continuous case and it is real animation, so it runs at the display
+      // rate rather than on a throttle.
+      onActiveChange: () => { last = performance.now(); },
+    });
+    renderLoopRef.current = renderLoop;
+    const onControlsChange = () => renderLoop.invalidate();
+    controls.addEventListener('change', onControlsChange);
+    renderLoop.invalidate();
 
     return () => {
       stopped = true;
-      suspend();
+      renderLoop.dispose();
+      if (renderLoopRef.current === renderLoop) renderLoopRef.current = null;
       observer.disconnect();
-      stageObserver.disconnect();
-      document.removeEventListener('visibilitychange', handleVisibility);
+      controls.removeEventListener('change', onControlsChange);
       controls.dispose();
       mixersRef.current?.source.stopAllAction();
       mixersRef.current?.candidate.stopAllAction();
