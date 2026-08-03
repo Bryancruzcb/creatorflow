@@ -1,0 +1,22 @@
+{
+  "algorithmVersion" : "creatorflow.motion-fingerprint/v1",
+  "claims" : [ {
+    "algorithmVersion" : "creatorflow.motion-fingerprint/v1",
+    "canRetract" : true,
+    "clipName" : "courier_run",
+    "declaredLicense" : "All rights reserved",
+    "declaredNote" : "Kept as the shipped version.",
+    "declaredSource" : "Authored in-house",
+    "durationSeconds" : 1.25,
+    "id" : 41,
+    "isYours" : false,
+    "memberUsername" : "mira",
+    "observedAt" : "2026-01-01T00:00:00Z",
+    "ownershipContext" : "group:12345",
+    "recordedAt" : "2026-01-01T00:00:00Z",
+    "robloxAssetId" : 90110
+  } ],
+  "fingerprint" : "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+  "message" : null,
+  "status" : "OK"
+}

@@ -31,6 +31,7 @@ import { verificationBasis } from '../bridge/evidenceBasis';
 import { formatPairingId, isRevocable, pairingStatusLabel, pairingStatusTone } from '../bridge/pluginPairings';
 import { EvidenceBasisMark } from './EvidenceBasisMark';
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
+import { TeamProvenancePanel } from './TeamProvenancePanel';
 import { MotionScenarioPicker } from './MotionScenarioPicker';
 import { clipInRig, rigById, rigFixtures } from '../motion/rigFixtures';
 import { formatRegisteredAt, registryRecordFor, type RegistryRecord } from '../motion/motionRegistry';
@@ -1143,7 +1144,12 @@ function RegistryMatchCard({ record, candidateName, pose, exact, mode }: {
         <div><dt>Registry ID</dt><dd className="mono">{record.registryId}</dd></div>
       </dl>
       <p className="motion-registry-usage" data-restricted={restricted ? 'true' : 'false'}>{record.usageNote}</p>
-      <small className="motion-registry-disclaimer">Sample registry — illustrative records, not a live lookup.</small>
+      {/*
+        * Any state that renders this card has to say so. The team provenance panel takes this same
+        * slot when a desktop bridge and a Studio comparison are present, and a real provenance
+        * surface and a fixture must never be mistakable for one another.
+        */}
+      <small className="motion-registry-disclaimer">Sample registry — illustrative records, not your team store.</small>
     </section>
   );
 }
@@ -1565,9 +1571,24 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
             <p><strong>{sourceName} ↔ {candidateName}</strong> · {selectedAnalysisMode.label}</p>
             {analysisMode === 'loop' ? <dl className="motion-signal-list"><div><dt>Candidate pose closure</dt><dd>{result?.loop?.candidate.poseClosure ?? '—'}{result?.loop?.candidate.poseClosure !== null && result?.loop?.candidate.poseClosure !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.poseClosure ?? 0)} /></div><div><dt>Velocity continuity</dt><dd>{result?.loop?.candidate.velocityContinuity ?? '—'}{result?.loop?.candidate.velocityContinuity !== null && result?.loop?.candidate.velocityContinuity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.loop?.candidate.velocityContinuity ?? 0)} /></div><div><dt>Scoped joints</dt><dd>{result?.loop?.candidate.tracksAnalyzed ?? '—'}</dd></div></dl> : analysisMode === 'root' ? <dl className="motion-signal-list"><div><dt>Root-path match</dt><dd>{result?.root?.similarity ?? '—'}{result?.root?.similarity !== null && result?.root?.similarity !== undefined ? '%' : ''}</dd><i style={scoreStyle(result?.root?.similarity ?? 0)} /></div><div><dt>Candidate travel</dt><dd>{result?.root?.candidate.available ? result.root.candidate.displacement.toFixed(2) : '—'}</dd></div><div><dt>Candidate drift</dt><dd>{result?.root?.candidate.available ? result.root.candidate.drift.toFixed(2) : '—'}</dd><i style={scoreStyle(Math.max(0, 100 - (result?.root?.candidate.drift ?? 0) * 100))} /></div></dl> : analysisMode === 'timing' ? <dl className="motion-signal-list"><div><dt>Authored-time match</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Duration delta</dt><dd>{result ? `${result.durationDeltaSeconds >= 0 ? '+' : ''}${result.durationDeltaSeconds.toFixed(2)}s` : '—'}</dd><i style={scoreStyle(result?.durationSimilarity ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl> : <dl className="motion-signal-list"><div><dt>Pose shape</dt><dd>{result?.pose ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.pose ?? 0)} /></div><div><dt>Authored timing</dt><dd>{result?.timing ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.timing ?? 0)} /></div><div><dt>Joint coverage</dt><dd>{result?.coverage ?? '—'}{result ? '%' : ''}</dd><i style={scoreStyle(result?.coverage ?? 0)} /></div></dl>}
             {analysisMode === 'loop' ? <div className="motion-exact-state" data-exact="false"><Check size={14} /><span><strong>Provenance stays outside this quality score</strong><small>{result?.exactCurveData ? 'Exact curves here too — but loop continuity is unaffected.' : 'Loop continuity never raises a similarity or copyright alert.'}</small></span></div> : <div className="motion-exact-state" data-exact={result?.exactCurveData ? 'true' : 'false'}>{result?.exactCurveData ? <AlertTriangle size={14} /> : <Check size={14} />}<span><strong>{result?.exactCurveData ? 'Canonical curves match exactly' : 'No exact curve match'}</strong><small>{result?.exactCurveData ? 'Renaming an export does not change its structural fingerprint.' : 'Pose similarity can still come from common rigs, libraries, or authorized reuse.'}</small></span></div>}
-            {registryMatch
-              ? <RegistryMatchCard record={registryMatch} candidateName={candidateName} pose={result?.pose ?? null} exact={result?.exactCurveData ?? false} mode={analysisMode} />
-              : result ? <p className="motion-registry-miss"><ScanSearch size={13} /><span><strong>Reference not in the sample registry.</strong> No registered owner to attach. That means "no conflict found," not "proven original."</span></p> : null}
+            {/*
+              * The provenance slot. With a desktop bridge and a real Studio comparison there is an
+              * actual 64-hex fingerprint to ask a team about, so the live panel takes over; without
+              * one there is nothing real to look up and the labelled sample stays, as it must for
+              * the GitHub Pages demo which has no desktop behind it.
+              *
+              * The candidate side is what gets looked up: it is the incoming clip being checked.
+              */}
+            {bridgeClient && latestComparison
+              ? <TeamProvenancePanel
+                  bridgeClient={bridgeClient}
+                  fingerprint={latestComparison.candidateFingerprint}
+                  algorithmVersion={latestComparison.algorithmVersion}
+                  clipName={latestComparison.candidateName}
+                />
+              : registryMatch
+                ? <RegistryMatchCard record={registryMatch} candidateName={candidateName} pose={result?.pose ?? null} exact={result?.exactCurveData ?? false} mode={analysisMode} />
+                : result ? <p className="motion-registry-miss"><ScanSearch size={13} /><span><strong>Reference not in the sample registry.</strong> Illustrative records, not your team store — connect one in the desktop app to check a real fingerprint against your team. No registered owner to attach means "no conflict found," not "proven original."</span></p> : null}
             <button className="motion-jump-difference" type="button" onClick={jumpToLargestDifference} disabled={!result}>{analysisMode === 'loop' ? 'Inspect end seam' : 'Jump to largest difference'}{result && analysisMode !== 'loop' ? <small>{analysisMode === 'timing' ? `${result.largestDifferenceTimeSeconds.toFixed(2)}s` : `${Math.round(result.largestDifferenceProgress * 100)}%`}{result.largestDifferenceJoint ? ` · ${result.largestDifferenceJoint}` : ''}</small> : null}</button>
             <footer className="motion-review-next"><span>{analysisMode === 'loop' ? 'Quality channel' : 'Human review'}</span><strong>{analysisMode === 'loop' ? 'Loop continuity is separate from provenance and similarity.' : 'Attach the source, license, Animation IDs, and a decision before release.'}</strong></footer>
           </aside>

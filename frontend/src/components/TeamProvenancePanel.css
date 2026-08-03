@@ -1,0 +1,166 @@
+/*
+ * Styles for the team provenance lookup panel.
+ *
+ * A new component-local file rather than an edit to a numbered slab in src/styles/, for the same
+ * reason AnimationSnapshotsPanel.css is one: several rules in that stylesheet win on source
+ * position rather than specificity, so the safest possible change is one that adds nothing to the
+ * cascade those rules live in. Nothing here reaches outside `.team-provenance`.
+ *
+ * One rule below is load-bearing rather than decorative: the unknown state must never be quieter
+ * than the empty state. If "we could not ask" renders as a faint aside while "nobody has it"
+ * renders as a confident result, the visual weight tells the lie the copy is careful not to.
+ */
+
+.team-provenance {
+  border: 1px solid var(--hairline);
+  border-radius: 12px;
+  background: var(--graphite);
+  padding: 0.85rem 1rem 0.95rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.team-provenance > header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.6rem;
+}
+.team-provenance > header > span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-muted);
+}
+.team-provenance > header small { color: var(--ink-dim); font-size: var(--text-xs); }
+
+.team-provenance-lead,
+.team-provenance-empty,
+.team-provenance-unknown {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.team-provenance-lead strong,
+.team-provenance-empty strong,
+.team-provenance-unknown strong { color: var(--ink); }
+
+.team-provenance-unknown-detail {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-dim);
+}
+
+.team-provenance-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.55rem;
+}
+
+.team-provenance-row {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 0.6rem 0.7rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.team-provenance-row[data-yours='true'] { border-color: var(--hairline-strong); }
+
+.team-provenance-row-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+.team-provenance-row-head strong { color: var(--ink); font-size: var(--text-xs); }
+.team-provenance-clip {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+}
+
+/* VERIFIED facts. Kept visually apart from the declared block below on purpose. */
+.team-provenance-verified {
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  flex-wrap: wrap;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.team-provenance-verified time {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+}
+
+/* DECLARED facts: attributed to a named person, never rendered as CreatorFlow's own. */
+.team-provenance-declared {
+  margin: 0;
+  border-left: 2px solid var(--hairline-strong);
+  padding-left: 0.6rem;
+  display: grid;
+  gap: 0.25rem;
+}
+.team-provenance-declared-head {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+  text-transform: none;
+}
+.team-provenance-declared > div {
+  display: grid;
+  grid-template-columns: 5rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+.team-provenance-declared dt { font-size: var(--text-2xs); color: var(--ink-dim); }
+.team-provenance-declared dd { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+
+/* A row this build cannot vouch for is dimmed, never hidden — and never marked as a match. */
+.team-provenance-row[data-match='DIFFERENT_VERSION'],
+.team-provenance-row[data-match='UNKNOWN_VERSION'] {
+  border-style: dashed;
+}
+
+.team-provenance-ordering {
+  margin: 0;
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+  font-style: italic;
+}
+
+.team-provenance-error {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--blocked, var(--ink));
+}
+
+.team-provenance-refresh,
+.team-provenance-retract {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.3rem 0.7rem;
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+.team-provenance-refresh:hover,
+.team-provenance-retract:hover { color: var(--ink); border-color: var(--ink-dim); }
+.team-provenance-retract:disabled { cursor: progress; opacity: 0.6; }
