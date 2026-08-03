@@ -96,7 +96,7 @@ class MotionV2ParityOracleGeneratorTest {
         assertFalse(byId.get("v2-mirror-no-pairs-refused").mirrored(),
                 "a clip with no left/right names cannot be mirrored, so no second orientation is allowed");
         // Pins the real threshold: one pair produces two map entries and therefore clears
-        // MIRROR_MIN_PAIRS, despite the TS comment describing a two-pair floor. See the case note.
+        // MIRROR_MIN_PAIRS, so the effective floor is one pair, not two. See the case note.
         assertTrue(byId.get("v2-mirror-single-pair-allowed").mirrored(),
                 "one left/right pair clears the guard as implemented");
         assertFalse(byId.get("v2-mirror-orientation-loses").mirrored(),

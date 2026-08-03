@@ -109,11 +109,13 @@ the algorithm, not the implementation, and two parity-locked implementations
 reporting different strings would put two names for one algorithm back into the
 comparison table — the confusion #102 is about. Stored records already carry it.
 
-One thing pinned rather than fixed while porting: `MIRROR_MIN_PAIRS` is 2, but
-`buildMirrorMap` stores both directions of every mutual pair, so a **single** pair
-already clears it. The comment beside the constant describes a two-pair floor the
-code does not implement. Changing the real floor would move scores the web already
-ships, so it is a product decision, not a parity fix — recorded in
+One thing pinned while porting, and since resolved comment-side:
+`MIRROR_MIN_PAIRS` is 2, but `buildMirrorMap` stores both directions of every
+mutual pair, so a **single** pair already clears it — the effective floor is one
+pair, and only a clip with no pair at all is refused. Changing the real floor would
+move scores the web already ships, so the floor stays; the comment beside the
+constant, which used to describe a two-pair floor the code does not implement, was
+corrected to the code on 2026-08-02. The floor itself is pinned in
 `v2-mirror-single-pair-allowed`.
 
 ## Rig coverage and what these numbers do NOT prove (2026-07-26)

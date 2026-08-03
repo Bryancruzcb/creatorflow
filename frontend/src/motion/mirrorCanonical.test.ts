@@ -107,12 +107,19 @@ describe('mirrorNormalized', () => {
     }
   });
 
-  it('refuses to mirror a clip with too few pairs', () => {
-    // Without real left/right pairs this would be a reflected RIG, not a mirrored performance —
+  it('refuses zero mutual pairs and accepts one, which is where the floor really sits', () => {
+    // Without a real left/right pair this would be a reflected RIG, not a mirrored performance —
     // pure added false-positive surface for no detection value.
-    const source = clip('a', [[pose('Head', [1, 2, 3], tilt)]]);
-    expect(mirrorNormalized(source)).toBeNull();
-    expect(MIRROR_MIN_PAIRS).toBeGreaterThan(1);
+    const noPairs = clip('a', [[pose('Head', [1, 2, 3], tilt)]]);
+    expect(mirrorNormalized(noPairs)).toBeNull();
+
+    // MIRROR_MIN_PAIRS counts map ENTRIES, and buildMirrorMap stores both directions of a mutual
+    // pair, so ONE pair already fills the quota. That one-pair floor is the shipped scoring
+    // behaviour (owner decision 2026-08-02) — every case above rides on it, and a change that
+    // quietly raised it would fail here.
+    expect(buildMirrorMap(['ArmL', 'ArmR']).size).toBe(MIRROR_MIN_PAIRS);
+    const onePair = clip('b', [[pose('ArmL', [1, 2, 3], tilt), pose('ArmR', [-1, 2, 3], identity)]]);
+    expect(mirrorNormalized(onePair)).not.toBeNull();
   });
 
   it('widens the pairing using the clip it will be compared against', () => {
