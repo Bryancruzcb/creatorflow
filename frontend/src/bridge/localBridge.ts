@@ -357,6 +357,16 @@ export interface LocalReviewGroupAsset {
    */
   latestDecisionId: string | null;
   latestSourceEvidenceId: number | null;
+  /**
+   * The other gate rules this same file is standing under right now.
+   *
+   * Non-empty means it **cannot be batch-excluded**, because `EXCLUDED` is asset-level at the gate —
+   * `ReleaseGate.evaluate` skips an excluded asset before the flagged and ownership checks — so
+   * excluding it here to settle a missing source record would silence those too. The bridge refuses
+   * such a batch outright; this is what lets the panel say so on the row instead of letting a person
+   * compose a batch that will be rejected.
+   */
+  alsoStandingCodes: string[];
 }
 
 export interface LocalReviewGroup {

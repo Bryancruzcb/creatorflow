@@ -1544,6 +1544,24 @@
 }
 
 .local-batch-confirm p { max-width: 84ch; margin: 0; color: var(--ink); font-size: var(--text-2xs); }
+
+/* The files themselves, not just the count. Scrolls rather than truncating: a confirm step that
+   hides part of what it is about to write is the thing this list exists to prevent. */
+.local-batch-confirm-files {
+  display: grid;
+  gap: var(--space-1);
+  max-height: 14rem;
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  overflow: auto;
+  background: var(--graphite);
+  border: 1px solid var(--hairline);
+  color: var(--ink-muted);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  list-style: none;
+}
+
 .local-batch-confirm > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
 .local-batch-confirm > div > button[type="button"]:not(.button) { color: var(--blue-accent); background: transparent; border: 0; font-size: var(--text-2xs); cursor: pointer; }
 
@@ -1568,3 +1586,9 @@
 
 .local-decision-history > ol > li > strong { color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
 .local-decision-history > ol > li > small { color: var(--ink-muted); font-size: var(--text-2xs); }
+.local-decision-history > small { display: block; margin-bottom: var(--space-2); color: var(--ink-dim); font-size: var(--text-3xs); }
+
+/* Oldest first, so the top row is the one most likely to be misread as current. A superseded entry
+   is dimmed and says so in words; nothing here relies on position alone. */
+.local-decision-stamp { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); font-style: normal; }
+.local-decision-history > ol > li[data-superseded='true'] { border-left-color: var(--hairline); opacity: 0.72; }

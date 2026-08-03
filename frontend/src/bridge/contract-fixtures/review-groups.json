@@ -3,6 +3,7 @@
   "gateResult" : "BLOCKED",
   "groups" : [ {
     "assets" : [ {
+      "alsoStandingCodes" : [ ],
       "decision" : "NEEDS_REVIEW",
       "fileName" : "asset-0.rbxm",
       "fileType" : "rbxm",
@@ -14,6 +15,7 @@
       "sha256" : "0000000000000000000000000000000000000000000000000000000000000001",
       "verification" : "CLEAR"
     }, {
+      "alsoStandingCodes" : [ ],
       "decision" : "NEEDS_REVIEW",
       "fileName" : "asset-1.rbxm",
       "fileType" : "rbxm",
@@ -25,6 +27,7 @@
       "sha256" : "0000000000000000000000000000000000000000000000000000000000000002",
       "verification" : "CLEAR"
     }, {
+      "alsoStandingCodes" : [ ],
       "decision" : "PENDING",
       "fileName" : "asset-2.rbxm",
       "fileType" : "rbxm",

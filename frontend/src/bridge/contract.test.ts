@@ -172,6 +172,13 @@ describe('bridge contract', () => {
     // null is "nothing recorded yet", and sending the wrong shape would silently clobber a write.
     expect(['string', 'object']).toContain(typeof asset.latestDecisionId);
     expect(['number', 'object']).toContain(typeof asset.latestSourceEvidenceId);
+    /**
+     * The other rules this file is standing under. Losing this key would not break a render — it
+     * would quietly re-enable batch exclusion for files the gate would settle wholesale, since the
+     * panel decides what to withhold from it. The bridge still refuses such a batch, so the failure
+     * would be a rejected submit rather than a bad write; the array must survive regardless.
+     */
+    expect(Array.isArray(asset.alsoStandingCodes)).toBe(true);
   });
 
   it('parses ownership verifications as a list', async () => {

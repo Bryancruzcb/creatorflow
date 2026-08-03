@@ -70,16 +70,20 @@ drifted into. They are recorded as decisions, with what would change if they are
   files at a time — keep the set something you can actually look at"), never as a bare
   number, and enforced in `BatchDecisionService.MAX_BATCH_ASSETS` as well as pre-checked
   in the route.
-- **`EXCLUDED` is batchable only on `UNRESOLVED_SOURCE`** — the conservative cut. The
-  `FLAGGED_WITHOUT_APPROVAL` and `OWNERSHIP_MISMATCH_WITHOUT_DECISION` groups offer
-  `NEEDS_REVIEW` alone. Excluding is a scope claim that can honestly be true of a whole
-  folder, and it reduces what ships, but on a *flagged* group it is the closest thing in
-  the product to making findings go away in one click. The design's alternative — allow
-  it with strong confirm copy — was considered and **rejected for now**. This is the
-  loosenable one: allowing batch `EXCLUDED` on the flagged groups later is a one-line
-  change to `BatchDecisionService.batchableActions`, and the enforcement, the confirm
-  copy and the tests are already shaped for it. It should be an explicit owner decision
-  with the confirm copy reviewed, not a quiet widening.
+- **`EXCLUDED` is batchable only on `UNRESOLVED_SOURCE`, and within it only for files
+  standing under that rule alone** — the conservative cut, and it takes *both* halves to
+  mean anything. The `FLAGGED_WITHOUT_APPROVAL` and `OWNERSHIP_MISMATCH_WITHOUT_DECISION`
+  groups offer `NEEDS_REVIEW` alone. Excluding is a scope claim that can honestly be true
+  of a whole folder, and it reduces what ships, but on a *flagged* group it is the closest
+  thing in the product to making findings go away in one click. The design's alternative —
+  allow it with strong confirm copy — was considered and **rejected for now**.
+  **The per-file half was missed on the first implementation and caught in review**: the
+  group scope alone was decoration, because `EXCLUDED` is asset-level at the gate (see
+  Guardrail 3), so one click on the unresolved-source chip silenced a selected file's
+  similarity flag too. It is now refused per file and the panel withholds the control with
+  the reason on the row. Loosenable later, but deliberately: allowing it would need confirm
+  copy that states, per file, what else the exclusion settles, plus an owner decision to
+  accept that trade — not a quiet widening.
 - **Batch ids stay local; they are not exported.** The manifest carries no decision
   rationale at all (`CreativeManifest.AssetEntry` has `decision` but no reason), so a
   batch id in a portable artifact would be a dangling token resolving only to the SQLite
@@ -123,7 +127,12 @@ drifted into. They are recorded as decisions, with what would change if they are
   it is the honesty payoff, not polish.
 - **The server re-derives the group on every write.** Asset ids from the client are never
   trusted: an id not currently standing under the named rule is a 400. Otherwise the
-  group name would be a claim the client makes about ids it chose.
+  group name would be a claim the client makes about ids it chose. The same re-derivation
+  is what supplies each file's `alsoStandingCodes`, so the cross-rule exclusion refusal is
+  computed from the gate rather than from anything the request asserted.
+- **The confirm step shows the files, not only the count**, and changing the narrowing
+  clears the selection. Otherwise a person could tick 40 files in one folder, filter to
+  another, tick 30 more, and submit 70 with 30 on screen — an honest count naming no file.
 - **Whole-batch-or-nothing.** Every batch is one `Database.transaction`, and the drift
   check runs before any insert. There is no state in which some files carry a judgement
   the person's screen never showed them.
@@ -154,13 +163,24 @@ over-claim about them with the tool's help.
   *provenance declaration* that stays `DECLARED` — nothing is upgraded to `VERIFIED`.
   Approving a flagged or ownership-lead asset is per-evidence by nature ("I looked at
   *this* finding"), so it cannot be uniform, so it cannot be batched.
-- **Guardrail 3 — batch-EXCLUDE as flag-silencing.** Someone could exclude files to make
-  the gate go quiet and ship them anyway; the tool cannot check what ships. Mitigations:
-  the conservative scope above keeps it off the flagged groups entirely; the confirm copy
-  states plainly what excluding does and does not do; the excluded count is already
-  visible on every release (`ReleaseComparison.excluded`); and the batch id makes "N files
-  excluded in one action with this rationale" reconstructable rather than looking like N
-  considered calls.
+- **Guardrail 3 — batch-EXCLUDE as flag-silencing, and the mechanism that actually stops
+  it.** `ReleaseGate.evaluate` skips an `EXCLUDED` asset at `ReleaseGate.java:44` —
+  *before* the flagged check at `:52-58` and the ownership check at `:69-81`. **Exclusion
+  is therefore asset-level, not per-violation**: excluding a file to settle its missing
+  source record settles everything else standing on that file in the same click. Keeping
+  `EXCLUDED` off the flagged and ownership *groups* does not prevent that, because a file
+  standing under two rules appears in both, and the unresolved-source chip would reach it.
+  So the guard is per file, not per group: `BatchDecisionService.requireExclusionIsSingleRule`
+  refuses a batch exclusion of any asset whose `alsoStandingCodes` is non-empty (400,
+  whole batch, nothing written), the group payload carries that list so the panel can
+  disable the row and say why, and such a file stays excludable **one at a time**, on its
+  own page, with its findings and history on screen — which is the individual attention
+  the guarantee is actually about. The remaining exposure is unchanged and unfixable here:
+  someone can still exclude files and ship them anyway, because export never calls the
+  network. What the tool can do it does — the confirm copy states what an exclusion does
+  at the gate, the excluded count is visible on every release
+  (`ReleaseComparison.excluded`), and the batch id makes "N files excluded in one action
+  with this rationale" reconstructable rather than looking like N considered calls.
 - **Guardrail 4 — the grouping claim is written, or there is no batch.** Mandatory
   non-blank rationale on both routes, enforced in the service, at the route, and by
   `decision_batches.rationale CHECK (length(trim(rationale)) > 0)`.
@@ -329,8 +349,15 @@ reloads the ledger and the open record.
 - **Bridge absent, or the sample / imported-manifest dataset is active** — the panel lives
   inside `LocalEvidenceView`, which only mounts for `activeDataset === 'local'`, and
   renders nothing without a scan run id.
+- **A file standing under two rules, selected for exclusion** — 400, whole batch, nothing
+  written; the panel disables the row under that action and says why. See Guardrail 3.
 - **A write fails partway** (SQLite busy, FK violation) — the transaction rolls back and
-  the ledger is untouched; `busy_timeout = 5000` is already set.
+  the ledger is untouched; `busy_timeout = 5000` is already set. It reports as **500**,
+  not 409: `Database.transaction` wraps every `SQLException` into an
+  `IllegalStateException`, so the routes catch the narrower `ScanNotReleasableException`
+  for the one precondition that really is a state conflict. Before that split, a disk or
+  busy failure answered "409 Could not complete database transaction" — a state-conflict
+  status carrying an infrastructure message.
 
 ## Testing
 
@@ -361,9 +388,19 @@ reloads the ledger and the open record.
   "nothing was recorded", a blocked group with no way to act on it, the 409 line for a
   non-completed run, and the empty state.
 - **`LocalProjectWorkspace.decisionFlow.test.tsx`** — the batch marker rendering on the
-  latest decision and in the history, with the per-file entry beside it carrying none.
+  latest decision and in the history, with the per-file entry beside it carrying none; and
+  every history entry carrying its own timestamp, with a superseded entry marked as such.
 - **`LocalProjectWorkspace.test.ts`** (no DOM) — `batchMarkerLabel`, including that an
-  unknown count stays unknown rather than becoming a batch of one.
+  unknown count stays unknown rather than becoming a batch of one;
+  `supersededDecisionIds` reading the record rather than list position; and
+  `formatDecisionTimestamp` reporting an unreadable stamp as unknown.
+
+**Known gap, recorded rather than papered over:** contract fixtures capture GETs only, so
+three of the five payload sites that now go through `decisionView`/`sourceEvidenceView` —
+`POST /assets/{id}/decisions`, `POST /assets/{id}/source-evidence` and
+`GET /assets/{id}/source-evidence` — have no fixture guarding them. `LocalBridgeServerTest`
+asserts the POST decision shape directly, but a rename on either evidence route would not
+fail the TypeScript suite. Widening the fixture capture to POSTs is its own change.
 
 ## Out of scope for v1
 

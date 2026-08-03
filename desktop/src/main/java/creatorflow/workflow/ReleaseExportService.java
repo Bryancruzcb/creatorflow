@@ -132,7 +132,7 @@ public final class ReleaseExportService {
                 .orElseThrow(() -> new IllegalArgumentException("Unknown scan run " + scanRunId));
         if (run.projectId() != projectId) throw new IllegalArgumentException("Scan does not belong to project");
         if (run.state() != ScanState.COMPLETED) {
-            throw new IllegalStateException("Only a completed immutable scan can become a release");
+            throw new ScanNotReleasableException("Only a completed immutable scan can become a release");
         }
         String name = releaseName == null ? run.releaseName() : releaseName;
 

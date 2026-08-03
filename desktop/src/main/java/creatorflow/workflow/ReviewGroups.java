@@ -49,10 +49,22 @@ public record ReviewGroups(String scanRunId, boolean passed, Instant evaluatedAt
      * <p>{@code latestDecisionId} and {@code latestSourceEvidenceId} are the two "what I was looking
      * at" tokens: a batch request echoes them back, and any mismatch at submit time rejects the
      * whole batch rather than silently clobbering a write someone else made meanwhile.
+     *
+     * <p>{@code alsoStandingCodes} is the other rules this same file is standing under right now,
+     * and it exists because <strong>{@code EXCLUDED} is asset-level at the gate, not
+     * per-violation</strong>: {@code ReleaseGate.java:44} skips an excluded asset before the flagged
+     * check and before the ownership check, so excluding a file to settle its missing source record
+     * would silence its similarity flag too. A file standing anywhere else is therefore refused for
+     * batch exclusion — see {@code BatchDecisionService.requireExclusionIsSingleRule} — and this list
+     * is what both the refusal and the panel's visible reason are built from. Empty is the ordinary
+     * case: the file stands under this rule alone.
      */
     public record ReviewGroupAsset(long scanAssetId, String relativePath, String fileName,
                                    String fileType, String sha256, String verification,
                                    String decision, String message, String latestDecisionId,
-                                   Long latestSourceEvidenceId) {
+                                   Long latestSourceEvidenceId, List<String> alsoStandingCodes) {
+        public ReviewGroupAsset {
+            alsoStandingCodes = List.copyOf(alsoStandingCodes);
+        }
     }
 }

@@ -51,8 +51,14 @@ export function batchActionLabel(action: BatchableAction): string {
  * Exactly what the confirm step promises will be written, in rows rather than in adjectives.
  *
  * The count is load-bearing: a batch writes N records, not one, and every one of them lands in its
- * own file's history carrying this rationale. Excluding gets one more sentence, because "the flag
- * went away" and "the file left the release" are different things and only the second is true.
+ * own file's history carrying this rationale.
+ *
+ * Excluding gets the sentence that took a review to get right. An earlier version said "this does
+ * not clear the similarity finding", which is true of the finding *record* and false of the thing a
+ * reader cares about: `ReleaseGate.evaluate` skips an excluded asset before it ever reaches the
+ * flagged or ownership checks, so an exclusion settles the asset at the gate, not one violation of
+ * it. That is exactly why a batch exclusion is refused for any file standing under another rule —
+ * so the copy explains the mechanism rather than making a promise the gate does not keep.
  */
 export function batchConfirmationCopy(action: BatchableAction, assetCount: number): string[] {
   const lines = action === 'SOURCE_EVIDENCE'
@@ -63,8 +69,11 @@ export function batchConfirmationCopy(action: BatchableAction, assetCount: numbe
     : [`Writes 1 batch record and ${assetCount} decision rows. Every file keeps its own row in its own`
       + ' history, all carrying this rationale.'];
   if (action === 'EXCLUDED') {
-    lines.push('Excluded files are left out of every release built from this scan. This does not clear'
-      + ' the similarity finding — it removes the file from the release.');
+    lines.push('Excluded files are left out of every release built from this scan.');
+    lines.push('At the gate an exclusion skips every other check on that file, so this batch only'
+      + ' offers it for files standing under this rule alone — anything also flagged, or carrying an'
+      + ' ownership lead, has to be excluded on its own page. The findings themselves stay on the'
+      + ' record either way.');
   }
   if (action === 'NEEDS_REVIEW') {
     lines.push('Needs review records that the review has not happened yet, so it clears nothing at the'
@@ -186,6 +195,19 @@ export function BatchReviewPanel({ client, scanRunId, onLedgerChanged }: {
     [open, narrowing],
   );
 
+  /**
+   * The files a submit would actually write to — read off what is on screen, not off `open.assets`.
+   *
+   * Selection is cleared whenever the narrowing changes, so these are always rows the person can
+   * currently see; sourcing them from `shown` as well means the two can never drift apart if that
+   * ever stops being true. This same list is what the confirm step renders, so "confirm what you are
+   * about to write" means the paths, not just a count.
+   */
+  const selectedRows = useMemo(
+    () => shown.filter((asset) => selected.includes(asset.scanAssetId)),
+    [shown, selected],
+  );
+
   function resetComposition() {
     setSelected([]);
     setAction(null);
@@ -214,14 +236,46 @@ export function BatchReviewPanel({ client, scanRunId, onLedgerChanged }: {
       : [...current, scanAssetId]));
   }
 
-  const overCap = selected.length > MAX_BATCH_ASSETS;
+  /**
+   * Narrowing clears the selection, on purpose and visibly.
+   *
+   * Otherwise a person can tick 40 files in one folder, switch the filter to another, tick 30 more,
+   * and submit 70 while 30 are on screen. Keeping the hidden 40 would be defensible for a filter and
+   * indefensible here: what is being written is a claim about a set, and a set you cannot see is not
+   * a set you can claim.
+   */
+  function narrow(next: BatchNarrowing) {
+    setNarrowing(next);
+    setConfirming(false);
+    setSelected([]);
+  }
+
+  /**
+   * Choosing "Exclude from release" drops any file that is also standing under another rule.
+   *
+   * At the gate an exclusion skips every check on that asset, so excluding a file to settle its
+   * missing source record would silence its similarity flag too. The bridge refuses such a batch
+   * outright; dropping the rows here means a person is never staring at a selection the server will
+   * reject, and the count below says how many went and why.
+   */
+  function chooseAction(next: BatchableAction) {
+    setConfirming(false);
+    setAction(next);
+    if (next !== 'EXCLUDED' || !open) return;
+    const excludable = new Set(open.assets
+      .filter((asset) => asset.alsoStandingCodes.length === 0)
+      .map((asset) => asset.scanAssetId));
+    setSelected((current) => current.filter((id) => excludable.has(id)));
+  }
+
+  const overCap = selectedRows.length > MAX_BATCH_ASSETS;
   const sourceReady = action !== 'SOURCE_EVIDENCE' || (sourceName.trim() !== '' && licenseName.trim() !== '');
-  const ready = action !== null && selected.length >= MIN_BATCH_ASSETS && !overCap
+  const ready = action !== null && selectedRows.length >= MIN_BATCH_ASSETS && !overCap
     && rationale.trim() !== '' && sourceReady;
 
   async function submit() {
     if (!open || !action || !groups || !scanRunId) return;
-    const rows = open.assets.filter((asset) => selected.includes(asset.scanAssetId));
+    const rows = selectedRows;
     setSubmitting(true);
     setError(null);
     setDrifted([]);
@@ -330,13 +384,21 @@ export function BatchReviewPanel({ client, scanRunId, onLedgerChanged }: {
                 group={open}
                 shown={shown}
                 selected={selected}
+                selectedRows={selectedRows}
                 narrowing={narrowing}
-                onNarrow={setNarrowing}
+                onNarrow={narrow}
                 onToggleAsset={toggleAsset}
-                onSelectShown={() => { setConfirming(false); setSelected(shown.map((asset) => asset.scanAssetId)); }}
+                onSelectShown={() => {
+                  setConfirming(false);
+                  // Only what this action can actually be recorded against, so "select all shown"
+                  // never quietly hands the server a batch it is about to refuse.
+                  setSelected(shown
+                    .filter((asset) => action !== 'EXCLUDED' || asset.alsoStandingCodes.length === 0)
+                    .map((asset) => asset.scanAssetId));
+                }}
                 onClearSelection={() => { setConfirming(false); setSelected([]); }}
                 action={action}
-                onAction={(next) => { setConfirming(false); setAction(next); }}
+                onAction={chooseAction}
                 rationale={rationale}
                 onRationale={(next) => { setConfirming(false); setRationale(next); }}
                 sourceName={sourceName}
@@ -364,13 +426,15 @@ export function BatchReviewPanel({ client, scanRunId, onLedgerChanged }: {
 }
 
 function BatchGroupComposer({
-  group, shown, selected, narrowing, onNarrow, onToggleAsset, onSelectShown, onClearSelection,
+  group, shown, selected, selectedRows, narrowing, onNarrow, onToggleAsset, onSelectShown,
+  onClearSelection,
   action, onAction, rationale, onRationale, sourceName, onSourceName, licenseName, onLicenseName,
   evidenceUrl, onEvidenceUrl, overCap, ready, confirming, submitting, onConfirm, onCancelConfirm, onSubmit,
 }: {
   group: LocalReviewGroup;
   shown: LocalReviewGroupAsset[];
   selected: number[];
+  selectedRows: LocalReviewGroupAsset[];
   narrowing: BatchNarrowing;
   onNarrow: (next: BatchNarrowing) => void;
   onToggleAsset: (scanAssetId: number) => void;
@@ -401,6 +465,10 @@ function BatchGroupComposer({
   const fileTypes = useMemo(
     () => [...new Set(group.assets.map((asset) => asset.fileType))].sort(),
     [group.assets],
+  );
+  const blockedFromExclusion = useMemo(
+    () => shown.filter((asset) => asset.alsoStandingCodes.length > 0),
+    [shown],
   );
 
   return (
@@ -440,7 +508,8 @@ function BatchGroupComposer({
         </label>
         <small>
           These narrow what is listed. They never tick anything — which files belong together is your
-          claim to make.
+          claim to make — and changing one clears the selection, so what you submit is always what is
+          on screen.
         </small>
       </div>
 
@@ -449,31 +518,50 @@ function BatchGroupComposer({
           Select all {shown.length} shown
         </button>
         <button type="button" onClick={onClearSelection} disabled={selected.length === 0}>Clear selection</button>
-        <small>{selected.length} selected · you can batch up to {MAX_BATCH_ASSETS} files at a time — keep the set something you can actually look at.</small>
+        <small>{selectedRows.length} selected · you can batch up to {MAX_BATCH_ASSETS} files at a time — keep the set something you can actually look at.</small>
+        {action === 'EXCLUDED' && blockedFromExclusion.length ? (
+          <small className="local-batch-asset-message">
+            {blockedFromExclusion.length === 1 ? 'One file here also stands' : `${blockedFromExclusion.length} files here also stand`}
+            {' '}under another rule, so they cannot be excluded in a batch — excluding skips every
+            other check the gate makes on a file. Exclude those individually, or mark them needs
+            review here.
+          </small>
+        ) : null}
       </div>
 
       <ul className="local-batch-assets">
         {shown.length === 0 ? (
           <li className="local-monitor-empty"><FolderOpen size={18} /><strong>Nothing matches that narrowing</strong></li>
-        ) : shown.map((asset) => (
-          <li key={asset.scanAssetId}>
-            <label>
-              <input
-                type="checkbox"
-                checked={selected.includes(asset.scanAssetId)}
-                disabled={group.batchableActions.length === 0}
-                onChange={() => onToggleAsset(asset.scanAssetId)}
-              />
-              <span>
-                <strong>{asset.fileName}</strong>
-                <small>{asset.relativePath}</small>
-              </span>
-            </label>
-            <em data-state={asset.verification.toLowerCase()}>{titleCaseManifestValue(asset.verification)}</em>
-            <em className="local-batch-decision">{titleCaseManifestValue(asset.decision)}</em>
-            {asset.message !== group.message ? <small className="local-batch-asset-message">{asset.message}</small> : null}
-          </li>
-        ))}
+        ) : shown.map((asset) => {
+          const notExcludable = action === 'EXCLUDED' && asset.alsoStandingCodes.length > 0;
+          return (
+            <li key={asset.scanAssetId}>
+              <label>
+                <input
+                  type="checkbox"
+                  checked={selected.includes(asset.scanAssetId)}
+                  disabled={group.batchableActions.length === 0 || notExcludable}
+                  onChange={() => onToggleAsset(asset.scanAssetId)}
+                />
+                <span>
+                  <strong>{asset.fileName}</strong>
+                  <small>{asset.relativePath}</small>
+                </span>
+              </label>
+              <em data-state={asset.verification.toLowerCase()}>{titleCaseManifestValue(asset.verification)}</em>
+              <em className="local-batch-decision">{titleCaseManifestValue(asset.decision)}</em>
+              {asset.message !== group.message ? <small className="local-batch-asset-message">{asset.message}</small> : null}
+              {/* Stated on the row rather than only in aggregate: this file is standing somewhere
+                  else too, which is why a batch exclusion is withheld for it specifically. */}
+              {asset.alsoStandingCodes.length ? (
+                <small className="local-batch-asset-message">
+                  Also stands under {asset.alsoStandingCodes.map(reviewGroupLabel).join(', ')}
+                  {notExcludable ? ' — exclude this one individually, where the findings are.' : '.'}
+                </small>
+              ) : null}
+            </li>
+          );
+        })}
       </ul>
 
       {group.batchableActions.length ? (
@@ -525,7 +613,13 @@ function BatchGroupComposer({
 
           {confirming && action ? (
             <div className="local-batch-confirm">
-              {batchConfirmationCopy(action, selected.length).map((line) => <p key={line}>{line}</p>)}
+              {batchConfirmationCopy(action, selectedRows.length).map((line) => <p key={line}>{line}</p>)}
+              {/* The paths, not just the count. "Confirm what you are about to write" has to mean a
+                  person can see which files it lands on; the 200-cap keeps this renderable, and it
+                  scrolls past that. */}
+              <ol className="local-batch-confirm-files">
+                {selectedRows.map((asset) => <li key={asset.scanAssetId}>{asset.relativePath}</li>)}
+              </ol>
               <div>
                 <button className="button button-primary" type="button" disabled={submitting} onClick={onSubmit}>
                   {submitting ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Record this batch

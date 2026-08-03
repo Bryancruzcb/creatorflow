@@ -33,12 +33,22 @@ import java.util.Objects;
  * panel and the gate can never disagree about which rows are outstanding.
  *
  * <p><strong>What can be batched is a short, enforced list.</strong> {@code APPROVED} and
- * {@code BLOCKED} are never batchable, in any group, and {@code EXCLUDED} is batchable only on
- * {@code UNRESOLVED_SOURCE}. That is enforced <em>here</em>, on every write, not merely left out of
- * the UI: a disabled control is bypassable by a stale tab or a hand-rolled request, and a bulk
- * "approve these thirty flagged files" is precisely the false-clearance this product exists not to
- * manufacture. {@code BLOCKED_DECISION} offers nothing at all — those assets already carry a
- * deliberate human "no", and superseding thirty of them in one click is the rubber stamp inverted.
+ * {@code BLOCKED} are never batchable, in any group. That is enforced <em>here</em>, on every write,
+ * not merely left out of the UI: a disabled control is bypassable by a stale tab or a hand-rolled
+ * request, and a bulk "approve these thirty flagged files" is precisely the false-clearance this
+ * product exists not to manufacture. {@code BLOCKED_DECISION} offers nothing at all — those assets
+ * already carry a deliberate human "no", and superseding thirty of them in one click is the rubber
+ * stamp inverted.
+ *
+ * <p><strong>{@code EXCLUDED} is batchable only on {@code UNRESOLVED_SOURCE}, and only for files
+ * standing under that rule alone.</strong> Both halves are needed, and the second is not a detail:
+ * {@code ReleaseGate.evaluate} skips an excluded asset at {@code ReleaseGate.java:44} before it ever
+ * reaches the flagged or ownership checks, so exclusion settles an asset, not a violation. Offering
+ * it on the unresolved-source group while a selected file is also flagged would silence that flag in
+ * the same click — the group label would say one thing and the gate would do another. So the group
+ * scope is enforced by {@link #batchableActions} and the per-file scope by
+ * {@link #requireExclusionIsSingleRule}; the panel shows those files as not batch-excludable with
+ * the reason, and they stay excludable one at a time where the findings are.
  *
  * <p>Every batch is one {@link Database#transaction}: a partially applied batch would be a
  * half-made judgement, and there would be a state in which some assets carry a decision the person's
@@ -103,8 +113,13 @@ public final class BatchDecisionService {
      *
      * <p>Guards run in this order, and every one of them is a 400 except the last: the type
      * allow-list, the size floor and cap, a non-blank rationale, the server-side re-derivation of
-     * the group (a request can never smuggle an asset into a group by labelling it), and then the
+     * the group (a request can never smuggle an asset into a group by labelling it), the
+     * single-rule check on {@code EXCLUDED} ({@link #requireExclusionIsSingleRule}), and then the
      * per-asset drift check, which rejects the <em>whole</em> batch with a 409 and writes nothing.
+     *
+     * <p>The last two run inside the transaction because both need the group as the server derives
+     * it, not as the client described it. They still write nothing on failure: both throw before the
+     * first insert, and the transaction rolls back regardless.
      */
     public DecisionBatchResult recordDecisions(long projectId, String scanRunId, ReleaseGate.Code code,
                                                DecisionType type, String rationale,
@@ -118,6 +133,7 @@ public final class BatchDecisionService {
             Map<Long, ReviewGroupAsset> group = groupAssets(projectId, scanRunId, code);
             List<ReviewGroupAsset> targets = resolveTargets(group,
                     entries.stream().map(DecisionBatchEntry::scanAssetId).toList());
+            if (type == DecisionType.EXCLUDED) requireExclusionIsSingleRule(code, targets);
             List<Long> drifted = new ArrayList<>();
             for (DecisionBatchEntry entry : entries) {
                 ReviewGroupAsset asset = group.get(entry.scanAssetId());
@@ -227,8 +243,17 @@ public final class BatchDecisionService {
         Map<Long, SourceEvidenceRecord> latestEvidence = scans.latestEvidenceForRun(runId);
 
         Map<ReleaseGate.Code, List<ReleaseGate.Violation>> byCode = new EnumMap<>(ReleaseGate.Code.class);
+        // Every rule each asset is standing under, in one pass. One file legitimately standing in
+        // several groups is the normal case (missing source record AND flagged), and it is exactly
+        // the case an asset-level EXCLUDED would quietly settle all of at once.
+        Map<Long, LinkedHashSet<String>> codesByAsset = new LinkedHashMap<>();
         for (ReleaseGate.Violation violation : preview.report().violations()) {
             byCode.computeIfAbsent(violation.code(), key -> new ArrayList<>()).add(violation);
+            Long assetId = assetIdsByPath.get(violation.path());
+            if (assetId != null) {
+                codesByAsset.computeIfAbsent(assetId, key -> new LinkedHashSet<>())
+                        .add(violation.code().name());
+            }
         }
 
         List<ReviewGroup> groups = new ArrayList<>();
@@ -248,11 +273,13 @@ public final class BatchDecisionService {
                 if (asset == null) continue;
                 DecisionRecord decision = latestDecisions.get(assetId);
                 SourceEvidenceRecord evidence = latestEvidence.get(assetId);
+                List<String> alsoStanding = codesByAsset.getOrDefault(assetId, new LinkedHashSet<>())
+                        .stream().filter(standing -> !standing.equals(code.name())).toList();
                 assets.add(new ReviewGroupAsset(asset.id(), asset.relativePath(), asset.fileName(),
                         asset.fileType(), asset.sha256(), asset.verification().name(),
                         decision == null ? "PENDING" : decision.type().name(), violation.message(),
                         decision == null ? null : decision.id(),
-                        evidence == null ? null : evidence.id()));
+                        evidence == null ? null : evidence.id(), alsoStanding));
             }
             if (assets.isEmpty()) continue;
             assets.sort(Comparator.comparingLong(ReviewGroupAsset::scanAssetId));
@@ -296,6 +323,37 @@ public final class BatchDecisionService {
             targets.add(asset);
         }
         return targets;
+    }
+
+    /**
+     * Refuses a batch exclusion of any file that is also standing under another rule.
+     *
+     * <p>This is the guard the whole "EXCLUDED is only batchable on UNRESOLVED_SOURCE" scope rests
+     * on, and without it that scope is decoration. {@code ReleaseGate.evaluate} skips an
+     * {@code EXCLUDED} asset at {@code ReleaseGate.java:44} — <em>before</em> the flagged check at
+     * {@code :52-58} and the ownership check at {@code :69-81}. Exclusion is therefore asset-level,
+     * not per-violation: batch-excluding a file to settle its missing source record would silence
+     * its similarity flag in the same click, which is precisely the one-click flag-silencing this
+     * panel exists not to offer.
+     *
+     * <p>Such a file can still be excluded — on its own page, with its findings, its hash and its
+     * decision history on screen. That individual attention is the guarantee, so the refusal points
+     * there rather than simply saying no.
+     *
+     * <p>Loosenable later, but only deliberately: allowing it would need confirm copy that states
+     * what else the exclusion settles, per file, and an owner decision to accept that trade.
+     */
+    private static void requireExclusionIsSingleRule(ReleaseGate.Code code, List<ReviewGroupAsset> targets) {
+        List<ReviewGroupAsset> alsoStanding = targets.stream()
+                .filter(asset -> !asset.alsoStandingCodes().isEmpty())
+                .toList();
+        if (alsoStanding.isEmpty()) return;
+        ReviewGroupAsset first = alsoStanding.getFirst();
+        throw new IllegalArgumentException("Excluding a file skips every other check the gate makes on"
+                + " it, so a batch exclusion is only offered for files standing under " + code.name()
+                + " alone. " + (alsoStanding.size() == 1 ? "One file here" : alsoStanding.size() + " files here")
+                + " also stand under " + String.join(", ", first.alsoStandingCodes())
+                + " — exclude those one at a time, where the findings are.");
     }
 
     private static void requireBatchableDecision(ReleaseGate.Code code, DecisionType type) {

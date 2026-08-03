@@ -183,4 +183,36 @@ describe('LocalEvidenceView decision flow', () => {
     const entries = within(history).getAllByRole('listitem');
     expect(entries[1].textContent).not.toMatch(/part of a/i);
   });
+
+  /**
+   * The history renders oldest-first, so its first row is the one a reader is most likely to mistake
+   * for the standing decision. It has to carry its own date, and an entry a later record replaced
+   * has to say so — position is not a fact a ledger surface may rely on.
+   */
+  it('dates every history entry and marks the ones a later decision replaced', async () => {
+    const superseding: LocalDecision = {
+      id: 'dec-2', scanAssetId: asset.id, type: 'APPROVED',
+      reason: 'Checked the archive licence and approved it.',
+      supersedesDecisionId: priorDecision.id, createdAt: '2026-08-02T14:05:00Z',
+    };
+    const client = makeMockClient({
+      getAsset: vi.fn().mockResolvedValue({ ...detailWithPriorDecision, latestDecision: superseding }),
+      getDecisionHistory: vi.fn().mockResolvedValue({ items: [priorDecision, superseding] }),
+    });
+    render(<LocalEvidenceView client={client} project={project} />);
+
+    const history = (await screen.findByText('Decision history')).closest('section') as HTMLElement;
+    const entries = within(history).getAllByRole('listitem');
+
+    // Oldest first, and the panel says so rather than leaving the order to be inferred.
+    expect(within(history).getByText(/oldest first/i)).toBeTruthy();
+    expect(entries[0].textContent).toContain('2026-01-01 00:00');
+    expect(entries[0].textContent).toMatch(/superseded by a later decision/i);
+    expect(entries[0].getAttribute('data-superseded')).toBe('true');
+
+    // The standing one is dated too, and carries no superseded mark.
+    expect(entries[1].textContent).toContain('2026-08-02 14:05');
+    expect(entries[1].textContent).not.toMatch(/superseded/i);
+    expect(entries[1].getAttribute('data-superseded')).toBeNull();
+  });
 });

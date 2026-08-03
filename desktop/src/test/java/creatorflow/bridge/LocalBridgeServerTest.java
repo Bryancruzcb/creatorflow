@@ -1119,10 +1119,71 @@ class LocalBridgeServerTest {
         assertTrue(json.readTree(refused.body()).get("error").asText().contains("cannot be batched"),
                 refused.body());
 
-        // The same action, on the group where it is an honest scope claim, is accepted.
+        // The same action, on the group where it is an honest scope claim, is accepted — for the
+        // files standing under that rule alone. seedGroupRun flags the LAST two, so 0 and 1 are not.
         HttpResponse<String> accepted = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "EXCLUDED",
                 "WIP concepts under art/ — not shipping in 2.4.", seeded.assetIds().subList(0, 2), null);
         assertEquals(201, accepted.statusCode(), accepted.body());
+    }
+
+    /**
+     * The guarantee the group scope actually rests on, and the one this feature got wrong first.
+     *
+     * <p>{@code ReleaseGate.evaluate} skips an {@code EXCLUDED} asset at {@code ReleaseGate.java:44},
+     * <em>before</em> the flagged check and before the ownership check — so exclusion settles an
+     * asset, not a violation. Batch-excluding a file from the unresolved-source group to settle its
+     * missing source record would therefore silence its similarity flag in the same click, and the
+     * group label would be saying one thing while the gate did another. Refusing per file is what
+     * makes "excluding is only offered where the standing problem is a missing source record" a
+     * mechanism rather than a claim.
+     */
+    @Test
+    void aFileStandingUnderTwoRulesCannotBeBatchExcludedFromEitherOfThem() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        // Two SIMILAR files with no source record: each stands under UNRESOLVED_SOURCE *and*
+        // FLAGGED_WITHOUT_APPROVAL, which is the ordinary shape of a re-scanned variant.
+        SeededRun seeded = seedGroupRun(2, 2);
+        JsonNode groups = json.readTree(reviewGroups(seeded.runId()).body()).get("groups");
+        List<Long> both = groupAssetIds(groups, "UNRESOLVED_SOURCE");
+        assertEquals(2, both.size(), groups.toString());
+
+        // The group says so out loud, per row, so the panel can withhold the control with a reason.
+        for (JsonNode group : groups) {
+            if (!group.get("code").asText().equals("UNRESOLVED_SOURCE")) continue;
+            for (JsonNode asset : group.get("assets")) {
+                assertEquals(1, asset.get("alsoStandingCodes").size(), asset.toString());
+                assertEquals("FLAGGED_WITHOUT_APPROVAL", asset.get("alsoStandingCodes").get(0).asText());
+            }
+        }
+
+        int flaggedBefore = gateSummary(seeded.projectId()).get("flaggedWithoutApproval").asInt();
+        assertEquals(2, flaggedBefore);
+
+        HttpResponse<String> refused = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "EXCLUDED",
+                "Clearing out the re-scan pile.", both, null);
+        assertEquals(400, refused.statusCode(), refused.body());
+        assertTrue(json.readTree(refused.body()).get("error").asText()
+                .contains("skips every other check"), refused.body());
+
+        // Nothing written, and — the part that matters — the similarity flags are still standing.
+        assertEquals(0, decisionCount(both));
+        assertTrue(decisionBatches.forRun(seeded.runId()).isEmpty());
+        assertEquals(flaggedBefore, gateSummary(seeded.projectId()).get("flaggedWithoutApproval").asInt(),
+                "a refused batch exclusion must not have silenced a flag");
+
+        // Needs-review over exactly the same files is still offered: it clears nothing at the gate,
+        // so it cannot silence anything, and labelling the queue is the honest bulk action here.
+        HttpResponse<String> triaged = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "NEEDS_REVIEW",
+                "Scheduling a review of the re-scan pile with Marco.", both, null);
+        assertEquals(201, triaged.statusCode(), triaged.body());
+        assertEquals(2, gateSummary(seeded.projectId()).get("flaggedWithoutApproval").asInt(),
+                "needs review must clear nothing at the gate");
+    }
+
+    /** The live gate summary, read without persisting a release. */
+    private JsonNode gateSummary(long projectId) throws Exception {
+        return new ObjectMapper().readTree(
+                get("/api/v1/projects/" + projectId + "/gate-preview", cookie).body()).get("summary");
     }
 
     /**

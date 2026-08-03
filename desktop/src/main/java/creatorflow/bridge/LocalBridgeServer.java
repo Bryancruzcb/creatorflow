@@ -43,6 +43,10 @@ import creatorflow.workflow.ReleaseExportService;
 import creatorflow.workflow.ReleaseRecord;
 import creatorflow.workflow.ReleaseSummary;
 import creatorflow.workflow.ScanAsset;
+// Caught rather than IllegalStateException on every route that answers 409 for a run that is not a
+// completed immutable scan: Database.transaction wraps any SQLException into an
+// IllegalStateException, so the broader catch reported disk and busy failures as state conflicts.
+import creatorflow.workflow.ScanNotReleasableException;
 import creatorflow.workflow.ScanRun;
 import creatorflow.workflow.SourceEvidenceRecord;
 import creatorflow.workflow.WorkspaceState;
@@ -645,7 +649,7 @@ public final class LocalBridgeServer implements AutoCloseable {
             scans.findById(runId).orElseThrow(() -> new HttpError(404, "Scan run not found"));
             try {
                 sendJson(exchange, 200, gatePreviewView(releaseExports.preview(projectId, runId)));
-            } catch (IllegalStateException conflict) {
+            } catch (ScanNotReleasableException conflict) {
                 throw new HttpError(409, safeMessage(conflict));
             }
             return;
@@ -671,7 +675,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                 try {
                     sendJson(exchange, 201, releaseBundleView(
                             releaseExports.create(projectId, runId, releaseName)));
-                } catch (IllegalStateException conflict) {
+                } catch (ScanNotReleasableException conflict) {
                     throw new HttpError(409, safeMessage(conflict));
                 }
             }
@@ -703,7 +707,7 @@ public final class LocalBridgeServer implements AutoCloseable {
             try {
                 sendJson(exchange, 200, reviewGroupsView(
                         batchDecisions.reviewGroups(run.projectId(), run.id())));
-            } catch (IllegalStateException conflict) {
+            } catch (ScanNotReleasableException conflict) {
                 throw new HttpError(409, safeMessage(conflict));
             }
             return;
@@ -728,7 +732,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                         run.projectId(), run.id(), code, type, rationale, entries)));
             } catch (BatchDecisionService.BatchDriftException drift) {
                 sendJson(exchange, 409, driftView(drift));
-            } catch (IllegalStateException conflict) {
+            } catch (ScanNotReleasableException conflict) {
                 throw new HttpError(409, safeMessage(conflict));
             }
             return;
@@ -754,7 +758,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                         rationale, entries)));
             } catch (BatchDecisionService.BatchDriftException drift) {
                 sendJson(exchange, 409, driftView(drift));
-            } catch (IllegalStateException conflict) {
+            } catch (ScanNotReleasableException conflict) {
                 throw new HttpError(409, safeMessage(conflict));
             }
             return;
@@ -1232,7 +1236,9 @@ public final class LocalBridgeServer implements AutoCloseable {
      *
      * <p>Each asset carries {@code latestDecisionId} and {@code latestSourceEvidenceId}. They are not
      * decoration: a batch request echoes them back, and the server rejects the whole batch if
-     * anything moved meanwhile.
+     * anything moved meanwhile. It also carries {@code alsoStandingCodes}, the other rules the same
+     * file is standing under, because excluding is asset-level at the gate — a file standing
+     * elsewhere cannot be batch-excluded, and the panel has to be able to say why.
      */
     private static Map<String, Object> reviewGroupsView(ReviewGroups groups) {
         List<Map<String, Object>> rendered = groups.groups().stream()
@@ -1253,6 +1259,10 @@ public final class LocalBridgeServer implements AutoCloseable {
                         row.put("message", asset.message());
                         row.put("latestDecisionId", asset.latestDecisionId());
                         row.put("latestSourceEvidenceId", asset.latestSourceEvidenceId());
+                        // The other rules this same file is standing under. The panel needs them to
+                        // show why a file cannot be batch-excluded; the refusal itself is enforced
+                        // server-side regardless of what the panel renders.
+                        row.put("alsoStandingCodes", asset.alsoStandingCodes());
                         return row;
                     }).toList());
                     return view;

@@ -35,6 +35,7 @@ function asset(index: number, overrides: Partial<LocalReviewGroupAsset> = {}): L
     message: 'Source and license evidence must be resolved or the asset excluded',
     latestDecisionId: null,
     latestSourceEvidenceId: index * 10,
+    alsoStandingCodes: [],
     ...overrides,
   };
 }
@@ -163,6 +164,81 @@ describe('BatchReviewPanel', () => {
     await waitFor(() => expect(onLedgerChanged).toHaveBeenCalled());
   });
 
+  /**
+   * The panel's half of the guarantee the bridge enforces: a file standing under two rules cannot be
+   * batch-excluded, because at the gate an exclusion skips every check on that asset. The refusal is
+   * server-side regardless; this is about never letting a person compose a batch that silently means
+   * more than it says.
+   */
+  it('withholds batch exclusion from a file standing under another rule, with the reason on the row', async () => {
+    const alsoFlagged = {
+      ...unresolvedGroup,
+      assets: [
+        asset(1),
+        asset(2, { verification: 'SIMILAR', alsoStandingCodes: ['FLAGGED_WITHOUT_APPROVAL'] }),
+        asset(3),
+      ],
+    };
+    render(<BatchReviewPanel client={makeClient({}, [alsoFlagged])} scanRunId="run-abc" />);
+    await openGroup('Unresolved source');
+
+    // The fact is on the row before any action is chosen — it is true either way.
+    expect(screen.getByText(/also stands under flagged, needs a call/i)).toBeTruthy();
+
+    // Selected under needs review, which clears nothing at the gate and so silences nothing…
+    await userEvent.click(screen.getByRole('radio', { name: 'Mark needs review' }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /asset-2\.png/i }));
+    await userEvent.click(screen.getByRole('checkbox', { name: /asset-1\.png/i }));
+    expect((screen.getByRole('checkbox', { name: /asset-2\.png/i }) as HTMLInputElement).checked).toBe(true);
+
+    // …and dropped, disabled and explained the moment the action becomes an exclusion.
+    await userEvent.click(screen.getByRole('radio', { name: 'Exclude from release' }));
+    const blocked = screen.getByRole('checkbox', { name: /asset-2\.png/i }) as HTMLInputElement;
+    expect(blocked.disabled).toBe(true);
+    expect(blocked.checked).toBe(false);
+    expect(screen.getByText(/exclude this one individually, where the findings are/i)).toBeTruthy();
+    expect(screen.getByText(/1 selected/)).toBeTruthy();
+
+    // "Select all shown" does not put it back, either.
+    await userEvent.click(screen.getByRole('button', { name: /select all 3 shown/i }));
+    expect((screen.getByRole('checkbox', { name: /asset-2\.png/i }) as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByText(/2 selected/)).toBeTruthy();
+  });
+
+  it('clears the selection when the narrowing changes, and names every file in the confirm step', async () => {
+    const twoFolders = {
+      ...unresolvedGroup,
+      assets: [
+        asset(1, { relativePath: 'art/a/one.png', fileName: 'one.png' }),
+        asset(2, { relativePath: 'art/a/two.png', fileName: 'two.png' }),
+        asset(3, { relativePath: 'art/b/three.png', fileName: 'three.png' }),
+        asset(4, { relativePath: 'art/b/four.png', fileName: 'four.png' }),
+      ],
+    };
+    render(<BatchReviewPanel client={makeClient({}, [twoFolders])} scanRunId="run-abc" />);
+    await openGroup('Unresolved source');
+
+    await userEvent.selectOptions(screen.getByLabelText('Folder'), 'art/a/');
+    await userEvent.click(screen.getByRole('button', { name: /select all 2 shown/i }));
+    expect(screen.getByText(/2 selected/)).toBeTruthy();
+
+    // Switching folders must not leave the first folder's two files invisibly in the batch.
+    await userEvent.selectOptions(screen.getByLabelText('Folder'), 'art/b/');
+    expect(screen.getByText(/0 selected/)).toBeTruthy();
+
+    await userEvent.click(screen.getByRole('button', { name: /select all 2 shown/i }));
+    await userEvent.click(screen.getByRole('radio', { name: 'Mark needs review' }));
+    await userEvent.type(screen.getByLabelText(/why do these files belong together/i), 'Same kit.');
+    await userEvent.click(screen.getByRole('button', { name: /review what this writes/i }));
+
+    // The confirm step names the files, so "confirm what you are about to write" means the paths.
+    expect(screen.getByText(/writes 1 batch record and 2 decision rows/i)).toBeTruthy();
+    const listed = document.querySelector('.local-batch-confirm-files')!.textContent!;
+    expect(listed).toContain('art/b/three.png');
+    expect(listed).toContain('art/b/four.png');
+    expect(listed).not.toContain('art/a/one.png');
+  });
+
   it('offers exclusion only where the gate says a source record is missing', async () => {
     render(<BatchReviewPanel client={makeClient({}, [unresolvedGroup, flaggedGroup])} scanRunId="run-abc" />);
 
@@ -218,6 +294,21 @@ describe('BatchReviewPanel', () => {
     expect(screen.queryByRole('radio')).toBeNull();
   });
 
+  /**
+   * The other branch of the load failure: not "there is nothing to review here" (409, which is a
+   * state with no controls) but a read that failed. It has to say the read failed rather than
+   * rendering an empty panel that reads as "nothing is standing".
+   */
+  it('reports a failed read as a failure, not as an empty gate', async () => {
+    const listReviewGroups = vi.fn().mockRejectedValue(new LocalBridgeError('Local bridge request failed (500)', 500));
+    render(<BatchReviewPanel client={makeClient({ listReviewGroups })} scanRunId="run-abc" />);
+
+    const alert = await screen.findByRole('alert');
+    expect(alert.textContent).toMatch(/local bridge request failed \(500\)/i);
+    expect(screen.queryByText('No outstanding group work on this scan.')).toBeNull();
+    expect(screen.queryByRole('checkbox')).toBeNull();
+  });
+
   it('says so plainly when the gate found no group work', async () => {
     render(<BatchReviewPanel client={makeClient({}, [])} scanRunId="run-abc" />);
     expect(await screen.findByText('No outstanding group work on this scan.')).toBeTruthy();
@@ -255,10 +346,14 @@ describe('BatchReviewPanel pure helpers', () => {
     expect(reviewGroupLabel('A_RULE_THIS_BUILD_HAS_NEVER_HEARD_OF')).toBe('A_RULE_THIS_BUILD_HAS_NEVER_HEARD_OF');
   });
 
-  it('promises rows, and never claims an exclusion cleared a finding', () => {
+  it('promises rows, and describes what an exclusion actually does at the gate', () => {
     const excluded = batchConfirmationCopy('EXCLUDED', 12).join(' ');
     expect(excluded).toContain('12 decision rows');
-    expect(excluded).toContain('does not clear the similarity finding');
+    // The claim that took a review to get right: an exclusion skips EVERY check on the asset, so
+    // the copy must not promise that a flag survives it. It explains the scope instead.
+    expect(excluded).toContain('skips every other check on that file');
+    expect(excluded).toContain('standing under this rule alone');
+    expect(excluded).not.toMatch(/does not clear the similarity finding/i);
     expect(excluded).not.toMatch(/resolved/i);
 
     const declared = batchConfirmationCopy('SOURCE_EVIDENCE', 12).join(' ');

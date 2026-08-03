@@ -4,6 +4,8 @@ import {
   batchMarkerLabel,
   describeOwnershipOutcome,
   formatCheckedAt,
+  formatDecisionTimestamp,
+  supersededDecisionIds,
   formatRetryAfter,
   gateProgressLabel,
   gateResolutionQueue,
@@ -488,5 +490,35 @@ describe('batchMarkerLabel', () => {
     const label = batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', 30);
     expect(label).not.toMatch(/reviewed/i);
     expect(label).not.toMatch(/resolved/i);
+  });
+});
+
+describe('decision history rendering helpers', () => {
+  const first: LocalDecision = {
+    id: 'dec-1', scanAssetId: 1, type: 'NEEDS_REVIEW', reason: 'Chasing the licence',
+    supersedesDecisionId: null, createdAt: '2026-01-01T00:00:00Z',
+  };
+  const second: LocalDecision = {
+    id: 'dec-2', scanAssetId: 1, type: 'APPROVED', reason: 'Licence confirmed',
+    supersedesDecisionId: 'dec-1', createdAt: '2026-08-02T14:05:00Z',
+  };
+
+  it('reads superseding from the record rather than from position in the list', () => {
+    // The list renders oldest-first, so "the first row is old news" is true here and false on a
+    // history whose earlier decision was never replaced. Only the later row's own
+    // supersedesDecisionId settles it.
+    expect(supersededDecisionIds([first, second])).toEqual(new Set(['dec-1']));
+    expect(supersededDecisionIds([first])).toEqual(new Set());
+    expect(supersededDecisionIds([])).toEqual(new Set());
+  });
+
+  it('stamps a decision in a fixed shape rather than the reader’s locale', () => {
+    expect(formatDecisionTimestamp('2026-08-02T14:05:00Z')).toBe('2026-08-02 14:05');
+    expect(formatDecisionTimestamp('2026-08-02T14:05:09.123456Z')).toBe('2026-08-02 14:05');
+  });
+
+  it('reports an unreadable timestamp as unknown rather than as an invalid date', () => {
+    expect(formatDecisionTimestamp('not a time')).toBe('time not recorded');
+    expect(formatDecisionTimestamp('')).toBe('time not recorded');
   });
 });
