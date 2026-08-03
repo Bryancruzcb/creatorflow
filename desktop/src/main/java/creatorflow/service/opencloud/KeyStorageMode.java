@@ -3,7 +3,8 @@ package creatorflow.service.opencloud;
 import java.util.Optional;
 
 /**
- * How an Open Cloud API key is protected where it is stored on disk.
+ * How an API key is protected where it is stored on disk — the Open Cloud key, and since Phase E
+ * the team provenance store's key too.
  *
  * <p>The mode is persisted alongside the key so a reload knows how to decode it, and it is
  * surfaced in the Settings UI so the user is told the truth about their key's protection —
@@ -44,7 +45,7 @@ public enum KeyStorageMode {
      * mode means the value cannot be decoded at all; the caller must degrade to "not configured"
      * (see {@link OpenCloudSettings}) rather than invent a key.
      */
-    static Optional<KeyStorageMode> fromId(String id) {
+    public static Optional<KeyStorageMode> fromId(String id) {
         for (KeyStorageMode mode : values()) {
             if (mode.name().equals(id)) {
                 return Optional.of(mode);

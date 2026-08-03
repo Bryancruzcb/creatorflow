@@ -22,6 +22,9 @@ import creatorflow.manifest.ReleaseGate;
 import creatorflow.manifest.ScanOptions;
 import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.opencloud.RateLimitedException;
+import creatorflow.service.team.TeamClient;
+import creatorflow.service.team.TeamSettings;
+import creatorflow.service.team.TeamStatus;
 import creatorflow.motion.MotionComparisonEngine;
 import creatorflow.motion.MotionComparisonEngineV2;
 import creatorflow.motion.MotionComparisonRequest;
@@ -152,6 +155,8 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern RELEASE_PUBLISHED_VERSION = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)/published-version$");
     private static final Pattern RELEASE = Pattern.compile("^/api/v1/releases/([a-f0-9-]+)$");
     private static final Pattern MOTION_COMPARISON = Pattern.compile("^/api/v1/motion-comparisons/([a-f0-9-]+)$");
+    private static final Pattern TEAM_CLAIM_RETRACT =
+            Pattern.compile("^/api/v1/team/provenance-claims/(\\d+)/retract$");
     private static final SecureRandom RANDOM = new SecureRandom();
 
     private final ProjectPicker picker;
@@ -166,6 +171,8 @@ public final class LocalBridgeServer implements AutoCloseable {
     private final ReleaseExportService releaseExports;
     private final BatchDecisionService batchDecisions;
     private final OpenCloudSettings openCloudSettings;
+    private final TeamSettings teamSettings;
+    private final TeamClient team;
     private final OwnershipVerification ownershipVerifier;
     private final OwnershipVerificationRepository ownershipVerifications;
     private final ScanCoordinator coordinator;
@@ -191,6 +198,8 @@ public final class LocalBridgeServer implements AutoCloseable {
                              ReleaseExportService releaseExports,
                              BatchDecisionService batchDecisions,
                              OpenCloudSettings openCloudSettings,
+                             TeamSettings teamSettings,
+                             TeamClient team,
                              OwnershipVerification ownershipVerifier,
                              OwnershipVerificationRepository ownershipVerifications,
                              ScanCoordinator coordinator,
@@ -207,6 +216,8 @@ public final class LocalBridgeServer implements AutoCloseable {
         this.releaseExports = java.util.Objects.requireNonNull(releaseExports, "releaseExports");
         this.batchDecisions = java.util.Objects.requireNonNull(batchDecisions, "batchDecisions");
         this.openCloudSettings = java.util.Objects.requireNonNull(openCloudSettings, "openCloudSettings");
+        this.teamSettings = java.util.Objects.requireNonNull(teamSettings, "teamSettings");
+        this.team = java.util.Objects.requireNonNull(team, "team");
         this.ownershipVerifier = java.util.Objects.requireNonNull(ownershipVerifier, "ownershipVerifier");
         this.ownershipVerifications =
                 java.util.Objects.requireNonNull(ownershipVerifications, "ownershipVerifications");
@@ -426,6 +437,24 @@ public final class LocalBridgeServer implements AutoCloseable {
                     "csrfToken", csrfToken.get(),
                     "origin", origin.toString(),
                     "openCloudKeyConfigured", openCloudSettings.isConfigured()));
+            return;
+        }
+        if ("/api/v1/team".equals(path)) {
+            requireMethod(exchange, "GET");
+            teamStatus(exchange);
+            return;
+        }
+        if ("/api/v1/team/provenance-lookup".equals(path)) {
+            teamLookup(exchange);
+            return;
+        }
+        if ("/api/v1/team/provenance-claims".equals(path)) {
+            teamShare(exchange);
+            return;
+        }
+        Matcher retract = TEAM_CLAIM_RETRACT.matcher(path);
+        if (retract.matches()) {
+            teamRetract(exchange, Long.parseLong(retract.group(1)));
             return;
         }
         if ("/api/v1/projects".equals(path)) {
@@ -880,6 +909,167 @@ public final class LocalBridgeServer implements AutoCloseable {
             return;
         }
         throw new HttpError(404, "API endpoint not found");
+    }
+
+    /**
+     * What this machine is connected to, and — live — how many people are in that team.
+     *
+     * <p>{@code keyStorageMode} is a label, and {@code configured} is a BOOLEAN ONLY: the team
+     * store's API key never crosses this bridge, not masked, not prefixed, not length-hinted. That
+     * is the {@code openCloudKeyConfigured} precedent, applied to the second secret this app holds.
+     *
+     * <p>{@code memberCount} is fetched live and is null whenever {@code status} is not
+     * {@code OK} — there is no cached copy of it, because Phase E caches nothing about a team.
+     */
+    private void teamStatus(HttpExchange exchange) throws IOException {
+        TeamClient.TeamDescription description = team.describe();
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("configured", teamSettings.isConfigured());
+        view.put("baseUrl", teamSettings.baseUrl());
+        view.put("teamId", teamSettings.teamId());
+        view.put("teamName", teamSettings.teamName().isBlank() ? null : teamSettings.teamName());
+        view.put("memberCount", description.memberCount());
+        view.put("keyStorageMode", teamSettings.storageMode().name());
+        view.put("status", description.status().name());
+        view.put("message", description.message());
+        sendJson(exchange, 200, view);
+    }
+
+    /**
+     * The team lookup: one fingerprint, one team, every non-retracted claim for it.
+     *
+     * <p><strong>This route always answers 200, including when the store could not be reached.</strong>
+     * That is the whole design, not laziness about error codes: "we asked and nobody has it" and
+     * "we could not ask" are different facts, and an HTTP error carrying no body would leave the
+     * UI free to render the second as the first. So the answer is always
+     * {@code {status, claims}} and {@code claims} is meaningful only when {@code status} is
+     * {@code OK}.
+     *
+     * <p>{@code algorithmVersion} is accepted and echoed back, never sent upstream and never used
+     * to filter. It is the version of the fingerprint being looked up, so the UI can classify each
+     * returned row against it — same version is a match, a different recognized one is "not
+     * comparable", an unrecognized one is an unknown format. Doing that classification here, or on
+     * the server, would mean dropping rows a person needed to see.
+     */
+    private void teamLookup(HttpExchange exchange) throws IOException {
+        requireMutation(exchange);
+        JsonNode body = readJson(exchange);
+        // Normalized once, here, so the seam below is always "lowercase 64-hex" and the echoed
+        // value is the same string that was actually looked up. The client validates it again —
+        // it is a public entry point in its own right — but it never sees a mixed-case one.
+        String fingerprint = requiredText(body, "fingerprint").toLowerCase(java.util.Locale.ROOT);
+        String algorithmVersion = optionalText(body, "algorithmVersion");
+        TeamClient.LookupResult result = team.lookup(fingerprint);
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("status", result.status().name());
+        view.put("fingerprint", fingerprint);
+        view.put("algorithmVersion", algorithmVersion);
+        view.put("claims", result.claims().stream().map(LocalBridgeServer::claimView).toList());
+        view.put("message", result.message());
+        sendJson(exchange, 200, view);
+    }
+
+    /**
+     * Shares one local snapshot's fingerprint with the team.
+     *
+     * <p><strong>The fingerprint, algorithm version, clip name and duration are read from the local
+     * {@code motion_snapshots} row, never from the request.</strong> The browser supplies a
+     * snapshot id and the optional DECLARED text a person typed, and nothing else — so the
+     * frontend cannot publish a fingerprint the desktop did not compute, however the request is
+     * crafted. {@code observedAt} is the snapshot's own capture time: the honest answer to "when
+     * did you observe this", and DECLARED because it comes from this machine's clock.
+     */
+    private void teamShare(HttpExchange exchange) throws IOException {
+        requireMutation(exchange);
+        JsonNode body = readJson(exchange);
+        String snapshotId = requiredText(body, "snapshotId");
+        MotionSnapshotRecord snapshot = motionSnapshots.findById(snapshotId)
+                .orElseThrow(() -> new HttpError(404, "Animation snapshot not found"));
+
+        TeamClient.ShareResult result = team.share(new TeamClient.ShareRequest(
+                snapshot.fingerprint(),
+                snapshot.algorithmVersion(),
+                snapshot.name(),
+                snapshot.duration(),
+                nullableLong(body, "robloxAssetId"),
+                optionalText(body, "ownershipContext"),
+                optionalText(body, "declaredSource"),
+                optionalText(body, "declaredLicense"),
+                optionalText(body, "declaredNote"),
+                snapshot.createdAt()));
+
+        if (result.status() != TeamStatus.OK) {
+            throw teamFailure(result.status(), result.message());
+        }
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("status", result.status().name());
+        view.put("claim", claimView(result.claim()));
+        view.put("alreadyShared", result.alreadyShared());
+        view.put("declarationsDiffer", result.declarationsDiffer());
+        sendJson(exchange, result.alreadyShared() ? 200 : 201, view);
+    }
+
+    /** The kill switch. Removes a claim from future lookups; it cannot recall a copy already read. */
+    private void teamRetract(HttpExchange exchange, long claimId) throws IOException {
+        requireMutation(exchange);
+        JsonNode body = readJson(exchange);
+        String reason = requiredText(body, "reason");
+        TeamClient.RetractResult result = team.retract(claimId, reason);
+        if (result.status() != TeamStatus.OK) {
+            throw teamFailure(result.status(), result.message());
+        }
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("status", result.status().name());
+        view.put("claim", claimView(result.claim()));
+        sendJson(exchange, 200, view);
+    }
+
+    /**
+     * A failed write, mapped so the UI can tell a fixable refusal from an unreachable store.
+     *
+     * <p>Only the write paths reach here. The read path never fails the request at all — see
+     * {@link #teamLookup}.
+     */
+    private static HttpError teamFailure(TeamStatus status, String message) {
+        String text = message == null || message.isBlank()
+                ? "The team provenance store could not complete that." : message;
+        return switch (status) {
+            case NOT_CONFIGURED -> new HttpError(409, text);
+            case UNAUTHORIZED -> new HttpError(502, text);
+            case REJECTED -> new HttpError(400, text);
+            default -> new HttpError(503, text);
+        };
+    }
+
+    /**
+     * One claim as the workspace sees it.
+     *
+     * <p>Carries {@code algorithmVersion} verbatim so the UI classifies rather than assumes, and
+     * carries no verdict, score, distance or rank — there is none to carry. The VERIFIED facts
+     * (the fingerprint matched; when the server recorded it) and the DECLARED ones (everything a
+     * person typed) are separate fields precisely so the UI can keep them visibly apart.
+     */
+    private static Map<String, Object> claimView(TeamClient.ClaimRecord claim) {
+        if (claim == null) return null;
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", claim.id());
+        view.put("memberUsername", claim.memberUsername());
+        view.put("isYours", claim.isYours());
+        // The server's own author-or-OWNER answer, carried rather than re-derived here: the
+        // workspace has no idea what role this account holds, and guessing would either hide the
+        // kill switch from an owner or offer it where it will 403.
+        view.put("canRetract", claim.canRetract());
+        view.put("algorithmVersion", claim.algorithmVersion());
+        view.put("clipName", claim.clipName());
+        view.put("durationSeconds", claim.durationSeconds());
+        view.put("robloxAssetId", claim.robloxAssetId());
+        view.put("ownershipContext", claim.ownershipContext());
+        view.put("declaredSource", claim.declaredSource());
+        view.put("declaredLicense", claim.declaredLicense());
+        view.put("declaredNote", claim.declaredNote());
+        view.put("observedAt", claim.observedAt());
+        view.put("recordedAt", claim.recordedAt());
+        return view;
     }
 
     /**

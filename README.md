@@ -94,7 +94,7 @@ differences](docs/screenshots/preflight-evidence.png)
 | `core` | Verification/motion engine, project scanner, versioned manifest model, release-gate CLI | plain Java — no UI, DB or Spring deps |
 | `desktop` | **The preflight app**: local loopback bridge, SQLite store, plugin pairing, project picker | JavaFX 26, SQLite |
 | `frontend` | The release-preflight workspace UI (motion lab, snapshots, evidence, releases) | React 19 + Vite + TypeScript |
-| `server` | **Frozen legacy**: community gallery, accounts, uploads, registry API, disputes | Spring Boot 4.1, Thymeleaf, JPA/H2 |
+| `server` | **Optional, self-hosted**: the team provenance store — accounts, teams, join codes, fingerprint-keyed claims | Spring Boot 4.1, JPA/H2 |
 
 `core` has no UI, database, or Spring dependencies, so a fingerprint means exactly the same thing
 in the CLI as it does in the desktop app.
@@ -133,11 +133,13 @@ Full detail in [`docs/STRATEGIC-REDIRECT.md`](docs/STRATEGIC-REDIRECT.md) and th
 
 ## Legacy: the community gallery
 
-> **Frozen (2026-07-17).** Everything from here down describes the pre-redirect community-gallery
-> direction. The code is real, tested, and still builds (`server/` + the desktop "Community registry"
-> settings card), but it is **not** the current focus and receives no new work. It is kept green
-> as a candidate to later repurpose as a shared cross-team provenance registry. The release-preflight
-> workflow described at the top of this file does not use the Spring server at all.
+> **Deleted (2026-08-02). This section is history, written in the present tense of the time.**
+> Everything from here down describes the pre-redirect community-gallery direction, and **the code
+> for it no longer exists**: the uploads, gallery pages, version stacks, comments, disputes,
+> Thymeleaf templates and browser session login were removed when `server/` was repurposed as the
+> team provenance store. The desktop's "Community registry" settings card is gone with them.
+> Nothing below describes anything you can run today; it is kept because the reasoning is part of
+> how the project got here. What `server/` is now is in [`server/README.md`](server/README.md).
 
 - **Gallery** — a dark, media-first grid ("screening room") with search, image/audio filters and
   a *feedback wanted* view; version badges and flags are labeled right on the tile
@@ -157,8 +159,10 @@ Full detail in [`docs/STRATEGIC-REDIRECT.md`](docs/STRATEGIC-REDIRECT.md) and th
   upload time, download, and an ownership-dispute form
 - **Profiles & library** — every member has a public page; `/me` shows your uploads, disputes in
   both directions, and the API key that connects the desktop app
-- **One account, two doors** — browsers use session login (BCrypt + CSRF via Spring Security);
-  the desktop app and API clients use per-account `X-Api-Key` headers
+- **One account, two doors** — browsers used session login (BCrypt + CSRF via Spring Security);
+  the desktop app and API clients used per-account `X-Api-Key` headers. Only the second door
+  survives: the server is headless now, holds no browser session, and `UserAccount` no longer
+  carries a password hash at all
 - **Content-addressed storage** — files are stored by their SHA-256, so identical bytes exist
   once and the hash doubles as a perfect ETag (diff heatmaps are deterministic, so a SHA pair
   makes a strong ETag there too)
@@ -350,50 +354,61 @@ The command exits `0` when the release passes, `2` when policy blocks it, and `3
 | --- | --- | --- |
 | `POST /api/v1/accounts` | — | register a username, receive your API key |
 | `GET /api/v1/health` | — | liveness probe |
-| `POST /api/v1/verify` | `X-Api-Key` | fingerprints in → verdict + cross-account matches out |
-| `POST /api/v1/assets` | `X-Api-Key` | register fingerprints + ownership declaration + license |
-| `GET /api/v1/assets/mine` | `X-Api-Key` | your registered assets |
-| `POST /api/v1/assets/{id}/mappings` | `X-Api-Key` | record the Roblox id an asset was uploaded as in one ownership context (upsert per context) |
-| `GET /api/v1/assets/{id}/mappings` | `X-Api-Key` | the asset's Roblox ids per context, e.g. `group:12345 → 222` |
-| `POST /api/v1/disputes` | `X-Api-Key` | file an ownership claim against someone's asset |
-| `GET /api/v1/disputes/mine` | `X-Api-Key` | disputes you filed and disputes against your assets |
+| `POST /api/v1/teams` | `X-Api-Key` | create a team; you become its owner |
+| `GET /api/v1/teams` | `X-Api-Key` | the teams you are in |
+| `GET /api/v1/teams/{id}/members` | `X-Api-Key` | who is in a team, ordered by username |
+| `POST /api/v1/teams/{id}/join-codes` | `X-Api-Key` | owners only; returns a single-use 24h code, once |
+| `POST /api/v1/teams/join` | `X-Api-Key` | redeem a join code |
+| `DELETE /api/v1/teams/{id}/members/{accountId}` | `X-Api-Key` | owner removes anyone, or leave yourself — the last owner cannot (409) |
+| `POST /api/v1/teams/{id}/provenance-claims` | `X-Api-Key` | record that you have a curve with this fingerprint |
+| `GET /api/v1/teams/{id}/provenance-claims?fingerprint=` | `X-Api-Key` | who else in the team recorded that exact 64-hex fingerprint |
+| `POST …/provenance-claims/{claimId}/retract` | `X-Api-Key` | author or owner; removes it from future lookups |
 
-Server data lives in `~/.creatorflow-server` (H2 database + content-addressed files). Auth is
-per-account API keys for clients and session login for browsers; a hosted deployment would need
-JWT/OAuth with rotating credentials first.
+Legacy, **off by default** behind `creatorflow.legacy-registry.enabled=true`, kept only so the
+frozen Rojo plugin does not break silently: `POST /api/v1/verify`, `POST /api/v1/assets`,
+`GET /api/v1/assets/mine`, and the per-asset `mappings` routes.
+
+Server data lives in `~/.creatorflow-team` (H2). Auth is per-account API keys; there are no
+browser logins. Registration is open unless `creatorflow.signup.token` is set. A hosted deployment
+would need JWT/OAuth with rotating credentials first — see
+[`server/README.md`](server/README.md), which also says plainly not to expose this to the
+internet.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    subgraph server["server — the platform"]
-        WEB["Gallery web UI<br/>Thymeleaf · Spring Security"] --> GAL["GalleryService<br/>upload pipeline"]
-        API["REST API<br/>accounts · verify · assets · disputes"] --> REG["RegistryService<br/>cross-account matching"]
-        GAL --> REG
-        GAL --> FS["FileStore<br/>content-addressed by SHA-256"]
-        REG --> H2["H2: fingerprints · declarations · disputes"]
+    subgraph server["server — optional team provenance store"]
+        API["REST API<br/>accounts · teams · join codes · claims"] --> TEAM["TeamService<br/>append-only claim log"]
+        TEAM --> H2["H2: fingerprint = who recorded it<br/>no score · no verdict · no ranking"]
     end
-    subgraph desktop["desktop — companion"]
+    subgraph desktop["desktop — the preflight app"]
         UI["JavaFX pages"] --> SVC["AssetImporter"]
         SVC --> DB["SQLite library"]
-        SVC --> RC["HttpRegistryClient<br/>fingerprints only"]
+        BR["LocalBridgeServer<br/>127.0.0.1 only"] --> TC["HttpTeamClient<br/>fingerprints only, never cached"]
     end
     subgraph core
         ENG["OriginalityEngine<br/>Sha256 · ImageHashes · WavFingerprint · MetadataInspector"]
         MAN["ProjectScanner → CreativeManifest v0.1<br/>deterministic JSON · relative paths"]
     end
-    GAL --> ENG
     SVC --> ENG
+    BR --> ENG
     MAN --> ENG
-    RC -- HTTPS --> API
+    TC -- "HTTP, LAN only" --> API
 ```
 
-`core` has no UI, database or Spring dependencies — the platform and the desktop app share it as
-a plain library, so a fingerprint means exactly the same thing on both sides. The Java test suites
-across the three modules (`mvn verify`) cover: engine algorithms, persistence, importer + registry escalation, the
-REST API, the full web flow (signup → upload → duplicate blocked → similar flagged → files served
-under the no-script CSP), and the review layer (version lineage vs foreign similarity, stack-only compare,
-pinned comments, feedback filtering).
+Note the shape of that last edge: it is the **only** one leaving the machine, it starts in the
+desktop JVM, and it carries fingerprints and typed declarations — never curves, files or paths.
+The React workspace talks to `LocalBridgeServer` on 127.0.0.1 and to nothing else, and no team
+answer is ever written to the local database, so an unreachable store renders as *unknown* rather
+than as an out-of-date copy of somebody else's record.
+
+`core` has no UI, database or Spring dependencies — the server and the desktop app share it as a
+plain library, so a fingerprint means exactly the same thing on both sides. The Java test suites
+across the three modules (`mvn verify`) cover: engine algorithms, persistence, the local bridge and
+its contract fixtures, ownership verification, and the server's teams, join codes and provenance
+claims — including that a retracted claim leaves every future lookup, that re-sharing after a
+retract creates a new row, and that the lookup never filters by fingerprint version.
 
 ## Roadmap
 

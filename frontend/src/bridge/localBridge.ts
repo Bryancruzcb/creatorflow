@@ -446,6 +446,108 @@ export interface LocalOwnershipVerification {
   checkedAt: string;
 }
 
+/**
+ * What happened when the desktop tried to reach the team provenance store.
+ *
+ * <p>The distinction between `OK` and everything else is the single most important thing in this
+ * file. A lookup answers with a status *and* a claim list, and the list means something only when
+ * the status is `OK` — because "the team store says nobody else has this fingerprint" and "we
+ * could not ask it" are different facts, and rendering the second as the first is how a tool
+ * starts telling people their work is unique when it has no idea.
+ *
+ * Mirrors the desktop `TeamStatus`. `REJECTED` reaches only the share/retract paths.
+ */
+export type TeamStoreStatus = 'NOT_CONFIGURED' | 'UNREACHABLE' | 'UNAUTHORIZED' | 'REJECTED' | 'OK';
+
+/**
+ * What this machine is connected to. `configured` is a **boolean only** — the team store's API key
+ * never crosses the bridge, following the `openCloudKeyConfigured` precedent — and `memberCount` is
+ * fetched live, so it is `null` whenever `status` is not `OK`. Nothing about a team is cached.
+ */
+export interface LocalTeamStore {
+  configured: boolean;
+  baseUrl: string;
+  teamId: number | null;
+  teamName: string | null;
+  memberCount: number | null;
+  keyStorageMode: string;
+  status: TeamStoreStatus;
+  message: string | null;
+}
+
+/**
+ * One teammate's recorded observation that they have a curve with this exact fingerprint.
+ *
+ * Note what is absent, permanently: no verdict, score, distance or rank. A claim is not evidence
+ * that anyone copied anything — any member can record any fingerprint, which is precisely why a
+ * claim can only ever be an observation. `algorithmVersion` is carried verbatim so the UI can
+ * classify the row rather than assume it is comparable.
+ */
+export interface LocalProvenanceClaim {
+  id: number;
+  memberUsername: string;
+  isYours: boolean;
+  /**
+   * The server's own answer to "may this viewer retract this row" — author **or team owner**.
+   *
+   * Carried rather than derived from `isYours`, because this page has no idea what role the
+   * account holds, and the owner path is not optional: the last-owner-cannot-leave rule (409) is
+   * justified by an owner always existing to pull the kill switch on a wrong or harmful record.
+   * Gating the button on `isYours` alone would leave that remedy reachable only by hand-rolling
+   * an HTTP request.
+   */
+  canRetract: boolean;
+  algorithmVersion: string;
+  clipName: string;
+  durationSeconds: number;
+  robloxAssetId: number | null;
+  ownershipContext: string | null;
+  declaredSource: string | null;
+  declaredLicense: string | null;
+  declaredNote: string | null;
+  /** The sharer's own clock — DECLARED, display-only. Never an ordering key. */
+  observedAt: string | null;
+  /** The store's clock — the only one it trusts. */
+  recordedAt: string;
+}
+
+export interface LocalProvenanceLookup {
+  status: TeamStoreStatus;
+  fingerprint: string;
+  /** Echoed back, never used to filter: the UI classifies each row against it. */
+  algorithmVersion: string | null;
+  claims: LocalProvenanceClaim[];
+  message: string | null;
+}
+
+export interface LocalProvenanceShare {
+  status: TeamStoreStatus;
+  claim: LocalProvenanceClaim;
+  /** An identical live claim already existed, so nothing new was recorded. */
+  alreadyShared: boolean;
+  /**
+   * This request's declared fields differ from the stored claim's. The copy for it is
+   * "already shared — retract to change": an append-only row is never quietly overwritten, and a
+   * silent success would leave a person believing a correction landed when it did not.
+   */
+  declarationsDiffer: boolean;
+}
+
+/**
+ * What a share sends. **The fingerprint is not in here on purpose** — the desktop reads it, the
+ * algorithm version, the clip name and the duration from its own `motion_snapshots` row, so this
+ * page cannot publish a fingerprint the desktop did not compute. Everything below is DECLARED text
+ * a person typed.
+ */
+export interface ShareProvenanceRequest {
+  snapshotId: string;
+  robloxAssetId?: number | null;
+  ownershipContext?: string | null;
+  declaredSource?: string | null;
+  declaredLicense?: string | null;
+  declaredNote?: string | null;
+}
+
 export interface LocalAssetDetail {
   asset: LocalScanAsset;
   findings: LocalScanFinding[];
@@ -788,6 +890,58 @@ export class LocalBridgeClient {
     return this.request<LocalDecisionBatch>(
       `/api/v1/scan-runs/${encodeURIComponent(scanRunId)}/batch-source-evidence`,
       { method: 'POST', body: request },
+    );
+  }
+
+  /**
+   * Which team provenance store this desktop talks to, and — live — how many people are in it.
+   * Never the API key.
+   */
+  getTeamStore() {
+    return this.request<LocalTeamStore>('/api/v1/team');
+  }
+
+  /**
+   * Asks the team store who else recorded this exact curve fingerprint.
+   *
+   * **This never rejects for a store that could not be reached.** The bridge answers 200 carrying
+   * a `status`, so an unreachable store arrives as `{ status: 'UNREACHABLE', claims: [] }` and the
+   * caller is forced to look at the status before it can read the list. An HTTP error here would
+   * let a `catch` branch render "no claims" — the one thing this must never say when it does not
+   * know.
+   *
+   * `algorithmVersion` is the version of the fingerprint being looked up. It is echoed back so
+   * each returned row can be classified against it; it is never sent to the store and never
+   * filters anything.
+   */
+  lookupTeamProvenance(fingerprint: string, algorithmVersion: string | null) {
+    return this.request<LocalProvenanceLookup>('/api/v1/team/provenance-lookup', {
+      method: 'POST',
+      body: { fingerprint, algorithmVersion },
+    });
+  }
+
+  /**
+   * Shares one local snapshot's fingerprint with the team. Rejects with a {@link LocalBridgeError}
+   * when the store refused (400), is not configured (409), no longer grants access (502), or could
+   * not be reached (503) — a share is something a person just did, so it gets a real answer rather
+   * than a quiet degradation.
+   */
+  shareProvenanceClaim(request: ShareProvenanceRequest) {
+    return this.request<LocalProvenanceShare>('/api/v1/team/provenance-claims', {
+      method: 'POST',
+      body: request,
+    });
+  }
+
+  /**
+   * Removes a claim from every future lookup. **Not a recall** — a teammate who already read it
+   * still read it, and no server can undo that, so the copy for this must never say "unshares".
+   */
+  retractProvenanceClaim(claimId: number, reason: string) {
+    return this.request<{ status: TeamStoreStatus; claim: LocalProvenanceClaim }>(
+      `/api/v1/team/provenance-claims/${claimId}/retract`,
+      { method: 'POST', body: { reason } },
     );
   }
 

@@ -34,6 +34,9 @@ import creatorflow.model.VerificationStatus;
 import creatorflow.ownership.OwnershipOutcome;
 import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.opencloud.RateLimitedException;
+import creatorflow.service.team.TeamClient;
+import creatorflow.service.team.TeamSettings;
+import creatorflow.service.team.TeamStatus;
 import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.ReleaseExportService;
 import creatorflow.workflow.ScanAccounting;
@@ -85,11 +88,14 @@ class LocalBridgeServerTest {
     private ReleaseRepository releases;
     private WorkspaceStateRepository workspaceState;
     private OpenCloudSettings openCloudSettings;
+    private TeamSettings teamSettings;
     private OwnershipVerificationRepository ownershipVerifications;
     private DecisionBatchRepository decisionBatches;
     // The fake the verify-ownership route calls — swapped per test to return a MATCH, a MISMATCH,
     // or to throw a RateLimitedException, all without a live Open Cloud call.
     private final AtomicReference<OwnershipVerification> fakeVerifier = new AtomicReference<>();
+    // Same seam for the team store: no test in this class ever opens a socket to one.
+    private final AtomicReference<TeamClient> fakeTeam = new AtomicReference<>(TeamClient.disabled());
 
     @BeforeEach
     void start() throws Exception {
@@ -126,10 +132,17 @@ class LocalBridgeServerTest {
             }
             return delegate.verify(robloxAssetId, universeId, now);
         };
+        // Nothing in this suite makes a live team call: the bridge delegates to whatever the
+        // current test installed, and the default is TeamClient.disabled() — the state a fresh
+        // install is in. The fixture test swaps in a fake that answers with a populated claim.
+        teamSettings = new TeamSettings(directory);
+        fakeTeam.set(TeamClient.disabled());
+        TeamClient teamClient = new DelegatingTeamClient(fakeTeam);
         server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,
-                pluginPairings, releaseExports, batchDecisions, openCloudSettings, verifier,
-                ownershipVerifications, coordinator, webRoot).start();
+                pluginPairings, releaseExports, batchDecisions, openCloudSettings, teamSettings,
+                teamClient, verifier, ownershipVerifications,
+                coordinator, webRoot).start();
     }
 
     private void authenticate() throws Exception {
@@ -1573,7 +1586,20 @@ class LocalBridgeServerTest {
 
         String assetsPath = "/api/v1/projects/" + projectId + "/assets?limit=100&offset=0";
 
-        record Capture(String name, String path) { }
+        // The team fixtures need a configured store and a store that answers, neither of which a
+        // fresh temp data dir has. Configure the real TeamSettings the bridge already holds, and
+        // install a fake TeamClient that returns one populated claim — a fixture recorded against
+        // TeamClient.disabled() would carry an empty claims array and prove nothing about the row
+        // shape, which is the half most likely to drift.
+        teamSettings.save("http://team.example:8080", "contract-fixture-team-key", "contract-fixture-user");
+        teamSettings.saveTeam(7L, "Harbor Studio");
+        fakeTeam.set(new FixtureTeamClient());
+
+        record Capture(String name, String path, String body) {
+            Capture(String name, String path) {
+                this(name, path, null);
+            }
+        }
         List<Capture> captures = List.of(
                 new Capture("session", "/api/v1/session"),
                 new Capture("projects", "/api/v1/projects"),
@@ -1585,15 +1611,55 @@ class LocalBridgeServerTest {
                 new Capture("releases", "/api/v1/projects/" + projectId + "/releases"),
                 new Capture("gate-preview", "/api/v1/projects/" + projectId + "/gate-preview"),
                 new Capture("review-groups", "/api/v1/scan-runs/" + runId + "/review-groups"),
-                new Capture("workspace-state", "/api/v1/workspace-state"));
+                new Capture("workspace-state", "/api/v1/workspace-state"),
+                new Capture("team-status", "/api/v1/team"),
+                new Capture("team-provenance", "/api/v1/team/provenance-lookup",
+                        "{\"fingerprint\":\"" + "f".repeat(64)
+                                + "\",\"algorithmVersion\":\"creatorflow.motion-fingerprint/v1\"}"));
 
         for (Capture capture : captures) {
-            HttpResponse<String> response = get(capture.path(), cookie);
+            HttpResponse<String> response = capture.body() == null
+                    ? get(capture.path(), cookie)
+                    : postJson(capture.path(), cookie, origin.toString(), csrf, capture.body());
             assertEquals(200, response.statusCode(), capture.path() + " did not return 200");
             String stabilised = json.writerWithDefaultPrettyPrinter()
                     .writeValueAsString(stabilise(json.readTree(response.body())));
             assertNoPerRunValueSurvived(capture.name(), stabilised);
             Files.writeString(out.resolve(capture.name() + ".json"), stabilised);
+        }
+    }
+
+    /** One populated claim, so the recorded fixture pins the row's real field names and types. */
+    private static final class FixtureTeamClient implements TeamClient {
+
+        private static final ClaimRecord CLAIM = new ClaimRecord(41, "mira", false, true,
+                "creatorflow.motion-fingerprint/v1", "courier_run", 1.25, 90110L, "group:12345",
+                "Authored in-house", "All rights reserved", "Kept as the shipped version.",
+                Instant.parse("2026-07-30T09:00:00Z"), Instant.parse("2026-07-30T09:00:04Z"));
+
+        @Override
+        public boolean isConfigured() {
+            return true;
+        }
+
+        @Override
+        public TeamDescription describe() {
+            return new TeamDescription(TeamStatus.OK, 3, null);
+        }
+
+        @Override
+        public LookupResult lookup(String fingerprint) {
+            return new LookupResult(TeamStatus.OK, List.of(CLAIM), null);
+        }
+
+        @Override
+        public ShareResult share(ShareRequest request) {
+            return new ShareResult(TeamStatus.OK, CLAIM, false, false, null);
+        }
+
+        @Override
+        public RetractResult retract(long claimId, String reason) {
+            return new RetractResult(TeamStatus.OK, CLAIM, null);
         }
     }
 
@@ -1625,6 +1691,7 @@ class LocalBridgeServerTest {
     private static final String STABLE_INSTANT = "2026-01-01T00:00:00Z";
     private static final String STABLE_UUID = "00000000-0000-0000-0000-000000000000";
     private static final String STABLE_WORKSPACE = "contract-fixture-workspace";
+    private static final String STABLE_KEY_STORAGE_MODE = "CONTRACT_FIXTURE_KEY_STORAGE_MODE";
 
     private static final Pattern UUID_SHAPED =
             Pattern.compile("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$");
@@ -1687,6 +1754,11 @@ class LocalBridgeServerTest {
         if (!value.isTextual()) return stabilise(value);
         if (field.equals("csrfToken")) return TextNode.valueOf(STABLE_CSRF_TOKEN);
         if (field.equals("origin")) return TextNode.valueOf(STABLE_ORIGIN);
+        // keyStorageMode is OS-dependent BY DESIGN — DPAPI_WINDOWS on a Windows dev box,
+        // PLAINTEXT on Linux CI — so recording the real value would make this fixture flip on
+        // every platform change and reintroduce exactly the #97 churn. The key name and type are
+        // what the contract test reads; the value is not part of the contract.
+        if (field.equals("keyStorageMode")) return TextNode.valueOf(STABLE_KEY_STORAGE_MODE);
         String text = value.textValue();
         if (INSTANT_SHAPED.matcher(text).matches()) return TextNode.valueOf(STABLE_INSTANT);
         if (UUID_SHAPED.matcher(text).matches()) return TextNode.valueOf(STABLE_UUID);

@@ -1,7 +1,14 @@
 --!strict
--- HTTP client for the CreatorFlow registry API (server module, /api/v1).
--- Mirrors the desktop HttpRegistryClient contract: fingerprints only, never
--- files, authenticated per account with the X-Api-Key header from /me.
+-- HTTP client for the CreatorFlow *legacy* registry API (server module, /api/v1).
+-- Fingerprints only, never files, authenticated per account with an X-Api-Key header.
+--
+-- Frozen contract. Every route below is now off by default and exists only when the server runs
+-- with creatorflow.legacy-registry.enabled=true; that flag is the reason they were kept at all
+-- rather than deleted out from under this plugin. Obtain a key from Api.createAccount — the /me
+-- page it used to come from was deleted with the rest of the gallery.
+--
+-- Note the server-side interaction if the operator also sets creatorflow.signup.token: this
+-- client sends no such header, so plugin accounts must be created before that token is set.
 
 local HttpService = game:GetService("HttpService")
 
