@@ -132,10 +132,46 @@ describe('bridge contract', () => {
     expect(Array.isArray(run.warnings)).toBe(true);
   });
 
-  it('parses decision history as a list', async () => {
+  it('parses decision history as a list, and keeps the batch marker on the rows that have one', async () => {
     const client = await clientReturning(fixture('decision-history'));
     const history = await client.getDecisionHistory(1);
     expect(Array.isArray(history.items)).toBe(true);
+    const decision = history.items[0];
+    /**
+     * The fixture is recorded from a real batch, so these two keys are the disclosure that a
+     * judgement was one of several made in one act. Losing either would make a batched decision
+     * indistinguishable from a considered per-file one — the exact conflation the batch id exists
+     * to prevent — and it would fail silently, since the marker simply would not render.
+     */
+    expect(typeof decision.batchId).toBe('string');
+    expect(typeof decision.batchAssetCount).toBe('number');
+  });
+
+  it('parses review groups, including what each group allows and the two drift tokens', async () => {
+    const client = await clientReturning(fixture('review-groups'));
+    const groups = await client.listReviewGroups('00000000-0000-0000-0000-000000000000');
+    expect(typeof groups.scanRunId).toBe('string');
+    expect(['PASS', 'BLOCKED']).toContain(groups.gateResult);
+    const group = groups.groups[0];
+    expect(typeof group.code).toBe('string');
+    expect(typeof group.message).toBe('string');
+    /**
+     * The safety surface, served rather than inferred: the same table gates what the panel renders
+     * and what the bridge accepts. If this arrived as something other than an array of action names
+     * the panel would render no actions at all, which is the fail-safe direction.
+     */
+    expect(Array.isArray(group.batchableActions)).toBe(true);
+    expect(group.batchableActions).not.toContain('APPROVED');
+    expect(group.batchableActions).not.toContain('BLOCKED');
+
+    const asset = group.assets[0];
+    expect(typeof asset.scanAssetId).toBe('number');
+    expect(typeof asset.relativePath).toBe('string');
+    expect(typeof asset.sha256).toBe('string');
+    // Echoed back on submit as the drift tokens, so both must survive as their nullable selves —
+    // null is "nothing recorded yet", and sending the wrong shape would silently clobber a write.
+    expect(['string', 'object']).toContain(typeof asset.latestDecisionId);
+    expect(['number', 'object']).toContain(typeof asset.latestSourceEvidenceId);
   });
 
   it('parses ownership verifications as a list', async () => {

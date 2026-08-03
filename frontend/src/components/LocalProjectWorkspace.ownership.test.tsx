@@ -97,7 +97,7 @@ function verification(overrides: Partial<LocalOwnershipVerification> = {}): Loca
 function makeMockClient(overrides: Partial<Record<
   'listProjectAssets' | 'saveWorkspaceState' | 'getAsset' | 'getDecisionHistory'
   | 'recordDecision' | 'recordSourceEvidence' | 'listOwnershipVerifications' | 'verifyOwnership'
-  | 'refreshOpenCloudKeyStatus',
+  | 'refreshOpenCloudKeyStatus' | 'listReviewGroups',
   ReturnType<typeof vi.fn>
 >> = {}, session: LocalBridgeSession = { csrfToken: 'csrf-token', origin: 'http://localhost:3000', openCloudKeyConfigured: true }) {
   const client = {
@@ -115,6 +115,10 @@ function makeMockClient(overrides: Partial<Record<
     recordDecision: vi.fn(),
     recordSourceEvidence: vi.fn(),
     listOwnershipVerifications: vi.fn().mockResolvedValue({ items: [] }),
+    // The evidence view mounts the group-review panel, which reads this on open.
+    listReviewGroups: vi.fn().mockResolvedValue({
+      scanRunId: 'run-abc', gateResult: 'BLOCKED', evaluatedAt: '2026-01-01T00:00:00Z', groups: [],
+    }),
     verifyOwnership: vi.fn(),
     ...overrides,
   };

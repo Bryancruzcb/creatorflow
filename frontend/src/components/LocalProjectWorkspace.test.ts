@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   affordanceForViolationCode,
+  batchMarkerLabel,
   describeOwnershipOutcome,
   formatCheckedAt,
   formatRetryAfter,
@@ -463,5 +464,29 @@ describe('gateResolutionQueue', () => {
       violation({ path: 'here.png', scanAssetId: 7 }),
     ]));
     expect(queue).toEqual([{ assetId: 7, affordance: 'source', path: 'here.png', code: 'UNRESOLVED_SOURCE' }]);
+  });
+});
+
+describe('batchMarkerLabel', () => {
+  it('discloses the scale of the batch a record came from, not just that there was one', () => {
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', 12))
+      .toBe('Recorded as part of a 12-file batch · batch b1b2c3d4');
+  });
+
+  it('leaves an unknown count unknown rather than reporting a batch of one', () => {
+    // The bridge sends null when it cannot read the batch row. "1" would turn a batch into a
+    // per-file decision in the reader's eyes, which is the one reading that must never be invented.
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', null))
+      .toBe('Recorded as part of a batch · batch b1b2c3d4');
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', undefined))
+      .toBe('Recorded as part of a batch · batch b1b2c3d4');
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', 0))
+      .toBe('Recorded as part of a batch · batch b1b2c3d4');
+  });
+
+  it('never softens what it is reporting', () => {
+    const label = batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', 30);
+    expect(label).not.toMatch(/reviewed/i);
+    expect(label).not.toMatch(/resolved/i);
   });
 });

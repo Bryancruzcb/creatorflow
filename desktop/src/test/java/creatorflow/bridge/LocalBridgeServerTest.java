@@ -13,6 +13,7 @@ import creatorflow.TestMedia;
 import creatorflow.db.AuditRepository;
 import creatorflow.db.AnimationComparisonRepository;
 import creatorflow.db.Database;
+import creatorflow.db.DecisionBatchRepository;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.MotionSnapshotRepository;
@@ -26,13 +27,17 @@ import creatorflow.manifest.CreativeManifest.AssetEntry;
 import creatorflow.manifest.CreativeManifest.Fingerprints;
 import creatorflow.manifest.CreativeManifest.ReleaseDecision;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
+import creatorflow.manifest.ManifestJson;
 import creatorflow.manifest.OwnershipEvidence;
+import creatorflow.manifest.ReleaseGate;
 import creatorflow.model.VerificationStatus;
 import creatorflow.ownership.OwnershipOutcome;
 import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.opencloud.RateLimitedException;
+import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.ReleaseExportService;
 import creatorflow.workflow.ScanAccounting;
+import creatorflow.workflow.ScanAsset;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
@@ -53,6 +58,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.regex.Pattern;
 import org.junit.jupiter.api.AfterEach;
@@ -80,6 +86,7 @@ class LocalBridgeServerTest {
     private WorkspaceStateRepository workspaceState;
     private OpenCloudSettings openCloudSettings;
     private OwnershipVerificationRepository ownershipVerifications;
+    private DecisionBatchRepository decisionBatches;
     // The fake the verify-ownership route calls — swapped per test to return a MATCH, a MISMATCH,
     // or to throw a RateLimitedException, all without a live Open Cloud call.
     private final AtomicReference<OwnershipVerification> fakeVerifier = new AtomicReference<>();
@@ -107,6 +114,9 @@ class LocalBridgeServerTest {
         ownershipVerifications = new OwnershipVerificationRepository(database);
         var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit, ownershipVerifications);
+        decisionBatches = new DecisionBatchRepository(database);
+        var batchDecisions = new BatchDecisionService(database, scans, decisions, decisionBatches,
+                audit, releaseExports);
         openCloudSettings = new OpenCloudSettings(directory);
         // Delegate to whatever the current test installed; never a live call.
         OwnershipVerification verifier = (robloxAssetId, universeId, now) -> {
@@ -118,8 +128,8 @@ class LocalBridgeServerTest {
         };
         server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,
-                pluginPairings, releaseExports, openCloudSettings, verifier, ownershipVerifications,
-                coordinator, webRoot).start();
+                pluginPairings, releaseExports, batchDecisions, openCloudSettings, verifier,
+                ownershipVerifications, coordinator, webRoot).start();
     }
 
     private void authenticate() throws Exception {
@@ -1015,6 +1025,433 @@ class LocalBridgeServerTest {
                 + "/gate-preview?scanRunId=00000000-0000-0000-0000-000000000000", cookie).statusCode());
     }
 
+    /**
+     * The panel's groups are the gate's own violations, and this is the test that keeps them that way.
+     *
+     * <p>The oracle is deliberately not another call through the same service: the release's manifest
+     * bytes are downloaded and fed to a plain {@code new ReleaseGate().evaluate(...)}, so if the
+     * route ever started filtering, re-ordering or re-deriving what is outstanding, the two would
+     * disagree here. A group review that offers to fix a set of files the gate does not agree about
+     * is a lie about what the action accomplishes, which is why this is the first test.
+     */
+    @Test
+    void reviewGroupsAreExactlyWhatADirectGateEvaluationFinds() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(4, 2);
+
+        JsonNode groups = json.readTree(reviewGroups(seeded.runId()).body());
+        assertEquals("BLOCKED", groups.get("gateResult").asText());
+
+        HttpResponse<String> release = postJson("/api/v1/projects/" + seeded.projectId() + "/releases",
+                cookie, origin.toString(), csrf, "{\"release\":\"oracle\"}");
+        assertEquals(201, release.statusCode(), release.body());
+        String releaseId = json.readTree(release.body()).get("id").asText();
+        CreativeManifest manifest = new ManifestJson().read(
+                get("/api/v1/releases/" + releaseId + "/manifest", cookie).body());
+
+        Map<String, List<String>> expected = new LinkedHashMap<>();
+        for (ReleaseGate.Violation violation : new ReleaseGate().evaluate(manifest).violations()) {
+            expected.computeIfAbsent(violation.code().name(), key -> new ArrayList<>()).add(violation.path());
+        }
+        Map<String, List<String>> actual = new LinkedHashMap<>();
+        for (JsonNode group : groups.get("groups")) {
+            List<String> paths = new ArrayList<>();
+            group.get("assets").forEach(asset -> paths.add(asset.get("relativePath").asText()));
+            actual.put(group.get("code").asText(), paths);
+        }
+        expected.values().forEach(Collections::sort);
+        actual.values().forEach(Collections::sort);
+        assertEquals(expected, actual, "the groups must be the gate's violations, not a second opinion");
+    }
+
+    /**
+     * The allow-list, enforced on the write rather than only left out of the UI.
+     *
+     * <p>A disabled control is bypassable — a stale tab, a hand-rolled request — so bulk APPROVE is
+     * refused here regardless of what any client did or did not render. Bulk approving thirty flagged
+     * files is the exact false-clearance this product exists not to manufacture.
+     */
+    @Test
+    void batchDecisionsRefuseApprovedAndBlockedInEveryGroup() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(3, 2);
+        List<Long> ids = seeded.assetIds();
+
+        for (String type : List.of("APPROVED", "BLOCKED")) {
+            for (String code : List.of("UNRESOLVED_SOURCE", "FLAGGED_WITHOUT_APPROVAL")) {
+                HttpResponse<String> refused = batchDecision(seeded.runId(), code, type,
+                        "Looks fine to me.", ids.subList(1, 3), null);
+                assertEquals(400, refused.statusCode(), refused.body());
+                assertTrue(json.readTree(refused.body()).get("error").asText()
+                        .contains("per-file decisions"), refused.body());
+            }
+        }
+        assertEquals(0, decisionCount(ids), "a refused batch must write nothing");
+    }
+
+    /**
+     * Excluding is a scope claim ("these are not in this release"), which can honestly be true of a
+     * folder at once — but only where the standing problem is a missing source record. On a flagged
+     * or ownership-lead group it is the closest thing available to making findings go away in one
+     * click, so it is refused there, server-side, and the group advertises that by listing only
+     * NEEDS_REVIEW.
+     */
+    @Test
+    void excludingIsBatchableOnlyWhereTheStandingProblemIsAMissingSourceRecord() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(4, 2);
+        JsonNode groups = json.readTree(reviewGroups(seeded.runId()).body()).get("groups");
+
+        Map<String, List<String>> advertised = new LinkedHashMap<>();
+        for (JsonNode group : groups) {
+            List<String> actions = new ArrayList<>();
+            group.get("batchableActions").forEach(action -> actions.add(action.asText()));
+            advertised.put(group.get("code").asText(), actions);
+        }
+        assertEquals(List.of("SOURCE_EVIDENCE", "EXCLUDED", "NEEDS_REVIEW"),
+                advertised.get("UNRESOLVED_SOURCE"));
+        assertEquals(List.of("NEEDS_REVIEW"), advertised.get("FLAGGED_WITHOUT_APPROVAL"));
+
+        List<Long> flagged = groupAssetIds(groups, "FLAGGED_WITHOUT_APPROVAL");
+        HttpResponse<String> refused = batchDecision(seeded.runId(), "FLAGGED_WITHOUT_APPROVAL",
+                "EXCLUDED", "Not shipping these in 2.4.", flagged, null);
+        assertEquals(400, refused.statusCode(), refused.body());
+        assertTrue(json.readTree(refused.body()).get("error").asText().contains("cannot be batched"),
+                refused.body());
+
+        // The same action, on the group where it is an honest scope claim, is accepted.
+        HttpResponse<String> accepted = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "EXCLUDED",
+                "WIP concepts under art/ — not shipping in 2.4.", seeded.assetIds().subList(0, 2), null);
+        assertEquals(201, accepted.statusCode(), accepted.body());
+    }
+
+    /**
+     * The group is re-derived on the server, so a request cannot smuggle an asset into a group by
+     * labelling it. Without this the group name would be a claim the client makes about ids it
+     * chose, rather than something the gate said.
+     */
+    @Test
+    void aBatchRejectsAnAssetThatIsNotStandingInThatGroup() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(4, 2);
+        JsonNode groups = json.readTree(reviewGroups(seeded.runId()).body()).get("groups");
+        List<Long> flagged = groupAssetIds(groups, "FLAGGED_WITHOUT_APPROVAL");
+        List<Long> notFlagged = new ArrayList<>(seeded.assetIds());
+        notFlagged.removeAll(flagged);
+
+        List<Long> smuggled = List.of(flagged.getFirst(), notFlagged.getFirst());
+        HttpResponse<String> refused = batchDecision(seeded.runId(), "FLAGGED_WITHOUT_APPROVAL",
+                "NEEDS_REVIEW", "Scheduling a review for these.", smuggled, null);
+        assertEquals(400, refused.statusCode(), refused.body());
+        assertTrue(json.readTree(refused.body()).get("error").asText()
+                .contains("not standing under that rule"), refused.body());
+        assertEquals(0, decisionCount(seeded.assetIds()), "a refused batch must write nothing");
+    }
+
+    /**
+     * Drift: something moved between loading the group and submitting it.
+     *
+     * <p>{@code DecisionRepository.append} performs no such check itself — two appends without a
+     * supersede id race silently and {@code latestFor} simply picks the later one — so the check has
+     * to be here, and it has to reject the <em>whole</em> batch. A partly applied batch would leave
+     * files carrying a judgement nobody's screen ever showed.
+     */
+    @Test
+    void aDriftedBatchIsRejectedWholeAndWritesNothing() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(3, 0);
+        List<Long> ids = seeded.assetIds();
+
+        // Loaded with no decisions on record, then one asset is decided per-file in another tab.
+        long moved = ids.get(1);
+        assertEquals(201, postJson("/api/v1/assets/" + moved + "/decisions", cookie, origin.toString(),
+                csrf, "{\"type\":\"NEEDS_REVIEW\",\"reason\":\"Someone else got here first\"}")
+                .statusCode());
+
+        HttpResponse<String> stale = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "NEEDS_REVIEW",
+                "Scheduling a review with Marco on Thursday.", ids, null);
+        assertEquals(409, stale.statusCode(), stale.body());
+        JsonNode body = json.readTree(stale.body());
+        assertEquals(1, body.get("driftedAssetIds").size(), stale.body());
+        assertEquals(moved, body.get("driftedAssetIds").get(0).asLong());
+        assertTrue(body.get("error").asText().contains("nothing was recorded"), stale.body());
+
+        // Exactly the one per-file decision from above survives; the batch wrote none of its own.
+        assertEquals(1, decisionCount(ids));
+        assertTrue(decisionBatches.forRun(seeded.runId()).isEmpty(), "no batch row may be left behind");
+    }
+
+    /**
+     * Two is the floor because one file is a per-file decision, and 200 is the ceiling because the
+     * point of a reviewed set is that a person can still look at it. Neither is a byte limit;
+     * {@code MAX_REQUEST_BYTES} is far away from both.
+     */
+    @Test
+    void aBatchNeedsAtLeastTwoFilesAndAtMostTwoHundredAndAlwaysAReason() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(3, 0);
+        List<Long> ids = seeded.assetIds();
+
+        HttpResponse<String> single = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "NEEDS_REVIEW",
+                "Just this one.", ids.subList(0, 1), null);
+        assertEquals(400, single.statusCode(), single.body());
+        assertTrue(json.readTree(single.body()).get("error").asText().contains("per-file decision"),
+                single.body());
+
+        List<Long> tooMany = new ArrayList<>();
+        for (long index = 1; index <= BatchDecisionService.MAX_BATCH_ASSETS + 1; index++) tooMany.add(index);
+        HttpResponse<String> over = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "NEEDS_REVIEW",
+                "Everything at once.", tooMany, null);
+        assertEquals(400, over.statusCode(), over.body());
+        assertTrue(json.readTree(over.body()).get("error").asText().contains("capped at 200"), over.body());
+
+        HttpResponse<String> blank = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE", "NEEDS_REVIEW",
+                "   ", ids, null);
+        assertEquals(400, blank.statusCode(), blank.body());
+
+        assertEquals(0, decisionCount(ids));
+    }
+
+    /**
+     * The shape of the record: one batch row, and one ordinary decision row per asset carrying its
+     * id. Never one row covering N assets — that would break {@code latestFor}/{@code latestForRun}
+     * and, worse, would make "one judgement" and "one record" the same thing.
+     */
+    @Test
+    void everyBatchedAssetKeepsItsOwnRowAndTheyShareOneBatchId() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(3, 0);
+        List<Long> ids = seeded.assetIds();
+        String rationale = "All three are placeholder concepts from the 2.4 planning doc.";
+
+        HttpResponse<String> recorded = batchDecision(seeded.runId(), "UNRESOLVED_SOURCE",
+                "NEEDS_REVIEW", rationale, ids, null);
+        assertEquals(201, recorded.statusCode(), recorded.body());
+        JsonNode body = json.readTree(recorded.body());
+        String batchId = body.get("batchId").asText();
+        assertEquals(3, body.get("assetCount").asInt());
+        assertEquals(3, body.get("decisions").size());
+
+        Set<String> decisionIds = new java.util.HashSet<>();
+        for (JsonNode decision : body.get("decisions")) {
+            decisionIds.add(decision.get("id").asText());
+            assertEquals(batchId, decision.get("batchId").asText());
+        }
+        assertEquals(3, decisionIds.size(), "each asset gets its own decision row, never a shared one");
+
+        for (long assetId : ids) {
+            JsonNode history = json.readTree(
+                    get("/api/v1/assets/" + assetId + "/decisions", cookie).body()).get("items");
+            assertEquals(1, history.size());
+            assertEquals(batchId, history.get(0).get("batchId").asText());
+            assertEquals(rationale, history.get(0).get("reason").asText(),
+                    "the shared rationale is recorded verbatim, not decorated");
+            // The disclosure the inspector renders: this judgement was one of three made at once.
+            assertEquals(3, history.get(0).get("batchAssetCount").asInt());
+            assertEquals(batchId, json.readTree(get("/api/v1/assets/" + assetId, cookie).body())
+                    .get("latestDecision").get("batchId").asText());
+        }
+
+        // And a decision made one file at a time still reads as exactly that.
+        long single = ids.getFirst();
+        String supersedes = json.readTree(get("/api/v1/assets/" + single + "/decisions", cookie).body())
+                .get("items").get(0).get("id").asText();
+        JsonNode perFile = json.readTree(postJson("/api/v1/assets/" + single + "/decisions", cookie,
+                origin.toString(), csrf, "{\"type\":\"APPROVED\",\"reason\":\"Checked this one on its"
+                        + " own\",\"supersedesDecisionId\":\"" + supersedes + "\"}").body());
+        assertTrue(perFile.get("batchId").isNull(), perFile.toString());
+        assertTrue(perFile.get("batchAssetCount").isNull(), perFile.toString());
+
+        var batch = decisionBatches.findById(batchId).orElseThrow();
+        assertEquals(3, batch.assetCount());
+        assertEquals("UNRESOLVED_SOURCE", batch.groupCode());
+        assertEquals("NEEDS_REVIEW", batch.action());
+        assertEquals(rationale, batch.rationale());
+    }
+
+    /**
+     * The shared source declaration: the one batch that can actually clear {@code UNRESOLVED_SOURCE}.
+     * Its drift token is the evidence row rather than a decision, because {@code source_evidence} has
+     * no supersedes column and "newest wins" would otherwise silently clobber someone else's record.
+     */
+    @Test
+    void aSharedSourceDeclarationLandsPerAssetAndRefusesAStaleEvidenceRow() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        SeededRun seeded = seedGroupRun(3, 0);
+        List<Long> ids = seeded.assetIds();
+        Map<Long, Long> loaded = latestEvidenceIds(seeded.runId());
+
+        // A blank license is not a declaration the gate can read, so it is refused rather than stored.
+        assertEquals(400, batchSourceEvidence(seeded.runId(), "Poly Haven", null,
+                "All from the same kit.", loaded).statusCode());
+
+        // Somebody records a different source on one of them meanwhile — still unresolved, so the
+        // file stays in the group, but the evidence row the panel was looking at is no longer current.
+        long moved = ids.get(1);
+        assertEquals(201, postJson("/api/v1/assets/" + moved + "/source-evidence", cookie,
+                origin.toString(), csrf, "{\"source\":\"Someone else got here first\"}").statusCode());
+
+        HttpResponse<String> stale = batchSourceEvidence(seeded.runId(), "Poly Haven", "CC0 1.0",
+                "All three are from the Poly Haven rock kit downloaded 2026-06-14.", loaded);
+        assertEquals(409, stale.statusCode(), stale.body());
+        JsonNode drift = json.readTree(stale.body());
+        assertEquals(1, drift.get("driftedAssetIds").size(), stale.body());
+        assertEquals(moved, drift.get("driftedAssetIds").get(0).asLong());
+        assertEquals(1, json.readTree(get("/api/v1/assets/" + ids.getFirst() + "/source-evidence", cookie)
+                .body()).get("items").size(), "the rejected batch must have written nothing at all");
+        assertTrue(decisionBatches.forRun(seeded.runId()).isEmpty(), "no batch row may be left behind");
+
+        // Reloaded, the same declaration lands — one row per asset, all carrying one batch id.
+        HttpResponse<String> recorded = batchSourceEvidence(seeded.runId(), "Poly Haven", "CC0 1.0",
+                "All three are from the Poly Haven rock kit downloaded 2026-06-14.",
+                latestEvidenceIds(seeded.runId()));
+        assertEquals(201, recorded.statusCode(), recorded.body());
+        JsonNode body = json.readTree(recorded.body());
+        String batchId = body.get("batchId").asText();
+        assertEquals(3, body.get("sourceEvidence").size());
+        Set<Long> evidenceRowIds = new java.util.HashSet<>();
+        for (JsonNode evidence : body.get("sourceEvidence")) {
+            evidenceRowIds.add(evidence.get("id").asLong());
+            assertEquals(batchId, evidence.get("batchId").asText());
+            assertTrue(evidence.get("resolved").asBoolean(), recorded.body());
+        }
+        assertEquals(3, evidenceRowIds.size(), "each asset gets its own evidence row");
+
+        // And the declaration is what actually clears the rule: the group is gone.
+        JsonNode after = json.readTree(reviewGroups(seeded.runId()).body());
+        assertEquals("PASS", after.get("gateResult").asText(), after.toString());
+        assertEquals(0, after.get("groups").size(), after.toString());
+    }
+
+    /** Each asset in the UNRESOLVED_SOURCE group with the evidence row the panel would have loaded. */
+    private Map<Long, Long> latestEvidenceIds(String runId) throws Exception {
+        Map<Long, Long> evidenceIds = new LinkedHashMap<>();
+        JsonNode groups = new ObjectMapper().readTree(reviewGroups(runId).body()).get("groups");
+        for (JsonNode group : groups) {
+            if (!group.get("code").asText().equals("UNRESOLVED_SOURCE")) continue;
+            for (JsonNode asset : group.get("assets")) {
+                JsonNode evidenceId = asset.get("latestSourceEvidenceId");
+                evidenceIds.put(asset.get("scanAssetId").asLong(),
+                        evidenceId.isNull() ? null : evidenceId.asLong());
+            }
+        }
+        return evidenceIds;
+    }
+
+    /** A run that is not a completed immutable snapshot has no honest group to review. */
+    @Test
+    void theBatchRoutesRefuseWhatTheyCannotHonestlyEvaluate() throws Exception {
+        assertEquals(404, get("/api/v1/scan-runs/00000000-0000-0000-0000-000000000000/review-groups",
+                cookie).statusCode());
+
+        long projectId = localProjects.adopt(
+                Files.createDirectories(directory.resolve("batch-no-scan"))).projectId();
+        var running = scans.create(projectId, directory, "1.0.0", List.of(), List.of("png"));
+        scans.markStarted(running.id());
+
+        HttpResponse<String> groups = reviewGroups(running.id());
+        assertEquals(409, groups.statusCode(), groups.body());
+        assertTrue(groups.body().contains("completed immutable scan"), groups.body());
+
+        HttpResponse<String> batched = batchDecision(running.id(), "UNRESOLVED_SOURCE", "NEEDS_REVIEW",
+                "Nothing to see here.", List.of(1L, 2L), null);
+        assertEquals(409, batched.statusCode(), batched.body());
+
+        // Session- and CSRF-guarded exactly like every other read and write on this bridge.
+        SeededRun seeded = seedGroupRun(2, 0);
+        assertEquals(401, get("/api/v1/scan-runs/" + seeded.runId() + "/review-groups", null).statusCode());
+        assertEquals(405, post("/api/v1/scan-runs/" + seeded.runId() + "/review-groups", cookie,
+                origin.toString(), csrf).statusCode());
+        assertEquals(403, postJson("/api/v1/scan-runs/" + seeded.runId() + "/batch-decisions", cookie,
+                origin.toString(), null, "{}").statusCode());
+    }
+
+    private HttpResponse<String> reviewGroups(String runId) throws Exception {
+        return get("/api/v1/scan-runs/" + runId + "/review-groups", cookie);
+    }
+
+    private HttpResponse<String> batchDecision(String runId, String code, String type, String rationale,
+                                               List<Long> assetIds, String supersedesDecisionId)
+            throws Exception {
+        StringBuilder assets = new StringBuilder("[");
+        for (int index = 0; index < assetIds.size(); index++) {
+            if (index > 0) assets.append(',');
+            assets.append("{\"scanAssetId\":").append(assetIds.get(index));
+            if (supersedesDecisionId != null) {
+                assets.append(",\"supersedesDecisionId\":\"").append(supersedesDecisionId).append('"');
+            }
+            assets.append('}');
+        }
+        assets.append(']');
+        String body = "{\"code\":\"" + code + "\",\"type\":\"" + type + "\",\"rationale\":\""
+                + rationale + "\",\"assets\":" + assets + "}";
+        return postJson("/api/v1/scan-runs/" + runId + "/batch-decisions", cookie, origin.toString(),
+                csrf, body);
+    }
+
+    private HttpResponse<String> batchSourceEvidence(String runId, String source, String license,
+                                                     String rationale, Map<Long, Long> evidenceIds)
+            throws Exception {
+        StringBuilder assets = new StringBuilder("[");
+        boolean first = true;
+        for (Map.Entry<Long, Long> entry : evidenceIds.entrySet()) {
+            if (!first) assets.append(',');
+            first = false;
+            assets.append("{\"scanAssetId\":").append(entry.getKey())
+                    .append(",\"latestSourceEvidenceId\":")
+                    .append(entry.getValue() == null ? "null" : entry.getValue()).append('}');
+        }
+        assets.append(']');
+        String body = "{\"code\":\"UNRESOLVED_SOURCE\",\"source\":"
+                + (source == null ? "null" : "\"" + source + "\"") + ",\"license\":"
+                + (license == null ? "null" : "\"" + license + "\"") + ",\"rationale\":\""
+                + rationale + "\",\"assets\":" + assets + "}";
+        return postJson("/api/v1/scan-runs/" + runId + "/batch-source-evidence", cookie,
+                origin.toString(), csrf, body);
+    }
+
+    private static List<Long> groupAssetIds(JsonNode groups, String code) {
+        List<Long> ids = new ArrayList<>();
+        for (JsonNode group : groups) {
+            if (!group.get("code").asText().equals(code)) continue;
+            group.get("assets").forEach(asset -> ids.add(asset.get("scanAssetId").asLong()));
+        }
+        return ids;
+    }
+
+    private int decisionCount(List<Long> assetIds) {
+        return assetIds.stream().mapToInt(assetId -> decisions.historyFor(assetId).size()).sum();
+    }
+
+    private record SeededRun(long projectId, String runId, List<Long> assetIds) { }
+
+    /**
+     * A completed run of {@code count} assets, none carrying source evidence — so every one of them
+     * stands under {@code UNRESOLVED_SOURCE} — of which the last {@code similar} are SIMILAR, so
+     * they additionally stand under {@code FLAGGED_WITHOUT_APPROVAL}. One asset legitimately standing
+     * in two groups is the normal case, not an edge one.
+     */
+    private SeededRun seedGroupRun(int count, int similar) {
+        long projectId = localProjects.adopt(directory).projectId();
+        var run = scans.create(projectId, directory, "1.0.0", List.of("node_modules"), List.of("rbxm"));
+        scans.markStarted(run.id());
+        List<AssetEntry> assets = new ArrayList<>();
+        for (int index = 0; index < count; index++) {
+            boolean flagged = index >= count - similar;
+            assets.add(new AssetEntry("art/asset-" + index + ".rbxm", "asset-" + index + ".rbxm",
+                    "rbxm", 128, String.format("%064x", index + 1), 64, 64,
+                    new Fingerprints("01", "02", null),
+                    flagged ? VerificationStatus.SIMILAR : VerificationStatus.CLEAR,
+                    new SourceEvidence(null, null, null), ReleaseDecision.PENDING, List.of(), List.of()));
+        }
+        CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA_V1,
+                new CreativeManifest.Project("proj", "1.0.0"), Instant.now(),
+                new CreativeManifest.Summary(count, count - similar, similar, 0, count, count), assets);
+        scans.complete(run.id(), manifest, new ScanAccounting(count, 0, 0, 0, 0, 0, 128L * count), List.of());
+        return new SeededRun(projectId, run.id(),
+                scans.listAssets(run.id(), 500, 0).stream().map(ScanAsset::id).toList());
+    }
+
     private long seedBoundAsset(long universeId) {
         long projectId = localProjects.adopt(directory).projectId();
         localProjects.bindExperience(projectId, universeId, 1818L, "Test Experience");
@@ -1061,14 +1498,19 @@ class LocalBridgeServerTest {
         Path out = Path.of("..", "frontend", "src", "bridge", "contract-fixtures");
         Files.createDirectories(out);
 
-        long assetId = seedBoundAsset(90110L);
-        long projectId = json.readTree(get("/api/v1/projects", cookie).body())
-                .get("items").get(0).get("projectId").asLong();
+        // Three assets rather than one, and a real batch recorded over two of them: the batch marker
+        // is a key on ordinary decision and source-evidence payloads, so the only way the fixtures
+        // can prove it survives a rename is for one of them to actually carry a batched decision.
+        SeededRun seeded = seedGroupRun(3, 0);
+        localProjects.bindExperience(seeded.projectId(), 90110L, 1818L, "Test Experience");
+        long assetId = seeded.assetIds().getFirst();
+        long projectId = seeded.projectId();
+        String runId = seeded.runId();
+        assertEquals(201, batchDecision(runId, "UNRESOLVED_SOURCE", "NEEDS_REVIEW",
+                "Scheduling a review of the whole kit with Marco on Thursday.",
+                seeded.assetIds().subList(0, 2), null).statusCode());
 
-        // The run id comes from the assets page: /api/v1/projects/{id}/scan-runs is POST-only,
-        // it starts a scan rather than listing them.
         String assetsPath = "/api/v1/projects/" + projectId + "/assets?limit=100&offset=0";
-        String runId = json.readTree(get(assetsPath, cookie).body()).get("scanRunId").asText();
 
         record Capture(String name, String path) { }
         List<Capture> captures = List.of(
@@ -1081,6 +1523,7 @@ class LocalBridgeServerTest {
                 new Capture("ownership-verifications", "/api/v1/assets/" + assetId + "/ownership-verifications"),
                 new Capture("releases", "/api/v1/projects/" + projectId + "/releases"),
                 new Capture("gate-preview", "/api/v1/projects/" + projectId + "/gate-preview"),
+                new Capture("review-groups", "/api/v1/scan-runs/" + runId + "/review-groups"),
                 new Capture("workspace-state", "/api/v1/workspace-state"));
 
         for (Capture capture : captures) {

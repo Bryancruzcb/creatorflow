@@ -1376,3 +1376,195 @@
    only the placement and the button spacing are new. */
 .local-gate-context { margin: 0; padding: var(--space-3) var(--space-4); border-inline: 0; border-top: 0; }
 .local-gate-context button { white-space: nowrap; }
+
+
+/* Group review (Phase D): the batch panel above the evidence ledger, and the batch marker every
+   affected record carries afterwards. Appended, never interleaved — several rules in this slab win
+   on source position rather than specificity, so inserting into the middle changes what renders
+   elsewhere.
+
+   Nothing in here is styled as progress: a batch writes records, it does not resolve anything, and
+   the only green is the one state the gate itself returned as passed. */
+.local-batch-review {
+  display: grid;
+  gap: var(--space-3);
+  margin: 0 var(--space-4) var(--space-4);
+  padding: var(--space-4);
+  background: var(--desk);
+  border: 1px solid var(--hairline);
+}
+
+.local-batch-review > header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+}
+
+.local-batch-review > header > div > span { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); }
+.local-batch-review > header h3 { margin: var(--space-2) 0 var(--space-1); font-size: 1rem; font-weight: 500; }
+.local-batch-review > header p { max-width: 78ch; margin: 0; color: var(--ink-muted); font-size: var(--text-2xs); }
+
+.local-batch-verdict {
+  color: var(--review);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.local-batch-verdict[data-state="completed"] { color: var(--clear); }
+.local-batch-verdict[data-state="failed"] { color: var(--blocked); }
+
+.local-batch-note { max-width: 84ch; margin: 0; color: var(--ink-muted); font-size: var(--text-2xs); }
+
+.local-batch-drift {
+  max-width: 84ch;
+  margin: 0;
+  padding: var(--space-3);
+  color: var(--review);
+  background: color-mix(in srgb, var(--review) 6%, var(--desk));
+  border: 1px solid color-mix(in srgb, var(--review) 38%, var(--hairline));
+  font-size: var(--text-2xs);
+}
+
+/* A receipt states what was written. Not a success tone — nothing here cleared the gate. */
+.local-batch-receipt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 84ch;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+}
+
+.local-batch-chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.local-batch-chips > button {
+  padding: var(--space-2) var(--space-3);
+  color: var(--ink-muted);
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.local-batch-chips > button.selected { color: var(--ink); background: var(--raised); box-shadow: inset 0 0 0 1px var(--hairline-strong); }
+.local-batch-chips > button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+
+.local-batch-group { display: grid; gap: var(--space-3); padding-top: var(--space-3); border-top: 1px solid var(--hairline); }
+
+/* The gate's own sentence, verbatim. The panel never rewrites a gate message. */
+.local-batch-gate-message { max-width: 84ch; margin: 0; color: var(--ink); font-size: var(--text-2xs); }
+
+.local-batch-narrowing {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--space-3);
+}
+
+.local-batch-narrowing label { display: grid; gap: var(--space-2); color: var(--ink-muted); font-family: var(--font-mono); font-size: var(--text-3xs); }
+
+.local-batch-narrowing select {
+  min-height: 2.4rem;
+  padding: var(--space-1) var(--space-2);
+  color: var(--ink);
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+  border-radius: 0;
+  font-family: var(--font-sans);
+  font-size: var(--text-2xs);
+}
+
+.local-batch-narrowing > small { flex-basis: 100%; max-width: 84ch; color: var(--ink-dim); font-size: var(--text-3xs); }
+.local-batch-checkbox, .local-batch-radio { display: flex; align-items: center; gap: var(--space-2); }
+
+.local-batch-selection { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+
+.local-batch-selection > button {
+  padding: var(--space-1) var(--space-2);
+  color: var(--blue-accent);
+  background: transparent;
+  border: 0;
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+
+.local-batch-selection > button:disabled { color: var(--ink-dim); cursor: not-allowed; }
+.local-batch-selection > small { color: var(--ink-dim); font-size: var(--text-3xs); }
+
+.local-batch-assets {
+  display: grid;
+  gap: 0;
+  max-height: 26rem;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+  border: 1px solid var(--hairline);
+}
+
+.local-batch-assets > li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3);
+  background: var(--graphite);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.local-batch-assets > li > label { display: flex; align-items: center; gap: var(--space-3); min-width: 0; cursor: pointer; }
+.local-batch-assets > li > label > span { display: grid; min-width: 0; }
+.local-batch-assets > li strong { overflow: hidden; color: var(--ink); font-size: var(--text-2xs); font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
+.local-batch-assets > li small { overflow: hidden; color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); text-overflow: ellipsis; white-space: nowrap; }
+.local-batch-assets > li em { color: var(--ink-muted); font-family: var(--font-mono); font-size: var(--text-3xs); font-style: normal; }
+.local-batch-assets > li em[data-state="clear"] { color: var(--clear); }
+.local-batch-assets > li em[data-state="similar"] { color: var(--review); }
+.local-batch-assets > li em[data-state="duplicate"] { color: var(--blocked); }
+.local-batch-assets > li > small.local-batch-asset-message { grid-column: 1 / -1; white-space: normal; }
+.local-batch-assets > li.local-monitor-empty { grid-template-columns: auto minmax(0, 1fr); }
+
+.local-batch-form fieldset { display: grid; gap: var(--space-2); margin: 0; padding: var(--space-3); border: 1px solid var(--hairline); }
+.local-batch-form legend { padding: 0 var(--space-2); color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); }
+.local-batch-form fieldset > small { max-width: 84ch; color: var(--ink-muted); font-size: var(--text-2xs); }
+.local-batch-form .local-batch-radio { color: var(--ink); font-family: var(--font-sans); font-size: var(--text-2xs); }
+.local-batch-form > small[role="alert"] { max-width: 84ch; color: var(--review); font-size: var(--text-2xs); }
+
+/* The confirm step states the exact writes. Review tone, never a pass tone. */
+.local-batch-confirm {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: color-mix(in srgb, var(--review) 6%, var(--desk));
+  border: 1px solid color-mix(in srgb, var(--review) 38%, var(--hairline));
+}
+
+.local-batch-confirm p { max-width: 84ch; margin: 0; color: var(--ink); font-size: var(--text-2xs); }
+.local-batch-confirm > div { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); }
+.local-batch-confirm > div > button[type="button"]:not(.button) { color: var(--blue-accent); background: transparent; border: 0; font-size: var(--text-2xs); cursor: pointer; }
+
+/* The marker: on the inspector's latest decision, on the source form, and on every history entry. */
+.local-batch-marker {
+  display: block;
+  color: var(--review);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  font-style: normal;
+}
+
+.local-decision-history > ol { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+
+.local-decision-history > ol > li {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-3);
+  background: var(--graphite);
+  border-left: 2px solid var(--hairline-strong);
+}
+
+.local-decision-history > ol > li > strong { color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
+.local-decision-history > ol > li > small { color: var(--ink-muted); font-size: var(--text-2xs); }

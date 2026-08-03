@@ -4,19 +4,33 @@
   "release" : "1.0.0",
   "scanRunId" : "00000000-0000-0000-0000-000000000000",
   "summary" : {
-    "assets" : 1,
+    "assets" : 3,
     "blockedAssets" : 0,
     "flaggedWithoutApproval" : 0,
     "ownershipMismatchWithoutDecision" : 0,
-    "unresolvedAssets" : 1,
-    "violations" : 1
+    "unresolvedAssets" : 3,
+    "violations" : 3
   },
   "violations" : [ {
     "code" : "UNRESOLVED_SOURCE",
+    "decision" : "NEEDS_REVIEW",
+    "message" : "Source and license evidence must be resolved or the asset excluded",
+    "path" : "art/asset-0.rbxm",
+    "scanAssetId" : 1,
+    "verification" : "CLEAR"
+  }, {
+    "code" : "UNRESOLVED_SOURCE",
+    "decision" : "NEEDS_REVIEW",
+    "message" : "Source and license evidence must be resolved or the asset excluded",
+    "path" : "art/asset-1.rbxm",
+    "scanAssetId" : 2,
+    "verification" : "CLEAR"
+  }, {
+    "code" : "UNRESOLVED_SOURCE",
     "decision" : "PENDING",
     "message" : "Source and license evidence must be resolved or the asset excluded",
-    "path" : "art/walk.rbxm",
-    "scanAssetId" : 1,
+    "path" : "art/asset-2.rbxm",
+    "scanAssetId" : 3,
     "verification" : "CLEAR"
   } ]
 }

@@ -391,30 +391,65 @@ public final class ScanRepository {
     }
 
     public SourceEvidenceRecord appendEvidence(long assetId, SourceEvidence evidence) {
+        return appendEvidence(assetId, evidence, null);
+    }
+
+    /**
+     * Appends one asset's source evidence, optionally labelled with the batch act it came from.
+     *
+     * <p>{@code batchId} null is an ordinary per-file declaration. A non-null id records that this
+     * row and its siblings were declared together — the source/license pair is still exactly what a
+     * person typed, and still {@code DECLARED}; nothing about a batch upgrades it.
+     */
+    public SourceEvidenceRecord appendEvidence(long assetId, SourceEvidence evidence, String batchId) {
         java.util.Objects.requireNonNull(evidence, "evidence");
         synchronized (connection) {
             if (findAsset(assetId).isEmpty()) throw new IllegalArgumentException("Unknown scan asset " + assetId);
             Instant recordedAt = Instant.now();
             try (PreparedStatement statement = connection.prepareStatement("""
                     INSERT INTO source_evidence(scan_asset_id, source_name, license_name,
-                                                evidence_url, resolved, recorded_at)
-                    VALUES (?, ?, ?, ?, ?, ?)""", Statement.RETURN_GENERATED_KEYS)) {
+                                                evidence_url, resolved, recorded_at, batch_id)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)""", Statement.RETURN_GENERATED_KEYS)) {
                 statement.setLong(1, assetId);
                 statement.setString(2, evidence.source());
                 statement.setString(3, evidence.license());
                 statement.setString(4, evidence.evidenceUrl());
                 statement.setInt(5, evidence.resolved() ? 1 : 0);
                 statement.setString(6, Timestamps.text(recordedAt));
+                statement.setString(7, batchId);
                 statement.executeUpdate();
                 try (ResultSet keys = statement.getGeneratedKeys()) {
                     if (!keys.next()) throw new SQLException("Source evidence insert did not return an id");
                     return new SourceEvidenceRecord(keys.getLong(1), assetId, evidence.source(),
-                            evidence.license(), evidence.evidenceUrl(), evidence.resolved(), recordedAt);
+                            evidence.license(), evidence.evidenceUrl(), evidence.resolved(), recordedAt,
+                            batchId);
                 }
             } catch (SQLException e) {
                 throw new IllegalStateException("Could not append source evidence", e);
             }
         }
+    }
+
+    /**
+     * The manifest path → scan asset id mapping for one run, shared by every caller that has to
+     * turn something the gate said into something the workspace can act on.
+     *
+     * <p>The gate speaks in manifest paths; every decision affordance is keyed by a numeric id. Two
+     * routes need that translation (the gate preview and the review groups), and two copies of it
+     * would be two chances to disagree — so there is one, here, over the same {@link #listAllAssets}
+     * the export walks.
+     *
+     * <p>An ambiguous path resolves to <em>nothing</em> rather than to whichever row was seen first
+     * ({@link Map#merge} drops the entry when the remapping function returns null): a wrong id would
+     * put a person's decision on the wrong file. {@code UNIQUE(scan_run_id, relative_path)} makes
+     * that impossible today, so this is a guard rather than a live case.
+     */
+    public Map<String, Long> assetIdsByPath(String runId) {
+        Map<String, Long> byPath = new java.util.HashMap<>();
+        for (ScanAsset asset : listAllAssets(runId)) {
+            byPath.merge(asset.relativePath(), asset.id(), (first, second) -> null);
+        }
+        return byPath;
     }
 
     private Optional<ScanRun> findByIdInternal(String runId) {
@@ -550,7 +585,7 @@ public final class ScanRepository {
         return new SourceEvidenceRecord(result.getLong("id"), result.getLong("scan_asset_id"),
                 result.getString("source_name"), result.getString("license_name"),
                 result.getString("evidence_url"), result.getInt("resolved") != 0,
-                Instant.parse(result.getString("recorded_at")));
+                Instant.parse(result.getString("recorded_at")), result.getString("batch_id"));
     }
 
     private static Instant instant(ResultSet result, String column) throws SQLException {

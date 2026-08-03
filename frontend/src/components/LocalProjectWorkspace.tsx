@@ -38,6 +38,7 @@ import {
   type LocalScanRun,
 } from '../bridge/localBridge';
 import { decisionBasis, ownershipBasis, ownershipLinkBasis, sourceBasis, verificationBasis, type EvidenceBasis } from '../bridge/evidenceBasis';
+import { BatchReviewPanel } from './BatchReviewPanel';
 import { EvidenceBasisMark } from './EvidenceBasisMark';
 import { formatBytes, titleCaseManifestValue } from '../manifest/manifest';
 
@@ -234,6 +235,26 @@ export function gateResolutionQueue(preview: LocalGatePreview | null): LocalGate
       path: violation.path,
       code: violation.code,
     })));
+}
+
+/**
+ * The disclosure a batched record carries wherever it is read: this judgement was one of N made in
+ * one act, and here is the batch it came from.
+ *
+ * <p>Without it, thirty decisions written by one gesture and thirty written by thirty considered
+ * reviews are identical rows in the ledger — which is the thing a batch feature must not do
+ * quietly. It is a statement about *how the record was made*, never a verdict about the file, and it
+ * never softens or re-words the person's own rationale, which is rendered separately and verbatim.
+ *
+ * <p>An unknown count stays unknown ("part of a batch") rather than becoming a guessed number: the
+ * bridge reports null when it cannot read the batch row, and inventing "1" there would turn a batch
+ * into a per-file decision in the reader's eyes. Pure.
+ */
+export function batchMarkerLabel(batchId: string, assetCount?: number | null): string {
+  const scale = typeof assetCount === 'number' && assetCount > 0
+    ? `Recorded as part of a ${assetCount}-file batch`
+    : 'Recorded as part of a batch';
+  return `${scale} · batch ${batchId.slice(0, 8)}`;
 }
 
 export type ParsedRobloxAssetId =
@@ -902,6 +923,27 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
     }
   }
 
+  /**
+   * Reloads the ledger and the open record after something wrote outside this inspector — today,
+   * the group-review panel above. It re-fetches rather than patching state: a batch writes one row
+   * per file, and the only honest source for what those rows say is the bridge.
+   */
+  async function reloadLedger() {
+    try {
+      const result = await client.listProjectAssets(project.projectId, limit, offset);
+      setPage(result.items);
+      setScanRunId(result.scanRunId ?? '');
+      if (selectedId === null) return;
+      const [nextDetail, nextHistory] = await Promise.all([
+        client.getAsset(selectedId), client.getDecisionHistory(selectedId),
+      ]);
+      setDetail(nextDetail);
+      setHistory(nextHistory.items);
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : 'Could not reopen persisted assets');
+    }
+  }
+
   async function reloadVerifications(assetId: number) {
     const refreshed = await client.listOwnershipVerifications(assetId);
     setVerifications(refreshed.items);
@@ -917,6 +959,10 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
       <header className="local-scan-heading"><div><span>Persisted local evidence</span><h2 id="local-evidence-title">Reopen what the scanner actually stored.</h2><p>These immutable records come from SQLite. Selecting an asset loads its findings, source evidence, and append-only decision history.</p></div><div className="local-bridge-badge"><HardDrive size={16} /><span><strong>{project.name}</strong><small>{scanRunId ? `Run ${scanRunId.slice(0, 12)}…` : 'No persisted run'}</small></span></div></header>
       <div className="local-evidence-toolbar"><label><Search size={14} /><input aria-label="Search persisted local assets" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search current page…" /></label><span>{visible.length} of {page.length} records on this page</span></div>
       {error ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>Local evidence unavailable</strong><small>{error}</small></span></div> : null}
+      {/* Group review sits above the ledger, not inside the inspector: it is about a set of files,
+          and the inspector is about one. It lives in its own file because this one's render is a
+          single ~6000-character line, and a panel added into that is unreviewable. */}
+      <BatchReviewPanel client={client} scanRunId={scanRunId || null} onLedgerChanged={() => { void reloadLedger(); }} />
       <div className="local-evidence-layout">
         <div className="local-asset-ledger">
           {loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Reopening persisted records…</strong></div> : visible.length ? visible.map((asset) => <button key={asset.id} type="button" className={selectedId === asset.id ? 'selected' : ''} aria-pressed={selectedId === asset.id} onClick={() => setSelectedId(asset.id)}><span className="manifest-file-icon">{asset.fileType.slice(0, 4).toUpperCase() || 'FILE'}</span><span><strong>{asset.fileName}</strong><small>{asset.relativePath} · {formatBytes(asset.sizeBytes)}</small></span><em data-state={asset.verification.toLowerCase()}>{titleCaseManifestValue(asset.verification)}</em></button>) : <div className="local-monitor-empty"><FolderOpen size={20} /><strong>No persisted assets on this page</strong><p>{query ? 'Clear the search to restore this page.' : 'Run or complete a local scan first.'}</p></div>}
@@ -924,7 +970,7 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
         </div>
         <aside className="local-asset-inspector" ref={inspectorRef}>
           {resolutionContext && selectedId === resolutionContext.assetId ? <div className="local-partial-result local-gate-context"><Workflow size={15} /><span><strong>Gate check · item {resolutionContext.index + 1} of {resolutionContext.total}</strong><small>{resolutionContext.path} — recording something here does not clear the gate. Re-run the check to see what still stands.</small></span>{resolutionContext.onNext ? <button type="button" onClick={resolutionContext.onNext}>Next item</button> : null}<button type="button" onClick={resolutionContext.onBackToCheck}>Back to gate check</button></div> : null}
-          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={ownershipBasis(latestVerification)} /> <small>{latestVerification ? 'Facts obtained from Roblox for an animation ID a person entered for this file; the link between the two is declared, not verified — see below.' : 'Not checked yet — verify below by entering a Roblox animation ID.'}</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} /></form><LocalOwnershipPanel client={client} assetId={detail.asset.id} experienceBound={Boolean(project.experience)} latest={latestVerification} latestDecision={detail.latestDecision ?? null} onVerified={reloadVerifications} /><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small></div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section><form className="local-decision-form local-decision-record-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
+          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={ownershipBasis(latestVerification)} /> <small>{latestVerification ? 'Facts obtained from Roblox for an animation ID a person entered for this file; the link between the two is declared, not verified — see below.' : 'Not checked yet — verify below by entering a Roblox animation ID.'}</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} />{detail.sourceEvidence?.batchId ? <small className="local-batch-marker">{batchMarkerLabel(detail.sourceEvidence.batchId, detail.sourceEvidence.batchAssetCount)} — the same source and license were declared over those files at once.</small> : null}</form><LocalOwnershipPanel client={client} assetId={detail.asset.id} experienceBound={Boolean(project.experience)} latest={latestVerification} latestDecision={detail.latestDecision ?? null} onVerified={reloadVerifications} /><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small>{detail.latestDecision.batchId ? <small className="local-batch-marker">{batchMarkerLabel(detail.latestDecision.batchId, detail.latestDecision.batchAssetCount)}</small> : null}</div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section>{history.length ? <section className="local-decision-history"><span>Decision history</span><ol>{history.map((entry) => <li key={entry.id}><strong>{titleCaseManifestValue(entry.type)}</strong>{entry.batchId ? <em className="local-batch-marker">{batchMarkerLabel(entry.batchId, entry.batchAssetCount)}</em> : null}<small>{entry.reason}</small></li>)}</ol></section> : null}<form className="local-decision-form local-decision-record-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
         </aside>
       </div>
     </section>
