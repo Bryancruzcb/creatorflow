@@ -48,12 +48,21 @@
 import type { NormalizedAnimationJson } from './normalizedMotion';
 
 /**
- * Least joint pairs worth mirroring for.
+ * Least mirror-map ENTRIES worth mirroring for. Two entries is ONE mutual pair.
  *
- * With no paired joints the "mirror" degenerates to negating x on every joint, which is not a
- * mirror of a performance — it is a reflected rig. Scoring that as a second chance would be pure
- * added false-positive surface for no detection value, so a clip with too few pairs is not
- * mirrored at all. Two, because one pair is within noise of zero on any real humanoid.
+ * The guard compares this against `swap.size`, and `buildMirrorMap` stores both directions of every
+ * mutual pair (A -> B and B -> A), so a single pair already fills two entries and clears it. The
+ * effective floor is one pair: only a clip with no mutual pair at all is refused.
+ *
+ * Refusing that case is what the floor is for. With no paired joints the "mirror" degenerates to
+ * negating x on every joint, which is not a mirror of a performance — it is a reflected rig.
+ * Scoring that as a second chance would be pure added false-positive surface for no detection
+ * value.
+ *
+ * The one-pair floor is the shipped scoring behaviour and is kept by owner decision 2026-08-02:
+ * raising it would change which clips get a second orientation and move scores the web already
+ * ships and the scorecard already grades. This comment used to claim a two-pair floor the code
+ * never implemented; the comment was corrected to the code, not the code to the comment.
  */
 export const MIRROR_MIN_PAIRS = 2;
 

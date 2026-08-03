@@ -75,14 +75,14 @@ final class MotionV2ParityOracle {
          *
          * MIRROR_MIN_PAIRS is 2, but buildMirrorMap stores both directions of every mutual pair
          * (A -> B and B -> A), so a single pair already yields size 2 and clears the guard. The
-         * TypeScript comment beside the constant reads "Two, because one pair is within noise of
-         * zero on any real humanoid", which describes a rule the code does not implement: the
-         * effective floor is one pair, not two.
+         * effective floor is one pair, not two; only a clip with no mutual pair at all is refused.
          *
-         * Pinned rather than corrected. Raising the real floor would change which clips get a second
-         * orientation and therefore change scores the web already ships and the scorecard already
-         * grades — a product decision, not something to slip into a parity change. Recorded here so
-         * the next reader finds the discrepancy from a test instead of from a wrong number.
+         * The floor stays. Raising it would change which clips get a second orientation and
+         * therefore change scores the web already ships and the scorecard already grades — a
+         * product decision, not something to slip into a parity change. What was corrected instead,
+         * on 2026-08-02 by owner decision, is the TypeScript comment beside the constant, which used
+         * to describe a two-pair floor the code does not implement. This case keeps the floor itself
+         * pinned from a test rather than from prose.
          */
         NormalizedAnimation onePair = twoJointAsymmetric("m-onepair", "ArmL", "ArmR");
         cases.add(new OracleCase("v2-mirror-single-pair-allowed",
