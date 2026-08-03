@@ -18,13 +18,15 @@ import {
   Square,
   Workflow,
 } from 'lucide-react';
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
 import {
   LocalBridgeClient,
   LocalBridgeError,
   type LocalAssetDetail,
   type LocalDecision,
   type LocalDecisionType,
+  type LocalGatePreview,
+  type LocalGateViolation,
   type LocalIntendedExperience,
   type LocalOwnershipVerification,
   type OwnershipIdentityType,
@@ -93,6 +95,145 @@ export function resolveRollbackTargetLabel(previousReleaseId: string, releases: 
   if (!prior) return previousReleaseId;
   const name = prior.release ?? prior.releaseName ?? prior.id;
   return `${name} (v${prior.id.slice(0, 8)})`;
+}
+
+/**
+ * Which of the three forms stacked in the evidence inspector actually changes a given violation.
+ *
+ * `OWNERSHIP_MISMATCH_WITHOUT_DECISION` lands on the ownership panel rather than on the decision
+ * form even though the decision form is the literal resolver: a person has to read what the
+ * mismatch actually says before recording a call about it, and the decision form sits directly
+ * below it. Facts first, then the decision.
+ */
+export type LocalGateAffordance = 'source' | 'decision' | 'ownership';
+
+export interface LocalGateViolationGroup {
+  code: string;
+  title: string;
+  /**
+   * What actually clears this kind of violation. Written once per group from the gate's own rules,
+   * never computed per row — the workspace does not re-implement a gate rule, and it never claims a
+   * specific asset will clear.
+   */
+  clears: string;
+  violations: LocalGateViolation[];
+}
+
+/**
+ * Groups in `ReleaseGate.Code`'s own declaration order, so the checklist reads in the same order
+ * the gate itself evaluates and a reader can trace one to the other.
+ */
+const gateGroups: Array<Omit<LocalGateViolationGroup, 'violations'>> = [
+  {
+    code: 'BLOCKED_DECISION',
+    title: 'Blocked on purpose',
+    clears: 'Someone blocked this file deliberately. Only a new decision on the asset changes it.',
+  },
+  {
+    code: 'UNRESOLVED_SOURCE',
+    title: 'Source and license not recorded',
+    clears: 'Record both a source and a license. Approving does not clear this — the gate checks the '
+      + 'source record independently of the decision.',
+  },
+  {
+    code: 'FLAGGED_WITHOUT_APPROVAL',
+    title: 'Flagged, with no approval or exclusion',
+    clears: 'A person has to approve or exclude it. A similarity finding is a review lead, not a verdict.',
+  },
+  {
+    code: 'OWNERSHIP_MISMATCH_WITHOUT_DECISION',
+    title: 'Ownership mismatch with no resolving decision',
+    clears: 'Confirm the team has the right to ship it, then approve or exclude. Needs review does not '
+      + 'clear it — that records that the review has not happened.',
+  },
+];
+
+const otherGateGroup: Omit<LocalGateViolationGroup, 'violations'> = {
+  code: 'OTHER',
+  title: 'Other gate rules',
+  clears: 'This build of the workspace does not know these rules, so the gate’s own message is shown '
+    + 'as it came back. They still block the release.',
+};
+
+/**
+ * Splits a preview's violations into rendered groups, in the gate enum's order, with anything this
+ * build does not recognise collected into a final "Other" group.
+ *
+ * Unknown codes are kept rather than dropped on purpose: dropping one would under-report a block,
+ * and under-reporting a block is the direction that ships something. Rows are never merged either —
+ * the gate counts violations, not files, and one file can legitimately stand in three groups at
+ * once (unresolved source + flagged + ownership mismatch). Pure.
+ */
+export function groupGateViolations(violations: LocalGateViolation[]): LocalGateViolationGroup[] {
+  const known = new Set(gateGroups.map((group) => group.code));
+  return [
+    ...gateGroups.map((group) => ({ ...group, violations: violations.filter((item) => item.code === group.code) })),
+    { ...otherGateGroup, violations: violations.filter((item) => !known.has(item.code)) },
+  ].filter((group) => group.violations.length > 0);
+}
+
+/**
+ * The affordance a violation of this code is resolved through. An unknown code goes to the decision
+ * form: it is the only affordance that applies to every asset, and a jump that lands somewhere
+ * plausible is better than one that lands nowhere. Pure.
+ */
+export function affordanceForViolationCode(code: string): LocalGateAffordance {
+  if (code === 'UNRESOLVED_SOURCE') return 'source';
+  if (code === 'OWNERSHIP_MISMATCH_WITHOUT_DECISION') return 'ownership';
+  return 'decision';
+}
+
+/**
+ * The counter above the checklist.
+ *
+ * Deliberately not "3 of 7 resolved". The workspace cannot know that anything was resolved — only
+ * the gate can, and only on its next run. What it observed is that a person wrote something on an
+ * asset after this check was taken, which is *touched*: an asset moved to Needs review is touched
+ * and still standing. The standing count never goes down between checks. Pure.
+ */
+export function gateProgressLabel(standing: number, touched: number): string {
+  const base = `${standing} standing`;
+  return touched > 0 ? `${base} · ${touched} touched since this check` : base;
+}
+
+/**
+ * Whether a checklist is describing a scan that is no longer the active one.
+ *
+ * Only true when both run ids are known and differ — an unknown current run is an unknown, never a
+ * staleness claim. It matters because scan assets are per-run and old runs' rows are never deleted:
+ * a jump using an old run's asset id would open a real, stale file with nothing to warn a person,
+ * and the bridge's own rejection of the accompanying workspace-state save is fire-and-forget, so it
+ * would never be seen. The guard therefore runs before the jump, not after. Pure.
+ */
+export function isGatePreviewStale(preview: LocalGatePreview | null, currentScanRunId: string | null): boolean {
+  if (!preview || !currentScanRunId) return false;
+  return preview.scanRunId !== currentScanRunId;
+}
+
+/** One walkable step of a gate check: a violation that resolved to a real asset in this run. */
+export interface LocalGateQueueItem {
+  assetId: number;
+  affordance: LocalGateAffordance;
+  path: string;
+  code: string;
+}
+
+/**
+ * The violations a person can actually be taken to, in the order the checklist renders them.
+ *
+ * Violations whose path did not resolve to a scan asset are left out — there is nowhere honest to
+ * jump — but they are still rendered and still counted; only the walkthrough skips them. Pure.
+ */
+export function gateResolutionQueue(preview: LocalGatePreview | null): LocalGateQueueItem[] {
+  if (!preview) return [];
+  return groupGateViolations(preview.violations).flatMap((group) => group.violations
+    .filter((violation) => violation.scanAssetId !== null)
+    .map((violation) => ({
+      assetId: violation.scanAssetId as number,
+      affordance: affordanceForViolationCode(violation.code),
+      path: violation.path,
+      code: violation.code,
+    })));
 }
 
 export type ParsedRobloxAssetId =
@@ -620,7 +761,22 @@ export function LocalOwnershipPanel({ client, assetId, experienceBound, latest, 
   );
 }
 
-export function LocalEvidenceView({ client, project, initialSelectedAssetId = null, onSelectAsset }: { client: LocalBridgeClient; project: LocalProjectSummary; initialSelectedAssetId?: number | null; onSelectAsset?: (assetId: number | null) => void }) {
+/**
+ * Where a person is inside a gate-check walkthrough, handed to the evidence view so it can say so
+ * and offer the next step. Navigation only: it carries no decision, no suggested value, and no
+ * verdict, so nothing read out of it can influence what gets recorded.
+ */
+export interface LocalGateResolutionContext {
+  assetId: number;
+  index: number;
+  total: number;
+  path: string;
+  /** Null on the last item — the walkthrough ends rather than wrapping. */
+  onNext: (() => void) | null;
+  onBackToCheck: () => void;
+}
+
+export function LocalEvidenceView({ client, project, initialSelectedAssetId = null, onSelectAsset, focusAffordance = null, resolutionContext = null, onResolutionTouch }: { client: LocalBridgeClient; project: LocalProjectSummary; initialSelectedAssetId?: number | null; onSelectAsset?: (assetId: number | null) => void; focusAffordance?: LocalGateAffordance | null; resolutionContext?: LocalGateResolutionContext | null; onResolutionTouch?: (assetId: number, note: string) => void }) {
   const [offset, setOffset] = useState(0);
   const [page, setPage] = useState<LocalScanAsset[]>([]);
   const [scanRunId, setScanRunId] = useState('');
@@ -638,7 +794,9 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
   const [licenseName, setLicenseName] = useState('');
   const [evidenceUrl, setEvidenceUrl] = useState('');
   const [sourceSaving, setSourceSaving] = useState(false);
+  const inspectorRef = useRef<HTMLElement>(null);
   const limit = 100;
+  const queuedAssetId = resolutionContext?.assetId ?? null;
 
   useEffect(() => {
     let active = true;
@@ -673,6 +831,35 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
     setEvidenceUrl(detail?.sourceEvidence?.evidenceUrl ?? '');
   }, [detail?.asset.id, detail?.sourceEvidence]);
 
+  // Follows the gate-check cursor when the shell moves it. Kept separate from
+  // initialSelectedAssetId, which stays initial-only: ordinary browsing is untouched, and a person
+  // who clicks another asset mid-walkthrough is not yanked back.
+  useEffect(() => {
+    if (queuedAssetId !== null) setSelectedId(queuedAssetId);
+  }, [queuedAssetId]);
+
+  /**
+   * Lands on the affordance that actually changes the violation, not merely on the file.
+   *
+   * Three forms are stacked in this inspector, and "we opened the asset" is not the same as "we
+   * opened the thing that resolves it". Reading the prop on mount is enough because
+   * `AnimatePresence` keys the view frame on the active view, so arriving here from the checklist
+   * always remounts this component — the same reason `initialSelectedAssetId` works as initial-only
+   * state. Only the queued asset is focused, so manual browsing never gets its focus moved.
+   */
+  useEffect(() => {
+    if (!focusAffordance || !detail) return;
+    if (queuedAssetId !== null && detail.asset.id !== queuedAssetId) return;
+    const selector = focusAffordance === 'source' ? '.local-source-form'
+      : focusAffordance === 'ownership' ? '.local-ownership-form'
+        : '.local-decision-record-form';
+    const form = inspectorRef.current?.querySelector<HTMLElement>(selector);
+    if (!form) return;
+    // Optional-called: jsdom has no scrollIntoView, and a missing scroll must not cost the focus move.
+    form.scrollIntoView?.({ block: 'nearest' });
+    form.querySelector<HTMLElement>('input, select, textarea, button')?.focus();
+  }, [detail?.asset.id, focusAffordance, queuedAssetId]);
+
   const visible = useMemo(() => {
     const normalized = query.trim().toLocaleLowerCase();
     return normalized ? page.filter((asset) => [asset.relativePath, asset.fileName, asset.fileType, asset.sha256, ...asset.findings].some((value) => value.toLocaleLowerCase().includes(normalized))) : page;
@@ -689,6 +876,9 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
       setDetail(nextDetail);
       setHistory(nextHistory.items);
       setReason('');
+      // Reports that a write happened, and what it was — never that anything was resolved. Only the
+      // next gate run can say that, which is why the checklist renders this as "touched".
+      onResolutionTouch?.(detail.asset.id, `decision recorded — ${titleCaseManifestValue(decisionType)}`);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not record the decision');
     } finally {
@@ -704,6 +894,7 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
     try {
       await client.recordSourceEvidence(detail.asset.id, sourceName.trim() || null, licenseName.trim() || null, evidenceUrl.trim() || null);
       setDetail(await client.getAsset(detail.asset.id));
+      onResolutionTouch?.(detail.asset.id, 'source record saved');
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not save source evidence');
     } finally {
@@ -714,6 +905,9 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
   async function reloadVerifications(assetId: number) {
     const refreshed = await client.listOwnershipVerifications(assetId);
     setVerifications(refreshed.items);
+    // A check is a write to the ownership ledger, so it is a touch — and pointedly not a
+    // resolution: only APPROVED or EXCLUDED clears an ownership mismatch, never the check itself.
+    onResolutionTouch?.(assetId, 'ownership checked');
   }
 
   const latestVerification = verifications[0] ?? null;
@@ -728,15 +922,139 @@ export function LocalEvidenceView({ client, project, initialSelectedAssetId = nu
           {loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Reopening persisted records…</strong></div> : visible.length ? visible.map((asset) => <button key={asset.id} type="button" className={selectedId === asset.id ? 'selected' : ''} aria-pressed={selectedId === asset.id} onClick={() => setSelectedId(asset.id)}><span className="manifest-file-icon">{asset.fileType.slice(0, 4).toUpperCase() || 'FILE'}</span><span><strong>{asset.fileName}</strong><small>{asset.relativePath} · {formatBytes(asset.sizeBytes)}</small></span><em data-state={asset.verification.toLowerCase()}>{titleCaseManifestValue(asset.verification)}</em></button>) : <div className="local-monitor-empty"><FolderOpen size={20} /><strong>No persisted assets on this page</strong><p>{query ? 'Clear the search to restore this page.' : 'Run or complete a local scan first.'}</p></div>}
           <footer><button type="button" disabled={offset === 0} onClick={() => setOffset((current) => Math.max(0, current - limit))}><ChevronLeft size={14} /> Previous</button><span>Records {offset + 1}–{offset + page.length}</span><button type="button" disabled={page.length < limit} onClick={() => setOffset((current) => current + limit)}>Next <ChevronRight size={14} /></button></footer>
         </div>
-        <aside className="local-asset-inspector">
-          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={ownershipBasis(latestVerification)} /> <small>{latestVerification ? 'Facts obtained from Roblox for an animation ID a person entered for this file; the link between the two is declared, not verified — see below.' : 'Not checked yet — verify below by entering a Roblox animation ID.'}</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} /></form><LocalOwnershipPanel client={client} assetId={detail.asset.id} experienceBound={Boolean(project.experience)} latest={latestVerification} latestDecision={detail.latestDecision ?? null} onVerified={reloadVerifications} /><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small></div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section><form className="local-decision-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
+        <aside className="local-asset-inspector" ref={inspectorRef}>
+          {resolutionContext && selectedId === resolutionContext.assetId ? <div className="local-partial-result local-gate-context"><Workflow size={15} /><span><strong>Gate check · item {resolutionContext.index + 1} of {resolutionContext.total}</strong><small>{resolutionContext.path} — recording something here does not clear the gate. Re-run the check to see what still stands.</small></span>{resolutionContext.onNext ? <button type="button" onClick={resolutionContext.onNext}>Next item</button> : null}<button type="button" onClick={resolutionContext.onBackToCheck}>Back to gate check</button></div> : null}
+          {detail ? <><header><span>Asset record</span><h3>{detail.asset.fileName}</h3><p>{detail.asset.relativePath}</p></header><dl><div><dt>Verification</dt><dd>{titleCaseManifestValue(detail.asset.verification)} <EvidenceBasisMark basis={verificationBasis()} /></dd></div><div><dt>Size</dt><dd>{formatBytes(detail.asset.sizeBytes)}</dd></div><div><dt>Dimensions</dt><dd>{detail.asset.width && detail.asset.height ? `${detail.asset.width} × ${detail.asset.height}` : 'Not reported'}</dd></div><div><dt>Findings</dt><dd>{detail.findings.length}</dd></div><div><dt>Ownership</dt><dd><EvidenceBasisMark basis={ownershipBasis(latestVerification)} /> <small>{latestVerification ? 'Facts obtained from Roblox for an animation ID a person entered for this file; the link between the two is declared, not verified — see below.' : 'Not checked yet — verify below by entering a Roblox animation ID.'}</small></dd></div></dl><section><span>SHA-256</span><code>{detail.asset.sha256}</code></section><section><span>Findings</span>{detail.findings.length ? <ul>{detail.findings.map((finding) => <li key={finding.id}><strong>{finding.code}</strong><small>{finding.message}{finding.matchDistance !== null ? ` · distance ${finding.matchDistance}` : ''}</small></li>)}</ul> : <p>No findings recorded.</p>}</section><form className="local-decision-form local-source-form" onSubmit={saveSourceEvidence}><strong>Source evidence</strong><label><span>Source</span><input value={sourceName} onChange={(event) => setSourceName(event.target.value)} placeholder="Provider, archive, or owner…" /></label><label><span>License</span><input value={licenseName} onChange={(event) => setLicenseName(event.target.value)} placeholder="License or ownership basis…" /></label><label><span>Evidence URL</span><input type="url" value={evidenceUrl} onChange={(event) => setEvidenceUrl(event.target.value)} placeholder="https://…" /></label><button className="button button-secondary" type="submit" disabled={sourceSaving}>{sourceSaving ? <LoaderCircle className="spin" size={14} /> : <Library size={14} />} Save source record</button><small>{detail.sourceEvidence?.resolved ? 'Resolved source and license pair' : 'Source remains unresolved until both fields are recorded'}</small> <EvidenceBasisMark basis={sourceBasis(detail.sourceEvidence)} /></form><LocalOwnershipPanel client={client} assetId={detail.asset.id} experienceBound={Boolean(project.experience)} latest={latestVerification} latestDecision={detail.latestDecision ?? null} onVerified={reloadVerifications} /><section><span>Latest decision</span>{detail.latestDecision ? <div><strong>{titleCaseManifestValue(detail.latestDecision.type)}</strong> <EvidenceBasisMark basis={decisionBasis(detail.latestDecision) ?? 'DECLARED'} /><small>{detail.latestDecision.reason}</small></div> : <p>No human decision recorded.</p>}<small>{history.length} append-only record{history.length === 1 ? '' : 's'} in history</small></section><form className="local-decision-form local-decision-record-form" onSubmit={saveDecision}><label><span>{detail.latestDecision ? 'Superseding decision' : 'Decision'}</span><select value={decisionType} onChange={(event) => setDecisionType(event.target.value as LocalDecisionType)}><option value="APPROVED">Approved</option><option value="NEEDS_REVIEW">Needs review</option><option value="BLOCKED">Blocked</option><option value="EXCLUDED">Excluded</option></select></label><label><span>Reason</span><textarea required rows={3} value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Explain the evidence behind this decision…" /></label><button className="button button-primary" type="submit" disabled={saving || !reason.trim()}>{saving ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Record decision</button></form></> : <div className="local-monitor-empty"><Circle size={20} /><strong>Select a persisted asset</strong><p>Its detailed evidence and decision history will open here.</p></div>}
         </aside>
       </div>
     </section>
   );
 }
 
-export function LocalReleasesView({ client, project, run }: { client: LocalBridgeClient; project: LocalProjectSummary; run: LocalScanRun | null }) {
+/**
+ * One gate check, plus what has happened on this machine since it was taken.
+ *
+ * Lives in the workspace shell rather than in a view, because the whole point is that it survives
+ * the trip to Evidence and back. It is not persisted: a reload loses it, and re-checking is one
+ * click and one local query. See the design spec for why `workspace_state.queue_json` is the
+ * natural home later and what has to be fixed before anything uses it.
+ */
+export interface LocalGateResolution {
+  preview: LocalGatePreview;
+  /** Asset id → what was written on it since the check. A record of a write, never of a resolution. */
+  touched: Record<number, string>;
+  /** Index into {@link gateResolutionQueue} — where the walkthrough currently is. */
+  cursor: number;
+}
+
+/** At most this many rows are drawn per group. The COUNT is never truncated, only the rendering. */
+const gateRowCap = 50;
+
+/**
+ * The grouped, jumpable checklist of what is standing at the release gate.
+ *
+ * Three things it deliberately does not do. It does not render a decision picker — resolving
+ * requires being in the evidence view with the findings, hash, source record, ownership verdict and
+ * decision history on screen around the form, so the jump is a shortcut through navigation, never
+ * through review. It does not suggest a decision, because pre-selecting the value that clears a
+ * similarity flag would be the tool proposing the answer a similarity signal is not allowed to
+ * propose. And it never says "resolved": between two checks the workspace can only honestly report
+ * that something was written, which it shows as *touched*, in the review tone, without decrementing
+ * the standing count.
+ */
+export function LocalGateCheckPanel({ preview, touched, run, checking, checkError, onRunCheck, onOpenAsset }: {
+  preview: LocalGatePreview | null;
+  touched: Record<number, string>;
+  run: LocalScanRun | null;
+  checking: boolean;
+  /** The last attempt's failure, or null. Never clears a previous result: a failed check is not a clean check. */
+  checkError: string | null;
+  onRunCheck: () => void;
+  onOpenAsset: (assetId: number, affordance: LocalGateAffordance) => void;
+}) {
+  const stale = isGatePreviewStale(preview, run?.id ?? null);
+  const groups = useMemo(() => groupGateViolations(preview?.violations ?? []), [preview?.violations]);
+  const openPerPath = useMemo(() => {
+    const counts = new Map<string, number>();
+    (preview?.violations ?? []).forEach((violation) => counts.set(violation.path, (counts.get(violation.path) ?? 0) + 1));
+    return counts;
+  }, [preview?.violations]);
+  // Only assets that are actually in this check are counted as touched — a write on some unrelated
+  // file is not progress against this checklist.
+  const standingAssetIds = useMemo(
+    () => new Set((preview?.violations ?? []).map((violation) => violation.scanAssetId).filter((id): id is number => id !== null)),
+    [preview?.violations],
+  );
+  const touchedCount = Object.keys(touched).map(Number).filter((id) => standingAssetIds.has(id)).length;
+  const canCheck = run?.state === 'COMPLETED';
+
+  return (
+    <section className="local-gate-check" aria-labelledby="local-gate-check-title">
+      <header>
+        <div>
+          <span>Gate check</span>
+          <h3 id="local-gate-check-title">See what is blocking, without minting a release.</h3>
+          {preview
+            ? <p>Checked {new Date(preview.evaluatedAt).toLocaleString()} against run {preview.scanRunId.slice(0, 10)}… — this is a check, not a release. Nothing was written.</p>
+            : <p>Not checked yet — run the gate check to see what would block this release. It runs the same gate a release runs and creates nothing.</p>}
+        </div>
+        {preview ? <span className="local-run-state" data-state={preview.passed ? 'completed' : 'failed'}>{preview.passed ? <Check size={13} /> : <AlertTriangle size={13} />}{preview.passed ? 'Check passed' : 'BLOCKED'}</span> : null}
+      </header>
+
+      {canCheck ? null : <p className="local-gate-unavailable">The gate can only be checked against a completed scan. Complete or reopen one first.</p>}
+      {checkError ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>{preview ? 'Could not re-check' : 'Could not run the gate check'}</strong><small>{checkError}{preview ? ' — the result below is the earlier one, with its original timestamp.' : ''}</small></span></div> : null}
+      {stale && preview ? <div className="local-gate-stale" role="status"><AlertTriangle size={15} /><span><strong>This check is against an older scan.</strong><small>Run {preview.scanRunId.slice(0, 10)}… is no longer the active one. Asset records are per-run, so nothing in this list points at a file in the current scan — and decisions recorded against the previous run stay with that run, so the new run’s files need their own. Re-check to start over against the current scan.</small></span></div> : null}
+
+      {preview && preview.passed ? (
+        <div className="local-gate-passed">
+          <Check size={15} />
+          <span>
+            <strong>Nothing was standing at the gate when this ran.</strong>
+            <small>A passing check reflects process and evidence completeness — decisions recorded, sources present, flags approved. It is not a copyright or originality verdict, and it is not a release: building the release record below is what persists one.</small>
+          </span>
+        </div>
+      ) : null}
+
+      {preview && !preview.passed ? <p className="local-gate-standing">{gateProgressLabel(preview.summary.violations, touchedCount)}</p> : null}
+
+      {groups.map((group) => {
+        const shown = group.violations.slice(0, gateRowCap);
+        return (
+          <section className="local-gate-group" key={group.code}>
+            <header><strong>{group.title}</strong><em>{group.violations.length}</em><p>{group.clears}</p></header>
+            <ul>
+              {shown.map((violation) => {
+                const assetId = violation.scanAssetId;
+                const note = assetId === null ? undefined : touched[assetId];
+                const onFile = openPerPath.get(violation.path) ?? 1;
+                return (
+                  <li className="local-gate-violation" key={`${violation.code}-${violation.path}`}>
+                    <code>{violation.path}</code>
+                    <small>{titleCaseManifestValue(violation.verification)} · {titleCaseManifestValue(violation.decision)}</small>
+                    <p>{violation.message}</p>
+                    {onFile > 1 ? <small>{onFile} open items on this file — one save may not clear them all.</small> : null}
+                    {note ? <em className="local-gate-touched">Touched since this check: {note}. The gate has not run again, so this item still stands.</em> : null}
+                    {assetId === null
+                      ? <small className="local-gate-nojump">No jump: this path is not in this scan’s asset list, so there is no record to open.</small>
+                      : <button type="button" disabled={stale} onClick={() => onOpenAsset(assetId, affordanceForViolationCode(violation.code))}>Open evidence →</button>}
+                  </li>
+                );
+              })}
+            </ul>
+            {group.violations.length > shown.length ? <small className="local-gate-more">…and {group.violations.length - shown.length} more of this kind. The count above is the real one; a built release’s gate report carries every row.</small> : null}
+          </section>
+        );
+      })}
+
+      <footer>
+        <button className="button button-secondary" type="button" onClick={onRunCheck} disabled={!canCheck || checking}>{checking ? <LoaderCircle className="spin" size={14} /> : <ShieldCheck size={14} />} {preview ? 'Re-run gate check' : 'Run gate check'}</button>
+        <small>Checking creates no release record and writes nothing. Building a release stays available below, blocked or not — a blocked release is still a real, downloadable artifact.</small>
+      </footer>
+    </section>
+  );
+}
+
+export function LocalReleasesView({ client, project, run, gateResolution, onGateResolutionChange, onOpenAsset }: { client: LocalBridgeClient; project: LocalProjectSummary; run: LocalScanRun | null; gateResolution: LocalGateResolution | null; onGateResolutionChange: (next: LocalGateResolution | null) => void; onOpenAsset: (assetId: number, affordance: LocalGateAffordance) => void }) {
   const [releases, setReleases] = useState<LocalRelease[]>([]);
   const [releaseName, setReleaseName] = useState(run?.release ?? 'Working');
   const [loading, setLoading] = useState(true);
@@ -745,6 +1063,8 @@ export function LocalReleasesView({ client, project, run }: { client: LocalBridg
   const [publishedVersionInputs, setPublishedVersionInputs] = useState<Record<string, string>>({});
   const [publishingReleaseId, setPublishingReleaseId] = useState<string | null>(null);
   const [publishErrors, setPublishErrors] = useState<Record<string, string>>({});
+  const [checking, setChecking] = useState(false);
+  const [checkError, setCheckError] = useState<string | null>(null);
 
   useEffect(() => {
     setReleaseName(run?.release ?? 'Working');
@@ -761,6 +1081,29 @@ export function LocalReleasesView({ client, project, run }: { client: LocalBridg
     return () => { active = false; };
   }, [client, project.projectId]);
 
+  /**
+   * Runs the gate against a scan and shows what it found. Creates nothing — that is the whole
+   * difference from the form below, and the reason re-checking is free of the side effects that
+   * make re-building one poison the next real release's diff baseline.
+   *
+   * A failure leaves any previous result exactly where it was, timestamp included: a failed check
+   * is not a clean check, and it must never be able to flip the panel to passed.
+   */
+  async function runGateCheck(scanRunId?: string) {
+    setChecking(true);
+    setCheckError(null);
+    try {
+      const preview = await client.previewGate(project.projectId, scanRunId);
+      // A new preview is a new truth object, so the touched overlay and the cursor reset with it —
+      // they only ever described the check they were collected against.
+      onGateResolutionChange({ preview, touched: {}, cursor: 0 });
+    } catch (reason) {
+      setCheckError(reason instanceof Error ? reason.message : 'Could not run the gate check');
+    } finally {
+      setChecking(false);
+    }
+  }
+
   async function createRelease(event: FormEvent) {
     event.preventDefault();
     if (!run) return;
@@ -769,6 +1112,9 @@ export function LocalReleasesView({ client, project, run }: { client: LocalBridg
     try {
       const created = await client.createRelease(project.projectId, { scanRunId: run.id, release: releaseName.trim() || run.release });
       setReleases((current) => [created, ...current.filter((release) => release.id !== created.id)]);
+      // Re-check straight after a build, so the checklist on screen and the release just written
+      // cannot be read side by side saying different things.
+      void runGateCheck(run.id);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : 'Could not create the release');
     } finally {
@@ -800,7 +1146,7 @@ export function LocalReleasesView({ client, project, run }: { client: LocalBridg
 
   const canCreate = run?.state === 'COMPLETED';
 
-  return <section className="local-releases-workspace" aria-labelledby="local-releases-title"><header className="local-scan-heading"><div><span>Persisted releases</span><h2 id="local-releases-title">Export the evidence that actually passed—or failed—the gate.</h2><p>Each release is rebuilt from the immutable scan, latest source evidence, and latest append-only decisions. Manifest and policy-report downloads come from the desktop bridge.</p></div><div className="local-bridge-badge"><FileJson size={16} /><span><strong>{project.name}</strong><small>{releases.length} persisted release{releases.length === 1 ? '' : 's'}</small></span></div></header><form className="local-release-create" onSubmit={createRelease}><label><span>Release name</span><input value={releaseName} onChange={(event) => setReleaseName(event.target.value)} maxLength={120} /></label><div><span>Source run</span><strong>{run ? `${run.release} · ${stateLabel(run.state)}` : 'No active persisted run'}</strong></div><button className="button button-primary" type="submit" disabled={!canCreate || creating}>{creating ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Build release record</button></form>{error ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>Release operation failed</strong><small>{error}</small></span></div> : null}<div className="local-release-list">{loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Loading releases…</strong></div> : releases.length ? releases.map((release) => <article key={release.id}><header><span className="local-run-state" data-state={release.policyResult === 'PASS' ? 'completed' : 'failed'}>{release.policyResult === 'PASS' ? <Check size={13} /> : <AlertTriangle size={13} />}{release.policyResult}</span><div><strong>{release.release ?? release.releaseName ?? 'Release'}</strong><small>{new Date(release.createdAt).toLocaleString()} · run {release.scanRunId.slice(0, 10)}…</small></div></header><dl><div><dt>Added</dt><dd>{release.comparison.added}</dd></div><div><dt>Changed</dt><dd>{release.comparison.changed}</dd></div><div><dt>Removed</dt><dd>{release.comparison.removed}</dd></div><div><dt>Unresolved</dt><dd>{release.comparison.unresolved}</dd></div><div><dt>Approved</dt><dd>{release.comparison.approved}</dd></div><div><dt>Blocked</dt><dd>{release.comparison.blocked}</dd></div></dl>{release.experience ? <p className="local-release-experience">Declared experience (not verified): {experienceSummary(release.experience)}</p> : null}{release.comparison.previousReleaseId ? <p className="local-release-rollback">Rollback target: {resolveRollbackTargetLabel(release.comparison.previousReleaseId, releases)} — <a href={client.releaseManifestUrl(release.comparison.previousReleaseId)} download>manifest</a>. Roll back to this release in Roblox Studio if this one must be reverted — CreatorFlow does not perform the rollback.</p> : null}{release.publishedPlaceVersion != null ? <p className="local-release-published">Published as place version {release.publishedPlaceVersion} <EvidenceBasisMark basis="DECLARED" compact /> <small>(self-reported — not verified against Roblox)</small></p> : <form className="local-decision-form local-release-publish-form" onSubmit={(event) => recordPublishedVersion(release, event)}><label><span>Record the Roblox place version you published</span><input inputMode="numeric" value={publishedVersionInputs[release.id] ?? ''} onChange={(event) => setPublishedVersionInputs((current) => ({ ...current, [release.id]: event.target.value }))} placeholder="e.g. 42" /></label>{publishErrors[release.id] ? <small role="alert">{publishErrors[release.id]}</small> : null}<button className="button button-secondary" type="submit" disabled={publishingReleaseId === release.id}>{publishingReleaseId === release.id ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Record published version</button></form>}<div className="local-release-downloads"><a href={release.manifestUrl} download><FileJson size={13} /> Manifest JSON</a><a href={release.reportUrl} download><ShieldCheck size={13} /> Gate report</a></div>{release.comparison.addedPaths.length || release.comparison.changedPaths.length || release.comparison.removedPaths.length ? <details><summary>Path-level comparison</summary><div>{release.comparison.addedPaths.map((path) => <span key={`a-${path}`}>Added · {path}</span>)}{release.comparison.changedPaths.map((path) => <span key={`c-${path}`}>Changed · {path}</span>)}{release.comparison.removedPaths.map((path) => <span key={`r-${path}`}>Removed · {path}</span>)}</div></details> : null}</article>) : <div className="local-monitor-empty"><FileJson size={20} /><strong>No releases exported yet</strong><p>{canCreate ? 'Build the first immutable release record from the completed scan.' : 'Complete or reopen a completed local scan before creating a release.'}</p></div>}</div></section>;
+  return <section className="local-releases-workspace" aria-labelledby="local-releases-title"><header className="local-scan-heading"><div><span>Persisted releases</span><h2 id="local-releases-title">Export the evidence that actually passed—or failed—the gate.</h2><p>Each release is rebuilt from the immutable scan, latest source evidence, and latest append-only decisions. Manifest and policy-report downloads come from the desktop bridge.</p></div><div className="local-bridge-badge"><FileJson size={16} /><span><strong>{project.name}</strong><small>{releases.length} persisted release{releases.length === 1 ? '' : 's'}</small></span></div></header><LocalGateCheckPanel preview={gateResolution?.preview ?? null} touched={gateResolution?.touched ?? {}} run={run} checking={checking} checkError={checkError} onRunCheck={() => { void runGateCheck(run?.id); }} onOpenAsset={onOpenAsset} /><form className="local-release-create" onSubmit={createRelease}><label><span>Release name</span><input value={releaseName} onChange={(event) => setReleaseName(event.target.value)} maxLength={120} /></label><div><span>Source run</span><strong>{run ? `${run.release} · ${stateLabel(run.state)}` : 'No active persisted run'}</strong></div><button className="button button-primary" type="submit" disabled={!canCreate || creating}>{creating ? <LoaderCircle className="spin" size={14} /> : <FileCheck2 size={14} />} Build release record</button></form>{error ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>Release operation failed</strong><small>{error}</small></span></div> : null}<div className="local-release-list">{loading ? <div className="local-monitor-empty"><LoaderCircle className="spin" size={20} /><strong>Loading releases…</strong></div> : releases.length ? releases.map((release) => <article key={release.id}><header><span className="local-run-state" data-state={release.policyResult === 'PASS' ? 'completed' : 'failed'}>{release.policyResult === 'PASS' ? <Check size={13} /> : <AlertTriangle size={13} />}{release.policyResult}</span><div><strong>{release.release ?? release.releaseName ?? 'Release'}</strong><small>{new Date(release.createdAt).toLocaleString()} · run {release.scanRunId.slice(0, 10)}…</small></div>{release.policyResult === 'BLOCKED' ? <button className="local-release-recheck" type="button" disabled={checking} onClick={() => { void runGateCheck(release.scanRunId); }}>Re-check this run</button> : null}</header><dl><div><dt>Added</dt><dd>{release.comparison.added}</dd></div><div><dt>Changed</dt><dd>{release.comparison.changed}</dd></div><div><dt>Removed</dt><dd>{release.comparison.removed}</dd></div><div><dt>Unresolved</dt><dd>{release.comparison.unresolved}</dd></div><div><dt>Approved</dt><dd>{release.comparison.approved}</dd></div><div><dt>Blocked</dt><dd>{release.comparison.blocked}</dd></div></dl>{release.experience ? <p className="local-release-experience">Declared experience (not verified): {experienceSummary(release.experience)}</p> : null}{release.comparison.previousReleaseId ? <p className="local-release-rollback">Rollback target: {resolveRollbackTargetLabel(release.comparison.previousReleaseId, releases)} — <a href={client.releaseManifestUrl(release.comparison.previousReleaseId)} download>manifest</a>. Roll back to this release in Roblox Studio if this one must be reverted — CreatorFlow does not perform the rollback.</p> : null}{release.publishedPlaceVersion != null ? <p className="local-release-published">Published as place version {release.publishedPlaceVersion} <EvidenceBasisMark basis="DECLARED" compact /> <small>(self-reported — not verified against Roblox)</small></p> : <form className="local-decision-form local-release-publish-form" onSubmit={(event) => recordPublishedVersion(release, event)}><label><span>Record the Roblox place version you published</span><input inputMode="numeric" value={publishedVersionInputs[release.id] ?? ''} onChange={(event) => setPublishedVersionInputs((current) => ({ ...current, [release.id]: event.target.value }))} placeholder="e.g. 42" /></label>{publishErrors[release.id] ? <small role="alert">{publishErrors[release.id]}</small> : null}<button className="button button-secondary" type="submit" disabled={publishingReleaseId === release.id}>{publishingReleaseId === release.id ? <LoaderCircle className="spin" size={14} /> : <Check size={14} />} Record published version</button></form>}<div className="local-release-downloads"><a href={release.manifestUrl} download><FileJson size={13} /> Manifest JSON</a><a href={release.reportUrl} download><ShieldCheck size={13} /> Gate report</a></div>{release.comparison.addedPaths.length || release.comparison.changedPaths.length || release.comparison.removedPaths.length ? <details><summary>Path-level comparison</summary><div>{release.comparison.addedPaths.map((path) => <span key={`a-${path}`}>Added · {path}</span>)}{release.comparison.changedPaths.map((path) => <span key={`c-${path}`}>Changed · {path}</span>)}{release.comparison.removedPaths.map((path) => <span key={`r-${path}`}>Removed · {path}</span>)}</div></details> : null}</article>) : <div className="local-monitor-empty"><FileJson size={20} /><strong>No releases exported yet</strong><p>{canCreate ? 'Build the first immutable release record from the completed scan.' : 'Complete or reopen a completed local scan before creating a release.'}</p></div>}</div></section>;
 }
 
 export function LocalSourcesBoundary({ onOpenEvidence }: { onOpenEvidence: () => void }) {

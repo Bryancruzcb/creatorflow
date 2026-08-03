@@ -23,6 +23,7 @@ import creatorflow.manifest.EvidenceBases;
 import creatorflow.manifest.EvidenceBasis;
 import creatorflow.manifest.ManifestJson;
 import creatorflow.manifest.OwnershipEvidence;
+import creatorflow.manifest.ReleaseGate;
 import creatorflow.model.VerificationStatus;
 import creatorflow.ownership.OwnershipOutcome;
 import java.nio.file.Path;
@@ -341,6 +342,113 @@ class ReleaseExportServiceTest {
             assertEquals(EvidenceBasis.VERIFIED, theme.evidenceBases().ownership());
             assertEquals(OwnershipOutcome.MISMATCH, theme.ownership().outcome());
         }
+    }
+
+    /**
+     * The extraction's whole point, asserted rather than argued.
+     *
+     * <p>A preview is only allowed to be called a preview if it is the same evaluation the persisted
+     * release performs. So this compares the two directly on identical state: the manifest bytes are
+     * asserted byte-for-byte against what the release actually stored, and the reports are asserted
+     * whole — with only {@code evaluatedAt} normalised away, because both stamp their own wall clock
+     * and always will (that is the one field a point-in-time check must not share).
+     */
+    @Test
+    void previewEvaluatesTheSameGateTheReleaseDoesOnIdenticalState() throws Exception {
+        try (Database database = new Database(directory.resolve("preview-parity.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "1.4.0", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.SIMILAR, SourceEvidence.unresolved()),
+                    asset("audio/theme.wav", "b", VerificationStatus.CLEAR, resolved())));
+
+            GatePreview preview = fixture.service.preview(project.projectId(), run.id());
+            ReleaseBundle bundle = fixture.service.create(project.projectId(), run.id(), run.releaseName());
+
+            assertEquals(new ManifestJson().write(bundle.manifest()),
+                    new ManifestJson().write(preview.manifest()),
+                    "the preview's manifest is not byte-identical to the one the release persisted");
+            // Against the persisted bytes too, not only the in-memory object. Stripped because
+            // ReleaseRepository.insert runs the manifest through requireText, so the row loses the
+            // trailing newline ManifestJson.write appends — a storage detail, not a difference.
+            assertEquals(bundle.release().manifestJson(),
+                    new ManifestJson().write(preview.manifest()).strip());
+            assertEquals(withEvaluatedAt(bundle.report(), preview.report().evaluatedAt()), preview.report(),
+                    "the preview's report differs from the release's beyond its own timestamp");
+            assertEquals(run.releaseName(), preview.releaseName());
+            assertEquals(run.id(), preview.scanRunId());
+
+            // And it tracks state, rather than caching the first answer: resolving the two things
+            // standing against art/hero.png flips the same preview to passed.
+            long heroId = assetId(fixture, run, "art/hero.png");
+            fixture.scans.appendEvidence(heroId,
+                    new SourceEvidence("Commission contract", "Owned", "https://example.test/hero"));
+            fixture.decisions.append(heroId, DecisionType.APPROVED, "Contract verified");
+
+            GatePreview after = fixture.service.preview(project.projectId(), run.id());
+            assertTrue(after.report().passed());
+            assertEquals(0, after.report().summary().violations());
+        }
+    }
+
+    /**
+     * A preview writes nothing. That is not a nicety: today the only way to re-check a BLOCKED
+     * release is to build another one, and {@code createInTransaction} reads
+     * {@code releases.latestForProject} as the diff baseline — so every throwaway build becomes the
+     * comparison baseline and the rollback target the workspace renders for the next real release.
+     */
+    @Test
+    void previewInsertsNoReleaseRowAndAppendsNoAuditEvent() throws Exception {
+        try (Database database = new Database(directory.resolve("preview-persists-nothing.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+            ScanRun run = fixture.persistScan(project, "1.0.0", List.of(
+                    asset("art/hero.png", "a", VerificationStatus.SIMILAR, SourceEvidence.unresolved())));
+
+            ReleaseBundle baseline = fixture.service.create(project.projectId(), run.id(), "1.0.0");
+            int releasesBefore = fixture.releases.forProject(project.projectId()).size();
+            int auditBefore = fixture.audit.forScan(run.id()).size();
+
+            for (int attempt = 0; attempt < 5; attempt++) {
+                assertFalse(fixture.service.preview(project.projectId(), run.id()).report().passed());
+            }
+
+            assertEquals(releasesBefore, fixture.releases.forProject(project.projectId()).size());
+            assertEquals(auditBefore, fixture.audit.forScan(run.id()).size());
+            // The baseline the NEXT real release diffs against is still the last real release, which
+            // is what five throwaway builds would have destroyed.
+            assertEquals(baseline.release().id(),
+                    fixture.releases.latestForProject(project.projectId()).orElseThrow().id());
+            assertEquals(baseline.release().id(),
+                    fixture.service.create(project.projectId(), run.id(), "1.0.1")
+                            .comparison().previousReleaseId());
+        }
+    }
+
+    @Test
+    void previewRefusesARunThatIsNotACompletedImmutableScan() throws Exception {
+        try (Database database = new Database(directory.resolve("preview-preconditions.db"))) {
+            Fixture fixture = new Fixture(database);
+            LocalProject project = fixture.projects.adopt(directory);
+
+            ScanRun running = fixture.scans.create(project.projectId(), project.root(), "1.0.0",
+                    List.of(), List.of("png"));
+            fixture.scans.markStarted(running.id());
+            IllegalStateException incomplete = assertThrows(IllegalStateException.class,
+                    () -> fixture.service.preview(project.projectId(), running.id()));
+            assertTrue(incomplete.getMessage().contains("completed immutable scan"), incomplete.getMessage());
+
+            assertThrows(IllegalArgumentException.class,
+                    () -> fixture.service.preview(project.projectId(), "no-such-run"));
+            assertThrows(IllegalArgumentException.class,
+                    () -> fixture.service.preview(project.projectId(), "  "));
+        }
+    }
+
+    /** Same report, with one field replaced — the only honest way to compare two point-in-time checks. */
+    private static ReleaseGate.Report withEvaluatedAt(ReleaseGate.Report report, Instant evaluatedAt) {
+        return new ReleaseGate.Report(report.schema(), report.manifestSchema(), report.project(),
+                evaluatedAt, report.passed(), report.summary(), report.violations());
     }
 
     private static AssetEntry entryFor(ReleaseBundle bundle, String path) {

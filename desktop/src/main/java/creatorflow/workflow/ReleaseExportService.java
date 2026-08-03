@@ -72,7 +72,58 @@ public final class ReleaseExportService {
         return database.transaction(() -> createInTransaction(projectId, cleanRunId, cleanRelease));
     }
 
+    /**
+     * Evaluates the gate for a scan and persists <strong>nothing</strong>: no release row, no audit
+     * event, and no read of {@link ReleaseRepository#latestForProject} — which is the point. Today
+     * the only way to re-check a BLOCKED release is to build another one, and every throwaway build
+     * inserts an immutable row that then becomes the diff baseline and the rollback target of the
+     * next real release (see {@code createInTransaction}'s {@code previous} below).
+     *
+     * <p>Runs inside a transaction even though it only reads: the evaluation reads five repositories
+     * (assets, findings, evidence, decisions, ownership) and has to see one consistent snapshot.
+     *
+     * <p>{@code releaseName} is deliberately not a parameter. It reaches only
+     * {@link CreativeManifest.Project}, which {@link ReleaseGate#evaluate} never reads, so the
+     * verdict cannot depend on it; the scan run's own label is used so a preview names itself the
+     * same thing the release built from that run would default to.
+     */
+    public GatePreview preview(long projectId, String scanRunId) {
+        String cleanRunId = requireText(scanRunId, "scan run");
+        return database.transaction(() -> evaluateInTransaction(projectId, cleanRunId, null));
+    }
+
     private ReleaseBundle createInTransaction(long projectId, String scanRunId, String releaseName) {
+        GatePreview evaluated = evaluateInTransaction(projectId, scanRunId, releaseName);
+        CreativeManifest manifest = evaluated.manifest();
+        ReleaseGate.Report report = evaluated.report();
+        ReleaseRecord previous = releases.latestForProject(projectId).orElse(null);
+        ReleaseComparison comparison = compare(previous, manifest);
+        String manifestJson = writeManifest(manifest);
+        String reportJson = write(report);
+        String comparisonJson = write(comparison);
+        // Re-read rather than thread the project out of the evaluation: the release ROW stamps the
+        // declared experience, which is a persistence concern, and GatePreview is the shape a
+        // read-only caller gets. Same transaction, and the evaluation already proved it exists.
+        LocalProject project = projects.findByProjectId(projectId).orElseThrow();
+        ReleaseRecord release = releases.insert(scanRunId, evaluated.releaseName(), manifestJson,
+                report.passed() ? "PASS" : "BLOCKED", reportJson, comparisonJson,
+                project.universeId(), project.placeId(), project.experienceName());
+        audit.append(scanRunId, "RELEASE_CREATED", write(Map.of(
+                "releaseId", release.id(), "passed", report.passed(),
+                "violations", report.violations().size())));
+        return new ReleaseBundle(release, manifest, report, comparison);
+    }
+
+    /**
+     * Rebuilds the manifest for one completed scan and runs the gate over it, touching nothing that
+     * writes. Both {@link #create} and {@link #preview} go through here, so "the check said clear
+     * and the release said BLOCKED" cannot come from two evaluations drifting apart — only from the
+     * underlying evidence actually changing between the two calls.
+     *
+     * @param releaseName the name to stamp onto the manifest's project block, or {@code null} to use
+     *     the scan run's own release label (see {@link #preview} for why that is safe).
+     */
+    private GatePreview evaluateInTransaction(long projectId, String scanRunId, String releaseName) {
         LocalProject project = projects.findByProjectId(projectId)
                 .orElseThrow(() -> new IllegalArgumentException("Unknown local project " + projectId));
         ScanRun run = scans.findById(scanRunId)
@@ -81,6 +132,7 @@ public final class ReleaseExportService {
         if (run.state() != ScanState.COMPLETED) {
             throw new IllegalStateException("Only a completed immutable scan can become a release");
         }
+        String name = releaseName == null ? run.releaseName() : releaseName;
 
         List<ScanAsset> persistedAssets = scans.listAllAssets(scanRunId);
         Map<Integer, ScanAsset> byOrdinal = persistedAssets.stream().collect(Collectors.toMap(
@@ -138,25 +190,14 @@ public final class ReleaseExportService {
         // manifest, so evaluating against the draft is equivalent to evaluating against the final one.
         CreativeManifest.Gate placeholderGate = new CreativeManifest.Gate("PASS", List.of());
         CreativeManifest draft = new CreativeManifest(CreativeManifest.SCHEMA,
-                new CreativeManifest.Project(project.name(), releaseName), run.completedAt(),
+                new CreativeManifest.Project(project.name(), name), run.completedAt(),
                 summary, entries, experience, placeholderGate);
         ReleaseGate.Report report = new ReleaseGate().evaluate(draft);
         CreativeManifest.Gate gate = toGate(report);
         CreativeManifest manifest = new CreativeManifest(CreativeManifest.SCHEMA,
-                new CreativeManifest.Project(project.name(), releaseName), run.completedAt(),
+                new CreativeManifest.Project(project.name(), name), run.completedAt(),
                 summary, entries, experience, gate);
-        ReleaseRecord previous = releases.latestForProject(projectId).orElse(null);
-        ReleaseComparison comparison = compare(previous, manifest);
-        String manifestJson = writeManifest(manifest);
-        String reportJson = write(report);
-        String comparisonJson = write(comparison);
-        ReleaseRecord release = releases.insert(scanRunId, releaseName, manifestJson,
-                report.passed() ? "PASS" : "BLOCKED", reportJson, comparisonJson,
-                project.universeId(), project.placeId(), project.experienceName());
-        audit.append(scanRunId, "RELEASE_CREATED", write(Map.of(
-                "releaseId", release.id(), "passed", report.passed(),
-                "violations", report.violations().size())));
-        return new ReleaseBundle(release, manifest, report, comparison);
+        return new GatePreview(scanRunId, name, manifest, report);
     }
 
     /**
