@@ -15,7 +15,7 @@ facts win. Read `ROBLOX_WORKFLOW_RESEARCH.md` for the landscape research behind 
 
 **As of 2026-08-02:** `main` is green on all **three** CI jobs (`build`,
 `desktop-windows`, `frontend`). Shipped since the July-13 snapshot below:
-ownership verification Phase A (#33/#38, 2026-07-24), the stylesheet split
+ownership verification Phase A (#33/#38, merged 2026-07-26), the stylesheet split
 (#67), JavaFX 26 (#92, desktop launch verified 2026-08-02), Spring Boot 4
 (#107), the runtime playability probe Phase B (#118), and Phase C
 (CurveAnimation) is in review as PR #119. The friend test was **cancelled
@@ -227,7 +227,8 @@ Confirmed-major, still open:
    `analyzeMotionClips` under both modes, `loopContinuity`/`rootPath`/`rootComparison`
    behavior, and a parity check (dynamically derived from `motionEngineCore.poseDelta`, not
    hand-copied constants) that the ported pose component agrees with it on synthetic cases.
-2. **`localBridge.ts` has zero tests** — *resolved (real-path coverage, PR #38 and after).*
+2. **`localBridge.ts` has zero tests** — *resolved (real-path coverage, PR #27; ownership
+   tests added in #38).*
    `frontend/src/bridge/localBridge.test.ts` now covers detect, key status, the request
    wrapper, ownership verification, SSE subscribe, and followScan (33 tests across 6 describe
    blocks), plus `wire.test.ts` / `contract.test.ts` / `pluginPairings.test.ts` beside it.

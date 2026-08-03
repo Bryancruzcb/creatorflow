@@ -6,10 +6,10 @@
 > the owner's solo session using this document. Track A ([offline]) already
 > passed on 2026-07-20 (`TRACK-A-RESULTS-2026-07-20.md`).
 
-The single highest-value next step (see `ROBLOX_WORKFLOW_RESEARCH.md`, "Product
-boundary for the friend test"): one animator pairs Roblox Studio to a local
-CreatorFlow project, reads two animations they can actually access, compares
-them, and saves the evidence. Fix only blockers found here before building more.
+This was the single highest-value next step (see `ROBLOX_WORKFLOW_RESEARCH.md`,
+"Product boundary for the friend test"): one animator pairs Roblox Studio to a
+local CreatorFlow project, reads two animations they can actually access,
+compares them, and saves the evidence.
 
 **Two parts.** Part 1 (below) is the original minimal pairing+compare loop — the
 smoke test that the Studio bridge works at all. Part 2 is the **full

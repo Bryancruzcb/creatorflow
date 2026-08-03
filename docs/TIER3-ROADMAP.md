@@ -3,8 +3,9 @@
 **Status: design only. Nothing here is built, and nothing here should be built yet.**
 
 Closes the documentation half of issue #17. This describes how motion matching would scale past
-pairwise comparison *if* the friend test and a shared registry ever justify it. `ROADMAP.md` gates
-every phase after A on validation; this document is deliberately downstream of all of them.
+pairwise comparison *if* Phase E adoption and a shared registry ever justify it. `ROADMAP.md`
+now advances phases by per-phase owner decision (the friend-test gate closed 2026-07-30); this
+document is deliberately downstream of all of them.
 
 ## The problem this would solve
 

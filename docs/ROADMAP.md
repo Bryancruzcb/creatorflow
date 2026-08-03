@@ -92,7 +92,7 @@ animations on a deterministic curve canonical format. Built by owner decision
 (2026-08-01, recorded in its design spec); awaiting owner review plus the
 owner's solo live-Studio checklist.
 
-### Phase D — Team polish  *(next — owner decision 2026-08-02)*
+### Phase D — Team polish  *(next — owner decision 2026-08-02, recorded here)*
 What remains: batch decisions and a smoother BLOCKED-resolution flow. The other
 two former scope items are already done — the `styles.css` monolith was split
 into ordered slabs by #67 (2026-07-28; deeper per-rule consolidation is parked
@@ -104,8 +104,9 @@ shipped: JavaFX 26 via #92 (2026-07-29) and Spring Boot 4 via #107
 The honest rebirth of the old cloud registry: not a public "copied/not-copied"
 judge, but a shared store so a team's members check provenance against each
 other. The friend-test demand gate is closed (see above); the owner approved
-building this phase on 2026-08-02. It is expected to explicitly repurpose the
-frozen `server/` tree — the phase's design spec records that call.
+building this phase on 2026-08-02 (this document is the record of that
+decision). It is expected to explicitly repurpose the frozen `server/` tree — a
+call the phase's design spec must record before build.
 
 ## Standing constraints (every phase)
 

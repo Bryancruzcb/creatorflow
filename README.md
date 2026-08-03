@@ -313,7 +313,7 @@ request to the desktop app. The Java core recanonicalizes that data, computes de
 SHA-256 curve fingerprints, compares pose/timing/joint coverage, and stores the result with the
 selected local project. Raw joint curves are not retained in SQLite.
 
-Friend-test flow:
+Studio pairing flow:
 
 1. Build the React workspace and run the desktop-owned browser workspace with the commands above.
 2. Open a local project, choose **Animation compare**, and create a temporary Studio pairing.
