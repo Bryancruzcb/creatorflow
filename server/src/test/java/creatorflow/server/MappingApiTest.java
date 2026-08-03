@@ -20,7 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest
+/** Roblox id mappings hang off the legacy registry surface — flag forced on. */
+@SpringBootTest(properties = "creatorflow.legacy-registry.enabled=true")
 @AutoConfigureMockMvc
 @Transactional
 class MappingApiTest {

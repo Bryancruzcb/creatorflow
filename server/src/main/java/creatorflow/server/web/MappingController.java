@@ -8,6 +8,7 @@ import creatorflow.server.repo.RegisteredAssetRepository;
 import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -22,9 +23,15 @@ import org.springframework.web.bind.annotation.RestController;
  * Roblox asset-id mappings: the same fingerprinted work carries a different
  * Roblox id per ownership context (see {@link AssetIdMapping}). Owner-only —
  * mappings are workflow data for the account that registered the asset.
+ *
+ * <p>Part of the legacy registry surface: created only when
+ * {@code creatorflow.legacy-registry.enabled=true}, since the mappings hang off
+ * {@code RegisteredAsset} ids that only the legacy routes can mint.
  */
 @RestController
 @RequestMapping("/api/v1")
+@ConditionalOnProperty(name = "creatorflow.legacy-registry.enabled",
+        havingValue = "true", matchIfMissing = false)
 public class MappingController {
 
     public record MappingRequest(String context, Long robloxAssetId) {

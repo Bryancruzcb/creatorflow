@@ -12,7 +12,7 @@
 
   <artifactId>creatorflow-server</artifactId>
   <name>CreatorFlow Server</name>
-  <description>The CreatorFlow platform: community asset gallery, fingerprint registry, accounts and disputes.</description>
+  <description>Self-hosted CreatorFlow server: accounts, API keys, and the flag-gated legacy fingerprint registry.</description>
 
   <properties>
     <spring-boot.version>4.1.0</spring-boot.version>
@@ -46,10 +46,6 @@
     </dependency>
     <dependency>
       <groupId>org.springframework.boot</groupId>
-      <artifactId>spring-boot-starter-thymeleaf</artifactId>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-starter-security</artifactId>
     </dependency>
     <dependency>
@@ -68,18 +64,6 @@
            which starter-test does not pull in on its own. -->
       <groupId>org.springframework.boot</groupId>
       <artifactId>spring-boot-webmvc-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>org.springframework.security</groupId>
-      <artifactId>spring-security-test</artifactId>
-      <scope>test</scope>
-    </dependency>
-    <dependency>
-      <groupId>io.github.bryancruzcb</groupId>
-      <artifactId>creatorflow-core</artifactId>
-      <version>${project.version}</version>
-      <type>test-jar</type>
       <scope>test</scope>
     </dependency>
   </dependencies>
