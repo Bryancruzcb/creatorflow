@@ -20,7 +20,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-@SpringBootTest
+/** The legacy registry judge, exercised with its flag forced on. */
+@SpringBootTest(properties = "creatorflow.legacy-registry.enabled=true")
 @AutoConfigureMockMvc
 @Transactional
 class RegistryApiTest {
@@ -131,39 +132,6 @@ class RegistryApiTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.verdict").value("CLEAR"))
                 .andExpect(jsonPath("$.matches", hasSize(0)));
-    }
-
-    @Test
-    void disputes_canBeFiled_butNotAgainstOwnAssets() throws Exception {
-        String owner = createAccount();
-        long assetId = registerAsset(owner, "stolen.png", SHA_A, 1L, 2L, null);
-
-        mvc.perform(post("/api/v1/disputes")
-                        .header("X-Api-Key", owner)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(
-                                Map.of("assetId", assetId, "reason", "disputing my own upload"))))
-                .andExpect(status().isBadRequest());
-
-        String claimant = createAccount();
-        mvc.perform(post("/api/v1/disputes")
-                        .header("X-Api-Key", claimant)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(json.writeValueAsString(
-                                Map.of("assetId", assetId, "reason", "This is my artwork, uploaded without permission."))))
-                .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.status").value("OPEN"))
-                .andExpect(jsonPath("$.assetFileName").value("stolen.png"));
-
-        mvc.perform(get("/api/v1/disputes/mine").header("X-Api-Key", claimant))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.filed", hasSize(1)))
-                .andExpect(jsonPath("$.received", hasSize(0)));
-
-        mvc.perform(get("/api/v1/disputes/mine").header("X-Api-Key", owner))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.filed", hasSize(0)))
-                .andExpect(jsonPath("$.received", hasSize(1)));
     }
 
     private String uniqueName() {

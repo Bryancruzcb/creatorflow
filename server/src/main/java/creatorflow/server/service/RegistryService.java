@@ -7,6 +7,7 @@ import creatorflow.verification.ImageHashes;
 import creatorflow.verification.OriginalityEngine;
 import java.util.ArrayList;
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,8 +17,16 @@ import org.springframework.transaction.annotation.Transactional;
  *
  * <p>Matching is a linear scan, which is fine at portfolio scale; the
  * production path is a BK-tree / ANN index over the fingerprints.
+ *
+ * <p><b>Legacy.</b> This is the similarity judge the 2026-07-17 redirect
+ * retired: it emits a DUPLICATE/SIMILAR/CLEAR verdict and has never seen a
+ * motion fingerprint. A Phase E server does not create this bean unless
+ * {@code creatorflow.legacy-registry.enabled=true} is set, which exists only so
+ * the frozen Rojo plugin keeps working.
  */
 @Service
+@ConditionalOnProperty(name = "creatorflow.legacy-registry.enabled",
+        havingValue = "true", matchIfMissing = false)
 public class RegistryService {
 
     public record Fingerprints(String fileName, String sha256, Long dHash, Long pHash, Long audioFp) {

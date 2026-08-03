@@ -8,12 +8,18 @@ import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
-import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 import java.time.Instant;
 
-/** Fingerprints and declaration for one uploaded asset. The file itself never reaches the server. */
+/**
+ * Fingerprints and declaration for one registered asset. The file itself never
+ * reaches the server.
+ *
+ * <p>Reachable only through the legacy registry routes, which are off unless
+ * {@code creatorflow.legacy-registry.enabled=true} — the frozen Rojo plugin is
+ * the one client that still speaks to them.
+ */
 @Entity
 @Table(name = "registered_assets", indexes = @Index(name = "idx_asset_sha", columnList = "sha256"))
 public class RegisteredAsset {
@@ -48,49 +54,6 @@ public class RegisteredAsset {
 
     @Column(nullable = false)
     private Instant createdAt;
-
-    /*
-     * Gallery fields — set only when the asset was uploaded with its file through
-     * the web platform. Fingerprint-only registrations from the desktop app leave
-     * them null, so schema updates stay compatible with existing databases.
-     */
-
-    /** True when the file itself is stored and the asset appears in the public gallery. */
-    private Boolean hasFile;
-
-    private String title;
-
-    @Column(length = 2000)
-    private String description;
-
-    private String mimeType;
-
-    /** Verdict recorded at upload time: CLEAR, SIMILAR or DUPLICATE. */
-    private String verdict;
-
-    /** Full originality report (matches, findings, layers) as JSON. */
-    @Lob
-    private String reportJson;
-
-    private Integer width;
-    private Integer height;
-
-    /*
-     * Version stack — every published asset belongs to a stack identified by the
-     * id of its first version. Fingerprints prove the lineage: similarity inside
-     * the stack is iteration, similarity outside it is a flag.
-     */
-
-    /** Id of the stack's first version; equals this asset's own id for a V1. */
-    private Long rootId;
-
-    private Integer versionNumber;
-
-    /** Only the latest version of a stack appears in the gallery (null = legacy = latest). */
-    private Boolean latestVersion;
-
-    /** Owner is actively asking the community for feedback. */
-    private Boolean feedbackWanted;
 
     protected RegisteredAsset() {
         // JPA
@@ -158,123 +121,5 @@ public class RegisteredAsset {
 
     public Instant getCreatedAt() {
         return createdAt;
-    }
-
-    public String getCreatedDisplay() {
-        return Dates.display(createdAt);
-    }
-
-    /** Attach the stored file and upload-time report, making the asset public in the gallery. */
-    public void publishToGallery(String title, String description, String mimeType,
-                                 String verdict, String reportJson, Integer width, Integer height) {
-        this.hasFile = true;
-        this.title = title;
-        this.description = description;
-        this.mimeType = mimeType;
-        this.verdict = verdict;
-        this.reportJson = reportJson;
-        this.width = width;
-        this.height = height;
-        if (this.versionNumber == null) {
-            this.versionNumber = 1;
-        }
-        this.latestVersion = true;
-    }
-
-    /** Wire this asset into a stack as the next version after {@code previous}. */
-    public void joinStackAfter(RegisteredAsset previous) {
-        this.rootId = previous.getRootIdOrSelf();
-        this.versionNumber = previous.getVersionNumberOrOne() + 1;
-        this.latestVersion = true;
-    }
-
-    public void markSuperseded() {
-        this.latestVersion = false;
-    }
-
-    public void setRootId(Long rootId) {
-        this.rootId = rootId;
-    }
-
-    public Long getRootId() {
-        return rootId;
-    }
-
-    /** Stack id, tolerating pre-stack rows that never had one written. */
-    public Long getRootIdOrSelf() {
-        return rootId != null ? rootId : id;
-    }
-
-    public Integer getVersionNumber() {
-        return versionNumber;
-    }
-
-    public int getVersionNumberOrOne() {
-        return versionNumber == null ? 1 : versionNumber;
-    }
-
-    public String getVersionLabel() {
-        return "V" + getVersionNumberOrOne();
-    }
-
-    public boolean isLatestVersion() {
-        return latestVersion == null || latestVersion;
-    }
-
-    public boolean isFeedbackWanted() {
-        return Boolean.TRUE.equals(feedbackWanted);
-    }
-
-    public void toggleFeedbackWanted() {
-        this.feedbackWanted = !isFeedbackWanted();
-    }
-
-    public boolean isGalleryAsset() {
-        return Boolean.TRUE.equals(hasFile);
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    /** Gallery card heading: the title when present, the file name otherwise. */
-    public String getDisplayTitle() {
-        return title == null || title.isBlank() ? fileName : title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public String getMimeType() {
-        return mimeType;
-    }
-
-    public boolean isImage() {
-        return mimeType != null && mimeType.startsWith("image/");
-    }
-
-    public boolean isAudio() {
-        return mimeType != null && mimeType.startsWith("audio/");
-    }
-
-    public String getVerdict() {
-        return verdict;
-    }
-
-    public boolean isFlaggedSimilar() {
-        return "SIMILAR".equals(verdict);
-    }
-
-    public String getReportJson() {
-        return reportJson;
-    }
-
-    public Integer getWidth() {
-        return width;
-    }
-
-    public Integer getHeight() {
-        return height;
     }
 }
