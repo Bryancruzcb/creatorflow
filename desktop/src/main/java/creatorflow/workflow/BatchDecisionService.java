@@ -348,11 +348,18 @@ public final class BatchDecisionService {
                 .filter(asset -> !asset.alsoStandingCodes().isEmpty())
                 .toList();
         if (alsoStanding.isEmpty()) return;
-        ReviewGroupAsset first = alsoStanding.getFirst();
+        // The union across the offending files, not the first one's codes: with A also flagged and B
+        // carrying an ownership lead, naming only A's would misattribute B's reason back to the
+        // person acting on it.
+        String otherCodes = alsoStanding.stream()
+                .flatMap(asset -> asset.alsoStandingCodes().stream())
+                .distinct()
+                .sorted()
+                .collect(java.util.stream.Collectors.joining(", "));
         throw new IllegalArgumentException("Excluding a file skips every other check the gate makes on"
                 + " it, so a batch exclusion is only offered for files standing under " + code.name()
                 + " alone. " + (alsoStanding.size() == 1 ? "One file here" : alsoStanding.size() + " files here")
-                + " also stand under " + String.join(", ", first.alsoStandingCodes())
+                + " also stand under " + otherCodes
                 + " — exclude those one at a time, where the findings are.");
     }
 

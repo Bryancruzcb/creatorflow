@@ -470,6 +470,10 @@ function BatchGroupComposer({
     () => shown.filter((asset) => asset.alsoStandingCodes.length > 0),
     [shown],
   );
+  // What "select all shown" will actually take. Under EXCLUDED the rows standing under more than
+  // this rule are skipped by the click handler and refused by the server, so a label promising all
+  // of them would be the one number on this panel that lies.
+  const selectableShown = action === 'EXCLUDED' ? shown.length - blockedFromExclusion.length : shown.length;
 
   return (
     <div className="local-batch-group">
@@ -514,8 +518,11 @@ function BatchGroupComposer({
       </div>
 
       <div className="local-batch-selection">
-        <button type="button" onClick={onSelectShown} disabled={shown.length === 0 || group.batchableActions.length === 0}>
-          Select all {shown.length} shown
+        <button type="button" onClick={onSelectShown} disabled={selectableShown === 0 || group.batchableActions.length === 0}>
+          {/* Says how many it will actually take, not how many are on screen: under EXCLUDED the
+              rows standing under more than this rule are skipped, and a label promising all of
+              them would be the one number on this panel that lies. */}
+          Select all {selectableShown} shown
         </button>
         <button type="button" onClick={onClearSelection} disabled={selected.length === 0}>Clear selection</button>
         <small>{selectedRows.length} selected · you can batch up to {MAX_BATCH_ASSETS} files at a time — keep the set something you can actually look at.</small>

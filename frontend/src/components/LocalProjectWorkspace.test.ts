@@ -513,8 +513,10 @@ describe('decision history rendering helpers', () => {
   });
 
   it('stamps a decision in a fixed shape rather than the reader’s locale', () => {
-    expect(formatDecisionTimestamp('2026-08-02T14:05:00Z')).toBe('2026-08-02 14:05');
-    expect(formatDecisionTimestamp('2026-08-02T14:05:09.123456Z')).toBe('2026-08-02 14:05');
+    // The zone is named, not converted: an unlabelled wall-clock time reads as local, and these
+    // are stored in UTC.
+    expect(formatDecisionTimestamp('2026-08-02T14:05:00Z')).toBe('2026-08-02 14:05 UTC');
+    expect(formatDecisionTimestamp('2026-08-02T14:05:09.123456Z')).toBe('2026-08-02 14:05 UTC');
   });
 
   it('reports an unreadable timestamp as unknown rather than as an invalid date', () => {

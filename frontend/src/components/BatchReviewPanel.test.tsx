@@ -199,8 +199,9 @@ describe('BatchReviewPanel', () => {
     expect(screen.getByText(/exclude this one individually, where the findings are/i)).toBeTruthy();
     expect(screen.getByText(/1 selected/)).toBeTruthy();
 
-    // "Select all shown" does not put it back, either.
-    await userEvent.click(screen.getByRole('button', { name: /select all 3 shown/i }));
+    // "Select all shown" does not put it back, and its own label counts only what it will take —
+    // 2 of the 3 rows on screen, since the third cannot be batch-excluded.
+    await userEvent.click(screen.getByRole('button', { name: /select all 2 shown/i }));
     expect((screen.getByRole('checkbox', { name: /asset-2\.png/i }) as HTMLInputElement).checked).toBe(false);
     expect(screen.getByText(/2 selected/)).toBeTruthy();
   });

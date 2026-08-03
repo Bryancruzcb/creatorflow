@@ -273,16 +273,17 @@ export function supersededDecisionIds(history: LocalDecision[]): Set<string> {
 }
 
 /**
- * A decision's timestamp as a fixed, locale-independent `YYYY-MM-DD HH:MM`.
+ * A decision's timestamp as a fixed, locale-independent `YYYY-MM-DD HH:MM UTC`.
  *
  * <p>Deliberately not `toLocaleString`: these are ledger rows, they are compared with each other far
  * more often than they are read as prose, and a stamp that changes shape with the reader's locale is
- * worse for both. Anything unparseable is reported as unknown rather than rendered as "Invalid
- * Date". Pure.
+ * worse for both. The zone is named rather than converted, because an unlabelled wall-clock time is
+ * read as local and these are stored in UTC. Anything unparseable is reported as unknown rather than
+ * rendered as "Invalid Date". Pure.
  */
 export function formatDecisionTimestamp(createdAt: string): string {
   const match = /^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2})/.exec(createdAt);
-  return match ? `${match[1]} ${match[2]}` : 'time not recorded';
+  return match ? `${match[1]} ${match[2]} UTC` : 'time not recorded';
 }
 
 export type ParsedRobloxAssetId =
