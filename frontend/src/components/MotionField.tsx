@@ -95,10 +95,13 @@ void main() {
   // Reference and candidate. They share a base signal and separate by uDrift, so at rest the
   // two line sets read as one and only pull apart as the comparison "runs".
   float a = field(uv + pt, 0.0, t);
-  float b = field(uv + pt, 0.55 * uDrift, t + uDrift * 1.6);
+  float b = field(uv + pt, 1.15 * uDrift, t + uDrift * 1.6);
 
-  float la = isoline(a, 7.0, 1.15);
-  float lb = isoline(b, 7.0, 1.15);
+  /* Fewer, longer contours. At spacing 7 the field packed enough lines into the frame that the
+     eye read texture rather than two traces, which is fatal to an image whose whole subject is
+     the relationship between two traces. */
+  float la = isoline(a, 4.2, 1.15);
+  float lb = isoline(b, 4.2, 1.15);
 
   // The candidate line is dashed. That mirrors the root-path plot inside the product, where the
   // candidate polyline already carries stroke-dasharray — so reference-vs-candidate is legible
@@ -110,18 +113,30 @@ void main() {
   float dash = smoothstep(0.40 - dashAA, 0.40 + dashAA, dashCoord);
   lb *= dash;
 
-  vec3 amber = vec3(0.88, 0.62, 0.31);
-  vec3 blue  = vec3(0.40, 0.60, 0.80);
+  /* Both traces live in the product's own blue. Amber is spent on ONE thing — the places the two
+     disagree — so the colour carries the meaning instead of decorating the frame. When the clips
+     agree the image is calm and monochrome; the warm ink only appears where there is something to
+     look at, which is the claim the hero is making. */
+  vec3 ink       = vec3(0.36, 0.55, 0.86);   // reference, solid
+  vec3 inkPale   = vec3(0.58, 0.70, 0.84);   // candidate, dashed (dash carries the difference,
+                                             // never colour alone)
+  vec3 deviation = vec3(0.92, 0.66, 0.33);
 
   vec3 col = vec3(0.0);
-  col += amber * la * 0.46;
-  col += blue  * lb * 0.42;
+  col += ink     * la * 0.78;
+  col += inkPale * lb * 0.66;
 
-  // Where the two disagree, brighten the gap — the deviation is the point of the image.
+  // Where the two disagree, the gap lights warm. This is the subject of the picture, so it is the
+  // brightest thing in it rather than a whisper under two full-strength line sets.
   float disagree = abs(la - lb);
-  col += mix(amber, blue, 0.5) * disagree * 0.10;
+  col += deviation * disagree * 0.85;
 
-  // Concentrate the chart to the right of the copy column instead of tiling the whole frame.
+  /* Concentrate the chart to the right of the copy column instead of tiling the whole frame.
+     Worth stating why this direction, because it looks backwards until you check: the copy column
+     sits under an opaque scrim (MotionField.css, .hero-section::before) and the workspace card is
+     itself opaque, so the only band where these contours are ever actually seen is the top and
+     right of the frame. Dimming toward +x would hide the field everywhere it is visible and leave
+     it only where something is already painted over it. */
   float column = smoothstep(-0.72, 0.16, uv.x);
   col *= 0.18 + 0.82 * column;
 
@@ -227,13 +242,22 @@ export function MotionField() {
       pointer.sx += (pointer.x - pointer.sx) * 0.05;
       pointer.sy += (pointer.y - pointer.sy) * 0.05;
 
-      // The comparison "runs": drift eases in, holds, and releases, so the two line sets
-      // separate and rejoin instead of sitting at a fixed offset.
-      drift = 0.5 - 0.5 * Math.cos(t * 0.24);
+      /* The comparison "runs": drift eases in, HOLDS, and releases, so the two line sets separate
+         and rejoin instead of sitting at a fixed offset.
+         A bare cosine never holds — it is moving fastest exactly at the midpoint and spends almost
+         no time at either end, so a visitor arriving at a random moment saw neither "these agree"
+         nor "these have come apart", just a smear between them. Smoothstepping the sweep twice
+         makes it dwell at both extremes and cross between them quickly, which is what turns the
+         image into a statement instead of an ambient texture. */
+      const sweep = 0.5 - 0.5 * Math.cos(t * 0.3);
+      const eased = sweep * sweep * (3 - 2 * sweep);
+      drift = eased * eased * (3 - 2 * eased);
 
       context.uniform2f(uRes, canvas.width, canvas.height);
       context.uniform1f(uTime, t);
-      context.uniform1f(uDrift, reduced ? 0.45 : drift);
+      // The reduced-motion frame is painted once, so it should be the frame that says the most:
+      // well past the midpoint, where the two traces are visibly apart.
+      context.uniform1f(uDrift, reduced ? 0.72 : drift);
       context.uniform2f(uPointer, pointer.sx, pointer.sy);
       context.drawArrays(context.TRIANGLES, 0, 3);
     }
