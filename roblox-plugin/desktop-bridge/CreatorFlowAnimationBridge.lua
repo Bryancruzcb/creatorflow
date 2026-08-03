@@ -220,6 +220,12 @@ end
 -- touched — drift detection lying in the one direction that costs a person real time. Retuning it
 -- is therefore not a tuning change: it needs an algorithmVersion bump and a re-pin of every
 -- sampled snapshot, decided deliberately.
+--
+-- Be exact about what that bump buys: MotionSnapshots.classify compares fingerprints and never
+-- reads algorithmVersion, so bumping it prevents nothing mechanically. After a retune the first
+-- re-pin of each sampled snapshot reports CHANGED regardless — the bump is a record for whoever
+-- reads the ledger, not a guard. Budget one false CHANGED per pinned sampled snapshot as the
+-- price of the decision.
 local CURVE_SAMPLES_PER_SECOND = 20
 
 --- Sample grid for one clip: 0, a sample every 1/CURVE_SAMPLES_PER_SECOND, and the exact end.
@@ -938,9 +944,25 @@ end
 --- and rotation only: a FloatCurve is either an axis child of one of those two (already read
 --- through its parent) or an authored custom channel with no pose equivalent, and a MarkerCurve
 --- carries no transform at all.
+---
+--- A channel named exactly Position/Rotation WINS over one merely of the right class. Class alone
+--- meant a joint folder holding two Vector3Curves sampled whichever GetDescendants returned last:
+--- deterministic, but possibly the wrong channel, and wrong poses with no error is the worst thing
+--- this file can do quietly.
+---
+--- Name is a preference and not a requirement, deliberately. The Task 0 spike confirmed the
+--- Position/Rotation naming against a clip the spike script built itself; a real Studio-AUTHORED
+--- curve tree has never been observed — it is the one empirical unknown left on this phase's
+--- Studio checklist, and the same note records MarkerCurve placement as unobserved for the same
+--- reason. Requiring the name would trade a rare wrong-channel guess for reading nothing at all
+--- from every real clip if Studio names them differently, which is the worse failure. So: take the
+--- named one when it exists, otherwise fall back to the first of the right class and say so once.
 local function collectCurveChannels(clip)
 	local channelsByPath = {}
+	local namedByPath = {}
+	local usedUnnamedFallback = false
 	for _, descendant in ipairs(clip:GetDescendants()) do
+		local name = trim(descendant.Name)
 		local isPosition = descendant:IsA("Vector3Curve")
 		local isRotation = descendant:IsA("EulerRotationCurve") or descendant:IsA("RotationCurve")
 		if isPosition or isRotation then
@@ -950,16 +972,45 @@ local function collectCurveChannels(clip)
 				if not channel then
 					channel = {}
 					channelsByPath[jointPath] = channel
+					namedByPath[jointPath] = {}
 				end
-				if isPosition then
-					channel.position = descendant
-				else
-					channel.rotation = descendant
+				local named = namedByPath[jointPath]
+				local slot = isPosition and "position" or "rotation"
+				local expected = isPosition and "Position" or "Rotation"
+				if name == expected then
+					-- Two identically-named channels on one joint is malformed either way; keep the
+					-- first so the read stays stable across runs of the same clip.
+					if not named[slot] then
+						channel[slot] = descendant
+						named[slot] = true
+					end
+				elseif not channel[slot] then
+					channel[slot] = descendant
+					usedUnnamedFallback = true
 				end
 			end
 		end
 	end
+	if usedUnnamedFallback then
+		warn("[CreatorFlow] This clip has a curve channel not named Position/Rotation; read it by "
+			.. "class instead. If the comparison looks wrong, that guess is the first thing to "
+			.. "check.")
+	end
 	return channelsByPath
+end
+
+--- Says once per session that the untested RotationCurve path actually ran. Sampling calls this
+--- per joint per sample, so it has to fire once, not thousands of times; warn rather than
+--- setStatus because the status line belongs to the comparison the person asked for.
+local announcedUntestedRotationCurve = false
+local function announceUntestedRotationCurve()
+	if announcedUntestedRotationCurve then
+		return
+	end
+	announcedUntestedRotationCurve = true
+	warn("[CreatorFlow] This clip uses RotationCurve rather than EulerRotationCurve. That path has "
+		.. "never been exercised against a real asset, so treat this comparison as unconfirmed and "
+		.. "say so if you report the result.")
 end
 
 --- Evaluates one joint's channels at `time` into the CFrame Roblox's own animator produces.
@@ -989,6 +1040,11 @@ local function sampleChannelCFrame(channel, time)
 			-- exercised EulerRotationCurve, and the docs say a joint's Rotation child may be
 			-- either class. This one exposes GetValueAtTime rather than GetRotationAtTime, and
 			-- it returns a nullable CFrame: nil means the curve holds no keys, so no rotation.
+			-- Announced once per session the first time it actually runs, so the first real
+			-- RotationCurve asset gets noticed rather than quietly half-trusted: if this class
+			-- does not clamp out of range the way its Euler sibling was measured to, endpoint
+			-- samples flatten to identity silently.
+			announceUntestedRotationCurve()
 			rotation = channel.rotation:GetValueAtTime(time) or CFrame.identity
 		end
 	end
