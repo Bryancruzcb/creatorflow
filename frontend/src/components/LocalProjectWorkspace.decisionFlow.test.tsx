@@ -63,7 +63,7 @@ const detailWithPriorDecision: LocalAssetDetail = {
 /** A plain object implementing only what LocalEvidenceView actually calls, matching real signatures. */
 function makeMockClient(overrides: Partial<Record<
   'listProjectAssets' | 'saveWorkspaceState' | 'getAsset' | 'getDecisionHistory' | 'recordDecision'
-  | 'listOwnershipVerifications',
+  | 'listOwnershipVerifications' | 'listReviewGroups',
   ReturnType<typeof vi.fn>
 >> = {}) {
   const client = {
@@ -82,6 +82,10 @@ function makeMockClient(overrides: Partial<Record<
     recordDecision: vi.fn(),
     // The evidence view loads ownership verifications alongside the asset detail (Phase A, Task 10).
     listOwnershipVerifications: vi.fn().mockResolvedValue({ items: [] }),
+    // …and mounts the group-review panel, which reads what is standing at the gate on open.
+    listReviewGroups: vi.fn().mockResolvedValue({
+      scanRunId: 'run-abc', gateResult: 'BLOCKED', evaluatedAt: '2026-01-01T00:00:00Z', groups: [],
+    }),
     ...overrides,
   };
   return client as unknown as LocalBridgeClient;
@@ -143,5 +147,72 @@ describe('LocalEvidenceView decision flow', () => {
 
     // The reason field clears after a successful submit.
     await waitFor(() => expect((screen.getByLabelText('Reason') as HTMLTextAreaElement).value).toBe(''));
+  });
+
+  /**
+   * The honesty payoff of the batch feature, and the reason it ships in the same change: a person
+   * reading one file's record has to be able to see that its decision was one of twelve made in one
+   * act, rather than a review of this file. Without this the ledger would be the thing that hides it.
+   */
+  it('marks a batched decision as one of many, on the latest decision and in the history', async () => {
+    const batched: LocalDecision = {
+      id: 'dec-batched',
+      scanAssetId: asset.id,
+      type: 'NEEDS_REVIEW',
+      reason: 'Flagged in the 2.4 re-scan; scheduling a review with Marco on Thursday.',
+      supersedesDecisionId: null,
+      createdAt: '2026-08-02T21:00:00Z',
+      batchId: 'b1b2c3d4-5566-7788-99aa-bbccddeeff00',
+      batchAssetCount: 12,
+    };
+    const client = makeMockClient({
+      getAsset: vi.fn().mockResolvedValue({ ...detailWithPriorDecision, latestDecision: batched }),
+      getDecisionHistory: vi.fn().mockResolvedValue({ items: [batched, priorDecision] }),
+    });
+    render(<LocalEvidenceView client={client} project={project} />);
+
+    const latest = (await screen.findByText('Latest decision')).closest('section') as HTMLElement;
+    expect(within(latest).getByText(/recorded as part of a 12-file batch · batch b1b2c3d4/i)).toBeTruthy();
+    // The shared rationale is rendered as the person wrote it, undecorated.
+    expect(within(latest).getByText(batched.reason)).toBeTruthy();
+
+    // And the same disclosure travels with the entry in the append-only history.
+    const history = screen.getByText('Decision history').closest('section') as HTMLElement;
+    expect(within(history).getByText(/recorded as part of a 12-file batch/i)).toBeTruthy();
+    // The per-file decision next to it carries no marker — the two must stay distinguishable.
+    const entries = within(history).getAllByRole('listitem');
+    expect(entries[1].textContent).not.toMatch(/part of a/i);
+  });
+
+  /**
+   * The history renders oldest-first, so its first row is the one a reader is most likely to mistake
+   * for the standing decision. It has to carry its own date, and an entry a later record replaced
+   * has to say so — position is not a fact a ledger surface may rely on.
+   */
+  it('dates every history entry and marks the ones a later decision replaced', async () => {
+    const superseding: LocalDecision = {
+      id: 'dec-2', scanAssetId: asset.id, type: 'APPROVED',
+      reason: 'Checked the archive licence and approved it.',
+      supersedesDecisionId: priorDecision.id, createdAt: '2026-08-02T14:05:00Z',
+    };
+    const client = makeMockClient({
+      getAsset: vi.fn().mockResolvedValue({ ...detailWithPriorDecision, latestDecision: superseding }),
+      getDecisionHistory: vi.fn().mockResolvedValue({ items: [priorDecision, superseding] }),
+    });
+    render(<LocalEvidenceView client={client} project={project} />);
+
+    const history = (await screen.findByText('Decision history')).closest('section') as HTMLElement;
+    const entries = within(history).getAllByRole('listitem');
+
+    // Oldest first, and the panel says so rather than leaving the order to be inferred.
+    expect(within(history).getByText(/oldest first/i)).toBeTruthy();
+    expect(entries[0].textContent).toContain('2026-01-01 00:00');
+    expect(entries[0].textContent).toMatch(/superseded by a later decision/i);
+    expect(entries[0].getAttribute('data-superseded')).toBe('true');
+
+    // The standing one is dated too, and carries no superseded mark.
+    expect(entries[1].textContent).toContain('2026-08-02 14:05');
+    expect(entries[1].textContent).not.toMatch(/superseded/i);
+    expect(entries[1].getAttribute('data-superseded')).toBeNull();
   });
 });

@@ -18,6 +18,7 @@ import creatorflow.db.ScanRepository;
 import creatorflow.db.WorkspaceStateRepository;
 import creatorflow.manifest.CreativeManifest.SourceEvidence;
 import creatorflow.manifest.OwnershipEvidence;
+import creatorflow.manifest.ReleaseGate;
 import creatorflow.manifest.ScanOptions;
 import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.opencloud.RateLimitedException;
@@ -28,9 +29,13 @@ import creatorflow.motion.MotionSnapshotKind;
 import creatorflow.motion.NormalizedAnimation;
 import creatorflow.motion.PlaybackSettings;
 import creatorflow.workflow.AnimationComparisonRecord;
+import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.MotionSnapshotRecord;
+import creatorflow.workflow.DecisionBatchRecord;
+import creatorflow.workflow.DecisionRecord;
 import creatorflow.workflow.DecisionType;
 import creatorflow.workflow.GatePreview;
+import creatorflow.workflow.ReviewGroups;
 import creatorflow.workflow.LocalProject;
 import creatorflow.workflow.OwnershipVerificationRecord;
 import creatorflow.workflow.ReleaseBundle;
@@ -38,7 +43,12 @@ import creatorflow.workflow.ReleaseExportService;
 import creatorflow.workflow.ReleaseRecord;
 import creatorflow.workflow.ReleaseSummary;
 import creatorflow.workflow.ScanAsset;
+// Caught rather than IllegalStateException on every route that answers 409 for a run that is not a
+// completed immutable scan: Database.transaction wraps any SQLException into an
+// IllegalStateException, so the broader catch reported disk and busy failures as state conflicts.
+import creatorflow.workflow.ScanNotReleasableException;
 import creatorflow.workflow.ScanRun;
+import creatorflow.workflow.SourceEvidenceRecord;
 import creatorflow.workflow.WorkspaceState;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -122,6 +132,14 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern SCAN = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)$");
     private static final Pattern SCAN_EVENTS = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/events$");
     private static final Pattern SCAN_CANCEL = Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/cancel$");
+    // Scoped to a scan run rather than a project: a group is only meaningful against one immutable
+    // snapshot, and every id in a batch is a scan asset id belonging to it.
+    private static final Pattern SCAN_REVIEW_GROUPS =
+            Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/review-groups$");
+    private static final Pattern SCAN_BATCH_DECISIONS =
+            Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/batch-decisions$");
+    private static final Pattern SCAN_BATCH_SOURCE_EVIDENCE =
+            Pattern.compile("^/api/v1/scan-runs/([a-f0-9-]+)/batch-source-evidence$");
     private static final Pattern ASSET = Pattern.compile("^/api/v1/assets/(\\d+)$");
     private static final Pattern ASSET_DECISIONS = Pattern.compile("^/api/v1/assets/(\\d+)/decisions$");
     private static final Pattern ASSET_EVIDENCE = Pattern.compile("^/api/v1/assets/(\\d+)/source-evidence$");
@@ -146,6 +164,7 @@ public final class LocalBridgeServer implements AutoCloseable {
     private final MotionSnapshotRepository motionSnapshots;
     private final PluginPairingService pluginPairings;
     private final ReleaseExportService releaseExports;
+    private final BatchDecisionService batchDecisions;
     private final OpenCloudSettings openCloudSettings;
     private final OwnershipVerification ownershipVerifier;
     private final OwnershipVerificationRepository ownershipVerifications;
@@ -170,6 +189,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                              MotionSnapshotRepository motionSnapshots,
                              PluginPairingService pluginPairings,
                              ReleaseExportService releaseExports,
+                             BatchDecisionService batchDecisions,
                              OpenCloudSettings openCloudSettings,
                              OwnershipVerification ownershipVerifier,
                              OwnershipVerificationRepository ownershipVerifications,
@@ -185,6 +205,7 @@ public final class LocalBridgeServer implements AutoCloseable {
         this.motionSnapshots = java.util.Objects.requireNonNull(motionSnapshots, "motionSnapshots");
         this.pluginPairings = java.util.Objects.requireNonNull(pluginPairings, "pluginPairings");
         this.releaseExports = java.util.Objects.requireNonNull(releaseExports, "releaseExports");
+        this.batchDecisions = java.util.Objects.requireNonNull(batchDecisions, "batchDecisions");
         this.openCloudSettings = java.util.Objects.requireNonNull(openCloudSettings, "openCloudSettings");
         this.ownershipVerifier = java.util.Objects.requireNonNull(ownershipVerifier, "ownershipVerifier");
         this.ownershipVerifications =
@@ -628,7 +649,7 @@ public final class LocalBridgeServer implements AutoCloseable {
             scans.findById(runId).orElseThrow(() -> new HttpError(404, "Scan run not found"));
             try {
                 sendJson(exchange, 200, gatePreviewView(releaseExports.preview(projectId, runId)));
-            } catch (IllegalStateException conflict) {
+            } catch (ScanNotReleasableException conflict) {
                 throw new HttpError(409, safeMessage(conflict));
             }
             return;
@@ -654,7 +675,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                 try {
                     sendJson(exchange, 201, releaseBundleView(
                             releaseExports.create(projectId, runId, releaseName)));
-                } catch (IllegalStateException conflict) {
+                } catch (ScanNotReleasableException conflict) {
                     throw new HttpError(409, safeMessage(conflict));
                 }
             }
@@ -675,6 +696,74 @@ public final class LocalBridgeServer implements AutoCloseable {
             sendJson(exchange, 202, Map.of("state", "CANCELLATION_REQUESTED"));
             return;
         }
+        // The three group-review routes, all before the bare SCAN matcher exactly as SCAN_EVENTS and
+        // SCAN_CANCEL are. The project is resolved from the run rather than taken from the client:
+        // a batch is scoped to one immutable scan, and that is the only id it should have to hold.
+        matcher = SCAN_REVIEW_GROUPS.matcher(path);
+        if (matcher.matches()) {
+            requireMethod(exchange, "GET");
+            ScanRun run = scans.findById(matcher.group(1))
+                    .orElseThrow(() -> new HttpError(404, "Scan run not found"));
+            try {
+                sendJson(exchange, 200, reviewGroupsView(
+                        batchDecisions.reviewGroups(run.projectId(), run.id())));
+            } catch (ScanNotReleasableException conflict) {
+                throw new HttpError(409, safeMessage(conflict));
+            }
+            return;
+        }
+
+        matcher = SCAN_BATCH_DECISIONS.matcher(path);
+        if (matcher.matches()) {
+            requireMutation(exchange);
+            ScanRun run = scans.findById(matcher.group(1))
+                    .orElseThrow(() -> new HttpError(404, "Scan run not found"));
+            JsonNode body = readJson(exchange);
+            ReleaseGate.Code code = reviewGroupCode(body);
+            DecisionType type = batchDecisionType(body);
+            String rationale = requiredText(body, "rationale");
+            List<BatchDecisionService.DecisionBatchEntry> entries = new ArrayList<>();
+            for (JsonNode asset : batchAssets(body)) {
+                entries.add(new BatchDecisionService.DecisionBatchEntry(
+                        requiredAssetId(asset), optionalText(asset, "supersedesDecisionId")));
+            }
+            try {
+                sendJson(exchange, 201, decisionBatchView(batchDecisions.recordDecisions(
+                        run.projectId(), run.id(), code, type, rationale, entries)));
+            } catch (BatchDecisionService.BatchDriftException drift) {
+                sendJson(exchange, 409, driftView(drift));
+            } catch (ScanNotReleasableException conflict) {
+                throw new HttpError(409, safeMessage(conflict));
+            }
+            return;
+        }
+
+        matcher = SCAN_BATCH_SOURCE_EVIDENCE.matcher(path);
+        if (matcher.matches()) {
+            requireMutation(exchange);
+            ScanRun run = scans.findById(matcher.group(1))
+                    .orElseThrow(() -> new HttpError(404, "Scan run not found"));
+            JsonNode body = readJson(exchange);
+            ReleaseGate.Code code = reviewGroupCode(body);
+            String rationale = requiredText(body, "rationale");
+            List<BatchDecisionService.SourceEvidenceBatchEntry> entries = new ArrayList<>();
+            for (JsonNode asset : batchAssets(body)) {
+                entries.add(new BatchDecisionService.SourceEvidenceBatchEntry(
+                        requiredAssetId(asset), nullableLong(asset, "latestSourceEvidenceId")));
+            }
+            try {
+                sendJson(exchange, 201, sourceEvidenceBatchView(batchDecisions.recordSourceEvidence(
+                        run.projectId(), run.id(), code, optionalText(body, "source"),
+                        optionalText(body, "license"), optionalText(body, "evidenceUrl"),
+                        rationale, entries)));
+            } catch (BatchDecisionService.BatchDriftException drift) {
+                sendJson(exchange, 409, driftView(drift));
+            } catch (ScanNotReleasableException conflict) {
+                throw new HttpError(409, safeMessage(conflict));
+            }
+            return;
+        }
+
         matcher = SCAN.matcher(path);
         if (matcher.matches()) {
             requireMethod(exchange, "GET");
@@ -688,16 +777,17 @@ public final class LocalBridgeServer implements AutoCloseable {
         if (matcher.matches()) {
             long assetId = Long.parseLong(matcher.group(1));
             if ("GET".equals(exchange.getRequestMethod())) {
-                sendJson(exchange, 200, Map.of("items", decisions.historyFor(assetId)));
+                sendJson(exchange, 200, Map.of("items",
+                        decisions.historyFor(assetId).stream().map(this::decisionView).toList()));
             } else {
                 requireMutation(exchange);
                 JsonNode body = readJson(exchange);
                 DecisionType type = DecisionType.valueOf(requiredText(body, "type"));
                 String reason = requiredText(body, "reason");
                 String supersedes = text(body, "supersedesDecisionId", null);
-                sendJson(exchange, 201, supersedes == null
+                sendJson(exchange, 201, decisionView(supersedes == null
                         ? decisions.append(assetId, type, reason)
-                        : decisions.supersede(supersedes, type, reason));
+                        : decisions.supersede(supersedes, type, reason)));
             }
             return;
         }
@@ -706,13 +796,14 @@ public final class LocalBridgeServer implements AutoCloseable {
             long assetId = Long.parseLong(matcher.group(1));
             if (scans.findAsset(assetId).isEmpty()) throw new HttpError(404, "Scan asset not found");
             if ("GET".equals(exchange.getRequestMethod())) {
-                sendJson(exchange, 200, Map.of("items", scans.evidenceHistory(assetId)));
+                sendJson(exchange, 200, Map.of("items",
+                        scans.evidenceHistory(assetId).stream().map(this::sourceEvidenceView).toList()));
             } else {
                 requireMutation(exchange);
                 JsonNode body = readJson(exchange);
                 SourceEvidence evidence = new SourceEvidence(optionalText(body, "source"),
                         optionalText(body, "license"), optionalText(body, "evidenceUrl"));
-                sendJson(exchange, 201, scans.appendEvidence(assetId, evidence));
+                sendJson(exchange, 201, sourceEvidenceView(scans.appendEvidence(assetId, evidence)));
             }
             return;
         }
@@ -739,8 +830,10 @@ public final class LocalBridgeServer implements AutoCloseable {
             Map<String, Object> response = new LinkedHashMap<>();
             response.put("asset", asset);
             response.put("findings", scans.findingsFor(assetId));
-            response.put("sourceEvidence", scans.evidenceFor(assetId).orElse(null));
-            response.put("latestDecision", decisions.latestFor(assetId).orElse(null));
+            response.put("sourceEvidence", scans.evidenceFor(assetId)
+                    .map(this::sourceEvidenceView).orElse(null));
+            response.put("latestDecision", decisions.latestFor(assetId)
+                    .map(this::decisionView).orElse(null));
             sendJson(exchange, 200, response);
             return;
         }
@@ -1099,12 +1192,13 @@ public final class LocalBridgeServer implements AutoCloseable {
      * <p>The field is {@code path} here and {@code assetPath} in a manifest's embedded gate block
      * ({@code CreativeManifest.Gate.Reason}). That split is deliberate and stays: this is a report,
      * so it uses the report's name. Unifying them would be a schema change.
+     *
+     * <p>The mapping itself lives in {@link ScanRepository#assetIdsByPath} because the review-groups
+     * route needs the identical translation; two copies would be two chances to disagree about which
+     * file a person's decision lands on.
      */
     private Map<String, Object> gatePreviewView(GatePreview preview) {
-        Map<String, Long> assetIdsByPath = new java.util.HashMap<>();
-        for (ScanAsset asset : scans.listAllAssets(preview.scanRunId())) {
-            assetIdsByPath.merge(asset.relativePath(), asset.id(), (first, second) -> null);
-        }
+        Map<String, Long> assetIdsByPath = scans.assetIdsByPath(preview.scanRunId());
         List<Map<String, Object>> violations = preview.report().violations().stream()
                 .map(violation -> {
                     Map<String, Object> row = new LinkedHashMap<>();
@@ -1128,6 +1222,183 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("summary", preview.report().summary());
         view.put("violations", violations);
         return view;
+    }
+
+    /**
+     * The gate's violations bucketed by rule, plus, per group, the short list of actions that may be
+     * batched on it.
+     *
+     * <p>{@code batchableActions} is served rather than inferred by the client for one reason: the
+     * same table decides what the panel renders and what every write accepts
+     * ({@link BatchDecisionService#batchableActions}), so a UI that offered something the server
+     * refuses — or hid something it allows — would be a bug in one place rather than a disagreement
+     * between two. An empty list is a refusal, and {@code BLOCKED_DECISION} always has one.
+     *
+     * <p>Each asset carries {@code latestDecisionId} and {@code latestSourceEvidenceId}. They are not
+     * decoration: a batch request echoes them back, and the server rejects the whole batch if
+     * anything moved meanwhile. It also carries {@code alsoStandingCodes}, the other rules the same
+     * file is standing under, because excluding is asset-level at the gate — a file standing
+     * elsewhere cannot be batch-excluded, and the panel has to be able to say why.
+     */
+    private static Map<String, Object> reviewGroupsView(ReviewGroups groups) {
+        List<Map<String, Object>> rendered = groups.groups().stream()
+                .map(group -> {
+                    Map<String, Object> view = new LinkedHashMap<>();
+                    view.put("code", group.code());
+                    view.put("message", group.message());
+                    view.put("batchableActions", group.batchableActions());
+                    view.put("assets", group.assets().stream().map(asset -> {
+                        Map<String, Object> row = new LinkedHashMap<>();
+                        row.put("scanAssetId", asset.scanAssetId());
+                        row.put("relativePath", asset.relativePath());
+                        row.put("fileName", asset.fileName());
+                        row.put("fileType", asset.fileType());
+                        row.put("sha256", asset.sha256());
+                        row.put("verification", asset.verification());
+                        row.put("decision", asset.decision());
+                        row.put("message", asset.message());
+                        row.put("latestDecisionId", asset.latestDecisionId());
+                        row.put("latestSourceEvidenceId", asset.latestSourceEvidenceId());
+                        // The other rules this same file is standing under. The panel needs them to
+                        // show why a file cannot be batch-excluded; the refusal itself is enforced
+                        // server-side regardless of what the panel renders.
+                        row.put("alsoStandingCodes", asset.alsoStandingCodes());
+                        return row;
+                    }).toList());
+                    return view;
+                })
+                .toList();
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("scanRunId", groups.scanRunId());
+        view.put("gateResult", groups.passed() ? "PASS" : "BLOCKED");
+        view.put("evaluatedAt", groups.evaluatedAt());
+        view.put("groups", rendered);
+        return view;
+    }
+
+    /**
+     * The receipt for a decision batch: the batch row, and every per-asset decision it wrote.
+     *
+     * <p>The decisions are returned in full, all of them, because the count is the honest headline
+     * of what just happened — {@code assetCount} decisions were recorded, each with its own id and
+     * its own place in that file's history, all carrying this one rationale.
+     */
+    private Map<String, Object> decisionBatchView(BatchDecisionService.DecisionBatchResult result) {
+        Map<String, Object> view = batchView(result.batch());
+        view.put("decisions", result.decisions().stream().map(this::decisionView).toList());
+        return view;
+    }
+
+    private Map<String, Object> sourceEvidenceBatchView(
+            BatchDecisionService.SourceEvidenceBatchResult result) {
+        Map<String, Object> view = batchView(result.batch());
+        view.put("sourceEvidence", result.evidence().stream().map(this::sourceEvidenceView).toList());
+        return view;
+    }
+
+    /**
+     * One decision as every reader of a file's history sees it: the record, plus how big the batch it
+     * came from was.
+     *
+     * <p>{@code batchAssetCount} exists so the marker can say "recorded as part of a 12-file batch"
+     * rather than only "part of a batch". That number is the disclosure — it is what tells a reader
+     * this judgement was one of twelve made in one act, which is precisely what an undisclosed batch
+     * hides. Null when the decision was made one file at a time, and also when the batch row cannot
+     * be read: an honest unknown, never a guessed 1.
+     */
+    private Map<String, Object> decisionView(DecisionRecord decision) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", decision.id());
+        view.put("scanAssetId", decision.scanAssetId());
+        view.put("type", decision.type().name());
+        view.put("reason", decision.reason());
+        view.put("supersedesDecisionId", decision.supersedesDecisionId());
+        view.put("createdAt", decision.createdAt());
+        view.put("batchId", decision.batchId());
+        view.put("batchAssetCount", batchAssetCount(decision.batchId()));
+        return view;
+    }
+
+    /** The same disclosure for a source declaration made over several files at once. */
+    private Map<String, Object> sourceEvidenceView(SourceEvidenceRecord evidence) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("id", evidence.id());
+        view.put("scanAssetId", evidence.scanAssetId());
+        view.put("source", evidence.source());
+        view.put("license", evidence.license());
+        view.put("evidenceUrl", evidence.evidenceUrl());
+        view.put("resolved", evidence.resolved());
+        view.put("recordedAt", evidence.recordedAt());
+        view.put("batchId", evidence.batchId());
+        view.put("batchAssetCount", batchAssetCount(evidence.batchId()));
+        return view;
+    }
+
+    private Integer batchAssetCount(String batchId) {
+        return batchDecisions.findBatch(batchId).map(DecisionBatchRecord::assetCount).orElse(null);
+    }
+
+    private static Map<String, Object> batchView(DecisionBatchRecord batch) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("batchId", batch.id());
+        view.put("scanRunId", batch.scanRunId());
+        view.put("kind", batch.kind().name());
+        view.put("code", batch.groupCode());
+        view.put("action", batch.action());
+        view.put("rationale", batch.rationale());
+        view.put("assetCount", batch.assetCount());
+        view.put("createdAt", batch.createdAt());
+        return view;
+    }
+
+    /** A rejected batch: the reason, and exactly which files moved. Nothing was written. */
+    private static Map<String, Object> driftView(BatchDecisionService.BatchDriftException drift) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("error", drift.getMessage());
+        view.put("driftedAssetIds", drift.driftedAssetIds());
+        return view;
+    }
+
+    private static ReleaseGate.Code reviewGroupCode(JsonNode body) {
+        String value = requiredText(body, "code");
+        for (ReleaseGate.Code code : ReleaseGate.Code.values()) {
+            if (code.name().equals(value)) return code;
+        }
+        throw new IllegalArgumentException("code must be one of the release gate's own violation codes");
+    }
+
+    /**
+     * The requested decision type, parsed but not yet vetted — {@link BatchDecisionService} owns the
+     * allow-list, so there is exactly one place that decides what may be batched.
+     */
+    private static DecisionType batchDecisionType(JsonNode body) {
+        String value = requiredText(body, "type");
+        for (DecisionType type : DecisionType.values()) {
+            if (type.name().equals(value)) return type;
+        }
+        throw new IllegalArgumentException("type must be a decision type");
+    }
+
+    private static JsonNode batchAssets(JsonNode body) {
+        JsonNode assets = body.get("assets");
+        if (assets == null || !assets.isArray()) {
+            throw new IllegalArgumentException("assets must be an array of files to batch");
+        }
+        // Bounded here as well as in the service so a hostile payload cannot make the bridge build a
+        // huge entry list before the cap is applied. MAX_REQUEST_BYTES already bounds the body.
+        if (assets.size() > BatchDecisionService.MAX_BATCH_ASSETS) {
+            throw new IllegalArgumentException("A batch is capped at "
+                    + BatchDecisionService.MAX_BATCH_ASSETS + " files so the set stays something a"
+                    + " person can actually look at — narrow it and do it in passes");
+        }
+        return assets;
+    }
+
+    private static long requiredAssetId(JsonNode asset) {
+        if (!asset.isObject()) throw new IllegalArgumentException("Each batched file must be an object");
+        Long assetId = nullableLong(asset, "scanAssetId");
+        if (assetId == null) throw new IllegalArgumentException("scanAssetId is required for every batched file");
+        return assetId;
     }
 
     private JsonNode readStoredJson(String value) {

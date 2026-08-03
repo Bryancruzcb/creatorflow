@@ -328,6 +328,11 @@ function makeEvidenceClient(overrides: Record<string, ReturnType<typeof vi.fn>> 
     getAsset: vi.fn().mockResolvedValue(assetDetail),
     getDecisionHistory: vi.fn().mockResolvedValue({ items: [] }),
     listOwnershipVerifications: vi.fn().mockResolvedValue({ items: [] }),
+    // The evidence view mounts the group-review panel, which reads this on open. Nothing standing
+    // in groups here: these cases are about the walkthrough, not about batching.
+    listReviewGroups: vi.fn().mockResolvedValue({
+      scanRunId: run.id, gateResult: 'BLOCKED', evaluatedAt: '2026-08-02T21:00:00Z', groups: [],
+    }),
     recordDecision: vi.fn().mockResolvedValue({
       id: 'dec-1', scanAssetId: scanAsset.id, type: 'NEEDS_REVIEW', reason: 'Chasing the licence',
       supersedesDecisionId: null, createdAt: '2026-08-02T21:20:00Z',
