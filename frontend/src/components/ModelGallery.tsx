@@ -7,6 +7,7 @@ import {
   Vector3,
   WebGLRenderer,
 } from 'three';
+import { createCanvasRenderLoop } from '../motion/renderLoop';
 import { createContactShadow, createStudioScene } from '../motion/sceneFoundation';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
@@ -85,8 +86,6 @@ export function ModelGallery() {
     const holder = studio.holder;
     viewerRef.current = { camera, holder, contactShadow };
 
-    let stopped = false;
-    let frame = 0;
     const resize = () => {
       const rect = canvas.getBoundingClientRect();
       renderer.setSize(Math.max(1, rect.width), Math.max(1, rect.height), false);
@@ -96,16 +95,20 @@ export function ModelGallery() {
     const observer = new ResizeObserver(resize);
     observer.observe(canvas);
     resize();
-    const loop = () => {
-      if (stopped) return;
+
+    /**
+     * The turntable is always turning, so there is no demand-driven half to this loop — the
+     * scheduler is here for its other half. This used to be a bare requestAnimationFrame chain
+     * with no viewport test, which meant a gallery scrolled well off the page kept auto-rotating
+     * and redrawing at the full display rate for nobody.
+     */
+    const render = () => {
       controls.update();
       renderer.render(scene, camera);
-      frame = requestAnimationFrame(loop);
     };
-    loop();
+    const renderLoop = createCanvasRenderLoop({ canvas, render, shouldRenderContinuously: () => true });
     return () => {
-      stopped = true;
-      cancelAnimationFrame(frame);
+      renderLoop.dispose();
       observer.disconnect();
       controls.dispose();
       disposeTree(holder);
