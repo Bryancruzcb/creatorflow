@@ -1148,6 +1148,39 @@ function RegistryMatchCard({ record, candidateName, pose, exact, mode }: {
   );
 }
 
+/**
+ * The exactness claim under a stored Studio comparison.
+ *
+ * `exactCurveData` means the two fingerprints matched. When a side arrived CURVE_SAMPLED that
+ * fingerprint describes the plugin's 20-samples-per-second reconstruction of a curve clip, not the
+ * authored keyframes a reader hears in "exact canonical curves" — two sampled re-uploads of the
+ * same asset match exactly because sampling is deterministic, which says nothing about whether an
+ * authored source was copied. Same reason the snapshots panel labels a sampled side: the claim is
+ * still true, but it is a claim about the reconstruction, and it has to say so on the surface that
+ * makes it. The Studio plugin's own status line says the same thing.
+ */
+export function evidenceExactnessClaim(comparison: LocalMotionComparison): string {
+  if (comparison.mirrored) return 'Similarity found MIRRORED, not as submitted';
+  if (!comparison.exactCurveData) return 'Similarity signal';
+  const sourceSampled = comparison.sourceKind === 'CURVE_SAMPLED';
+  const candidateSampled = comparison.candidateKind === 'CURVE_SAMPLED';
+  if (!sourceSampled && !candidateSampled) return 'Exact canonical curves';
+  const sides = sourceSampled && candidateSampled ? 'both sides' : sourceSampled ? 'the reference' : 'the candidate';
+  return `Exact canonical curves — ${sides} curve-sampled, so this matches the sampled reconstruction, not an authored-keyframe read`;
+}
+
+/** The stored-evidence card under the Studio pairing panel. Extracted so it can be rendered in a test. */
+export function LatestStudioEvidence({ comparison }: { comparison: LocalMotionComparison }) {
+  return (
+    <article className="motion-live-result">
+      <header><span><i />Latest Studio evidence</span><time dateTime={comparison.createdAt}>{new Date(comparison.createdAt).toLocaleString()}</time></header>
+      <div><span><small>Animation IDs</small><strong>{comparison.sourceAssetId} ↔ {comparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{comparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{comparison.posePercent}%</strong></span><span><small>Timing</small><strong>{comparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{comparison.coveragePercent}%</strong></span></div>
+      <footer><strong>{comparison.verdict}</strong><span>{evidenceExactnessClaim(comparison)} · evidence ID {comparison.id.slice(0, 8)}</span></footer>
+      <p className="motion-live-result-engine">Scored by the {comparisonEngineLabel(comparison.algorithmVersion)} at submission{comparisonEngineCaveat(comparison.algorithmVersion) ? <> — {comparisonEngineCaveat(comparison.algorithmVersion)}</> : '.'}</p>
+    </article>
+  );
+}
+
 export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: LocalBridgeClient | null; project: LocalProjectSummary | null }) {
   const { preferences } = useWorkspacePreferences();
   const [workspaceMode, setWorkspaceMode] = useState<'pair' | 'project'>('pair');
@@ -1601,7 +1634,7 @@ export function MotionComparisonLab({ bridgeClient, project }: { bridgeClient: L
                 </div>
               </div> : <div className="motion-desktop-boundary"><AlertTriangle size={16} /><span><strong>The demo above still works.</strong><small>For real Roblox IDs, open the CreatorFlow desktop app and a local project.</small></span></div>}
               {bridgeMessage ? <p className="motion-bridge-message" role="status">{bridgeMessage}</p> : null}
-              {latestComparison ? <article className="motion-live-result"><header><span><i />Latest Studio evidence</span><time dateTime={latestComparison.createdAt}>{new Date(latestComparison.createdAt).toLocaleString()}</time></header><div><span><small>Animation IDs</small><strong>{latestComparison.sourceAssetId} ↔ {latestComparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{latestComparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{latestComparison.posePercent}%</strong></span><span><small>Timing</small><strong>{latestComparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{latestComparison.coveragePercent}%</strong></span></div><footer><strong>{latestComparison.verdict}</strong><span>{latestComparison.mirrored ? 'Similarity found MIRRORED, not as submitted' : latestComparison.exactCurveData ? 'Exact canonical curves' : 'Similarity signal'} · evidence ID {latestComparison.id.slice(0, 8)}</span></footer><p className="motion-live-result-engine">Scored by the {comparisonEngineLabel(latestComparison.algorithmVersion)} at submission{comparisonEngineCaveat(latestComparison.algorithmVersion) ? <> — {comparisonEngineCaveat(latestComparison.algorithmVersion)}</> : '.'}</p></article> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison.</p> : null}
+              {latestComparison ? <LatestStudioEvidence comparison={latestComparison} /> : bridgeClient && project ? <p className="motion-evidence-inbox-empty">Waiting for the first Studio comparison.</p> : null}
               <section className="motion-authoring-boundary"><AlertTriangle size={17} /><div><strong>Compare here; author and publish in Roblox Studio.</strong><p>CreatorFlow reads the supplied curves without changing them.</p></div><dl><div><dt>Available now</dt><dd>Read · compare · preview · fingerprint</dd></div><div><dt>Not an editor</dt><dd>Rig controls · curve timeline · Roblox upload</dd></div></dl></section>
             </section>
           </details>

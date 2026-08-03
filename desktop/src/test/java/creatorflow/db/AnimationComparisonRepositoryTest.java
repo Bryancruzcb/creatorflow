@@ -41,16 +41,44 @@ class AnimationComparisonRepositoryTest {
         AnimationComparisonRecord withPlayability = repo.insert(projectId, "1001", "1002", "Walk", "Walk",
                 1.0, 1.0, "fp1", "fp2", 100, 100, 100, 100, true,
                 "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
-                playability);
+                playability, null, null);
         assertEquals(Optional.of(playability), withPlayability.playabilityJson());
 
         AnimationComparisonRecord withoutPlayability = repo.insert(projectId, "2001", "2002", "Run", "Run",
                 1.0, 1.0, "fp3", "fp4", 100, 100, 100, 100, true,
                 "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
-                null);
+                null, null, null);
         assertEquals(Optional.empty(), withoutPlayability.playabilityJson());
 
         assertEquals(Optional.of(playability), repo.findById(withPlayability.id()).orElseThrow().playabilityJson());
         assertEquals(Optional.empty(), repo.findById(withoutPlayability.id()).orElseThrow().playabilityJson());
+    }
+
+    @Test
+    void roundTripsOptionalClipKinds() {
+        AnimationComparisonRecord withKinds = repo.insert(projectId, "5001", "5002", "Walk", "Walk",
+                1.0, 1.0, "fp5", "fp6", 100, 100, 100, 100, true,
+                "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
+                null, "KEYFRAME", "CURVE_SAMPLED");
+        assertEquals(Optional.of("KEYFRAME"), withKinds.sourceClipKind());
+        assertEquals(Optional.of("CURVE_SAMPLED"), withKinds.candidateClipKind());
+
+        AnimationComparisonRecord withoutKinds = repo.insert(projectId, "6001", "6002", "Run", "Run",
+                1.0, 1.0, "fp7", "fp8", 100, 100, 100, 100, true,
+                "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
+                null, null, null);
+        assertEquals(Optional.empty(), withoutKinds.sourceClipKind());
+        assertEquals(Optional.empty(), withoutKinds.candidateClipKind());
+
+        // Both kinds re-read from the database, with DIFFERENT values on the two sides: asserting
+        // only the source side would stay green if map() ever read the two columns crossed, and a
+        // comparison that reports the sampled side as the exactly-read one is worse than no label.
+        AnimationComparisonRecord reread = repo.findById(withKinds.id()).orElseThrow();
+        assertEquals(Optional.of("KEYFRAME"), reread.sourceClipKind());
+        assertEquals(Optional.of("CURVE_SAMPLED"), reread.candidateClipKind());
+
+        AnimationComparisonRecord rereadWithout = repo.findById(withoutKinds.id()).orElseThrow();
+        assertEquals(Optional.empty(), rereadWithout.sourceClipKind());
+        assertEquals(Optional.empty(), rereadWithout.candidateClipKind());
     }
 }

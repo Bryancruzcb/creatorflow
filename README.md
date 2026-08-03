@@ -13,7 +13,7 @@ asset against a snapshot of the last release and return an honest **PASS** or **
 on authored sample data, and scanning your own files needs the desktop app.
 
 It runs locally. A `127.0.0.1` desktop bridge pairs with a Roblox Studio plugin and reads
-only normalized KeyframeSequence data — never raw asset files — so nothing leaves your machine.
+only normalized joint data — never raw asset files — so nothing leaves your machine.
 Changed assets are compared against insert-only SQLite snapshots, provenance findings are resolved
 with a required reason, and the run emits a deterministic release manifest naming exactly which
 version to roll back to. With an optional Roblox Open Cloud API key, it also looks up the creator
@@ -307,9 +307,9 @@ desktop builds lean, while the packaged profile is available for an offline show
 ### Roblox animation bridge prototype
 
 CreatorFlow now has a loopback-only Roblox Studio input for animation evidence. The Studio plugin
-reads two animation IDs that the signed-in creator is permitted to access, flattens each
-`KeyframeSequence` into stable joint paths and local `CFrame` values, and sends one bounded JSON
-request to the desktop app. The Java core recanonicalizes that data, computes deterministic
+reads two animation IDs that the signed-in creator is permitted to access, flattens each clip into
+stable joint paths and local `CFrame` values, and sends one bounded JSON request to the desktop
+app. The Java core recanonicalizes that data, computes deterministic
 SHA-256 curve fingerprints, compares pose/timing/joint coverage, and stores the result with the
 selected local project. Raw joint curves are not retained in SQLite.
 
@@ -322,9 +322,17 @@ Studio pairing flow:
 4. Paste the displayed loopback endpoint and token into Studio, test the connection, then compare
    two permitted animation IDs. The evidence inbox refreshes automatically.
 
-The first slice supports `KeyframeSequence` assets. `CurveAnimation`, inaccessible/private assets,
-rig retargeting, and copyright conclusions are explicitly outside v0.1. Roblox Studio decides
-whether an animation can be read; CreatorFlow does not bypass asset permissions.
+Both Roblox clip types are read. A `KeyframeSequence` is read exactly. A `CurveAnimation` has no
+keyframes to read, so the plugin samples its position and rotation curves 20 times a second into the
+same pose shape, and every comparison carries how each side was read — `KEYFRAME` or
+`CURVE_SAMPLED` — through to the workspace, where a sampled side is labeled "Sampled from a curve —
+not an exact read." Sampled sides can still be pinned as drift-detection snapshots: a live-Studio
+spike found the sampling bit-identical across repeat reads and a register/refetch round trip, so a
+sampled fingerprint does not wobble into a false "this animation changed." Curve support reads
+position/rotation on rig-joint paths only, and a curve clip with none of those is rejected with that
+reason. Inaccessible/private assets, rig retargeting, and copyright conclusions stay outside v0.1.
+Roblox Studio decides whether an animation can be read; CreatorFlow does not bypass asset
+permissions.
 
 Run the default release policy against a manifest with machine-readable output:
 

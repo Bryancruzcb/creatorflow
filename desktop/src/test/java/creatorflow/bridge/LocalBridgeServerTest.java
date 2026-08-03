@@ -459,6 +459,99 @@ class LocalBridgeServerTest {
         assertFalse(json.readTree(comparedNoPlayability.body()).has("playability"));
     }
 
+    @Test
+    void motionComparisonAcceptsAndReturnsOptionalClipKinds() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        String animation = """
+                {
+                  "assetId":"%s","name":"Walk","duration":1.0,"looped":true,
+                  "priority":"Movement","keyframes":[
+                    {"time":0.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                    {"time":1.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                  ]
+                }
+                """;
+        String withKinds = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("7001") + ",\"candidate\":" + animation.formatted("7002")
+                + ",\"sourceKind\":\"KEYFRAME\",\"candidateKind\":\"CURVE_SAMPLED\"}";
+        HttpResponse<String> compared = pluginRequest("POST", "/plugin/v1/motion-comparisons", token, withKinds);
+        assertEquals(201, compared.statusCode(), compared.body());
+        assertEquals("KEYFRAME", json.readTree(compared.body()).get("sourceKind").asText());
+        assertEquals("CURVE_SAMPLED", json.readTree(compared.body()).get("candidateKind").asText());
+
+        String withoutKinds = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("8001") + ",\"candidate\":" + animation.formatted("8002") + "}";
+        HttpResponse<String> comparedNoKinds = pluginRequest(
+                "POST", "/plugin/v1/motion-comparisons", token, withoutKinds);
+        assertEquals(201, comparedNoKinds.statusCode(), comparedNoKinds.body());
+        assertFalse(json.readTree(comparedNoKinds.body()).has("sourceKind"));
+        assertFalse(json.readTree(comparedNoKinds.body()).has("candidateKind"));
+
+        // A kind outside the two the app knows is rejected rather than stored verbatim. The
+        // pinning guard compares the STORED value against the literal "CURVE_SAMPLED", so a
+        // lowercase or invented spelling reaching the column would slip past that guard the day
+        // it is flipped shut — the wrong direction for a safety switch to fail in.
+        String lowercaseKind = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("8101") + ",\"candidate\":" + animation.formatted("8102")
+                + ",\"sourceKind\":\"curve_sampled\",\"candidateKind\":\"KEYFRAME\"}";
+        HttpResponse<String> rejectedSource = pluginRequest(
+                "POST", "/plugin/v1/motion-comparisons", token, lowercaseKind);
+        assertEquals(400, rejectedSource.statusCode(), rejectedSource.body());
+
+        String unknownCandidateKind = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("8201") + ",\"candidate\":" + animation.formatted("8202")
+                + ",\"sourceKind\":\"KEYFRAME\",\"candidateKind\":\"PROCEDURAL\"}";
+        HttpResponse<String> rejectedCandidate = pluginRequest(
+                "POST", "/plugin/v1/motion-comparisons", token, unknownCandidateKind);
+        assertEquals(400, rejectedCandidate.statusCode(), rejectedCandidate.body());
+    }
+
+    /**
+     * A regression guard on the SHIPPED configuration, not a RED/GREEN pair — it passes both
+     * before and after {@code CURVE_SAMPLED_SNAPSHOTS_ALLOWED} exists, because that constant ships
+     * {@code true}. Phase C's Task 0 spike measured sampling live in Studio and found it
+     * bit-identical, so a CURVE_SAMPLED side is as pinnable as a keyframe one. What this pins is
+     * that nobody re-blocks it by accident: flipping the constant to {@code false} turns the first
+     * assertion red immediately, which is exactly the conversation that flip deserves.
+     */
+    @Test
+    void animationSnapshotAllowsCurveSampledSidesWhileConfirmedDeterministic() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        String animation = """
+                {
+                  "assetId":"%s","name":"Walk","duration":1.0,"looped":true,
+                  "priority":"Movement","keyframes":[
+                    {"time":0.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                    {"time":1.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                  ]
+                }
+                """;
+        String body = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("9001") + ",\"candidate\":" + animation.formatted("9002")
+                + ",\"sourceKind\":\"CURVE_SAMPLED\",\"candidateKind\":\"KEYFRAME\"}";
+        String comparisonId = json.readTree(
+                pluginRequest("POST", "/plugin/v1/motion-comparisons", token, body).body())
+                .get("id").asText();
+
+        HttpResponse<String> pinSource = postJson("/api/v1/projects/" + projectId + "/animation-snapshots", cookie,
+                origin.toString(), csrf, "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"source\",\"kind\":\"LAST_KNOWN_GOOD\"}");
+        assertEquals(201, pinSource.statusCode(), pinSource.body());
+
+        HttpResponse<String> pinCandidate = postJson("/api/v1/projects/" + projectId + "/animation-snapshots", cookie,
+                origin.toString(), csrf, "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"candidate\",\"kind\":\"LAST_KNOWN_GOOD\"}");
+        assertEquals(201, pinCandidate.statusCode(), pinCandidate.body());
+    }
+
     /**
      * Pins WHICH engine the plugin route scores on, and that a mirrored match says so.
      *
