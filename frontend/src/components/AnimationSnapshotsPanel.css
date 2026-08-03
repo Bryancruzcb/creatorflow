@@ -231,3 +231,122 @@
 @media (prefers-reduced-motion: reduce) {
   .animation-snapshots-side-actions button { transition: none; }
 }
+
+/*
+ * Share-to-team affordance (Phase E). Appended, never interleaved: several rules above win on
+ * source position, so anything new goes at the end.
+ *
+ * The dialog is deliberately heavy rather than a discreet popover. It is the one place a person
+ * is told exactly what leaves the machine, and a disclosure that is easy to skim past is not a
+ * disclosure.
+ */
+.animation-snapshots-share {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  background: transparent;
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  padding: 0.25rem 0.6rem;
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+  cursor: pointer;
+}
+.animation-snapshots-share:hover:not(:disabled) { color: var(--ink); border-color: var(--ink-dim); }
+.animation-snapshots-share:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.animation-snapshots-share-result {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+
+.animation-snapshots-share-dialog {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 12px;
+  background: var(--graphite);
+  padding: 1rem 1.05rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+.animation-snapshots-share-dialog h3 {
+  margin: 0;
+  font-size: var(--text-sm);
+  color: var(--ink);
+}
+.animation-snapshots-share-lead,
+.animation-snapshots-share-excluded,
+.animation-snapshots-share-retract {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--ink-muted);
+}
+.animation-snapshots-share-lead strong,
+.animation-snapshots-share-excluded strong { color: var(--ink); }
+
+/* The itemised manifest of what travels. Full values, never truncated. */
+.animation-snapshots-share-manifest {
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+  border-left: 2px solid var(--hairline-strong);
+  padding-left: 0.7rem;
+}
+.animation-snapshots-share-manifest > div {
+  display: grid;
+  grid-template-columns: 9rem minmax(0, 1fr);
+  gap: 0.5rem;
+}
+.animation-snapshots-share-manifest dt { font-size: var(--text-2xs); color: var(--ink-dim); }
+.animation-snapshots-share-manifest dd { margin: 0; font-size: var(--text-xs); color: var(--ink-muted); }
+.animation-snapshots-share-manifest code {
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+  word-break: break-all;
+  color: var(--ink);
+}
+
+.animation-snapshots-share-declared {
+  border: 1px solid var(--hairline);
+  border-radius: 10px;
+  padding: 0.6rem 0.75rem 0.75rem;
+  display: grid;
+  gap: 0.45rem;
+}
+.animation-snapshots-share-declared legend {
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+  padding: 0 0.35rem;
+}
+.animation-snapshots-share-declared label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: var(--text-2xs);
+  color: var(--ink-dim);
+}
+.animation-snapshots-share-declared input {
+  background: var(--obsidian, transparent);
+  border: 1px solid var(--hairline);
+  border-radius: 8px;
+  padding: 0.35rem 0.5rem;
+  color: var(--ink);
+  font-size: var(--text-xs);
+}
+
+.animation-snapshots-share-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+.animation-snapshots-share-actions button {
+  border: 1px solid var(--hairline-strong);
+  border-radius: 999px;
+  background: transparent;
+  padding: 0.35rem 0.85rem;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+.animation-snapshots-share-actions button:disabled { opacity: 0.6; cursor: progress; }
+.animation-snapshots-share-confirm { color: var(--ink); border-color: var(--ink-dim); }

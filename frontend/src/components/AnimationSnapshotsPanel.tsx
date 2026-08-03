@@ -1,4 +1,4 @@
-import { AlertTriangle, Bookmark, Camera, History, RotateCcw } from 'lucide-react';
+import { AlertTriangle, Bookmark, Camera, History, RotateCcw, Share2 } from 'lucide-react';
 import { useCallback, useEffect, useState } from 'react';
 import {
   type AnimationSnapshotKind,
@@ -6,6 +6,7 @@ import {
   type LocalBridgeClient,
   type LocalMotionComparison,
   type LocalProjectSummary,
+  type LocalTeamStore,
 } from '../bridge/localBridge';
 import {
   formatSnapshotFingerprint,
@@ -66,7 +67,11 @@ function SnapshotExplainer() {
   );
 }
 
-function SnapshotRow({ snapshot }: { snapshot: LocalAnimationSnapshot }) {
+function SnapshotRow({ snapshot, share }: {
+  snapshot: LocalAnimationSnapshot;
+  /** Absent on the sample preview, where there is nothing real to share. */
+  share?: { onShare: (snapshot: LocalAnimationSnapshot) => void; disabledReason: string | null };
+}) {
   return (
     <li className="animation-snapshots-row" data-kind={snapshot.kind}>
       <div className="animation-snapshots-row-main">
@@ -78,8 +83,133 @@ function SnapshotRow({ snapshot }: { snapshot: LocalAnimationSnapshot }) {
       </span>
       <code title={snapshot.fingerprint}>{formatSnapshotFingerprint(snapshot.fingerprint)}</code>
       <time dateTime={snapshot.createdAt}>{new Date(snapshot.createdAt).toLocaleString()}</time>
+      {share ? (
+        <button
+          type="button"
+          className="animation-snapshots-share"
+          // Disabled with the actual reason in the tooltip rather than an unexplained grey
+          // button. Nothing is ever uploaded automatically, so this is the only way out.
+          title={share.disabledReason ?? 'Review exactly what would be shared, then confirm.'}
+          disabled={share.disabledReason !== null}
+          onClick={() => share.onShare(snapshot)}
+        >
+          <Share2 size={12} /> Share to team
+        </button>
+      ) : null}
     </li>
   );
+}
+
+/**
+ * The confirmation dialog: an itemised list of everything that would leave this machine, and an
+ * equally explicit list of what would not.
+ *
+ * This is the disclosure, and it is why sharing is a per-snapshot button rather than a setting.
+ * The four VERIFIED values are shown as the exact values that will travel — the fingerprint in
+ * full, not truncated — because "you are about to publish this string" is the fact a person is
+ * actually consenting to. The declared fields are optional and start empty: nothing is
+ * pre-filled, so nothing is shared by inattention.
+ */
+function ShareDialog({ snapshot, teamName, busy, error, onCancel, onConfirm }: {
+  snapshot: LocalAnimationSnapshot;
+  teamName: string;
+  busy: boolean;
+  error: string | null;
+  onCancel: () => void;
+  onConfirm: (declared: {
+    robloxAssetId: number | null;
+    ownershipContext: string | null;
+    declaredSource: string | null;
+    declaredLicense: string | null;
+    declaredNote: string | null;
+  }) => void;
+}) {
+  const [robloxAssetId, setRobloxAssetId] = useState('');
+  const [ownershipContext, setOwnershipContext] = useState('');
+  const [declaredSource, setDeclaredSource] = useState('');
+  const [declaredLicense, setDeclaredLicense] = useState('');
+  const [declaredNote, setDeclaredNote] = useState('');
+
+  const trimmed = (value: string) => (value.trim().length === 0 ? null : value.trim());
+  const parsedAssetId = Number.parseInt(robloxAssetId.trim(), 10);
+
+  return (
+    <div className="animation-snapshots-share-dialog" role="dialog" aria-label="Share to team">
+      <h3>Share this fingerprint with {teamName}?</h3>
+
+      <p className="animation-snapshots-share-lead">
+        Sharing records that <strong>you</strong> have a curve with this fingerprint. It is an
+        observation, not a claim of authorship, and it carries no score or verdict.
+      </p>
+
+      <dl className="animation-snapshots-share-manifest">
+        <div><dt>Curve fingerprint</dt><dd><code>{snapshot.fingerprint}</code></dd></div>
+        <div><dt>Fingerprint version</dt><dd>{snapshot.algorithmVersion}</dd></div>
+        <div><dt>Clip name</dt><dd>{snapshot.name}</dd></div>
+        <div><dt>Duration</dt><dd>{snapshot.duration.toFixed(2)}s</dd></div>
+      </dl>
+
+      <p className="animation-snapshots-share-excluded">
+        <strong>Not shared:</strong> the curves themselves, any file, any scan path, any folder
+        name on this machine, and anything about your other snapshots.
+      </p>
+
+      <fieldset className="animation-snapshots-share-declared">
+        <legend>Optional — anything you type here is shared too, attributed to you</legend>
+        <label>Roblox asset ID
+          <input value={robloxAssetId} onChange={(e) => setRobloxAssetId(e.target.value)} inputMode="numeric" />
+        </label>
+        <label>Ownership context
+          <input value={ownershipContext} onChange={(e) => setOwnershipContext(e.target.value)} placeholder="group:12345" />
+        </label>
+        <label>Source
+          <input value={declaredSource} onChange={(e) => setDeclaredSource(e.target.value)} placeholder="Where it came from" />
+        </label>
+        <label>License
+          <input value={declaredLicense} onChange={(e) => setDeclaredLicense(e.target.value)} />
+        </label>
+        <label>Note
+          <input value={declaredNote} onChange={(e) => setDeclaredNote(e.target.value)} />
+        </label>
+      </fieldset>
+
+      <p className="animation-snapshots-share-retract">
+        You can retract this later, which removes it from future lookups. It cannot recall a copy a
+        teammate already read.
+      </p>
+
+      {error ? <p className="animation-snapshots-error" role="status">{error}</p> : null}
+
+      <div className="animation-snapshots-share-actions">
+        <button type="button" onClick={onCancel} disabled={busy}>Cancel</button>
+        <button
+          type="button"
+          className="animation-snapshots-share-confirm"
+          disabled={busy}
+          onClick={() => onConfirm({
+            robloxAssetId: Number.isFinite(parsedAssetId) && parsedAssetId > 0 ? parsedAssetId : null,
+            ownershipContext: trimmed(ownershipContext),
+            declaredSource: trimmed(declaredSource),
+            declaredLicense: trimmed(declaredLicense),
+            declaredNote: trimmed(declaredNote),
+          })}
+        >
+          {busy ? 'Sharing…' : 'Share to team'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Why the share button is off, in words, or `null` when it is available. */
+export function shareDisabledReason(store: LocalTeamStore | null): string | null {
+  if (!store || !store.configured) {
+    return 'No team provenance store is connected. Set one up in the desktop Settings page.';
+  }
+  if (store.status !== 'OK') {
+    return 'The team provenance store could not be reached, so nothing can be shared right now.';
+  }
+  return null;
 }
 
 /**
@@ -97,6 +227,27 @@ export function AnimationSnapshotsPanel({ bridgeClient, project, latestCompariso
   const [state, setState] = useState<LoadState>('idle');
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [teamStore, setTeamStore] = useState<LocalTeamStore | null>(null);
+  const [sharing, setSharing] = useState<LocalAnimationSnapshot | null>(null);
+  const [sharingBusy, setSharingBusy] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
+  const [shareResult, setShareResult] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!bridgeClient) {
+      setTeamStore(null);
+      return undefined;
+    }
+    let cancelled = false;
+    // Wrapped in Promise.resolve so a bridge build without this route — or a test double that
+    // does not stub it — degrades to "no store", i.e. the share button is off with a reason,
+    // rather than throwing on render. Never assumed present.
+    Promise.resolve()
+      .then(() => bridgeClient.getTeamStore())
+      .then((store) => { if (!cancelled) setTeamStore(store); })
+      .catch(() => { if (!cancelled) setTeamStore(null); });
+    return () => { cancelled = true; };
+  }, [bridgeClient]);
 
   const refresh = useCallback(() => {
     if (!bridgeClient || !project) {
@@ -128,6 +279,34 @@ export function AnimationSnapshotsPanel({ bridgeClient, project, latestCompariso
     }
   }
 
+  async function confirmShare(declared: {
+    robloxAssetId: number | null;
+    ownershipContext: string | null;
+    declaredSource: string | null;
+    declaredLicense: string | null;
+    declaredNote: string | null;
+  }) {
+    if (!bridgeClient || !sharing) return;
+    setSharingBusy(true);
+    setShareError(null);
+    try {
+      const result = await bridgeClient.shareProvenanceClaim({ snapshotId: sharing.id, ...declared });
+      setSharing(null);
+      // "Already shared" and "already shared with different text" are different outcomes, and the
+      // second one has to say that the new text was NOT recorded — an append-only row is never
+      // quietly overwritten, and a bare success here would leave a person believing it was.
+      setShareResult(!result.alreadyShared
+        ? `Shared “${sharing.name}” with your team.`
+        : result.declarationsDiffer
+          ? 'Already shared — retract to change. What you typed was not recorded over the existing claim.'
+          : 'Already shared. Nothing changed.');
+    } catch (cause) {
+      setShareError(cause instanceof Error ? cause.message : 'Could not share that snapshot.');
+    } finally {
+      setSharingBusy(false);
+    }
+  }
+
   if (!bridgeClient || !project) {
     return (
       <div className="animation-snapshots">
@@ -135,7 +314,7 @@ export function AnimationSnapshotsPanel({ bridgeClient, project, latestCompariso
         <div className="animation-snapshots-sample">
           <div className="animation-snapshots-sample-head">
             <span className="animation-snapshots-sample-tag"><Camera size={13} /> Sample preview</span>
-            <small>Example rows — connect the desktop app to pin your own.</small>
+            <small>Illustrative records, not your team store — connect the desktop app to pin your own.</small>
           </div>
           <ul className="animation-snapshots-list">
             {SAMPLE_SNAPSHOTS.map((snapshot) => <SnapshotRow key={snapshot.id} snapshot={snapshot} />)}
@@ -243,9 +422,31 @@ export function AnimationSnapshotsPanel({ bridgeClient, project, latestCompariso
         <p className="animation-snapshots-empty">No snapshots yet. Pin a reference above to start tracking whether an animation drifts.</p>
       ) : (
         <ul className="animation-snapshots-list">
-          {snapshots.map((snapshot) => <SnapshotRow key={snapshot.id} snapshot={snapshot} />)}
+          {snapshots.map((snapshot) => (
+            <SnapshotRow
+              key={snapshot.id}
+              snapshot={snapshot}
+              share={{
+                onShare: (target) => { setShareResult(null); setShareError(null); setSharing(target); },
+                disabledReason: shareDisabledReason(teamStore),
+              }}
+            />
+          ))}
         </ul>
       )}
+
+      {shareResult ? <p className="animation-snapshots-share-result" role="status">{shareResult}</p> : null}
+
+      {sharing ? (
+        <ShareDialog
+          snapshot={sharing}
+          teamName={teamStore?.teamName ?? 'your team'}
+          busy={sharingBusy}
+          error={shareError}
+          onCancel={() => { setSharing(null); setShareError(null); }}
+          onConfirm={(declared) => { void confirmShare(declared); }}
+        />
+      ) : null}
     </div>
   );
 }

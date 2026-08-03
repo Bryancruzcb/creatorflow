@@ -1,0 +1,10 @@
+{
+  "baseUrl" : "http://team.example:8080",
+  "configured" : true,
+  "keyStorageMode" : "CONTRACT_FIXTURE_KEY_STORAGE_MODE",
+  "memberCount" : 3,
+  "message" : null,
+  "status" : "OK",
+  "teamId" : 7,
+  "teamName" : "Harbor Studio"
+}

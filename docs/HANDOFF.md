@@ -279,6 +279,11 @@ decompression-bomb DoS — `ImageIO.read()` ran on user uploads with no decoded-
 creation is open, so a few-hundred-KB PNG could decode to a multi-GB raster and OOM the JVM.
 Fixed with `core` `SafeImageIo.read()` (reads header dimensions before allocating the raster;
 40 MP default cap), wired into all three call sites. TDD, `SafeImageIoTest`.
+**Read that as history, not as a map of today's code:** the Phase E preparation PR deleted
+`FileStore` and `DiffService` outright, so `OriginalityEngine.verify` is the only remaining
+`SafeImageIo.read()` call site. Two of the three guards went away with the code they guarded —
+that is a smaller attack surface, not a regression, and the guard on the surviving path is
+untouched. Server-side account creation can also now be gated by `creatorflow.signup.token`.
 
 **Phase 2 — frontend review.** Reviewed `frontend/src` + recent motion/bridge code. Fixed two
 confirmed bugs. (1) The exported release manifest failed CreatorFlow's *own* validator on the

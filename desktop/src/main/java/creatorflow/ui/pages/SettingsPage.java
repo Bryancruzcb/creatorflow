@@ -3,8 +3,8 @@ package creatorflow.ui.pages;
 import creatorflow.AppContext;
 import creatorflow.service.opencloud.OpenCloudClient;
 import creatorflow.service.opencloud.OpenCloudSettings;
-import creatorflow.service.registry.HttpRegistryClient;
-import creatorflow.service.registry.RegistrySettings;
+import creatorflow.service.team.HttpTeamClient;
+import creatorflow.service.team.TeamSettings;
 import creatorflow.ui.PageHeader;
 import creatorflow.verification.OriginalityEngine;
 import javafx.scene.control.Button;
@@ -57,7 +57,7 @@ public final class SettingsPage {
                 note("Detection proves conflicts, never ownership — every import also records "
                         + "the uploader's declaration and license.")));
 
-        content.getChildren().add(registryCard(context));
+        content.getChildren().add(teamCard(context));
 
         content.getChildren().add(openCloudCard(context));
 
@@ -75,75 +75,178 @@ public final class SettingsPage {
         return root;
     }
 
-    /** Opt-in connection to a shared registry; imports send fingerprints only, never files. */
-    private VBox registryCard(AppContext context) {
-        RegistrySettings settings = context.registrySettings();
+    /**
+     * Opt-in connection to a self-hosted team provenance store.
+     *
+     * <p>This card carries the whole second-team-member story end to end, in the order that person
+     * hits it: server URL → create an account (with the operator's signup token if they set one) →
+     * test the connection → join a team with a code, or create one → see who is in it. A teammate
+     * needs nothing out-of-band except the base URL, the token if set, and a code.
+     *
+     * <p>The API key field is masked and protected at rest exactly like the Open Cloud key — same
+     * {@code ApiKeyProtector}, same honest storage-mode label. The key never crosses the local
+     * bridge; the workspace is told a boolean.
+     */
+    private VBox teamCard(AppContext context) {
+        TeamSettings settings = context.teamSettings();
 
         TextField url = new TextField(settings.baseUrl());
-        url.setPromptText("http://localhost:8080");
+        url.setPromptText("http://studio-box.local:8080");
         HBox.setHgrow(url, Priority.ALWAYS);
 
-        TextField key = new TextField(settings.apiKey());
+        PasswordField key = new PasswordField();
+        key.setText(settings.apiKey());
         key.setPromptText("issued when you create an account");
         HBox.setHgrow(key, Priority.ALWAYS);
 
-        Label status = new Label(settings.isConfigured()
-                ? "Configured" + (settings.username().isBlank() ? "" : " as " + settings.username())
-                : "Not configured — imports verify against the local library only.");
-        status.getStyleClass().add("field-note");
-        status.setWrapText(true);
+        TextField signupToken = new TextField();
+        signupToken.setPromptText("only if the person running the server set one");
+        HBox.setHgrow(signupToken, Priority.ALWAYS);
+
+        Label storage = new Label(TeamCardText.storageLine(settings.storageMode()));
+        storage.getStyleClass().add("field-note");
+        storage.setWrapText(true);
+
+        Label members = note("");
+        Label status = note(TeamCardText.configurationStatus(settings.hasAccount(), settings.teamName()));
 
         Button test = new Button("Test connection");
         test.getStyleClass().add("ghost-button");
-        test.setOnAction(e -> status.setText(HttpRegistryClient.health(url.getText())
-                ? "Registry reachable."
-                : "Could not reach " + url.getText().strip() + " — is the server running?"));
+        test.setOnAction(e -> {
+            if (url.getText() == null || url.getText().isBlank()) {
+                status.setText(TeamCardText.SAVE_BEFORE_TESTING);
+                return;
+            }
+            status.setText(TeamCardText.connectionMessage(
+                    HttpTeamClient.health(url.getText()), url.getText()));
+        });
 
         Button createAccount = new Button("Create account");
         createAccount.getStyleClass().add("ghost-button");
-        createAccount.setOnAction(e -> {
-            TextInputDialog prompt = new TextInputDialog(settings.username());
-            prompt.setTitle("Create registry account");
-            prompt.setHeaderText(null);
-            prompt.setContentText("Username:");
-            prompt.initOwner(root.getScene() == null ? null : root.getScene().getWindow());
-            if (root.getScene() != null) {
-                prompt.getDialogPane().getStylesheets().addAll(root.getScene().getStylesheets());
-                prompt.getDialogPane().getStyleClass().add("cf-dialog");
+        createAccount.setOnAction(e -> prompt("Create an account on the team store", "Username:",
+                settings.username()).ifPresent(username -> {
+            try {
+                String apiKey = HttpTeamClient.createAccount(url.getText(), username.strip(),
+                        signupToken.getText());
+                settings.save(url.getText(), apiKey, username.strip());
+                key.setText(apiKey);
+                storage.setText(TeamCardText.storageLine(settings.storageMode()));
+                status.setText(TeamCardText.accountCreated(username.strip()));
+            } catch (Exception failure) {
+                status.setText(TeamCardText.accountFailed(safeMessage(failure)));
             }
-            prompt.showAndWait().ifPresent(username -> {
-                try {
-                    String apiKey = HttpRegistryClient.createAccount(url.getText(), username.strip());
-                    key.setText(apiKey);
-                    settings.save(url.getText(), apiKey, username.strip());
-                    status.setText("Account “" + username.strip() + "” created — key saved.");
-                } catch (Exception ex) {
-                    status.setText("Could not create account: " + ex.getMessage());
-                }
-            });
-        });
+        }));
 
         Button save = new Button("Save");
         save.getStyleClass().add("primary-button");
         save.setOnAction(e -> {
             settings.save(url.getText(), key.getText(), settings.username());
-            status.setText(settings.isConfigured()
-                    ? "Saved — imports now check the community registry too."
-                    : "Saved. Fill both fields to enable registry checks.");
+            key.setText(settings.apiKey());
+            storage.setText(TeamCardText.storageLine(settings.storageMode()));
+            status.setText(TeamCardText.configurationStatus(settings.hasAccount(), settings.teamName()));
         });
+
+        Button joinTeam = new Button("Join team");
+        joinTeam.getStyleClass().add("ghost-button");
+        joinTeam.setTooltip(new Tooltip("Paste a single-use join code from a team owner."));
+        joinTeam.setOnAction(e -> prompt("Join a team", "Join code:", "").ifPresent(code -> {
+            try {
+                var joined = new HttpTeamClient(settings).joinTeam(code.strip());
+                settings.saveTeam(joined.id(), joined.name());
+                status.setText(TeamCardText.joinedTeam(joined.name()));
+                refreshMembers(settings, members);
+            } catch (Exception failure) {
+                status.setText(TeamCardText.failed("join that team", safeMessage(failure)));
+            }
+        }));
+
+        Button createTeam = new Button("Create team");
+        createTeam.getStyleClass().add("ghost-button");
+        createTeam.setOnAction(e -> prompt("Create a team", "Team name:", "").ifPresent(name -> {
+            try {
+                var created = new HttpTeamClient(settings).createTeam(name.strip());
+                settings.saveTeam(created.id(), created.name());
+                status.setText(TeamCardText.createdTeam(created.name()));
+                refreshMembers(settings, members);
+            } catch (Exception failure) {
+                status.setText(TeamCardText.failed("create that team", safeMessage(failure)));
+            }
+        }));
+
+        Button joinCode = new Button("Mint join code");
+        joinCode.getStyleClass().add("ghost-button");
+        joinCode.setTooltip(new Tooltip("Owners only. Shown once, single-use, expires in 24 hours."));
+        joinCode.setOnAction(e -> {
+            if (settings.teamId() == null) {
+                status.setText("Join or create a team first.");
+                return;
+            }
+            try {
+                String code = new HttpTeamClient(settings).issueJoinCode(settings.teamId());
+                ClipboardContent clip = new ClipboardContent();
+                clip.putString(code);
+                Clipboard.getSystemClipboard().setContent(clip);
+                // The raw code is shown here and nowhere else: the server kept only its hash.
+                status.setText("Join code copied: " + code + " — " + TeamCardText.CODE_SHOWN_ONCE);
+            } catch (Exception failure) {
+                status.setText(TeamCardText.failed("mint a join code", safeMessage(failure)));
+            }
+        });
+
+        refreshMembers(settings, members);
 
         VBox fields = new VBox(8,
                 fieldLabel("Server URL"), url,
+                fieldLabel("Signup token (optional)"), signupToken,
                 fieldLabel("API key"), key,
+                storage,
                 new HBox(8, createAccount, test, save),
-                status);
+                new HBox(8, joinTeam, createTeam, joinCode),
+                members,
+                status,
+                note(TeamCardText.OPTIONAL),
+                note(TeamCardText.ONE_ACCOUNT_EACH));
 
-        return card("Community registry",
-                "Optional. When configured, every import is also checked against everyone's "
-                        + "registered fingerprints on a shared server — your files never leave "
-                        + "this machine, only their fingerprints do. Run the server with: "
+        return card("Team provenance store",
+                "Optional, self-hosted, and off unless you set it up. When a team is connected, the "
+                        + "motion comparison view can ask that team's store who else recorded the "
+                        + "exact same curve fingerprint. Only the fingerprint and what you type "
+                        + "travel — never curves, files, or scan paths. Run the server with: "
                         + "mvn -pl server spring-boot:run",
                 fields);
+    }
+
+    /** Live member list, or nothing at all — never a stale one, because none is kept. */
+    private static void refreshMembers(TeamSettings settings, Label target) {
+        if (!settings.isConfigured()) {
+            target.setText("");
+            return;
+        }
+        try {
+            var lines = new HttpTeamClient(settings).memberLines(settings.teamId());
+            target.setText("Members: " + String.join(", ", lines));
+        } catch (Exception unreachable) {
+            target.setText("Members: unknown — the team store could not be reached just now.");
+        }
+    }
+
+    private java.util.Optional<String> prompt(String title, String field, String initial) {
+        TextInputDialog dialog = new TextInputDialog(initial == null ? "" : initial);
+        dialog.setTitle(title);
+        dialog.setHeaderText(null);
+        dialog.setContentText(field);
+        dialog.initOwner(root.getScene() == null ? null : root.getScene().getWindow());
+        if (root.getScene() != null) {
+            dialog.getDialogPane().getStylesheets().addAll(root.getScene().getStylesheets());
+            dialog.getDialogPane().getStyleClass().add("cf-dialog");
+        }
+        return dialog.showAndWait().filter(value -> !value.isBlank());
+    }
+
+    /** Never lets a null message render as the word "null" in the status line. */
+    private static String safeMessage(Exception failure) {
+        return failure.getMessage() == null || failure.getMessage().isBlank()
+                ? failure.getClass().getSimpleName() : failure.getMessage();
     }
 
     /**

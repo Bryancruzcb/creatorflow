@@ -216,6 +216,54 @@ describe('bridge contract', () => {
     expect(['number', 'object']).toContain(typeof violation.scanAssetId);
   });
 
+  it('parses the team-store status, and never finds an API key in it', async () => {
+    const client = await clientReturning(fixture('team-status'));
+    const store = await client.getTeamStore();
+    expect(typeof store.configured).toBe('boolean');
+    expect(typeof store.status).toBe('string');
+    // memberCount is fetched live and is null whenever the store could not be reached — nothing
+    // about a team is cached, so there is never a stale number to fall back on.
+    expect(['number', 'object']).toContain(typeof store.memberCount);
+    expect(typeof store.keyStorageMode).toBe('string');
+    /**
+     * The boolean-only rule, asserted against the bytes the desktop actually produced. The team
+     * store's API key must never cross this bridge — not masked, not prefixed, not length-hinted —
+     * exactly as `openCloudKeyConfigured` established for the Roblox key.
+     */
+    expect(fixture('team-status')).not.toHaveProperty('apiKey');
+    expect(JSON.stringify(fixture('team-status'))).not.toMatch(/api[-_]?key/i);
+  });
+
+  it('parses a provenance lookup, whose status is what makes the claim list readable', async () => {
+    const client = await clientReturning(fixture('team-provenance'));
+    const lookup = await client.lookupTeamProvenance('f'.repeat(64), 'creatorflow.motion-fingerprint/v1');
+
+    /**
+     * The status key is the contract. An empty `claims` array means "no one on your team recorded
+     * this" ONLY when `status` is `OK`; for every other status it means the lookup never happened.
+     * If this key were ever dropped the two become indistinguishable on the wire, which is the
+     * false-reassurance failure Phase E is shaped to prevent — so its absence must fail here.
+     */
+    expect(lookup, 'the lookup payload lost its status key').toHaveProperty('status');
+    expect(Array.isArray(lookup.claims)).toBe(true);
+    // Echoed back so the UI classifies each row against it. Never used to filter, here or upstream.
+    expect(lookup).toHaveProperty('algorithmVersion');
+
+    const claim = lookup.claims[0];
+    expect(typeof claim.memberUsername).toBe('string');
+    expect(typeof claim.isYours).toBe('boolean');
+    // Load-bearing: without the row's own version, a v2 claim would render as a v1 match.
+    expect(typeof claim.algorithmVersion).toBe('string');
+    expect(typeof claim.recordedAt).toBe('string');
+    /**
+     * And the absence that defines the schema. A claim is an observation; the moment one of these
+     * appears, the store has started emitting judgements and the honesty ceiling is gone.
+     */
+    for (const forbidden of ['verdict', 'score', 'distance', 'rank', 'similarity', 'decision']) {
+      expect(claim, `a claim gained a ${forbidden} field`).not.toHaveProperty(forbidden);
+    }
+  });
+
   it('parses workspace state, whose fields are all nullable', async () => {
     const state = fixture('workspace-state') as Record<string, unknown>;
     // Every one of these is null on a fresh install; the UI must not assume otherwise.

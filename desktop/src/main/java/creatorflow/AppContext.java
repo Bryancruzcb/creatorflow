@@ -25,8 +25,8 @@ import creatorflow.service.LibraryPaths;
 import creatorflow.service.opencloud.OpenCloudClient;
 import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.opencloud.OwnershipVerifier;
-import creatorflow.service.registry.HttpRegistryClient;
-import creatorflow.service.registry.RegistrySettings;
+import creatorflow.service.team.HttpTeamClient;
+import creatorflow.service.team.TeamSettings;
 import creatorflow.verification.OriginalityEngine;
 import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.ReleaseExportService;
@@ -34,14 +34,14 @@ import java.nio.file.Path;
 import java.util.function.Supplier;
 import javafx.stage.Window;
 
-/** Wires the application graph: paths, database, repositories, engine, importer, registry. */
+/** Wires the application graph: paths, database, repositories, engine, importer, team store. */
 public final class AppContext implements AutoCloseable {
 
     private final LibraryPaths paths;
     private final Database database;
     private final ProjectRepository projects;
     private final AssetRepository assets;
-    private final RegistrySettings registrySettings;
+    private final TeamSettings teamSettings;
     private final OpenCloudSettings openCloudSettings;
     private final AssetImporter importer;
     private final LocalProjectRepository localProjects;
@@ -63,10 +63,19 @@ public final class AppContext implements AutoCloseable {
         this.database = new Database(paths.dbFile());
         this.projects = new ProjectRepository(database);
         this.assets = new AssetRepository(database);
-        this.registrySettings = new RegistrySettings(paths.dataDir());
+        this.teamSettings = new TeamSettings(paths.dataDir());
         this.openCloudSettings = new OpenCloudSettings(paths.dataDir());
-        this.importer = new AssetImporter(assets, new OriginalityEngine(), paths.libraryDir(),
-                new HttpRegistryClient(registrySettings));
+        /*
+         * The importer no longer carries a community-registry client.
+         *
+         * That client can no longer be configured from anywhere in the UI — the Settings card it
+         * lived on is now the team provenance store — and the legacy routes it calls are off by
+         * default on a Phase E server. A machine with a leftover registry.properties would
+         * therefore have added "Community registry unreachable" to the findings of every single
+         * import, forever. The code stays in service/registry (dormant, still exercised by
+         * RegistryEscalationTest through its own injected clients); its status noise does not.
+         */
+        this.importer = new AssetImporter(assets, new OriginalityEngine(), paths.libraryDir());
         this.localProjects = new LocalProjectRepository(database);
         this.scans = new ScanRepository(database);
         this.decisions = new DecisionRepository(database);
@@ -112,8 +121,8 @@ public final class AppContext implements AutoCloseable {
         return importer;
     }
 
-    public RegistrySettings registrySettings() {
-        return registrySettings;
+    public TeamSettings teamSettings() {
+        return teamSettings;
     }
 
     public OpenCloudSettings openCloudSettings() {
@@ -129,9 +138,13 @@ public final class AppContext implements AutoCloseable {
         // narrow OwnershipVerification seam so the verify route is the single live-call site.
         OwnershipVerification ownershipVerifier =
                 new OwnershipVerifier(new OpenCloudClient(openCloudSettings))::verify;
+        // The team client is the only outbound path to a provenance store, exactly as
+        // OpenCloudClient is the only outbound path to Roblox: the React workspace talks to
+        // 127.0.0.1 and nothing else.
         bridge = new LocalBridgeServer(new JavaFxProjectPicker(owner), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,
-                pluginPairings, releaseExports, batchDecisions, openCloudSettings, ownershipVerifier,
+                pluginPairings, releaseExports, batchDecisions, openCloudSettings, teamSettings,
+                new HttpTeamClient(teamSettings), ownershipVerifier,
                 ownershipVerifications, coordinator, webRoot).start();
         return bridge;
     }

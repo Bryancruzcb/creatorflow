@@ -3,14 +3,20 @@ package creatorflow.service.opencloud;
 import java.util.Locale;
 
 /**
- * Encodes an Open Cloud API key into (and back out of) its at-rest form. Each implementation
- * declares a {@link KeyStorageMode}; the concrete choice depends on what the OS can enforce.
+ * Encodes an API key into (and back out of) its at-rest form. Each implementation declares a
+ * {@link KeyStorageMode}; the concrete choice depends on what the OS can enforce.
  *
- * <p>Kept package-private on purpose: only {@link OpenCloudSettings} decides how a key is
- * protected, and tests in this package inject a specific protector to exercise the fallback path
- * on any OS.
+ * <p>Public as of Phase E, and the reason is worth stating: the team provenance store's API key
+ * ({@code creatorflow.service.team.TeamSettings}) is the same class of secret as the Open Cloud
+ * one, so it reuses this rather than growing a second, weaker at-rest story beside it. The
+ * <em>implementations</em> stay package-private — callers get one through
+ * {@link #forCurrentOs()} or {@link #forMode(KeyStorageMode)} and never pick a backend directly,
+ * which is what keeps "how a key is protected" a single decision.
+ *
+ * <p>Tests in this package inject a specific protector to exercise the plaintext fallback path on
+ * any OS.
  */
-interface ApiKeyProtector {
+public interface ApiKeyProtector {
 
     /** The at-rest protection this protector applies. */
     KeyStorageMode mode();

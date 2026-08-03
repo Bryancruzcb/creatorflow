@@ -1,6 +1,12 @@
 --!strict
--- Dock-widget UI. Same screening-room palette as the web gallery
--- (server/src/main/resources/static/css/site.css).
+-- Dock-widget UI for the frozen legacy registry plugin.
+--
+-- The palette below was copied from the web gallery's site.css. That stylesheet, and the whole
+-- gallery it styled, were deleted when the server became the team provenance store — so these
+-- hex values are now this file's own, with nothing left to stay in sync with.
+--
+-- This plugin only works against a server started with creatorflow.legacy-registry.enabled=true.
+-- Against a default one, every call below 404s.
 
 local Api = require(script.Parent.Api)
 
@@ -173,7 +179,9 @@ function Ui.mount(widget: DockWidgetPluginGui, callbacks: Callbacks): Handle
 	-- Server card ---------------------------------------------------------
 	local server = card(root, "Server", 1)
 	local baseUrlBox = textBox(server, "Base URL (http://localhost:8080)", 1)
-	local apiKeyBox = textBox(server, "API key (from /me on the website)", 2)
+	-- There is no website to read a key from any more; the /me page went with the gallery.
+	-- Use "Create account" below, or the key from the desktop app's data directory.
+	local apiKeyBox = textBox(server, "API key (from Create account, below)", 2)
 	local serverRow = buttonRow(server, 3)
 	local connectBtn = button(serverRow, "Connect", 1, true)
 	local statusLabel = label(server, "Not connected.", 4, COLORS.dim)
