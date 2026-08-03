@@ -65,6 +65,14 @@ export interface LocalMotionComparison {
    * this comparison. Absent means "not checked" — never read as a failure.
    */
   playability?: { source: AnimationPlayability; candidate: AnimationPlayability };
+  /**
+   * "KEYFRAME" (read directly from a KeyframeSequence) or "CURVE_SAMPLED"
+   * (baked from sampling a CurveAnimation at fixed intervals — an approximation,
+   * never as exact as a direct keyframe read). Absent for comparisons made
+   * before this field existed.
+   */
+  sourceKind?: 'KEYFRAME' | 'CURVE_SAMPLED';
+  candidateKind?: 'KEYFRAME' | 'CURVE_SAMPLED';
 }
 
 export interface RigPlayability {

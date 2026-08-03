@@ -81,6 +81,34 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final int MAX_MOTION_KEYFRAMES = 2_000;
     private static final int MAX_MOTION_POSES = 20_000;
     private static final String MOTION_INPUT_SCHEMA = "creatorflow.roblox-motion/v0.1";
+    /**
+     * Whether a CURVE_SAMPLED side may be pinned as a drift-detection snapshot.
+     *
+     * <p>Snapshots decide UNCHANGED/CHANGED by fingerprint equality alone, so pinning a side whose
+     * fingerprint wobbled run-to-run would report "this animation changed" when nothing did — the
+     * worst class of output this app can produce. Phase C's Task 0 spike measured it rather than
+     * assuming: 31 samples across a clip came back bit-identical twice within a run AND across a
+     * full register/refetch round trip, live in Studio on 2026-08-02
+     * (docs/superpowers/plans/2026-08-01-phaseC-task0-spike-note.md, §4). Sampling is
+     * deterministic, so this ships {@code true} — a known-safe capability does not ship disabled.
+     *
+     * <p>It stays a constant rather than disappearing: if that confidence is ever invalidated (a
+     * Roblox sampling change, a new interpolation path), flipping this to {@code false} re-blocks
+     * pinning in one line.
+     *
+     * <p>The flip only blocks NEW pins — snapshot rows carry no clip kind of their own. Already-pinned
+     * sampled snapshots are still identifiable: join {@code motion_snapshots.source_comparison_id} to
+     * {@code animation_comparisons.id} and read {@code source_clip_kind} / {@code candidate_clip_kind}
+     * for the side the snapshot's {@code asset_id} matches. That is the recovery path for auditing or
+     * retiring existing rows after a flip; it is a query, not a column, until one is needed.
+     *
+     * <p>Scope of the evidence behind {@code true}: ONE fixture, on ONE Studio version, on one machine
+     * (spike note §4). That is enough to ship, not enough to stop watching. Roblox updates Studio's
+     * animation stack on its own schedule, and a curve evaluator change would show up here as pinned
+     * sampled snapshots reporting CHANGED on untouched assets. Re-run the spike's serialize-and-compare
+     * check after a Studio update before trusting a CHANGED verdict on a sampled snapshot.
+     */
+    private static final boolean CURVE_SAMPLED_SNAPSHOTS_ALLOWED = true;
     private static final Pattern PROJECT_SCANS = Pattern.compile("^/api/v1/projects/(\\d+)/scan-runs$");
     private static final Pattern PROJECT_ASSETS = Pattern.compile("^/api/v1/projects/(\\d+)/assets$");
     private static final Pattern PROJECT_RELEASES = Pattern.compile("^/api/v1/projects/(\\d+)/releases$");
@@ -288,6 +316,8 @@ public final class LocalBridgeServer implements AutoCloseable {
             JsonNode playabilityNode = body.path("playability");
             String playabilityJson = playabilityNode.isMissingNode() || playabilityNode.isNull()
                     ? null : playabilityNode.toString();
+            String sourceKind = clipKind(text(body, "sourceKind", null), "sourceKind");
+            String candidateKind = clipKind(text(body, "candidateKind", null), "candidateKind");
             AnimationComparisonRecord stored = animationComparisons.insert(
                     pairing.projectId(), source.assetId(), candidate.assetId(),
                     source.name(), candidate.name(), source.duration(), candidate.duration(),
@@ -297,7 +327,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                     result.exactCurveData(), json.writeValueAsString(result), result.engineVersion(),
                     PlaybackSettings.of(source.looped(), source.priority()),
                     PlaybackSettings.of(candidate.looped(), candidate.priority()),
-                    playabilityJson);
+                    playabilityJson, sourceKind, candidateKind);
             sendJson(exchange, 201, animationComparisonView(stored));
             return;
         }
@@ -341,6 +371,27 @@ public final class LocalBridgeServer implements AutoCloseable {
                 throw new IllegalArgumentException(label + " animation has too many poses");
             }
         }
+    }
+
+    /**
+     * Allow-list for a clip-provenance value, so the column can only ever hold a kind this app
+     * knows how to reason about.
+     *
+     * <p>An allow-list rather than a check at the point of use: {@code CURVE_SAMPLED_SNAPSHOTS_ALLOWED}
+     * blocks pinning by testing the stored value AGAINST the literal "CURVE_SAMPLED", so a plugin
+     * sending "curve_sampled" — or any other spelling — would walk straight past that guard the day
+     * it is ever flipped shut. A kill-switch that fails open is not a kill-switch. Rejecting the
+     * unknown value here means the guard only has two possible inputs to reason about.
+     *
+     * <p>Null stays legal: plugins built before this field existed send no kind at all, and their
+     * comparisons are still valid evidence.
+     */
+    private static String clipKind(String value, String field) {
+        if (value == null) return null;
+        if (!"KEYFRAME".equals(value) && !"CURVE_SAMPLED".equals(value)) {
+            throw new IllegalArgumentException(field + " must be \"KEYFRAME\" or \"CURVE_SAMPLED\"");
+        }
+        return value;
     }
 
     private void routeApi(HttpExchange exchange, String path) throws IOException {
@@ -501,6 +552,14 @@ public final class LocalBridgeServer implements AutoCloseable {
                 AnimationComparisonRecord comparison = animationComparisons.findById(comparisonId)
                         .filter(record -> record.projectId() == projectId)
                         .orElseThrow(() -> new HttpError(404, "Animation comparison not found"));
+                String requestedClipKind = "source".equalsIgnoreCase(side)
+                        ? comparison.sourceClipKind().orElse(null)
+                        : comparison.candidateClipKind().orElse(null);
+                if (!CURVE_SAMPLED_SNAPSHOTS_ALLOWED && "CURVE_SAMPLED".equals(requestedClipKind)) {
+                    throw new HttpError(400,
+                            "This side was read by sampling a CurveAnimation, not an exact keyframe read. "
+                                    + "Pinning it as a drift-detection reference isn't reliable yet.");
+                }
                 MotionSnapshotRecord snapshot = switch (side.toLowerCase(java.util.Locale.ROOT)) {
                     case "source" -> motionSnapshots.capture(projectId, comparison.sourceAssetId(), kind,
                             comparisonId, comparison.sourceName(), comparison.sourceDuration(),
@@ -1177,6 +1236,8 @@ public final class LocalBridgeServer implements AutoCloseable {
                 throw new IllegalStateException("Stored playability JSON is invalid", error);
             }
         });
+        record.sourceClipKind().ifPresent(kind -> view.put("sourceKind", kind));
+        record.candidateClipKind().ifPresent(kind -> view.put("candidateKind", kind));
         view.put("result", result);
         view.put("creatorFlowUrl", origin + "/#workspace?view=motion");
         return view;
