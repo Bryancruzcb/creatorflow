@@ -300,6 +300,14 @@ export interface LocalSourceEvidence {
   evidenceUrl: string | null;
   resolved: boolean;
   recordedAt: string;
+  /**
+   * The batch this declaration was recorded in, or `null` for a per-file one. Optional because a
+   * bridge older than this build does not send the key at all — and absent must read as "not part
+   * of a batch", which is what every row written before batches existed genuinely is.
+   */
+  batchId?: string | null;
+  /** How many files that batch covered. Null/absent is an honest unknown, never a guessed 1. */
+  batchAssetCount?: number | null;
 }
 
 export interface LocalDecision {
@@ -309,6 +317,91 @@ export interface LocalDecision {
   reason: string;
   supersedesDecisionId: string | null;
   createdAt: string;
+  /** The batch this decision was recorded in, or `null`/absent for a per-file one. */
+  batchId?: string | null;
+  /**
+   * How many files that batch covered — the number that makes the marker a disclosure rather than a
+   * hint ("one of twelve recorded at once"). Null/absent is an honest unknown, never a guessed 1.
+   */
+  batchAssetCount?: number | null;
+}
+
+/**
+ * The gate rules a group can be formed on — the same four `ReleaseGate.Code` values
+ * {@link LocalGateViolationCode} names, kept as its own alias because a group is a different thing
+ * from a violation: one group is many violations of one kind.
+ */
+export type ReviewGroupCode = LocalGateViolationCode;
+
+/**
+ * What may be recorded over a whole group at once. `APPROVED` and `BLOCKED` are absent by design,
+ * not omitted by accident: they are per-file judgements and the bridge rejects them outright.
+ */
+export type BatchableAction = 'SOURCE_EVIDENCE' | 'EXCLUDED' | 'NEEDS_REVIEW';
+
+export interface LocalReviewGroupAsset {
+  scanAssetId: number;
+  relativePath: string;
+  fileName: string;
+  fileType: string;
+  sha256: string;
+  verification: 'CLEAR' | 'SIMILAR' | 'DUPLICATE';
+  /** The standing decision, or `PENDING` when nobody has recorded one. */
+  decision: LocalDecisionType | 'PENDING';
+  /** The gate's own sentence for this asset. Rendered verbatim; the workspace never rewrites one. */
+  message: string;
+  /**
+   * The two "what I was looking at" tokens. A batch request echoes them back and the bridge rejects
+   * the whole batch if anything moved meanwhile, so they must be sent exactly as received — never
+   * defaulted, never dropped.
+   */
+  latestDecisionId: string | null;
+  latestSourceEvidenceId: number | null;
+  /**
+   * The other gate rules this same file is standing under right now.
+   *
+   * Non-empty means it **cannot be batch-excluded**, because `EXCLUDED` is asset-level at the gate —
+   * `ReleaseGate.evaluate` skips an excluded asset before the flagged and ownership checks — so
+   * excluding it here to settle a missing source record would silence those too. The bridge refuses
+   * such a batch outright; this is what lets the panel say so on the row instead of letting a person
+   * compose a batch that will be rejected.
+   */
+  alsoStandingCodes: string[];
+}
+
+export interface LocalReviewGroup {
+  code: ReviewGroupCode | (string & {});
+  message: string;
+  /**
+   * Served by the bridge rather than decided here, because the same table gates what the panel
+   * renders and what the routes accept. An empty list is a refusal — `BLOCKED_DECISION` always has
+   * one, since those assets already carry a deliberate human "no".
+   */
+  batchableActions: BatchableAction[];
+  assets: LocalReviewGroupAsset[];
+}
+
+export interface LocalReviewGroups {
+  scanRunId: string;
+  gateResult: 'PASS' | 'BLOCKED';
+  evaluatedAt: string;
+  groups: LocalReviewGroup[];
+}
+
+/** The receipt for one batch act: the batch row, and every per-asset record it wrote. */
+export interface LocalDecisionBatch {
+  batchId: string;
+  scanRunId: string;
+  kind: 'DECISION' | 'SOURCE_EVIDENCE';
+  code: ReviewGroupCode | (string & {});
+  action: BatchableAction;
+  rationale: string;
+  assetCount: number;
+  createdAt: string;
+  /** Present on a decision batch: one row per asset, each with its own id. Never one row for N. */
+  decisions?: LocalDecision[];
+  /** Present on a source-evidence batch: likewise one row per asset. */
+  sourceEvidence?: LocalSourceEvidence[];
 }
 
 export type OwnershipIdentityType = 'USER' | 'GROUP';
@@ -372,8 +465,12 @@ export class LocalBridgeError extends Error {
    * @param retryAfterSeconds the server-reported wait from a 429 envelope, or `null` when the bridge
    *   reported none. `null` is an honest *unknown*, never "retry immediately" — callers must phrase
    *   it as such rather than inventing a number.
+   * @param driftedAssetIds the assets a rejected batch found had moved since the group was loaded,
+   *   from a 409 envelope, or `null` when the failure was not a drift. Carried through for the same
+   *   reason as the retry hint: dropping it would leave a person told only that "something changed".
    */
-  constructor(message: string, readonly status: number, readonly retryAfterSeconds: number | null = null) {
+  constructor(message: string, readonly status: number, readonly retryAfterSeconds: number | null = null,
+              readonly driftedAssetIds: number[] | null = null) {
     super(message);
     this.name = 'LocalBridgeError';
   }
@@ -385,6 +482,16 @@ export class LocalBridgeError extends Error {
  */
 function parseRetryAfterSeconds(value: unknown): number | null {
   return typeof value === 'number' && Number.isFinite(value) && value >= 0 ? value : null;
+}
+
+/**
+ * The asset ids a rejected batch reported as drifted, or `null` when the envelope carried none.
+ * Anything that is not an array of finite numbers is discarded rather than half-read: a partial
+ * list would point a person at the wrong files.
+ */
+function parseDriftedAssetIds(value: unknown): number[] | null {
+  if (!Array.isArray(value)) return null;
+  return value.every((id) => typeof id === 'number' && Number.isFinite(id)) ? value as number[] : null;
 }
 
 /**
@@ -631,6 +738,59 @@ export class LocalBridgeClient {
     return this.request<{ items: LocalOwnershipVerification[] }>(`/api/v1/assets/${assetId}/ownership-verifications`);
   }
 
+  /**
+   * What is standing at the gate for one scan, bucketed by rule, with the short list of actions each
+   * group allows. A GET: it evaluates and writes nothing.
+   *
+   * Rejects with a {@link LocalBridgeError} whose `status` the UI must handle honestly: 409 (the run
+   * is not a completed immutable scan — the server's own message says so), 404 (unknown run).
+   */
+  listReviewGroups(scanRunId: string) {
+    return this.request<LocalReviewGroups>(`/api/v1/scan-runs/${encodeURIComponent(scanRunId)}/review-groups`);
+  }
+
+  /**
+   * Records one decision per asset, all carrying the same rationale and one shared batch id.
+   *
+   * `assets` must echo each row's `latestDecisionId` back as `supersedesDecisionId` exactly as the
+   * group served it. That is the drift token: if any of them moved meanwhile the bridge rejects the
+   * **whole** batch with a 409 carrying `driftedAssetIds`, and writes nothing.
+   *
+   * `type` is deliberately narrower than {@link LocalDecisionType} — `APPROVED` and `BLOCKED` are
+   * per-file judgements, refused at the route regardless of what any client sends.
+   */
+  recordBatchDecision(scanRunId: string, request: {
+    code: ReviewGroupCode | (string & {});
+    type: Extract<BatchableAction, 'EXCLUDED' | 'NEEDS_REVIEW'>;
+    rationale: string;
+    assets: Array<{ scanAssetId: number; supersedesDecisionId: string | null }>;
+  }) {
+    return this.request<LocalDecisionBatch>(
+      `/api/v1/scan-runs/${encodeURIComponent(scanRunId)}/batch-decisions`,
+      { method: 'POST', body: request },
+    );
+  }
+
+  /**
+   * Declares the same source and license over several assets, with one shared batch id and one
+   * written claim that they belong together. The declaration stays DECLARED — nothing here is
+   * verified — and the rationale is required for the claim the tool cannot check: that *these* files
+   * share that source. Drift is checked against `latestSourceEvidenceId`.
+   */
+  recordBatchSourceEvidence(scanRunId: string, request: {
+    code: ReviewGroupCode | (string & {});
+    source: string;
+    license: string;
+    evidenceUrl: string | null;
+    rationale: string;
+    assets: Array<{ scanAssetId: number; latestSourceEvidenceId: number | null }>;
+  }) {
+    return this.request<LocalDecisionBatch>(
+      `/api/v1/scan-runs/${encodeURIComponent(scanRunId)}/batch-source-evidence`,
+      { method: 'POST', body: request },
+    );
+  }
+
   subscribeToScanEvents(runId: string, onEvent: (event: LocalScanEvent) => void, onDisconnect?: () => void) {
     const source = new EventSource(`/api/v1/scan-runs/${encodeURIComponent(runId)}/events`, { withCredentials: true });
     const eventNames = ['started', 'discovered', 'file_started', 'file_completed', 'file_skipped', 'warning', 'error', 'cancelled', 'completed'];
@@ -696,14 +856,17 @@ export class LocalBridgeClient {
     const payload: unknown = contentType.includes('application/json') ? await response.json() : null;
     if (!response.ok) {
       const envelope = payload && typeof payload === 'object'
-        ? payload as { error?: unknown; retryAfterSeconds?: unknown }
+        ? payload as { error?: unknown; retryAfterSeconds?: unknown; driftedAssetIds?: unknown }
         : null;
       const message = typeof envelope?.error === 'string'
         ? envelope.error
         : `Local bridge request failed (${response.status})`;
       // A 429 envelope carries the upstream Retry-After the desktop observed. Carry it through:
-      // dropping it is why a rate-limited person could not be told how long to wait.
-      throw new LocalBridgeError(message, response.status, parseRetryAfterSeconds(envelope?.retryAfterSeconds));
+      // dropping it is why a rate-limited person could not be told how long to wait. A rejected
+      // batch's 409 carries which files moved, for the same reason.
+      throw new LocalBridgeError(message, response.status,
+        parseRetryAfterSeconds(envelope?.retryAfterSeconds),
+        parseDriftedAssetIds(envelope?.driftedAssetIds));
     }
     if (!contentType.includes('application/json')) throw new LocalBridgeError('Local bridge returned an unexpected response', response.status);
     return payload as T;

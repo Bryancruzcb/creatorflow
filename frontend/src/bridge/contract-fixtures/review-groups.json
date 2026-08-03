@@ -1,0 +1,47 @@
+{
+  "evaluatedAt" : "2026-01-01T00:00:00Z",
+  "gateResult" : "BLOCKED",
+  "groups" : [ {
+    "assets" : [ {
+      "alsoStandingCodes" : [ ],
+      "decision" : "NEEDS_REVIEW",
+      "fileName" : "asset-0.rbxm",
+      "fileType" : "rbxm",
+      "latestDecisionId" : "00000000-0000-0000-0000-000000000000",
+      "latestSourceEvidenceId" : 1,
+      "message" : "Source and license evidence must be resolved or the asset excluded",
+      "relativePath" : "art/asset-0.rbxm",
+      "scanAssetId" : 1,
+      "sha256" : "0000000000000000000000000000000000000000000000000000000000000001",
+      "verification" : "CLEAR"
+    }, {
+      "alsoStandingCodes" : [ ],
+      "decision" : "NEEDS_REVIEW",
+      "fileName" : "asset-1.rbxm",
+      "fileType" : "rbxm",
+      "latestDecisionId" : "00000000-0000-0000-0000-000000000000",
+      "latestSourceEvidenceId" : 2,
+      "message" : "Source and license evidence must be resolved or the asset excluded",
+      "relativePath" : "art/asset-1.rbxm",
+      "scanAssetId" : 2,
+      "sha256" : "0000000000000000000000000000000000000000000000000000000000000002",
+      "verification" : "CLEAR"
+    }, {
+      "alsoStandingCodes" : [ ],
+      "decision" : "PENDING",
+      "fileName" : "asset-2.rbxm",
+      "fileType" : "rbxm",
+      "latestDecisionId" : null,
+      "latestSourceEvidenceId" : 3,
+      "message" : "Source and license evidence must be resolved or the asset excluded",
+      "relativePath" : "art/asset-2.rbxm",
+      "scanAssetId" : 3,
+      "sha256" : "0000000000000000000000000000000000000000000000000000000000000003",
+      "verification" : "CLEAR"
+    } ],
+    "batchableActions" : [ "SOURCE_EVIDENCE", "EXCLUDED", "NEEDS_REVIEW" ],
+    "code" : "UNRESOLVED_SOURCE",
+    "message" : "Source and license evidence must be resolved or the asset excluded"
+  } ],
+  "scanRunId" : "00000000-0000-0000-0000-000000000000"
+}

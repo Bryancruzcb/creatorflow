@@ -1,8 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
   affordanceForViolationCode,
+  batchMarkerLabel,
   describeOwnershipOutcome,
   formatCheckedAt,
+  formatDecisionTimestamp,
+  supersededDecisionIds,
   formatRetryAfter,
   gateProgressLabel,
   gateResolutionQueue,
@@ -463,5 +466,61 @@ describe('gateResolutionQueue', () => {
       violation({ path: 'here.png', scanAssetId: 7 }),
     ]));
     expect(queue).toEqual([{ assetId: 7, affordance: 'source', path: 'here.png', code: 'UNRESOLVED_SOURCE' }]);
+  });
+});
+
+describe('batchMarkerLabel', () => {
+  it('discloses the scale of the batch a record came from, not just that there was one', () => {
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', 12))
+      .toBe('Recorded as part of a 12-file batch · batch b1b2c3d4');
+  });
+
+  it('leaves an unknown count unknown rather than reporting a batch of one', () => {
+    // The bridge sends null when it cannot read the batch row. "1" would turn a batch into a
+    // per-file decision in the reader's eyes, which is the one reading that must never be invented.
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', null))
+      .toBe('Recorded as part of a batch · batch b1b2c3d4');
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', undefined))
+      .toBe('Recorded as part of a batch · batch b1b2c3d4');
+    expect(batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', 0))
+      .toBe('Recorded as part of a batch · batch b1b2c3d4');
+  });
+
+  it('never softens what it is reporting', () => {
+    const label = batchMarkerLabel('b1b2c3d4-5566-7788-99aa-bbccddeeff00', 30);
+    expect(label).not.toMatch(/reviewed/i);
+    expect(label).not.toMatch(/resolved/i);
+  });
+});
+
+describe('decision history rendering helpers', () => {
+  const first: LocalDecision = {
+    id: 'dec-1', scanAssetId: 1, type: 'NEEDS_REVIEW', reason: 'Chasing the licence',
+    supersedesDecisionId: null, createdAt: '2026-01-01T00:00:00Z',
+  };
+  const second: LocalDecision = {
+    id: 'dec-2', scanAssetId: 1, type: 'APPROVED', reason: 'Licence confirmed',
+    supersedesDecisionId: 'dec-1', createdAt: '2026-08-02T14:05:00Z',
+  };
+
+  it('reads superseding from the record rather than from position in the list', () => {
+    // The list renders oldest-first, so "the first row is old news" is true here and false on a
+    // history whose earlier decision was never replaced. Only the later row's own
+    // supersedesDecisionId settles it.
+    expect(supersededDecisionIds([first, second])).toEqual(new Set(['dec-1']));
+    expect(supersededDecisionIds([first])).toEqual(new Set());
+    expect(supersededDecisionIds([])).toEqual(new Set());
+  });
+
+  it('stamps a decision in a fixed shape rather than the reader’s locale', () => {
+    // The zone is named, not converted: an unlabelled wall-clock time reads as local, and these
+    // are stored in UTC.
+    expect(formatDecisionTimestamp('2026-08-02T14:05:00Z')).toBe('2026-08-02 14:05 UTC');
+    expect(formatDecisionTimestamp('2026-08-02T14:05:09.123456Z')).toBe('2026-08-02 14:05 UTC');
+  });
+
+  it('reports an unreadable timestamp as unknown rather than as an invalid date', () => {
+    expect(formatDecisionTimestamp('not a time')).toBe('time not recorded');
+    expect(formatDecisionTimestamp('')).toBe('time not recorded');
   });
 });

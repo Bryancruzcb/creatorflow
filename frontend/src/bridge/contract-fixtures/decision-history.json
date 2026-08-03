@@ -1,3 +1,12 @@
 {
-  "items" : [ ]
+  "items" : [ {
+    "batchAssetCount" : 2,
+    "batchId" : "00000000-0000-0000-0000-000000000000",
+    "createdAt" : "2026-01-01T00:00:00Z",
+    "id" : "00000000-0000-0000-0000-000000000000",
+    "reason" : "Scheduling a review of the whole kit with Marco on Thursday.",
+    "scanAssetId" : 1,
+    "supersedesDecisionId" : null,
+    "type" : "NEEDS_REVIEW"
+  } ]
 }

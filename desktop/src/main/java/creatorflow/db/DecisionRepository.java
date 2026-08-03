@@ -24,14 +24,32 @@ public final class DecisionRepository {
     }
 
     public DecisionRecord append(long scanAssetId, DecisionType type, String reason) {
-        return append(scanAssetId, type, reason, null);
+        return append(scanAssetId, type, reason, null, null);
+    }
+
+    /**
+     * One asset's row inside a batch act: an ordinary decision that additionally carries the batch
+     * it came from. Deliberately not a bulk insert — a batch of twelve writes twelve rows, each with
+     * its own id, its own timestamp and its own place in that asset's history. Collapsing them into
+     * one row would break {@link #latestFor}/{@link #latestForRun} and, worse, would make "one
+     * judgement" and "one record" the same thing, which is the conflation batches exist to disclose
+     * rather than create.
+     *
+     * <p>The caller supplies {@code supersedesDecisionId} per asset (null when the asset has no
+     * decision yet); this repository does not look it up, because the caller has already checked
+     * that the value it holds is still current — see the drift check in {@code BatchDecisionService}.
+     */
+    public DecisionRecord appendInBatch(long scanAssetId, DecisionType type, String reason,
+                                        String supersedesDecisionId, String batchId) {
+        if (batchId == null || batchId.isBlank()) throw new IllegalArgumentException("Batch id is required");
+        return append(scanAssetId, type, reason, supersedesDecisionId, batchId);
     }
 
     public DecisionRecord supersede(String previousDecisionId, DecisionType type, String reason) {
         synchronized (connection) {
             DecisionRecord previous = findByIdInternal(previousDecisionId)
                     .orElseThrow(() -> new IllegalArgumentException("Unknown decision " + previousDecisionId));
-            return appendInternal(previous.scanAssetId(), type, reason, previous.id());
+            return appendInternal(previous.scanAssetId(), type, reason, previous.id(), null);
         }
     }
 
@@ -92,14 +110,14 @@ public final class DecisionRepository {
     }
 
     private DecisionRecord append(long scanAssetId, DecisionType type, String reason,
-                                  String supersedesDecisionId) {
+                                  String supersedesDecisionId, String batchId) {
         synchronized (connection) {
-            return appendInternal(scanAssetId, type, reason, supersedesDecisionId);
+            return appendInternal(scanAssetId, type, reason, supersedesDecisionId, batchId);
         }
     }
 
     private DecisionRecord appendInternal(long scanAssetId, DecisionType type, String reason,
-                                          String supersedesDecisionId) {
+                                          String supersedesDecisionId, String batchId) {
         String cleanReason = requireReason(reason);
         if (!assetExists(scanAssetId)) throw new IllegalArgumentException("Unknown scan asset " + scanAssetId);
         if (supersedesDecisionId != null) {
@@ -112,17 +130,18 @@ public final class DecisionRepository {
 
         DecisionRecord record = new DecisionRecord(UUID.randomUUID().toString(), scanAssetId,
                 java.util.Objects.requireNonNull(type, "type"), cleanReason,
-                supersedesDecisionId, Instant.now());
+                supersedesDecisionId, Instant.now(), batchId);
         try (PreparedStatement statement = connection.prepareStatement("""
                 INSERT INTO decisions(id, scan_asset_id, decision_type, reason,
-                                      supersedes_decision_id, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)""")) {
+                                      supersedes_decision_id, created_at, batch_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?)""")) {
             statement.setString(1, record.id());
             statement.setLong(2, record.scanAssetId());
             statement.setString(3, record.type().name());
             statement.setString(4, record.reason());
             statement.setString(5, record.supersedesDecisionId());
             statement.setString(6, Timestamps.text(record.createdAt()));
+            statement.setString(7, record.batchId());
             statement.executeUpdate();
             return record;
         } catch (SQLException e) {
@@ -157,7 +176,8 @@ public final class DecisionRepository {
     private static DecisionRecord map(ResultSet result) throws SQLException {
         return new DecisionRecord(result.getString("id"), result.getLong("scan_asset_id"),
                 DecisionType.valueOf(result.getString("decision_type")), result.getString("reason"),
-                result.getString("supersedes_decision_id"), Instant.parse(result.getString("created_at")));
+                result.getString("supersedes_decision_id"), Instant.parse(result.getString("created_at")),
+                result.getString("batch_id"));
     }
 
     private static String requireReason(String reason) {

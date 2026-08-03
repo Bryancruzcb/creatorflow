@@ -4,6 +4,7 @@ import creatorflow.db.AssetRepository;
 import creatorflow.db.AnimationComparisonRepository;
 import creatorflow.db.AuditRepository;
 import creatorflow.db.Database;
+import creatorflow.db.DecisionBatchRepository;
 import creatorflow.db.DecisionRepository;
 import creatorflow.db.LocalProjectRepository;
 import creatorflow.db.MotionSnapshotRepository;
@@ -27,6 +28,7 @@ import creatorflow.service.opencloud.OwnershipVerifier;
 import creatorflow.service.registry.HttpRegistryClient;
 import creatorflow.service.registry.RegistrySettings;
 import creatorflow.verification.OriginalityEngine;
+import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.ReleaseExportService;
 import java.nio.file.Path;
 import java.util.function.Supplier;
@@ -52,6 +54,7 @@ public final class AppContext implements AutoCloseable {
     private final MotionSnapshotRepository motionSnapshots;
     private final PluginPairingService pluginPairings;
     private final ReleaseExportService releaseExports;
+    private final BatchDecisionService batchDecisions;
     private final OwnershipVerificationRepository ownershipVerifications;
     private LocalBridgeServer bridge;
 
@@ -76,6 +79,8 @@ public final class AppContext implements AutoCloseable {
         this.ownershipVerifications = new OwnershipVerificationRepository(database);
         this.releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit, ownershipVerifications);
+        this.batchDecisions = new BatchDecisionService(database, scans, decisions,
+                new DecisionBatchRepository(database), audit, releaseExports);
     }
 
     public static AppContext create() {
@@ -126,7 +131,7 @@ public final class AppContext implements AutoCloseable {
                 new OwnershipVerifier(new OpenCloudClient(openCloudSettings))::verify;
         bridge = new LocalBridgeServer(new JavaFxProjectPicker(owner), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,
-                pluginPairings, releaseExports, openCloudSettings, ownershipVerifier,
+                pluginPairings, releaseExports, batchDecisions, openCloudSettings, ownershipVerifier,
                 ownershipVerifications, coordinator, webRoot).start();
         return bridge;
     }

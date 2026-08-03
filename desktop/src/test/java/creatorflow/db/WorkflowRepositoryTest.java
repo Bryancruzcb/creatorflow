@@ -43,7 +43,10 @@ class WorkflowRepositoryTest {
             try (var statement = database.connection().createStatement();
                  var result = statement.executeQuery("SELECT COUNT(*) FROM schema_migrations")) {
                 assertTrue(result.next());
-                assertEquals(14, result.getInt(1));
+                // A COUNT of applied migrations, not the highest version. Phase C added V014 and
+                // group review added V015 on separate branches; each branch wrote 14 for its own
+                // migration, so a merge that trusts either side is off by one.
+                assertEquals(15, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }
