@@ -82,6 +82,33 @@ Notes on Studio HTTP: per-plugin HTTP permissions mean the game's
 `HttpService.HttpEnabled` setting does not need to change. `localhost` works
 in Studio only; a deployed/hosted registry needs a real domain.
 
+## Toolbar icon
+
+The toolbar button ships with a placeholder icon id (`"rbxassetid://0"` at
+`src/Main.server.luau` line 26), so it has no real icon today. The finished image is
+committed at [`assets/toolbar-icon.png`](assets/toolbar-icon.png): 512×512, a flat shield
+with a checkmark — checked before it ships — in the panel's own accent blue (`#5B8DEE`,
+`src/Ui.luau`), drawn to stay readable at the ~16 px the Studio toolbar actually uses.
+Only the upload needs the owner's Roblox account:
+
+1. Go to [create.roblox.com/dashboard/creations](https://create.roblox.com/dashboard/creations)
+   → **Development Items** → **Images** → upload. (Or from Studio: **View → Asset Manager →
+   Import**.) Image uploads are free.
+2. Upload `roblox-plugin/assets/toolbar-icon.png`; name it something findable, e.g.
+   `CreatorFlow toolbar icon`.
+3. Copy the numeric asset id — it appears in the uploaded item's page URL, and recent
+   dashboards have a copy-asset-ID entry in the item's menu.
+4. In `src/Main.server.luau` line 26, change `"rbxassetid://0"` to
+   `"rbxassetid://<that id>"` — keep the quotes, drop the TODO comment.
+5. Rebuild and reinstall (`rojo build roblox-plugin --plugin CreatorFlow.rbxm`), then
+   restart Studio or reload the plugin.
+
+What to expect: with the right id, the button shows the blue shield. With a wrong id — or
+while the fresh upload is still in moderation, which usually clears in minutes — the button
+just stays blank, with no error anywhere (expected from how Studio treats bad button icons;
+not re-verified this session). If it stays blank after a restart, re-check that you pasted
+the *image* asset id from the Images list, not a decal id from an older upload flow.
+
 ## What's scaffold vs. done
 
 Working now: connect/health, account creation, canonical fingerprinting of
@@ -95,5 +122,6 @@ Deliberate next steps (server work included):
   works for a demo, real teams need memberships.
 - **Version stacks from Studio**: register into an existing stack instead of
   always creating a new asset, so the website's compare/review flow applies.
-- Toolbar icon (`rbxassetid://0` placeholder in `Main.server.luau`).
+- Toolbar icon upload: the image itself is ready at `assets/toolbar-icon.png`; what
+  remains is uploading it and pasting the returned id — see *Toolbar icon* above.
 - Fingerprints for other asset types (meshes, audio) from Studio.
