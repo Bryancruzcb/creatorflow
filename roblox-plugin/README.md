@@ -10,6 +10,14 @@
 > future team-registry repurpose; no new work against the redirect. The two plugins are
 > deliberately contract-separate — see `docs/HANDOFF.md` §"Two Studio-plugin paths".
 
+> **Server flag (2026-08-02).** The registry API this plugin calls — `POST /api/v1/verify`,
+> `POST /api/v1/assets`, `GET /api/v1/assets/mine`, and the per-context id mappings — is now
+> **off by default** on the server, which Phase E repurposed as a team provenance store. Start
+> the server with `--creatorflow.legacy-registry.enabled=true` (or set it in
+> `application.properties`) and this plugin works exactly as documented below; without the flag
+> those routes return 404. The server's web pages are gone too, so get an API key from the
+> panel's account-creation button rather than a `/me` page.
+
 A Studio plugin that connects an animation team to a CreatorFlow registry over
 HTTP. Select a `KeyframeSequence`, and the plugin:
 
@@ -59,12 +67,13 @@ from `src/`; right-click the folder → **Save as Local Plugin**.
 
 ## First run
 
-1. Start the server: `java -jar server/target/creatorflow-server-*.jar`
-   (see the repo README; add `--creatorflow.demo-seed=true` for demo data).
+1. Start the server with the legacy registry routes turned on — without the flag
+   steps 3-4 below get a 404:
+   `java -jar server/target/creatorflow-server-*.jar --creatorflow.legacy-registry.enabled=true`
 2. Click the **CreatorFlow** toolbar button to open the panel.
-3. Enter the base URL (default `http://localhost:8080`) and either paste the
-   API key from the website's `/me` page or create a fresh account from the
-   panel. Press **Connect** — Studio will ask you to grant this plugin HTTP
+3. Enter the base URL (default `http://localhost:8080`) and create a fresh
+   account from the panel — it POSTs `/api/v1/accounts` and saves the returned
+   key for you. Press **Connect** — Studio will ask you to grant this plugin HTTP
    permission for that domain the first time; allow it.
 4. Select a `KeyframeSequence` (e.g. under `AnimSaves`, or export one from
    your animation editor) and press **Check originality**.

@@ -11,10 +11,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Per-client request throttling for the dynamic endpoints — the API and the upload pipeline —
- * so one client cannot flood the server and degrade it for everyone. Static assets and pages are
- * left unthrottled (they are cheap and a normal page load fetches many of them). Limits are
- * generous by default and tunable via {@code creatorflow.ratelimit.*}.
+ * Per-client request throttling for {@code /api/**}, the server's only surface, so one client
+ * cannot flood it and degrade it for everyone. Limits are generous by default and tunable via
+ * {@code creatorflow.ratelimit.*}.
  */
 @Component
 public class RateLimitFilter extends OncePerRequestFilter {
@@ -29,10 +28,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
-        String path = request.getRequestURI();
-        boolean throttled = path.startsWith("/api/")
-                || ("/upload".equals(path) && "POST".equalsIgnoreCase(request.getMethod()));
-        return !throttled;
+        return !request.getRequestURI().startsWith("/api/");
     }
 
     @Override

@@ -6,6 +6,7 @@ import creatorflow.server.repo.RegisteredAssetRepository;
 import creatorflow.server.service.RegistryService;
 import java.time.Instant;
 import java.util.List;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -15,8 +16,20 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * Legacy registry routes — {@code POST /verify}, {@code POST /assets},
+ * {@code GET /assets/mine} — the pre-redirect similarity judge.
+ *
+ * <p>Off by default: this controller is only created when
+ * {@code creatorflow.legacy-registry.enabled=true}, so a fresh Phase E server
+ * serves no verdict at all. The flag exists for one reason — the frozen Rojo
+ * plugin ({@code roblox-plugin/src/Api.luau}) still calls these paths, and
+ * nothing should silently break a frozen contract.
+ */
 @RestController
 @RequestMapping("/api/v1")
+@ConditionalOnProperty(name = "creatorflow.legacy-registry.enabled",
+        havingValue = "true", matchIfMissing = false)
 public class RegistryController {
 
     public record VerifyRequest(String fileName, String sha256, Long dHash, Long pHash, Long audioFp) {

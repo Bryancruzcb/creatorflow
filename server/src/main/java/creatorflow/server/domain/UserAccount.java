@@ -22,10 +22,7 @@ public class UserAccount {
     @Column(nullable = false, unique = true)
     private String apiKey;
 
-    /** BCrypt hash for web login; accounts created through the API alone have none. */
-    private String passwordHash;
-
-    /** Shown in the gallery; falls back to the username. */
+    /** Human-facing name; falls back to the username. */
     private String displayName;
 
     @Column(nullable = false)
@@ -53,14 +50,6 @@ public class UserAccount {
         return apiKey;
     }
 
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
-    }
-
     public String getDisplayName() {
         return displayName;
     }
@@ -69,16 +58,7 @@ public class UserAccount {
         this.displayName = displayName;
     }
 
-    /** Gallery-facing name: the display name when set, the username otherwise. */
-    public String getPublicName() {
-        return displayName == null || displayName.isBlank() ? username : displayName;
-    }
-
     public Instant getCreatedAt() {
         return createdAt;
-    }
-
-    public String getCreatedDisplay() {
-        return Dates.display(createdAt);
     }
 }
