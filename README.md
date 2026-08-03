@@ -92,7 +92,7 @@ differences](docs/screenshots/preflight-evidence.png)
 | Module | What it is | Stack |
 | --- | --- | --- |
 | `core` | Verification/motion engine, project scanner, versioned manifest model, release-gate CLI | plain Java — no UI, DB or Spring deps |
-| `desktop` | **The preflight app**: local loopback bridge, SQLite store, plugin pairing, project picker | JavaFX 21, SQLite |
+| `desktop` | **The preflight app**: local loopback bridge, SQLite store, plugin pairing, project picker | JavaFX 26, SQLite |
 | `frontend` | The release-preflight workspace UI (motion lab, snapshots, evidence, releases) | React 19 + Vite + TypeScript |
 | `server` | **Frozen legacy**: community gallery, accounts, uploads, registry API, disputes | Spring Boot 4.1, Thymeleaf, JPA/H2 |
 
@@ -313,7 +313,7 @@ request to the desktop app. The Java core recanonicalizes that data, computes de
 SHA-256 curve fingerprints, compares pose/timing/joint coverage, and stores the result with the
 selected local project. Raw joint curves are not retained in SQLite.
 
-Friend-test flow:
+Studio pairing flow:
 
 1. Build the React workspace and run the desktop-owned browser workspace with the commands above.
 2. Open a local project, choose **Animation compare**, and create a temporary Studio pairing.
