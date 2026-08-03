@@ -88,7 +88,8 @@ fact — *a write happened on this asset after this check* — rendered as **tou
 the review tone, next to a standing count that never goes down until the gate itself
 says so.
 
-**Tech stack:** Java 21 (desktop bridge + workflow), React 19 + TypeScript (workspace).
+**Tech stack:** Java 24 (`maven.compiler.release`, desktop bridge + workflow), React 19 +
+TypeScript (workspace).
 No plugin change, no core change, no SQLite change.
 
 **No Task 0 gate.** Phases A/B/C each opened with a feasibility spike because the shape
@@ -189,9 +190,12 @@ dishonest, and this flow is where it would appear.
   — sibling of `ReleaseBundle` minus the two fields that only exist because something
   was written: no `ReleaseRecord`, no `ReleaseComparison`.
 - `evaluateInTransaction(projectId, scanRunId, releaseName)` (`:126`) — the extracted
-  evaluation. `releaseName == null` means "use the scan run's own label", which is safe
-  because the name reaches only `CreativeManifest.Project`, a field
-  `ReleaseGate.evaluate` never reads.
+  evaluation. `releaseName == null` means "use the scan run's own label". That is safe
+  because the name reaches only `CreativeManifest.Project`, which `ReleaseGate.evaluate`
+  copies into `Report.project` but never reads to compute a verdict — so `passed`, the
+  summary and the violations are name-independent, and the route never serialises
+  `report.project()` anyway. The parity test asserts that independence against a
+  differently-named release rather than leaving it as an argument.
 - `preview(projectId, scanRunId)` (`:90`) — wraps it in `database.transaction(...)`.
   Read-only, but the transaction is load-bearing: the evaluation reads five
   repositories (assets, findings, evidence, decisions, ownership) and must see one

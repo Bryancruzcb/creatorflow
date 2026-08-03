@@ -1005,7 +1005,7 @@ export function LocalGateCheckPanel({ preview, touched, run, checking, checkErro
       {checkError ? <div className="local-scan-error" role="alert"><AlertTriangle size={15} /><span><strong>{preview ? 'Could not re-check' : 'Could not run the gate check'}</strong><small>{checkError}{preview ? ' — the result below is the earlier one, with its original timestamp.' : ''}</small></span></div> : null}
       {stale && preview ? <div className="local-gate-stale" role="status"><AlertTriangle size={15} /><span><strong>This check is against an older scan.</strong><small>Run {preview.scanRunId.slice(0, 10)}… is no longer the active one. Asset records are per-run, so nothing in this list points at a file in the current scan — and decisions recorded against the previous run stay with that run, so the new run’s files need their own. Re-check to start over against the current scan.</small></span></div> : null}
 
-      {preview && preview.passed ? (
+      {preview && preview.passed && preview.violations.length === 0 ? (
         <div className="local-gate-passed">
           <Check size={15} />
           <span>
@@ -1015,7 +1015,11 @@ export function LocalGateCheckPanel({ preview, touched, run, checking, checkErro
         </div>
       ) : null}
 
-      {preview && !preview.passed ? <p className="local-gate-standing">{gateProgressLabel(preview.summary.violations, touchedCount)}</p> : null}
+      {/* Both banners test passed AND the row count: a future desktop that returned passed:true
+          beside violations would otherwise render the green block above a list of them, and
+          suppress the standing count. The same forward-compat care the "Other" group takes for
+          unknown codes — and this one has to fail toward the pessimistic side. */}
+      {preview && (!preview.passed || preview.violations.length > 0) ? <p className="local-gate-standing">{gateProgressLabel(preview.summary.violations, touchedCount)}</p> : null}
 
       {groups.map((group) => {
         const shown = group.violations.slice(0, gateRowCap);

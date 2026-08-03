@@ -83,9 +83,11 @@ public final class ReleaseExportService {
      * (assets, findings, evidence, decisions, ownership) and has to see one consistent snapshot.
      *
      * <p>{@code releaseName} is deliberately not a parameter. It reaches only
-     * {@link CreativeManifest.Project}, which {@link ReleaseGate#evaluate} never reads, so the
-     * verdict cannot depend on it; the scan run's own label is used so a preview names itself the
-     * same thing the release built from that run would default to.
+     * {@link CreativeManifest.Project}, which {@link ReleaseGate#evaluate} copies into
+     * {@code Report.project} but never reads to compute a verdict — so {@code passed}, the summary
+     * and the violations cannot depend on it (pinned by the parity test). The scan run's own label
+     * is used so a preview names itself the same thing the release built from that run would
+     * default to.
      */
     public GatePreview preview(long projectId, String scanRunId) {
         String cleanRunId = requireText(scanRunId, "scan run");

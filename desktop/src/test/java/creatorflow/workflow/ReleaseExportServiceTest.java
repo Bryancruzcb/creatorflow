@@ -358,9 +358,20 @@ class ReleaseExportServiceTest {
         try (Database database = new Database(directory.resolve("preview-parity.db"))) {
             Fixture fixture = new Fixture(database);
             LocalProject project = fixture.projects.adopt(directory);
+            // All four violation kinds, so the whole-record comparison below actually covers them:
+            // hero carries UNRESOLVED_SOURCE + FLAGGED_WITHOUT_APPROVAL, villain a BLOCKED_DECISION,
+            // and outsider an OWNERSHIP_MISMATCH_WITHOUT_DECISION.
             ScanRun run = fixture.persistScan(project, "1.4.0", List.of(
                     asset("art/hero.png", "a", VerificationStatus.SIMILAR, SourceEvidence.unresolved()),
+                    asset("art/villain.png", "c", VerificationStatus.CLEAR, resolved()),
+                    asset("audio/outsider.wav", "d", VerificationStatus.CLEAR, resolved()),
                     asset("audio/theme.wav", "b", VerificationStatus.CLEAR, resolved())));
+            long villainId = assetId(fixture, run, "art/villain.png");
+            long outsiderId = assetId(fixture, run, "audio/outsider.wav");
+            fixture.decisions.append(villainId, DecisionType.BLOCKED, "Licence expired");
+            fixture.ownershipVerifications.insert(outsiderId, 90110L, new OwnershipEvidence(507777826L,
+                    OwnershipEvidence.TYPE_USER, 7L, "Animation", "Approved", OwnershipEvidence.TYPE_GROUP,
+                    295182L, null, OwnershipOutcome.MISMATCH, Instant.parse("2026-07-24T12:30:00Z")));
 
             GatePreview preview = fixture.service.preview(project.projectId(), run.id());
             ReleaseBundle bundle = fixture.service.create(project.projectId(), run.id(), run.releaseName());
@@ -378,12 +389,24 @@ class ReleaseExportServiceTest {
             assertEquals(run.releaseName(), preview.releaseName());
             assertEquals(run.id(), preview.scanRunId());
 
-            // And it tracks state, rather than caching the first answer: resolving the two things
-            // standing against art/hero.png flips the same preview to passed.
+            // The gate copies the manifest's project block into its Report, so a differently-named
+            // release yields a report differing in project() alone. What preview relies on is that
+            // the VERDICT is name-independent — assert that directly rather than trusting the
+            // sentence in preview()'s javadoc.
+            ReleaseBundle renamed = fixture.service.create(project.projectId(), run.id(), "9.9.9-renamed");
+            assertEquals(preview.report().passed(), renamed.report().passed());
+            assertEquals(preview.report().summary(), renamed.report().summary());
+            assertEquals(preview.report().violations(), renamed.report().violations());
+
+            // And it tracks state, rather than caching the first answer: resolving everything
+            // standing against the three assets flips the same preview to passed. APPROVED
+            // supersedes villain's BLOCKED and clears outsider's ownership lead.
             long heroId = assetId(fixture, run, "art/hero.png");
             fixture.scans.appendEvidence(heroId,
                     new SourceEvidence("Commission contract", "Owned", "https://example.test/hero"));
             fixture.decisions.append(heroId, DecisionType.APPROVED, "Contract verified");
+            fixture.decisions.append(villainId, DecisionType.APPROVED, "Licence renewed");
+            fixture.decisions.append(outsiderId, DecisionType.APPROVED, "Studio confirmed the rights");
 
             GatePreview after = fixture.service.preview(project.projectId(), run.id());
             assertTrue(after.report().passed());
