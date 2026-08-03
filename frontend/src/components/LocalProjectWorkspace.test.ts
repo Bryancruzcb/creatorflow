@@ -1,8 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  affordanceForViolationCode,
   describeOwnershipOutcome,
   formatCheckedAt,
   formatRetryAfter,
+  gateProgressLabel,
+  gateResolutionQueue,
+  groupGateViolations,
+  isGatePreviewStale,
   ownershipVerifyDisabledReason,
   ownershipVerifyError,
   parseExperienceFormInput,
@@ -14,6 +19,8 @@ import {
   LocalBridgeError,
   type LocalDecision,
   type LocalDecisionType,
+  type LocalGatePreview,
+  type LocalGateViolation,
   type LocalOwnershipVerification,
   type LocalRelease,
 } from '../bridge/localBridge';
@@ -317,5 +324,144 @@ describe('resolveRollbackTargetLabel', () => {
 
   it('falls back to the raw id when the prior release is not in the fetched list', () => {
     expect(resolveRollbackTargetLabel('missing-id', releases)).toBe('missing-id');
+  });
+});
+
+function violation(overrides: Partial<LocalGateViolation> = {}): LocalGateViolation {
+  return {
+    code: 'UNRESOLVED_SOURCE',
+    path: 'art/hero.png',
+    verification: 'CLEAR',
+    decision: 'PENDING',
+    message: 'Source and license evidence must be resolved or the asset excluded',
+    scanAssetId: 501,
+    ...overrides,
+  };
+}
+
+function preview(violations: LocalGateViolation[], overrides: Partial<LocalGatePreview> = {}): LocalGatePreview {
+  return {
+    scanRunId: 'run-1',
+    release: 'Working',
+    evaluatedAt: '2026-08-02T21:14:03Z',
+    passed: violations.length === 0,
+    summary: {
+      assets: 12,
+      violations: violations.length,
+      blockedAssets: 0,
+      unresolvedAssets: 0,
+      flaggedWithoutApproval: 0,
+      ownershipMismatchWithoutDecision: 0,
+    },
+    violations,
+    ...overrides,
+  };
+}
+
+describe('groupGateViolations', () => {
+  it('orders groups the way the gate declares its codes, and drops the empty ones', () => {
+    const grouped = groupGateViolations([
+      violation({ code: 'OWNERSHIP_MISMATCH_WITHOUT_DECISION', path: 'a.png' }),
+      violation({ code: 'UNRESOLVED_SOURCE', path: 'b.png' }),
+      violation({ code: 'BLOCKED_DECISION', path: 'c.png' }),
+    ]);
+    expect(grouped.map((group) => group.code)).toEqual([
+      'BLOCKED_DECISION', 'UNRESOLVED_SOURCE', 'OWNERSHIP_MISMATCH_WITHOUT_DECISION',
+    ]);
+  });
+
+  it('keeps a code it does not recognise instead of dropping it', () => {
+    // Dropping an unknown code would under-report a block, and under-reporting a block is the
+    // direction that ships something.
+    const grouped = groupGateViolations([violation({ code: 'SOME_FUTURE_RULE', path: 'd.png' })]);
+    expect(grouped).toHaveLength(1);
+    expect(grouped[0].code).toBe('OTHER');
+    expect(grouped[0].violations[0].message).toBe(violation().message);
+  });
+
+  it('never merges two violations that stand against the same file', () => {
+    // The gate counts violations, not files: one asset legitimately stands in several groups, and
+    // the panel's total has to equal summary.violations.
+    const grouped = groupGateViolations([
+      violation({ code: 'UNRESOLVED_SOURCE' }),
+      violation({ code: 'FLAGGED_WITHOUT_APPROVAL' }),
+    ]);
+    expect(grouped.flatMap((group) => group.violations)).toHaveLength(2);
+  });
+
+  it('states what clears each kind without ever claiming approval clears an unresolved source', () => {
+    const grouped = groupGateViolations([
+      violation({ code: 'UNRESOLVED_SOURCE' }),
+      violation({ code: 'OWNERSHIP_MISMATCH_WITHOUT_DECISION', path: 'b.png' }),
+    ]);
+    const unresolved = grouped.find((group) => group.code === 'UNRESOLVED_SOURCE')!;
+    // ReleaseGate tests source().resolved() independently of the decision — a UI that implied
+    // otherwise would be teaching the wrong rule.
+    expect(unresolved.clears).toContain('Approving does not clear this');
+    const ownership = grouped.find((group) => group.code === 'OWNERSHIP_MISMATCH_WITHOUT_DECISION')!;
+    expect(ownership.clears).toContain('Needs review does not');
+  });
+});
+
+describe('affordanceForViolationCode', () => {
+  it('sends an unresolved source to the source form and a blocked or flagged asset to the decision form', () => {
+    expect(affordanceForViolationCode('UNRESOLVED_SOURCE')).toBe('source');
+    expect(affordanceForViolationCode('BLOCKED_DECISION')).toBe('decision');
+    expect(affordanceForViolationCode('FLAGGED_WITHOUT_APPROVAL')).toBe('decision');
+  });
+
+  it('sends an ownership mismatch to the ownership panel, where the facts are', () => {
+    // The decision form is the literal resolver, but a person has to read what the mismatch says
+    // before recording a call on it — and the decision form sits directly below the panel.
+    expect(affordanceForViolationCode('OWNERSHIP_MISMATCH_WITHOUT_DECISION')).toBe('ownership');
+  });
+
+  it('lands an unknown code on the decision form rather than nowhere', () => {
+    expect(affordanceForViolationCode('SOME_FUTURE_RULE')).toBe('decision');
+  });
+});
+
+describe('gateProgressLabel', () => {
+  it('never says resolved, and never counts anything down', () => {
+    // The workspace cannot know something was resolved — only the gate can, on its next run. What
+    // it observed is a write, which is "touched"; the standing count stays exactly as the gate said.
+    expect(gateProgressLabel(7, 3)).toBe('7 standing · 3 touched since this check');
+    expect(gateProgressLabel(7, 3)).not.toContain('resolved');
+    expect(gateProgressLabel(7, 3)).not.toContain(' of ');
+  });
+
+  it('says nothing about touches when there have been none', () => {
+    expect(gateProgressLabel(7, 0)).toBe('7 standing');
+  });
+});
+
+describe('isGatePreviewStale', () => {
+  it('is stale only when both runs are known and differ', () => {
+    expect(isGatePreviewStale(preview([violation()]), 'run-2')).toBe(true);
+    expect(isGatePreviewStale(preview([violation()]), 'run-1')).toBe(false);
+  });
+
+  it('treats an unknown current run as unknown, never as stale', () => {
+    expect(isGatePreviewStale(preview([violation()]), null)).toBe(false);
+    expect(isGatePreviewStale(null, 'run-2')).toBe(false);
+  });
+});
+
+describe('gateResolutionQueue', () => {
+  it('walks the violations in the order the checklist renders them', () => {
+    const queue = gateResolutionQueue(preview([
+      violation({ code: 'UNRESOLVED_SOURCE', path: 'b.png', scanAssetId: 2 }),
+      violation({ code: 'BLOCKED_DECISION', path: 'a.png', scanAssetId: 1 }),
+    ]));
+    expect(queue.map((item) => item.path)).toEqual(['a.png', 'b.png']);
+    expect(queue.map((item) => item.affordance)).toEqual(['decision', 'source']);
+  });
+
+  it('skips a violation whose path did not resolve to an asset, rather than guessing one', () => {
+    const queue = gateResolutionQueue(preview([
+      violation({ path: 'gone.png', scanAssetId: null }),
+      violation({ path: 'here.png', scanAssetId: 7 }),
+    ]));
+    expect(queue).toEqual([{ assetId: 7, affordance: 'source', path: 'here.png', code: 'UNRESOLVED_SOURCE' }]);
   });
 });

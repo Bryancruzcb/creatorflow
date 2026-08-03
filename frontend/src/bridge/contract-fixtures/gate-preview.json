@@ -1,0 +1,22 @@
+{
+  "evaluatedAt" : "2026-01-01T00:00:00Z",
+  "passed" : false,
+  "release" : "1.0.0",
+  "scanRunId" : "00000000-0000-0000-0000-000000000000",
+  "summary" : {
+    "assets" : 1,
+    "blockedAssets" : 0,
+    "flaggedWithoutApproval" : 0,
+    "ownershipMismatchWithoutDecision" : 0,
+    "unresolvedAssets" : 1,
+    "violations" : 1
+  },
+  "violations" : [ {
+    "code" : "UNRESOLVED_SOURCE",
+    "decision" : "PENDING",
+    "message" : "Source and license evidence must be resolved or the asset excluded",
+    "path" : "art/walk.rbxm",
+    "scanAssetId" : 1,
+    "verification" : "CLEAR"
+  } ]
+}

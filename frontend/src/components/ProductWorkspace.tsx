@@ -47,7 +47,16 @@ import {
   ImportedSourcesView,
   sourceGroups,
 } from './ImportedProjectViews';
-import { LocalEvidenceView, LocalProjectOverview, LocalReleasesView, LocalScanView, LocalSourcesBoundary } from './LocalProjectWorkspace';
+import {
+  gateResolutionQueue,
+  LocalEvidenceView,
+  LocalProjectOverview,
+  LocalReleasesView,
+  LocalScanView,
+  LocalSourcesBoundary,
+  type LocalGateAffordance,
+  type LocalGateResolution,
+} from './LocalProjectWorkspace';
 import { PreflightWorkspace } from './PreflightWorkspace';
 import { ReleasePathLab } from './ReleasePathLab';
 import { RobloxAssetStressSet } from './RobloxAssetStressSet';
@@ -575,6 +584,16 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
   const [localProject, setLocalProject] = useState<LocalProjectSummary | null>(null);
   const [localRun, setLocalRun] = useState<LocalScanRun | null>(null);
   const [localSelectedAssetId, setLocalSelectedAssetId] = useState<number | null>(null);
+  /**
+   * The open gate check, its touched overlay and its cursor.
+   *
+   * Held here rather than in the Releases view because the whole point is that walking to Evidence
+   * and back does not lose it: `AnimatePresence` remounts `.product-view-frame` on every view
+   * change (see its `key` below), the shell around it does not. Nothing is persisted — a page
+   * reload loses this, honestly, and re-checking is one click and one local query.
+   */
+  const [gateResolution, setGateResolution] = useState<LocalGateResolution | null>(null);
+  const [localFocusAffordance, setLocalFocusAffordance] = useState<LocalGateAffordance | null>(null);
   const [projectMenuOpen, setProjectMenuOpen] = useState(false);
   const [projectMetadataOpen, setProjectMetadataOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -672,6 +691,26 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
     }
   }, [bridgeClient, localProject]);
 
+  // Asset ids are per project as well as per run, so a checklist must never outlive the project it
+  // was taken against — every jump in it would address another project's records.
+  useEffect(() => {
+    setGateResolution(null);
+    setLocalFocusAffordance(null);
+  }, [localProject?.projectId]);
+
+  const gateQueue = useMemo(() => gateResolutionQueue(gateResolution?.preview ?? null), [gateResolution?.preview]);
+  const gateItem = gateResolution ? gateQueue[gateResolution.cursor] ?? null : null;
+  // A stale check disables the walkthrough as well as the jumps: an old run's asset ids resolve to
+  // real, stale files, so following them would look like it worked.
+  const gateContextLive = Boolean(gateItem && gateResolution
+    && (!localRun || localRun.id === gateResolution.preview.scanRunId));
+
+  const recordGateTouch = useCallback((assetId: number, note: string) => {
+    setGateResolution((current) => (current
+      ? { ...current, touched: { ...current.touched, [assetId]: note } }
+      : current));
+  }, []);
+
   const handleExperienceBound = useCallback((record: LocalProjectRecord) => {
     setLocalProject((current) => {
       if (!current || current.projectId !== record.projectId) return current;
@@ -719,6 +758,30 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
     const params = new URLSearchParams({ view: 'assets', asset: assetId, load: '0', compare: '0', compareMode: 'side', diff: 'highlight' });
     window.history.pushState(null, '', `#workspace?${params.toString()}`);
     window.scrollTo({ top: 0, behavior: 'auto' });
+  }
+
+  /**
+   * The gate check's one navigation move: open a scan asset in Evidence, on the affordance that
+   * actually changes the violation, and remember where in the checklist that was.
+   *
+   * Navigation only. Nothing here carries a decision, a suggested value or a verdict — the decision
+   * still needs the picker, a typed reason and a click, with the evidence rendered around it.
+   */
+  function openLocalAsset(assetId: number, affordance: LocalGateAffordance) {
+    const index = gateQueue.findIndex((item) => item.assetId === assetId && item.affordance === affordance);
+    if (gateResolution && index >= 0) setGateResolution({ ...gateResolution, cursor: index });
+    setLocalSelectedAssetId(assetId);
+    setLocalFocusAffordance(affordance);
+    changeView('evidence');
+  }
+
+  function advanceGateCursor() {
+    if (!gateResolution) return;
+    const next = gateQueue[gateResolution.cursor + 1];
+    if (!next) return;
+    setGateResolution({ ...gateResolution, cursor: gateResolution.cursor + 1 });
+    setLocalSelectedAssetId(next.assetId);
+    setLocalFocusAffordance(next.affordance);
   }
 
   function submitWorkspaceSearch(event: FormEvent<HTMLFormElement>) {
@@ -952,9 +1015,9 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
               {view === 'gallery' ? <Suspense fallback={<div className="workspace-view-loading">Opening model gallery…</div>}><ModelGallery /></Suspense> : null}
               {view === 'motion' ? <Suspense fallback={<div className="workspace-view-loading">Opening animation comparison…</div>}><MotionComparisonLab bridgeClient={bridgeClient} project={localProject} /></Suspense> : null}
               {view === 'stress' ? <Suspense fallback={<div className="workspace-view-loading">Opening system check…</div>}><StressLab /></Suspense> : null}
-              {view === 'evidence' ? activeLocal && bridgeClient ? <LocalEvidenceView client={bridgeClient} project={activeLocal} initialSelectedAssetId={localSelectedAssetId} onSelectAsset={setLocalSelectedAssetId} /> : activeManifest ? <ImportedEvidenceView manifest={activeManifest} /> : <div className="workspace-evidence-view"><PreflightWorkspace startSignal={0} /></div> : null}
+              {view === 'evidence' ? activeLocal && bridgeClient ? <LocalEvidenceView client={bridgeClient} project={activeLocal} initialSelectedAssetId={localSelectedAssetId} onSelectAsset={setLocalSelectedAssetId} focusAffordance={localFocusAffordance} resolutionContext={gateContextLive && gateItem && gateResolution ? { assetId: gateItem.assetId, index: gateResolution.cursor, total: gateQueue.length, path: gateItem.path, onNext: gateQueue[gateResolution.cursor + 1] ? advanceGateCursor : null, onBackToCheck: () => changeView('releases') } : null} onResolutionTouch={recordGateTouch} /> : activeManifest ? <ImportedEvidenceView manifest={activeManifest} /> : <div className="workspace-evidence-view"><PreflightWorkspace startSignal={0} /></div> : null}
               {view === 'sources' ? activeLocal ? <LocalSourcesBoundary onOpenEvidence={() => changeView('evidence')} /> : activeManifest ? <ImportedSourcesView manifest={activeManifest} /> : <SourcesView onOpenEvidence={() => changeView('evidence')} /> : null}
-              {view === 'releases' ? activeLocal && bridgeClient ? <LocalReleasesView client={bridgeClient} project={activeLocal} run={localRun} /> : activeManifest && activeImport ? <ImportedReleasesView manifest={activeManifest} fileName={activeImport.fileName} /> : <ReleasesView onOpenEvidence={() => changeView('evidence')} onOpenReleaseFlow={() => changeView('project')} /> : null}
+              {view === 'releases' ? activeLocal && bridgeClient ? <LocalReleasesView client={bridgeClient} project={activeLocal} run={localRun} gateResolution={gateResolution} onGateResolutionChange={setGateResolution} onOpenAsset={openLocalAsset} /> : activeManifest && activeImport ? <ImportedReleasesView manifest={activeManifest} fileName={activeImport.fileName} /> : <ReleasesView onOpenEvidence={() => changeView('evidence')} onOpenReleaseFlow={() => changeView('project')} /> : null}
               {view === 'settings' ? <WorkspaceSettingsView onClearSavedViewState={clearSavedViewState} /> : null}
             </motion.div>
           </AnimatePresence>

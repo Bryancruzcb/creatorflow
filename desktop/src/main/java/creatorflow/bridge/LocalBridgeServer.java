@@ -30,6 +30,7 @@ import creatorflow.motion.PlaybackSettings;
 import creatorflow.workflow.AnimationComparisonRecord;
 import creatorflow.workflow.MotionSnapshotRecord;
 import creatorflow.workflow.DecisionType;
+import creatorflow.workflow.GatePreview;
 import creatorflow.workflow.LocalProject;
 import creatorflow.workflow.OwnershipVerificationRecord;
 import creatorflow.workflow.ReleaseBundle;
@@ -83,6 +84,7 @@ public final class LocalBridgeServer implements AutoCloseable {
     private static final Pattern PROJECT_SCANS = Pattern.compile("^/api/v1/projects/(\\d+)/scan-runs$");
     private static final Pattern PROJECT_ASSETS = Pattern.compile("^/api/v1/projects/(\\d+)/assets$");
     private static final Pattern PROJECT_RELEASES = Pattern.compile("^/api/v1/projects/(\\d+)/releases$");
+    private static final Pattern PROJECT_GATE_PREVIEW = Pattern.compile("^/api/v1/projects/(\\d+)/gate-preview$");
     private static final Pattern PROJECT_PLUGIN_PAIRING = Pattern.compile("^/api/v1/projects/(\\d+)/plugin-pairings$");
     private static final Pattern PROJECT_PLUGIN_PAIRING_REVOKE =
             Pattern.compile("^/api/v1/projects/(\\d+)/plugin-pairings/([a-f0-9-]+)/revoke$");
@@ -549,6 +551,30 @@ public final class LocalBridgeServer implements AutoCloseable {
             return;
         }
 
+        // Before PROJECT_RELEASES on purpose: this is the read-only sibling of that route's POST,
+        // and reading it next to the thing it previews is how it stays that way. A GET with no CSRF
+        // header, like every other GET here — it evaluates the gate and writes nothing at all.
+        matcher = PROJECT_GATE_PREVIEW.matcher(path);
+        if (matcher.matches()) {
+            requireMethod(exchange, "GET");
+            long projectId = Long.parseLong(matcher.group(1));
+            LocalProject project = localProjects.findByProjectId(projectId)
+                    .orElseThrow(() -> new HttpError(404, "Local project not found"));
+            // Run selection mirrors the releases POST exactly, so a preview and the release built
+            // moments later cannot silently pick different runs.
+            String runId = query(exchange.getRequestURI().getRawQuery()).get("scanRunId");
+            if (runId == null) runId = project.activeScanRunId();
+            if (runId == null) runId = scans.latestForProject(projectId).map(ScanRun::id).orElse(null);
+            if (runId == null) throw new HttpError(409, "Project has no scan to release");
+            scans.findById(runId).orElseThrow(() -> new HttpError(404, "Scan run not found"));
+            try {
+                sendJson(exchange, 200, gatePreviewView(releaseExports.preview(projectId, runId)));
+            } catch (IllegalStateException conflict) {
+                throw new HttpError(409, safeMessage(conflict));
+            }
+            return;
+        }
+
         matcher = PROJECT_RELEASES.matcher(path);
         if (matcher.matches()) {
             long projectId = Long.parseLong(matcher.group(1));
@@ -994,6 +1020,54 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("manifest", bundle.manifest());
         view.put("report", bundle.report());
         view.put("comparison", bundle.comparison());
+        return view;
+    }
+
+    /**
+     * The gate's own report, plus one added field: {@code scanAssetId}.
+     *
+     * <p>That field is the entire reason this route exists rather than the workspace parsing the
+     * downloadable {@code gate-report.json}. The gate is keyed by manifest {@code path}; every
+     * decision affordance in the workspace is keyed by a numeric scan-asset id; and the assets list
+     * is paged (100 default, 500 max), so a browser cannot reliably resolve a path to an id on a
+     * large project. The mapping is done here, from the same {@code listAllAssets} the export walks.
+     *
+     * <p>An unmapped path emits {@code null}, never a guess — a wrong id would put a person's
+     * decision on the wrong file. A path that somehow appears twice in one run is treated the same
+     * way: {@link Map#merge} removes the entry when the remapping function returns {@code null}, so
+     * an ambiguous path resolves to nothing rather than to whichever row was seen first.
+     *
+     * <p>The field is {@code path} here and {@code assetPath} in a manifest's embedded gate block
+     * ({@code CreativeManifest.Gate.Reason}). That split is deliberate and stays: this is a report,
+     * so it uses the report's name. Unifying them would be a schema change.
+     */
+    private Map<String, Object> gatePreviewView(GatePreview preview) {
+        Map<String, Long> assetIdsByPath = new java.util.HashMap<>();
+        for (ScanAsset asset : scans.listAllAssets(preview.scanRunId())) {
+            assetIdsByPath.merge(asset.relativePath(), asset.id(), (first, second) -> null);
+        }
+        List<Map<String, Object>> violations = preview.report().violations().stream()
+                .map(violation -> {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    row.put("code", violation.code().name());
+                    row.put("path", violation.path());
+                    row.put("verification", violation.verification().name());
+                    row.put("decision", violation.decision().name());
+                    row.put("message", violation.message());
+                    row.put("scanAssetId", assetIdsByPath.get(violation.path()));
+                    return row;
+                })
+                .toList();
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("scanRunId", preview.scanRunId());
+        view.put("release", preview.releaseName());
+        // Wall-clock, and it lives only in this response: a preview is a point-in-time check, and
+        // nothing here is ever written into an exported artifact (those stay derived from the
+        // scan's completedAt so re-exports stay byte-identical).
+        view.put("evaluatedAt", preview.report().evaluatedAt());
+        view.put("passed", preview.report().passed());
+        view.put("summary", preview.report().summary());
+        view.put("violations", violations);
         return view;
     }
 
