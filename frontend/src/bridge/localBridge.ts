@@ -165,6 +165,54 @@ export interface LocalRelease {
   publishedPlaceVersion?: number | null;
 }
 
+/**
+ * The four rules `ReleaseGate` can currently return. Deliberately widened at the use site
+ * ({@link LocalGateViolation.code}) rather than closed here: a gate rule added on the desktop
+ * before this bundle is rebuilt must still render, because dropping a violation it does not
+ * recognise would under-report a block — and under-reporting is the direction that ships something.
+ */
+export type LocalGateViolationCode = 'BLOCKED_DECISION' | 'UNRESOLVED_SOURCE'
+  | 'FLAGGED_WITHOUT_APPROVAL' | 'OWNERSHIP_MISMATCH_WITHOUT_DECISION';
+
+export interface LocalGateViolation {
+  /** A known code, or any other string the gate returns — never narrowed away. */
+  code: LocalGateViolationCode | (string & {});
+  /** The manifest path the gate blocked on. The report calls it `path`; a manifest's embedded gate block calls the same thing `assetPath`. */
+  path: string;
+  verification: string;
+  decision: string;
+  /** The gate's own sentence, rendered verbatim. The workspace never rewrites a gate message. */
+  message: string;
+  /**
+   * The scan asset this path resolves to, or `null` when the bridge could not resolve it. `null` is
+   * an honest unknown and must disable the jump — never a guess, because a wrong id would put a
+   * person's decision on the wrong file.
+   */
+  scanAssetId: number | null;
+}
+
+/**
+ * One point-in-time evaluation of the release gate that persisted **nothing**: no release row, no
+ * audit event. The same `ReleaseGate.evaluate` call a release performs, on the same asset entries,
+ * so a check and the release built from it cannot disagree from drift — only from state actually
+ * changing between them, which is why `evaluatedAt` is always shown.
+ */
+export interface LocalGatePreview {
+  scanRunId: string;
+  release: string;
+  evaluatedAt: string;
+  passed: boolean;
+  summary: {
+    assets: number;
+    violations: number;
+    blockedAssets: number;
+    unresolvedAssets: number;
+    flaggedWithoutApproval: number;
+    ownershipMismatchWithoutDecision: number;
+  };
+  violations: LocalGateViolation[];
+}
+
 export interface StartScanRequest {
   release: string;
   excludedDirectoryNames: string[];
@@ -473,6 +521,19 @@ export class LocalBridgeClient {
 
   listProjectReleases(projectId: number) {
     return this.request<{ items: LocalRelease[] }>(`/api/v1/projects/${projectId}/releases`);
+  }
+
+  /**
+   * Runs the release gate against a completed scan and returns what it found, **without creating a
+   * release**. A GET, because it mutates nothing: the desktop evaluates, answers, and writes no row.
+   *
+   * Rejects with a {@link LocalBridgeError} whose `status` the UI must handle honestly: 409 (the
+   * project has no scan, or the run is not a completed immutable one — the server's own message
+   * says which), 404 (unknown project or scan run).
+   */
+  previewGate(projectId: number, scanRunId?: string) {
+    const query = scanRunId ? `?${new URLSearchParams({ scanRunId })}` : '';
+    return this.request<LocalGatePreview>(`/api/v1/projects/${projectId}/gate-preview${query}`);
   }
 
   createRelease(projectId: number, request: { scanRunId?: string; release?: string }) {

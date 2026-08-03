@@ -150,6 +150,29 @@ describe('bridge contract', () => {
     expect(Array.isArray(releases.items)).toBe(true);
   });
 
+  it('parses a gate preview, including the id that makes a violation jumpable', async () => {
+    const client = await clientReturning(fixture('gate-preview'));
+    const preview = await client.previewGate(1);
+    expect(typeof preview.scanRunId).toBe('string');
+    expect(typeof preview.evaluatedAt).toBe('string');
+    expect(typeof preview.passed).toBe('boolean');
+    // The count the panel renders comes from here, never from how many rows it drew.
+    expect(typeof preview.summary.violations).toBe('number');
+    const violation = preview.violations[0];
+    expect(typeof violation.code).toBe('string');
+    // `path`, not `assetPath` — a manifest's embedded gate block uses the other name for the same
+    // thing, and a rename in either direction would silently break the row-to-asset mapping.
+    expect(typeof violation.path).toBe('string');
+    expect(typeof violation.message).toBe('string');
+    /**
+     * The whole reason this route exists rather than the workspace parsing the downloadable
+     * report: the gate is keyed by path, every decision affordance is keyed by this numeric id.
+     * Nullable on purpose — an unresolvable path must arrive as an honest null, not a guess — so
+     * both types are accepted here and the UI branches on it.
+     */
+    expect(['number', 'object']).toContain(typeof violation.scanAssetId);
+  });
+
   it('parses workspace state, whose fields are all nullable', async () => {
     const state = fixture('workspace-state') as Record<string, unknown>;
     // Every one of these is null on a fresh install; the UI must not assume otherwise.

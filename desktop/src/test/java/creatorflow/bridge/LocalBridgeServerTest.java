@@ -854,6 +854,74 @@ class LocalBridgeServerTest {
         assertEquals(0, json.readTree(history.body()).get("items").size());
     }
 
+    /**
+     * The gate-preview route: the same evaluation a release performs, with none of the persistence.
+     *
+     * <p>What it has to prove is not that a gate report can be serialised — {@code ReleaseGate} is
+     * already covered — but that asking for one leaves the ledger exactly as it found it. Today the
+     * only way to re-check a BLOCKED release is to build another one, and every throwaway build
+     * inserts an immutable row that becomes the next real release's diff baseline.
+     */
+    @Test
+    void gatePreviewEvaluatesTheGateAndCreatesNothing() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long assetId = seedBoundAsset(90110L);
+        long projectId = json.readTree(get("/api/v1/projects", cookie).body())
+                .get("items").get(0).get("projectId").asLong();
+        String path = "/api/v1/projects/" + projectId + "/gate-preview";
+
+        // Session-guarded like every other read, and a GET — a POST here is the wrong shape.
+        assertEquals(401, get(path, null).statusCode());
+        assertEquals(405, post(path, cookie, origin.toString(), csrf).statusCode());
+
+        HttpResponse<String> previewed = get(path, cookie);
+        assertEquals(200, previewed.statusCode(), previewed.body());
+        JsonNode body = json.readTree(previewed.body());
+        assertFalse(body.get("passed").asBoolean());
+        assertEquals(1, body.get("summary").get("violations").asInt());
+        assertEquals(1, body.get("summary").get("unresolvedAssets").asInt());
+        assertFalse(body.get("evaluatedAt").isNull());
+
+        JsonNode violation = body.get("violations").get(0);
+        assertEquals("UNRESOLVED_SOURCE", violation.get("code").asText());
+        assertEquals("art/walk.rbxm", violation.get("path").asText());
+        assertEquals("PENDING", violation.get("decision").asText());
+        // The one field this route adds, and the whole reason it exists rather than the workspace
+        // parsing the downloadable report: the gate speaks in manifest paths, every decision
+        // affordance in the workspace is keyed by this numeric id, and the assets list is paged.
+        assertEquals(assetId, violation.get("scanAssetId").asLong());
+
+        // Repeated checks stay free of side effects: no release row appears, however many are run.
+        for (int attempt = 0; attempt < 3; attempt++) {
+            assertEquals(200, get(path, cookie).statusCode());
+        }
+        assertEquals(0, json.readTree(get("/api/v1/projects/" + projectId + "/releases", cookie).body())
+                .get("items").size());
+    }
+
+    @Test
+    void gatePreviewRefusesWhatItCannotHonestlyEvaluate() throws Exception {
+        assertEquals(404, get("/api/v1/projects/9999999/gate-preview", cookie).statusCode());
+
+        long emptyProjectId = localProjects.adopt(
+                Files.createDirectories(directory.resolve("gate-preview-no-scan"))).projectId();
+        HttpResponse<String> noRun = get("/api/v1/projects/" + emptyProjectId + "/gate-preview", cookie);
+        assertEquals(409, noRun.statusCode(), noRun.body());
+        assertTrue(noRun.body().contains("no scan to release"), noRun.body());
+
+        // A run that is still going is not an immutable snapshot, so there is nothing honest to
+        // check against — the same precondition the releases POST enforces, with the same message.
+        var running = scans.create(emptyProjectId, directory, "1.0.0", List.of(), List.of("png"));
+        scans.markStarted(running.id());
+        HttpResponse<String> incomplete = get(
+                "/api/v1/projects/" + emptyProjectId + "/gate-preview?scanRunId=" + running.id(), cookie);
+        assertEquals(409, incomplete.statusCode(), incomplete.body());
+        assertTrue(incomplete.body().contains("completed immutable scan"), incomplete.body());
+
+        assertEquals(404, get("/api/v1/projects/" + emptyProjectId
+                + "/gate-preview?scanRunId=00000000-0000-0000-0000-000000000000", cookie).statusCode());
+    }
+
     private long seedBoundAsset(long universeId) {
         long projectId = localProjects.adopt(directory).projectId();
         localProjects.bindExperience(projectId, universeId, 1818L, "Test Experience");
@@ -919,6 +987,7 @@ class LocalBridgeServerTest {
                 new Capture("decision-history", "/api/v1/assets/" + assetId + "/decisions"),
                 new Capture("ownership-verifications", "/api/v1/assets/" + assetId + "/ownership-verifications"),
                 new Capture("releases", "/api/v1/projects/" + projectId + "/releases"),
+                new Capture("gate-preview", "/api/v1/projects/" + projectId + "/gate-preview"),
                 new Capture("workspace-state", "/api/v1/workspace-state"));
 
         for (Capture capture : captures) {
