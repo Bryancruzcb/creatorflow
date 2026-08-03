@@ -140,6 +140,41 @@ class ProvenanceClaimApiTest {
         assertEquals(0, lookup(owner, teamId, FINGERPRINT).size());
     }
 
+    /**
+     * The kill switch has to be <em>reachable</em>, not merely implemented.
+     *
+     * <p>{@code canRetract} is the server's own author-or-OWNER answer, shipped on every row so a
+     * client cannot gate the button on {@code isYours} alone — which would leave an owner unable to
+     * pull the switch on a wrong record about someone, and hollow out the last-owner-409 rule that
+     * exists precisely to guarantee such a person is always present.
+     */
+    @Test
+    void everyClaimSaysWhetherThisViewerMayRetractIt() throws Exception {
+        String owner = createAccount("owner");
+        String member = createAccount("member");
+        String bystander = createAccount("bystander");
+        long teamId = createTeam(owner, "Harbor Studio");
+        joinTeam(member, mintJoinCode(owner, teamId));
+        joinTeam(bystander, mintJoinCode(owner, teamId));
+        share(member, teamId, claim(FINGERPRINT, V1, "courier_run"), 201);
+
+        // The author: their own row.
+        JsonNode asAuthor = lookup(member, teamId, FINGERPRINT).get(0);
+        assertTrue(asAuthor.get("isYours").asBoolean());
+        assertTrue(asAuthor.get("canRetract").asBoolean());
+
+        // The owner: someone else's row, and still allowed — this is the second operator.
+        JsonNode asOwner = lookup(owner, teamId, FINGERPRINT).get(0);
+        assertFalse(asOwner.get("isYours").asBoolean());
+        assertTrue(asOwner.get("canRetract").asBoolean(),
+                "an owner must be able to reach the kill switch on a teammate's claim");
+
+        // A third member: neither.
+        JsonNode asBystander = lookup(bystander, teamId, FINGERPRINT).get(0);
+        assertFalse(asBystander.get("isYours").asBoolean());
+        assertFalse(asBystander.get("canRetract").asBoolean());
+    }
+
     @Test
     void anOwnerCanRetractSomeoneElsesClaimButAPlainMemberCannot() throws Exception {
         String owner = createAccount("owner");

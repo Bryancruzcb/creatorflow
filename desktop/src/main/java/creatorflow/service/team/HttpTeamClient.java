@@ -301,6 +301,10 @@ public final class HttpTeamClient implements TeamClient {
                 row.path("id").asLong(),
                 row.path("memberUsername").asText(""),
                 row.path("isYours").asBoolean(false),
+                // Absent reads as false: a build talking to an older store must not offer a
+                // retract the server will refuse, and withholding the button is the safe way to
+                // be wrong about it.
+                row.path("canRetract").asBoolean(false),
                 row.path("algorithmVersion").asText(""),
                 row.path("clipName").asText(""),
                 row.path("durationSeconds").asDouble(0),

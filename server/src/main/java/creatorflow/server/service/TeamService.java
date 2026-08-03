@@ -16,6 +16,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -54,11 +55,20 @@ public class TeamService {
      *
      * <p>Read the field list as a contract: there is no verdict, no score, no distance and no
      * rank. A judgement is not merely absent from this view — it is underivable from it.
+     *
+     * <p>{@code canRetract} is the one field here that is about the <em>viewer</em> rather than the
+     * claim, and it is deliberately computed server-side. The rule is "author or team OWNER", it
+     * lives in {@link #retract}, and shipping it as a boolean means the UI cannot drift from the
+     * rule the server will actually enforce. Without it the kill switch has no owner path at all:
+     * a client with only {@code isYours} can offer retract on your own rows and nothing else,
+     * which would leave the remedy for a wrong record about a person unreachable by the one person
+     * the 409-on-last-owner rule exists to guarantee.
      */
-    public record ClaimView(long id, String memberUsername, boolean isYours, String algorithmVersion,
-                            String clipName, double durationSeconds, Long robloxAssetId,
-                            String ownershipContext, String declaredSource, String declaredLicense,
-                            String declaredNote, Instant observedAt, Instant recordedAt) {
+    public record ClaimView(long id, String memberUsername, boolean isYours, boolean canRetract,
+                            String algorithmVersion, String clipName, double durationSeconds,
+                            Long robloxAssetId, String ownershipContext, String declaredSource,
+                            String declaredLicense, String declaredNote, Instant observedAt,
+                            Instant recordedAt) {
     }
 
     /**
@@ -143,6 +153,14 @@ public class TeamService {
     /**
      * Redeems a code. Unknown, expired and already-used codes are all a flat 404 with one message:
      * telling them apart would say whether a code ever existed.
+     *
+     * <p><strong>Single-use is enforced, not merely intended.</strong> Read → check → write is not
+     * atomic under H2's READ_COMMITTED, so two different accounts presenting the same code at the
+     * same instant would otherwise both see it unspent and both join —
+     * {@code UNIQUE(team_id, account_id)} does not catch that, since it only stops the same account
+     * twice. {@link TeamJoinCode}'s {@code @Version} makes the loser's flush fail, and that failure
+     * is translated here into the same flat 404 an already-used code gets: losing by a millisecond
+     * is indistinguishable from losing by a day, which is the only honest way to report it.
      */
     @Transactional
     public TeamView redeemJoinCode(Long accountId, String rawCode) {
@@ -150,8 +168,7 @@ public class TeamService {
         Instant now = Instant.now();
         TeamJoinCode joinCode = joinCodes.findByCodeHash(JoinCodes.hash(code))
                 .filter(candidate -> candidate.isRedeemableAt(now))
-                .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND,
-                        "That join code is not valid. Codes are single-use and expire after 24 hours."));
+                .orElseThrow(TeamService::codeNotValid);
 
         UserAccount account = account(accountId);
         Team team = joinCode.getTeam();
@@ -164,8 +181,21 @@ public class TeamService {
         }
         joinCode.redeem(account, now);
         memberships.save(new TeamMembership(team, account, TeamRole.MEMBER));
+        try {
+            // Force the version check now, inside this method, so the race is resolved here rather
+            // than surfacing as an unmapped 500 from the commit that happens after the controller
+            // has already returned a success view.
+            joinCodes.saveAndFlush(joinCode);
+        } catch (OptimisticLockingFailureException lostTheRace) {
+            throw codeNotValid();
+        }
         return new TeamView(team.getId(), team.getName(), TeamRole.MEMBER,
                 memberships.countByTeamId(team.getId()), team.getCreatedAt());
+    }
+
+    private static ApiException codeNotValid() {
+        return new ApiException(HttpStatus.NOT_FOUND,
+                "That join code is not valid. Codes are single-use and expire after 24 hours.");
     }
 
     /**
@@ -205,18 +235,18 @@ public class TeamService {
      */
     @Transactional(readOnly = true)
     public List<ClaimView> lookup(Long teamId, Long accountId, String rawFingerprint) {
-        requireMembership(teamId, accountId);
+        TeamMembership viewer = requireMembership(teamId, accountId);
         String fingerprint = requireFingerprint(rawFingerprint);
         return claims.lookup(teamId, fingerprint).stream()
-                .map(claim -> view(claim, accountId))
+                .map(claim -> view(claim, viewer))
                 .toList();
     }
 
     @Transactional(readOnly = true)
     public List<ClaimView> mine(Long teamId, Long accountId) {
-        requireMembership(teamId, accountId);
+        TeamMembership viewer = requireMembership(teamId, accountId);
         return claims.mine(teamId, accountId).stream()
-                .map(claim -> view(claim, accountId))
+                .map(claim -> view(claim, viewer))
                 .toList();
     }
 
@@ -250,14 +280,14 @@ public class TeamService {
             // The STORED claim is returned, never the request's version of it. Answering with the
             // request would let a changed declaration look accepted while the log still holds the
             // old one.
-            return new ShareResult(view(stored, accountId), false,
+            return new ShareResult(view(stored, membership), false,
                     stored.declarationsDifferFrom(clipName, robloxAssetId, source, license, note));
         }
 
         ProvenanceClaim saved = claims.save(new ProvenanceClaim(membership.getTeam(),
                 membership.getAccount(), fingerprint, algorithmVersion, clipName, duration,
                 robloxAssetId, context, source, license, note, request.observedAt()));
-        return new ShareResult(view(saved, accountId), true, false);
+        return new ShareResult(view(saved, membership), true, false);
     }
 
     /**
@@ -280,7 +310,7 @@ public class TeamService {
         // Retracting twice is a no-op that returns the existing tombstone: the first retraction is
         // the record, and a retry after a dropped response must not rewrite it.
         claim.retract(reason, Instant.now());
-        return view(claim, accountId);
+        return view(claim, membership);
     }
 
     /**
@@ -299,9 +329,15 @@ public class TeamService {
 
     // --------------------------------------------------------------- helpers
 
-    private ClaimView view(ProvenanceClaim claim, Long viewerAccountId) {
+    /**
+     * @param viewer the viewer's own membership in the claim's team — the source of both
+     *               {@code isYours} and {@code canRetract}, so the authority the UI renders is
+     *               always the authority {@link #retract} will enforce
+     */
+    private ClaimView view(ProvenanceClaim claim, TeamMembership viewer) {
+        boolean yours = claim.getAccount().getId().equals(viewer.getAccount().getId());
         return new ClaimView(claim.getId(), claim.getAccount().getUsername(),
-                claim.getAccount().getId().equals(viewerAccountId), claim.getAlgorithmVersion(),
+                yours, yours || viewer.isOwner(), claim.getAlgorithmVersion(),
                 claim.getClipName(), claim.getDurationSeconds(), claim.getRobloxAssetId(),
                 claim.getOwnershipContext(), claim.getDeclaredSource(), claim.getDeclaredLicense(),
                 claim.getDeclaredNote(), claim.getObservedAt(), claim.getRecordedAt());

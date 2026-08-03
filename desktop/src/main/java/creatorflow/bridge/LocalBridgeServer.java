@@ -1055,6 +1055,10 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("id", claim.id());
         view.put("memberUsername", claim.memberUsername());
         view.put("isYours", claim.isYours());
+        // The server's own author-or-OWNER answer, carried rather than re-derived here: the
+        // workspace has no idea what role this account holds, and guessing would either hide the
+        // kill switch from an owner or offer it where it will 403.
+        view.put("canRetract", claim.canRetract());
         view.put("algorithmVersion", claim.algorithmVersion());
         view.put("clipName", claim.clipName());
         view.put("durationSeconds", claim.durationSeconds());

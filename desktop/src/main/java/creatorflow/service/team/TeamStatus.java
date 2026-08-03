@@ -27,12 +27,17 @@ public enum TeamStatus {
     UNAUTHORIZED,
 
     /**
-     * The store understood the request and refused it — a validation failure or a conflict, with a
-     * message worth showing.
+     * The request was refused, and the refusal has a message worth showing — either the store
+     * understood it and said no (a validation failure or a conflict on the share/retract paths), or
+     * this client refused to send it at all because the fingerprint it was handed is not 64-hex.
      *
-     * <p>Only reachable from the share and retract paths, which are things a person just did and
-     * needs a real answer about. A lookup never returns this: on the read path an unexpected
-     * refusal degrades to {@link #UNREACHABLE}, i.e. unknown, which is the safe direction.
+     * <p>That second case is the only way a <em>read</em> reaches this status, and it is kept
+     * distinct rather than folded into {@link #UNREACHABLE} for an honesty reason: the store is
+     * fine and was never contacted, so "unreachable" would be a false statement about it. What is
+     * true is that nothing was looked up — which is what the UI must say, and does.
+     *
+     * <p>An unexpected refusal *from the store* on a read still degrades to {@link #UNREACHABLE},
+     * i.e. unknown, which is the direction that cannot mislead.
      */
     REJECTED,
 

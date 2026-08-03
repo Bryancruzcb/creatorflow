@@ -179,8 +179,9 @@ function Ui.mount(widget: DockWidgetPluginGui, callbacks: Callbacks): Handle
 	-- Server card ---------------------------------------------------------
 	local server = card(root, "Server", 1)
 	local baseUrlBox = textBox(server, "Base URL (http://localhost:8080)", 1)
-	-- There is no website to read a key from any more; the /me page went with the gallery.
-	-- Use "Create account" below, or the key from the desktop app's data directory.
+	-- There is no website to read a key from any more; the /me page went with the gallery. Use
+	-- "Create account" below. Not the desktop app's team.properties either — that value is
+	-- DPAPI ciphertext on Windows, so pasting it here would 401 every time.
 	local apiKeyBox = textBox(server, "API key (from Create account, below)", 2)
 	local serverRow = buttonRow(server, 3)
 	local connectBtn = button(serverRow, "Connect", 1, true)

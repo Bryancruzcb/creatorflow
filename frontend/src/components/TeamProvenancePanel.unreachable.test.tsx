@@ -20,6 +20,7 @@ import type { LocalBridgeClient, LocalProvenanceLookup, TeamStoreStatus } from '
  */
 
 const FINGERPRINT = 'a'.repeat(64);
+const OTHER = 'b'.repeat(64);
 const VERSION = 'creatorflow.motion-fingerprint/v1';
 
 function clientAnswering(lookup: LocalProvenanceLookup): LocalBridgeClient {
@@ -98,6 +99,142 @@ describe('an unreachable team store never renders as an empty result', () => {
 
     await within(container).findByText(/team store not connected/i);
     expect(container.textContent).toMatch(/works fully without it/i);
+    for (const phrase of EMPTINESS_CLAIMS) {
+      expect(container.textContent ?? '').not.toMatch(phrase);
+    }
+  });
+
+  /**
+   * The race that made every other test in this file passable while the bug was live.
+   *
+   * The panel's `fingerprint` prop changes IN PLACE — the motion lab polls the Studio inbox every
+   * 3 s and hands over `latestComparison.candidateFingerprint` with no `key` to force a remount —
+   * and a lookup's budget (4 s connect / 6 s read) routinely outlives two poll cycles. So a slow
+   * empty answer for fingerprint A can land after the panel has moved to B, and before the fix it
+   * flipped the panel to "no one on your team has registered this exact curve fingerprint" **for a
+   * fingerprint nobody looked up**. That is the banned sentence, reached without anyone writing it
+   * in the wrong branch.
+   *
+   * Every other test here mounts once with a fixed fingerprint, which is exactly the gap this
+   * lived in.
+   */
+  it('drops a slow answer for the previous fingerprint instead of rendering it as an absence', async () => {
+    let resolveSlow: (value: LocalProvenanceLookup) => void = () => {};
+    const slow = new Promise<LocalProvenanceLookup>((resolve) => { resolveSlow = resolve; });
+    const fast: LocalProvenanceLookup = {
+      status: 'OK', fingerprint: OTHER, algorithmVersion: VERSION, message: null,
+      claims: [{
+        id: 1, memberUsername: 'mira', isYours: false, canRetract: false,
+        algorithmVersion: VERSION, clipName: 'courier_run', durationSeconds: 1.25,
+        robloxAssetId: null, ownershipContext: null, declaredSource: null, declaredLicense: null,
+        declaredNote: null, observedAt: null, recordedAt: '2026-07-30T09:00:04.000Z',
+      }],
+    };
+
+    const client = {
+      lookupTeamProvenance: vi.fn()
+        .mockImplementationOnce(() => slow)
+        .mockImplementationOnce(async () => fast),
+    } as unknown as LocalBridgeClient;
+
+    const { container, rerender } = render(
+      <TeamProvenancePanel bridgeClient={client} fingerprint={FINGERPRINT} algorithmVersion={VERSION} clipName="a" />,
+    );
+
+    // The prop changes in place, exactly as the 3 s poll does it — no key, no remount.
+    rerender(
+      <TeamProvenancePanel bridgeClient={client} fingerprint={OTHER} algorithmVersion={VERSION} clipName="b" />,
+    );
+    await within(container).findByText(/1 person/i);
+
+    // Now the first fingerprint's answer finally arrives, empty.
+    resolveSlow({ status: 'OK', fingerprint: FINGERPRINT, algorithmVersion: VERSION, claims: [], message: null });
+    await waitFor(() => expect(client.lookupTeamProvenance).toHaveBeenCalledTimes(2));
+
+    const rendered = container.textContent ?? '';
+    for (const phrase of EMPTINESS_CLAIMS) {
+      expect(
+        rendered,
+        `a stale answer for a previous fingerprint rendered "${phrase}". The panel is showing a `
+        + 'claim about a fingerprint nobody asked about.',
+      ).not.toMatch(phrase);
+    }
+    // The current fingerprint's real answer is still what is on screen.
+    expect(within(container).getByText(/1 person/i)).toBeTruthy();
+  });
+
+  /** The mirror direction: a stale answer WITH rows must not be painted under the new heading. */
+  it('drops a slow answer carrying claims, which would otherwise be a false attribution', async () => {
+    let resolveSlow: (value: LocalProvenanceLookup) => void = () => {};
+    const slow = new Promise<LocalProvenanceLookup>((resolve) => { resolveSlow = resolve; });
+    const client = {
+      lookupTeamProvenance: vi.fn()
+        .mockImplementationOnce(() => slow)
+        .mockImplementationOnce(async () => ({
+          status: 'OK' as const, fingerprint: OTHER, algorithmVersion: VERSION, claims: [], message: null,
+        })),
+    } as unknown as LocalBridgeClient;
+
+    const { container, rerender } = render(
+      <TeamProvenancePanel bridgeClient={client} fingerprint={FINGERPRINT} algorithmVersion={VERSION} clipName="a" />,
+    );
+    rerender(
+      <TeamProvenancePanel bridgeClient={client} fingerprint={OTHER} algorithmVersion={VERSION} clipName="b" />,
+    );
+    await within(container).findByText(/no one on your team has registered/i);
+
+    resolveSlow({
+      status: 'OK', fingerprint: FINGERPRINT, algorithmVersion: VERSION, message: null,
+      claims: [{
+        id: 9, memberUsername: 'someone-else', isYours: false, canRetract: false,
+        algorithmVersion: VERSION, clipName: 'unrelated_clip', durationSeconds: 2,
+        robloxAssetId: null, ownershipContext: null, declaredSource: null, declaredLicense: null,
+        declaredNote: null, observedAt: null, recordedAt: '2026-07-30T09:00:04.000Z',
+      }],
+    });
+    await waitFor(() => expect(client.lookupTeamProvenance).toHaveBeenCalledTimes(2));
+
+    expect(container.textContent ?? '').not.toMatch(/someone-else/);
+    expect(container.textContent ?? '').not.toMatch(/unrelated_clip/);
+  });
+
+  /**
+   * Belt and braces, independent of ordering: the bridge echoes back the fingerprint it actually
+   * looked up, so a response about something else is dropped even if it somehow arrives last.
+   */
+  it('drops a response whose echoed fingerprint is not the one that was asked for', async () => {
+    const client = {
+      lookupTeamProvenance: vi.fn().mockResolvedValue({
+        status: 'OK', fingerprint: OTHER, algorithmVersion: VERSION, claims: [], message: null,
+      }),
+    } as unknown as LocalBridgeClient;
+
+    const { container } = render(
+      <TeamProvenancePanel bridgeClient={client} fingerprint={FINGERPRINT} algorithmVersion={VERSION} clipName="a" />,
+    );
+    await waitFor(() => expect(client.lookupTeamProvenance).toHaveBeenCalled());
+    // Still loading — the mismatched answer was never allowed to become a result.
+    expect(container.querySelector('[data-state="loading"]')).toBeTruthy();
+    for (const phrase of EMPTINESS_CLAIMS) {
+      expect(container.textContent ?? '').not.toMatch(phrase);
+    }
+  });
+
+  /** A locally-malformed fingerprint says the store was never asked, not that it was unreachable. */
+  it('does not blame the store when this build could not form the question', async () => {
+    const { container } = render(
+      <TeamProvenancePanel
+        bridgeClient={clientAnswering({ status: 'REJECTED', fingerprint: FINGERPRINT, algorithmVersion: VERSION, claims: [], message: null })}
+        fingerprint={FINGERPRINT}
+        algorithmVersion={VERSION}
+        clipName="courier_run"
+      />,
+    );
+
+    await within(container).findByText(/could not ask/i);
+    expect(container.textContent).toMatch(/no lookup was sent/i);
+    // Still "unknown", and still not an absence claim.
+    expect(container.textContent).toMatch(/unknown/i);
     for (const phrase of EMPTINESS_CLAIMS) {
       expect(container.textContent ?? '').not.toMatch(phrase);
     }

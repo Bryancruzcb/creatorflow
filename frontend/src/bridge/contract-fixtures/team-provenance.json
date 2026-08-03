@@ -2,6 +2,7 @@
   "algorithmVersion" : "creatorflow.motion-fingerprint/v1",
   "claims" : [ {
     "algorithmVersion" : "creatorflow.motion-fingerprint/v1",
+    "canRetract" : true,
     "clipName" : "courier_run",
     "declaredLicense" : "All rights reserved",
     "declaredNote" : "Kept as the shipped version.",

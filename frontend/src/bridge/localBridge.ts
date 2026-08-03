@@ -487,6 +487,16 @@ export interface LocalProvenanceClaim {
   id: number;
   memberUsername: string;
   isYours: boolean;
+  /**
+   * The server's own answer to "may this viewer retract this row" — author **or team owner**.
+   *
+   * Carried rather than derived from `isYours`, because this page has no idea what role the
+   * account holds, and the owner path is not optional: the last-owner-cannot-leave rule (409) is
+   * justified by an owner always existing to pull the kill switch on a wrong or harmful record.
+   * Gating the button on `isYours` alone would leave that remedy reachable only by hand-rolling
+   * an HTTP request.
+   */
+  canRetract: boolean;
   algorithmVersion: string;
   clipName: string;
   durationSeconds: number;
@@ -883,6 +893,7 @@ export class LocalBridgeClient {
     );
   }
 
+  /**
    * Which team provenance store this desktop talks to, and — live — how many people are in it.
    * Never the API key.
    */

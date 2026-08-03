@@ -56,6 +56,23 @@ public class TeamJoinCode {
 
     private Instant usedAt;
 
+    /**
+     * Optimistic lock, and the reason is "single-use" being a flat claim rather than a hedged one.
+     *
+     * <p>Redemption is read → check → write. Under H2's READ_COMMITTED that is not atomic on its
+     * own: two <em>different</em> accounts presenting the same code at the same moment would both
+     * see it unspent and both join, and {@code UNIQUE(team_id, account_id)} does not catch it
+     * because it only stops the same account twice. Unlike the concurrent-double-share case — which
+     * the design accepts on the record, because a duplicate observation is harmless — an
+     * invitation that admits two people is not a harmless duplicate.
+     *
+     * <p>The loser's flush fails, and {@code TeamService.redeemJoinCode} turns that into the same
+     * flat 404 an already-used code gets, so the outcome is indistinguishable from losing by a
+     * second rather than by a millisecond.
+     */
+    @jakarta.persistence.Version
+    private long version;
+
     protected TeamJoinCode() {
         // JPA
     }

@@ -252,6 +252,12 @@ describe('bridge contract', () => {
     const claim = lookup.claims[0];
     expect(typeof claim.memberUsername).toBe('string');
     expect(typeof claim.isYours).toBe('boolean');
+    /**
+     * The kill switch's reachability, on the wire. `canRetract` is the server's own author-or-OWNER
+     * answer; without it the UI can only gate on `isYours`, which strands the owner path that the
+     * last-owner-409 rule exists to guarantee.
+     */
+    expect(typeof claim.canRetract).toBe('boolean');
     // Load-bearing: without the row's own version, a v2 claim would render as a v1 match.
     expect(typeof claim.algorithmVersion).toBe('string');
     expect(typeof claim.recordedAt).toBe('string');

@@ -1632,7 +1632,7 @@ class LocalBridgeServerTest {
     /** One populated claim, so the recorded fixture pins the row's real field names and types. */
     private static final class FixtureTeamClient implements TeamClient {
 
-        private static final ClaimRecord CLAIM = new ClaimRecord(41, "mira", false,
+        private static final ClaimRecord CLAIM = new ClaimRecord(41, "mira", false, true,
                 "creatorflow.motion-fingerprint/v1", "courier_run", 1.25, 90110L, "group:12345",
                 "Authored in-house", "All rights reserved", "Kept as the shipped version.",
                 Instant.parse("2026-07-30T09:00:00Z"), Instant.parse("2026-07-30T09:00:04Z"));

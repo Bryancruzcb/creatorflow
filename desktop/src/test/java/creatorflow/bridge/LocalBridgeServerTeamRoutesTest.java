@@ -25,6 +25,8 @@ import creatorflow.service.opencloud.OpenCloudSettings;
 import creatorflow.service.team.TeamClient;
 import creatorflow.service.team.TeamSettings;
 import creatorflow.service.team.TeamStatus;
+import creatorflow.db.DecisionBatchRepository;
+import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.MotionSnapshotRecord;
 import creatorflow.workflow.ReleaseExportService;
 import java.lang.reflect.RecordComponent;
@@ -96,6 +98,8 @@ class LocalBridgeServerTeamRoutesTest {
         var ownershipVerifications = new OwnershipVerificationRepository(database);
         var releaseExports = new ReleaseExportService(database, localProjects, scans, decisions,
                 releases, audit, ownershipVerifications);
+        var batchDecisions = new BatchDecisionService(database, scans, decisions,
+                new DecisionBatchRepository(database), audit, releaseExports);
         teamSettings = new TeamSettings(directory);
 
         var project = localProjects.adopt(Files.createDirectories(directory.resolve("project")));
@@ -105,7 +109,7 @@ class LocalBridgeServerTeamRoutesTest {
 
         server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,
-                pluginPairings, releaseExports, new OpenCloudSettings(directory), teamSettings,
+                pluginPairings, releaseExports, batchDecisions, new OpenCloudSettings(directory), teamSettings,
                 new DelegatingTeamClient(fakeTeam),
                 (assetId, universeId, now) -> {
                     throw new IllegalStateException("ownership verification is not exercised here");
@@ -180,10 +184,12 @@ class LocalBridgeServerTeamRoutesTest {
         List<String> actual = Arrays.stream(TeamClient.ClaimRecord.class.getRecordComponents())
                 .map(RecordComponent::getName)
                 .toList();
-        assertEquals(List.of("id", "memberUsername", "isYours", "algorithmVersion", "clipName",
-                "durationSeconds", "robloxAssetId", "ownershipContext", "declaredSource",
+        assertEquals(List.of("id", "memberUsername", "isYours", "canRetract", "algorithmVersion",
+                "clipName", "durationSeconds", "robloxAssetId", "ownershipContext", "declaredSource",
                 "declaredLicense", "declaredNote", "observedAt", "recordedAt"), actual,
-                "a claim gained or lost a field. A judgement must stay underivable from this record.");
+                "a claim gained or lost a field. A judgement must stay underivable from this record. "
+                        + "canRetract is about the VIEWER's authority, not about the work, and is the "
+                        + "only field here allowed to be.");
     }
 
     @Test
@@ -335,7 +341,7 @@ class LocalBridgeServerTeamRoutesTest {
     /** Records what the bridge actually asked for, and answers with one v2 row. */
     private static final class CapturingTeamClient implements TeamClient {
 
-        private static final ClaimRecord CLAIM = new ClaimRecord(41, "mira", false,
+        private static final ClaimRecord CLAIM = new ClaimRecord(41, "mira", false, false,
                 "creatorflow.motion-fingerprint/v2", "courier_run", 1.25, 90110L, "group:12345",
                 "Authored in-house", "All rights reserved", null,
                 Instant.parse("2026-07-30T09:00:00Z"), Instant.parse("2026-07-30T09:00:04Z"));

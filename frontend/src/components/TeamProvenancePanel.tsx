@@ -1,5 +1,5 @@
 import { HelpCircle, RotateCcw, Users } from 'lucide-react';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   type LocalBridgeClient,
   type LocalProvenanceClaim,
@@ -43,6 +43,14 @@ function unknownCopy(status: TeamStoreStatus): { headline: string; detail: strin
         headline: 'Team store unreachable — team provenance unknown.',
         detail: 'This machine\'s credential no longer opens the configured team, so nothing was '
           + 'looked up. Re-check the server URL, key and team in desktop Settings.',
+      };
+    case 'REJECTED':
+      // Its own branch, because the generic line would be a lie here: the store is fine and was
+      // never contacted. What is true is that this build could not form the question.
+      return {
+        headline: 'Team provenance unknown — this build could not ask.',
+        detail: 'The comparison did not carry a 64-hex curve fingerprint, so no lookup was sent. '
+          + 'Nothing here says anything about who else has this clip.',
       };
     default:
       return {
@@ -103,14 +111,19 @@ function ClaimRow({ claim, lookupVersion, onRetract, retracting }: {
         </dl>
       ) : null}
 
-      {claim.isYours && onRetract ? (
+      {/*
+        * Gated on the server's canRetract, not on isYours: a team owner is the kill switch's
+        * second operator and must be able to pull it on someone else's row. That is the whole
+        * justification for refusing to let the last owner leave.
+        */}
+      {claim.canRetract && onRetract ? (
         <button
           type="button"
           className="team-provenance-retract"
           disabled={retracting}
           onClick={() => onRetract(claim)}
         >
-          {retracting ? 'Retracting…' : 'Retract'}
+          {retracting ? 'Retracting…' : claim.isYours ? 'Retract' : 'Retract as owner'}
         </button>
       ) : null}
     </li>
@@ -144,21 +157,54 @@ export function TeamProvenancePanel({ bridgeClient, fingerprint, algorithmVersio
   const [retractingId, setRetractingId] = useState<number | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
 
+  /**
+   * Which lookup is allowed to write to state. Only the newest one is.
+   *
+   * This panel's `fingerprint` prop changes **in place**: the motion lab polls the Studio evidence
+   * inbox every 3 seconds and hands over `latestComparison.candidateFingerprint`, with no `key` to
+   * force a remount. A lookup's budget is 4 s connect / 6 s read, which routinely outlives two
+   * poll cycles — so a slow answer for fingerprint A can land after the panel has moved on to B.
+   *
+   * Without this guard that is not a cosmetic glitch, it is the one sentence this whole phase
+   * exists to prevent: A's empty `claims` array arriving late flips the panel to the "no one on
+   * your team has registered this exact curve fingerprint" state **for a fingerprint nobody looked
+   * up**. The mirror case is worse in the other direction — A's claims painted under B's heading is
+   * a false attribution.
+   *
+   * A ref rather than an effect-cleanup flag, deliberately: "Try again" and "Check again" call
+   * `lookup()` outside the effect, so a `let cancelled` closure scoped to the effect would not
+   * cover them.
+   */
+  const requestId = useRef(0);
+
   const lookup = useCallback(() => {
+    const mine = requestId.current + 1;
+    requestId.current = mine;
     setState({ kind: 'loading' });
     bridgeClient.lookupTeamProvenance(fingerprint, algorithmVersion)
-      .then((result) => setState({
-        kind: 'answered',
-        status: result.status,
-        claims: result.claims ?? [],
-        message: result.message,
-      }))
+      .then((result) => {
+        if (mine !== requestId.current) return;
+        /*
+         * Belt and braces. The bridge echoes back the fingerprint it actually looked up, so the
+         * answer can be checked against the question rather than trusted to arrive in order. A
+         * mismatch means this response is about something else and is dropped — never rendered
+         * under the current fingerprint's heading.
+         */
+        if (result.fingerprint && result.fingerprint.toLowerCase() !== fingerprint.toLowerCase()) return;
+        setState({
+          kind: 'answered',
+          status: result.status,
+          claims: result.claims ?? [],
+          message: result.message,
+        });
+      })
       // The bridge answers 200 with a status even for an unreachable store, so reaching this
       // branch means the bridge itself failed. That is still an "we could not ask" — never an
       // empty result set.
-      .catch(() => setState({
-        kind: 'answered', status: 'UNREACHABLE', claims: [], message: null,
-      }));
+      .catch(() => {
+        if (mine !== requestId.current) return;
+        setState({ kind: 'answered', status: 'UNREACHABLE', claims: [], message: null });
+      });
   }, [algorithmVersion, bridgeClient, fingerprint]);
 
   useEffect(() => { lookup(); }, [lookup]);

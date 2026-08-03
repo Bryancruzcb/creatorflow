@@ -22,8 +22,17 @@ source and license.
 **Why this phase, why now:** `docs/ROADMAP.md` marks Phase E *(only if validated)* — "Build only
 if the friend test proves real multi-user demand." **That friend test was cancelled permanently by
 the project owner on 2026-07-30 and will not happen**, so no phase can satisfy the old validation
-gate. Phase E proceeds by **explicit owner decision of 2026-08-02**, recorded in `docs/ROADMAP.md`,
-exactly the way Phase B (spec of 2026-07-31) and Phase C (spec of 2026-08-01) recorded theirs.
+gate. Phase E proceeds by **explicit owner decision of 2026-08-02**, exactly the way Phase B (spec
+of 2026-07-31) and Phase C (spec of 2026-08-01) recorded theirs.
+
+Where that decision is written down, stated precisely so this sentence is true as shipped: **it is
+not in `docs/ROADMAP.md` on this branch.** ROADMAP still carries the original *(only if validated)*
+gate text, because rewriting it belongs to the open docs-honesty PR (#124), which records the
+cancelled friend test along with the Phase D and Phase E approvals. This branch deliberately does
+not touch ROADMAP — two PRs editing the same lines is a merge conflict for no gain — so until #124
+lands, **this spec is the record**, and afterwards ROADMAP is. Anyone reading ROADMAP alone before
+#124 merges will see a gate this phase did not satisfy; that is the expected state, not an
+oversight.
 
 That override has a cost, and this spec states it rather than burying it: **the demand risk the
 gate existed to retire is still open.** A 2–5 person team may find explicit claim-recording too
@@ -93,6 +102,17 @@ trade from an accident.
   lookup** so no `catch` branch can render an empty list, and there is no local cache to silently
   fall back on. `claims: []` is readable only when `status === 'OK'`.
 
+- **A late answer is not an answer.** The rule above is reachable without anyone writing the
+  sentence in the wrong branch, because the panel's `fingerprint` prop changes **in place**: the
+  motion lab polls the Studio inbox every 3 s and there is no `key` forcing a remount, while a
+  lookup's 4 s connect / 6 s read budget routinely outlives two poll cycles. A slow empty answer
+  for fingerprint A landing after the panel moved to B renders the banned sentence for a
+  fingerprint nobody looked up; the mirror case paints A's claims under B's heading, which is the
+  false-attribution direction. Guarded twice — a monotonic request id that gates both `.then` and
+  `.catch` (a ref, not an effect-cleanup flag, because "Try again" calls `lookup()` outside the
+  effect), and a check that the response's echoed `fingerprint` is the one that was asked for.
+  Three tests cover it, and all three fail if either guard is removed.
+
 - **A judgement must stay underivable from the data.** No score, distance, verdict, decision enum,
   perceptual hash or file bytes exists in `provenance_claims`, in the API response, or in the
   bridge view. Three separate tests assert the absence by name
@@ -103,9 +123,23 @@ trade from an accident.
   `recorded_at`, this property breaks and the honesty ceiling is gone. The server clock exists so
   the log has a clock it can trust, not so anyone can win a race.
 
-- **Retract is the kill switch and is not cuttable.** Author or team `OWNER`, reason required.
-  Copy says "removes it from future lookups" — **never "unshares"**, because no server can retrieve
-  a copy a teammate already read.
+- **Priority is visible but uncredited — and that is the honest claim, not "priority does not
+  leak".** Both `recordedAt` and the monotonic claim `id` are on the wire and on screen, so any
+  client, or any person reading two rows, can work out who recorded first. Sorting by username
+  buys exactly one thing: the product never *presents* an order as a ranking, and no CreatorFlow
+  surface draws a conclusion from it. It does not and cannot make the information unavailable —
+  `recordedAt` is load-bearing for "when was this observed" and removing it would cost more honesty
+  than it bought. State the guarantee at its real strength: **the ordering is uncredited, not
+  concealed.** The tripwire above is the thing that actually holds the line, because the failure
+  mode is a product surface asserting priority, not a user inferring it.
+
+- **Retract is the kill switch and is not cuttable — and it must be *reachable*, not merely
+  implemented.** Author or team `OWNER`, reason required. Copy says "removes it from future
+  lookups" — **never "unshares"**, because no server can retrieve a copy a teammate already read.
+  The lookup response therefore carries `canRetract`, the server's own author-or-OWNER answer, and
+  the UI gates the button on that rather than on `isYours`: gating on `isYours` alone would leave
+  an owner unable to pull the switch on a wrong record about a person, which would hollow out the
+  last-owner-409 rule whose entire justification is that such a person always exists.
 
 - **Ordering must not imply priority.** Rows sort by `username`, which is unique (so the order is
   stable) and carries no seniority. `displayName` has had no writer since PR-1 deleted the web
@@ -144,8 +178,17 @@ not a historical observation, so there is no append-only log for a constraint to
 **team_join_codes** — id PK; team_id; `code_hash` CHAR(64) (SHA-256; **hash-at-rest, raw code
 returned exactly once at issuance**, modeled on the proven `PluginPairingService` token pattern and,
 like it, **128-bit random, base64url**); created_by; created_at; expires_at (**24 h TTL**);
-used_by_account_id NULL; used_at NULL. Single-use; redeem attempts ride the kept `RateLimitFilter`
-on `/api/**`, which throttles online brute force.
+used_by_account_id NULL; used_at NULL; **`@Version`**. Redeem attempts ride the kept
+`RateLimitFilter` on `/api/**`, which throttles online brute force.
+
+The version column is what makes "single-use" a fact rather than an intention. Redemption is
+read → check → write, which is not atomic under H2's READ_COMMITTED: two *different* accounts
+presenting the same code at the same instant would both see it unspent and both join, and
+`UNIQUE(team_id, account_id)` does not catch that because it only stops the same account twice.
+The loser's flush fails and is translated into the same flat 404 an already-used code gets, so
+losing by a millisecond is indistinguishable from losing by a day. Note the deliberate asymmetry
+with claims: a concurrent double-**share** is accepted on the record, because a duplicate
+observation is harmless; an invitation that admits two people is not.
 
 One honest asymmetry, recorded: `UserAccount.apiKey` sits in plaintext in the same H2 file, so
 hash-at-rest protects codes against a DB dump more than the keys beside them — inherited from the
@@ -250,10 +293,17 @@ purpose:
 - **Write path (share, retract):** additionally maps a `4xx` to `REJECTED` with the server's
   message, because a person just pressed a button and needs a real answer. The bridge surfaces
   these as `409` (not configured), `502` (unauthorized), `400` (rejected), `503` (unreachable).
+- **One read-path exception, deliberate:** a fingerprint that is not 64-hex is refused by the
+  client *before any socket is opened*, and that is `REJECTED` too. Calling it `UNREACHABLE` would
+  be a false statement about a store that is fine and was never contacted, so the panel gives it
+  its own sentence — "Team provenance unknown — this build could not ask… no lookup was sent" —
+  which is still an *unknown*, still carries no absence claim, and is pinned by its own test. An
+  unexpected refusal **from the store** on a read still degrades to `UNREACHABLE`.
 
-`REJECTED` is an addition to the four states the design brief named; it exists only so a fixable
-refusal on a write is not disguised as an outage. The four-state guarantee holds exactly where it
-matters — the lookup.
+`REJECTED` is an addition to the four states the design brief named. It exists so that a refusal
+nobody can act on is not disguised as an outage, and so that the one locally-refusable read case
+does not have to lie about the server. Everything it covers still renders as unknown; the
+guarantee that matters — an empty claim list is readable only under `OK` — is unaffected.
 
 ## Testing
 
@@ -278,9 +328,47 @@ matters — the lookup.
   retract only on your own rows), `fingerprintVersions.test.ts`,
   `AnimationSnapshotsPanel.share.test.tsx` (the dialog enumerates what leaves, consent is the
   confirm button not the open, the request carries a snapshot id and no fingerprint).
-- **Manual:** a two-data-dir loopback run — server up, share from one data dir, look up from a
-  second, then **stop the server and confirm the panel degrades to *unknown***. Source-level green
-  is not shipped green.
+- **`HttpTeamClientTest`** — the client against a real `HttpServer` stub on loopback, the shape
+  `OpenCloudClientTest` already uses. This exists because every bridge test substitutes a fake
+  `TeamClient`, which left the status mapping, URL construction, `X-Api-Key` header, error
+  unwrapping and JSON parsing — the whole read path's actual behaviour — unverified. It pins that a
+  500, an unexpected 4xx and a non-JSON body all degrade to *unknown* rather than to an empty
+  success, that a malformed fingerprint never reaches the network, and that a connect failure's
+  message does not leak the host and port it was shown.
+
+### Manual: the two-data-dir loopback run
+
+Run against the built jar on port 8099 with two independent desktop data dirs, each with its own
+`team.properties` and its own `LocalBridgeServer`. Observed, 2026-08-03:
+
+1. Two accounts created; machine A created the team as `OWNER` and minted a 22-character
+   base64url code (= 128 bits); machine B redeemed it as `MEMBER`; **re-redeeming the same code was
+   refused** with the flat "not valid" message.
+2. `GET /teams/{id}/members` listed `amir` before `mira` although mira joined first — username
+   order, not join order.
+3. Machine A shared one snapshot with a **deliberately falsified `fingerprint` in the request
+   body**; the recorded claim carried the snapshot's real one. The guard holds against a live
+   server, not only against a fake client. An immediate retry returned `200`,
+   `alreadyShared: true`, same claim id.
+4. Machine B looked the fingerprint up and saw A's claim with `isYours: false`. `GET /api/v1/team`
+   reported `keyStorageMode: DPAPI_WINDOWS` and no key anywhere in the payload.
+5. **The server was then killed.** `GET /api/v1/team` returned `status: UNREACHABLE` with
+   `memberCount: null` — no stale count. The lookup returned **HTTP 200** with
+   `status: UNREACHABLE` and an empty `claims` array, which the panel renders as *unknown*. Machine
+   B had read A's claim a minute earlier and retained no copy of it, which is owner decision 1
+   working as intended.
+
+Re-run after any change to the panel's request handling: the polling inbox that drives
+`fingerprint` prop changes is exactly the condition a stale-response bug lives in, and it is not
+reproducible from a single mounted render.
+
+### Known gaps, recorded rather than implied away
+
+- The concurrent-redemption test asserts the **invariant** (exactly one membership), not that the
+  race window was hit on any given run. If the database serializes the two attempts naturally the
+  test still passes, so it guards the outcome rather than proving the timing.
+- Nothing exercises the JavaFX Settings card itself; its copy is tested through `TeamCardText`, the
+  wiring is not.
 
 ## Out of scope for v1
 

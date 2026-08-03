@@ -26,11 +26,16 @@ public interface TeamClient {
      * {@code algorithmVersion} is carried through untouched so the UI — not the server, and not
      * this client — can classify a row as a match, as "recorded under a different fingerprint
      * version", or as an unknown format.
+     *
+     * <p>{@code canRetract} is the server's own answer to "may this viewer pull the kill switch on
+     * this row" — author or team OWNER. It is carried rather than re-derived so the button a
+     * person sees and the rule the server enforces cannot drift apart.
      */
-    record ClaimRecord(long id, String memberUsername, boolean isYours, String algorithmVersion,
-                       String clipName, double durationSeconds, Long robloxAssetId,
-                       String ownershipContext, String declaredSource, String declaredLicense,
-                       String declaredNote, Instant observedAt, Instant recordedAt) {
+    record ClaimRecord(long id, String memberUsername, boolean isYours, boolean canRetract,
+                       String algorithmVersion, String clipName, double durationSeconds,
+                       Long robloxAssetId, String ownershipContext, String declaredSource,
+                       String declaredLicense, String declaredNote, Instant observedAt,
+                       Instant recordedAt) {
     }
 
     /** The lookup's answer. {@code claims} is meaningful only when {@code status} is {@code OK}. */

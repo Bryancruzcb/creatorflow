@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, render, screen, waitFor } from '@testing-library/react';
 import { ORDERING_DISCLAIMER, TeamProvenancePanel } from './TeamProvenancePanel';
 import type { LocalBridgeClient, LocalProvenanceClaim, LocalProvenanceLookup } from '../bridge/localBridge';
 
@@ -20,6 +20,7 @@ function claim(overrides: Partial<LocalProvenanceClaim>): LocalProvenanceClaim {
     id: 1,
     memberUsername: 'mira',
     isYours: false,
+    canRetract: false,
     algorithmVersion: V1,
     clipName: 'courier_run',
     durationSeconds: 1.25,
@@ -124,16 +125,62 @@ describe('TeamProvenancePanel', () => {
     expect(screen.getByTitle(/entered by a person/i)).toBeTruthy();
   });
 
-  it('offers retract only on your own rows', async () => {
+  it('offers retract on your own row and withholds it on a row you may not touch', async () => {
     const { container } = renderWith([
-      claim({ id: 1, memberUsername: 'amir', isYours: false }),
-      claim({ id: 2, memberUsername: 'zoe', isYours: true }),
+      claim({ id: 1, memberUsername: 'amir', isYours: false, canRetract: false }),
+      claim({ id: 2, memberUsername: 'zoe', isYours: true, canRetract: true }),
     ]);
 
     await screen.findByText(/2 people/i);
-    const buttons = container.querySelectorAll('.team-provenance-retract');
-    expect(buttons).toHaveLength(1);
+    expect(container.querySelectorAll('.team-provenance-retract')).toHaveLength(1);
     expect(container.querySelector('[data-yours="true"] .team-provenance-retract')).toBeTruthy();
+  });
+
+  /**
+   * The owner path, which the assertion above used to conceal by only checking the button's
+   * ABSENCE on someone else's row.
+   *
+   * Retract is the phase's kill switch and the server has always supported author-or-OWNER; the
+   * whole justification for refusing to let the last owner leave is that an owner is always there
+   * to pull it on a wrong or harmful record. A UI that gates on `isYours` alone makes that remedy
+   * reachable only by hand-rolling an HTTP request.
+   */
+  it("offers retract on someone else's row when the server says this viewer is an owner", async () => {
+    const { container } = renderWith([
+      claim({ id: 1, memberUsername: 'amir', isYours: false, canRetract: true }),
+    ]);
+
+    await screen.findByText(/1 person/i);
+    const button = container.querySelector('[data-yours="false"] .team-provenance-retract');
+    expect(button, "an owner cannot reach the kill switch on a teammate's claim").toBeTruthy();
+    // Labelled for what it is, so nobody retracts a colleague's record thinking it is their own.
+    expect(button?.textContent).toMatch(/retract as owner/i);
+  });
+
+  it('sends the reason the server requires, and re-reads the list afterwards', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('  Reported as inaccurate.  ');
+    const { client, container } = renderWith([claim({ id: 7, isYours: true, canRetract: true })]);
+    vi.mocked(client.retractProvenanceClaim).mockResolvedValue({ status: 'OK', claim: claim({}) });
+
+    await screen.findByText(/1 person/i);
+    (container.querySelector('.team-provenance-retract') as HTMLButtonElement).click();
+
+    await waitFor(() => expect(client.retractProvenanceClaim).toHaveBeenCalledWith(7, 'Reported as inaccurate.'));
+    // A retract that changed the record must be followed by a fresh live read, never by trusting
+    // local state — there is no cache, and the panel must not invent one here.
+    await waitFor(() => expect(client.lookupTeamProvenance).toHaveBeenCalledTimes(2));
+    promptSpy.mockRestore();
+  });
+
+  it('does not retract when no reason is given', async () => {
+    const promptSpy = vi.spyOn(window, 'prompt').mockReturnValue('   ');
+    const { client, container } = renderWith([claim({ id: 7, isYours: true, canRetract: true })]);
+
+    await screen.findByText(/1 person/i);
+    (container.querySelector('.team-provenance-retract') as HTMLButtonElement).click();
+
+    await waitFor(() => expect(client.retractProvenanceClaim).not.toHaveBeenCalled());
+    promptSpy.mockRestore();
   });
 
   it('renders one claim without pluralising it', async () => {
