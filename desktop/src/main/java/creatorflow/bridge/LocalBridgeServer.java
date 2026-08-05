@@ -109,11 +109,13 @@ public final class LocalBridgeServer implements AutoCloseable {
      * Roblox sampling change, a new interpolation path), flipping this to {@code false} re-blocks
      * pinning in one line.
      *
-     * <p>The flip only blocks NEW pins — snapshot rows carry no clip kind of their own. Already-pinned
-     * sampled snapshots are still identifiable: join {@code motion_snapshots.source_comparison_id} to
-     * {@code animation_comparisons.id} and read {@code source_clip_kind} / {@code candidate_clip_kind}
-     * for the side the snapshot's {@code asset_id} matches. That is the recovery path for auditing or
-     * retiring existing rows after a flip; it is a query, not a column, until one is needed.
+     * <p>The flip only blocks NEW pins. Already-pinned sampled snapshots stay identifiable on their
+     * own: since #131 every capture copies the pinned side's clip kind into
+     * {@code motion_snapshots.clip_kind}, so auditing or retiring them after a flip is a filter on
+     * one column rather than a join back to the comparison. Snapshots pinned before that column
+     * existed read NULL — UNKNOWN, not KEYFRAME — and for those the old join is still the only
+     * recovery path: {@code motion_snapshots.source_comparison_id} to {@code animation_comparisons.id},
+     * reading {@code source_clip_kind} / {@code candidate_clip_kind} for the side whose asset ID matches.
      *
      * <p>Scope of the evidence behind {@code true}: ONE fixture, on ONE Studio version, on one machine
      * (spike note §4). That is enough to ship, not enough to stop watching. Roblox updates Studio's
@@ -610,15 +612,18 @@ public final class LocalBridgeServer implements AutoCloseable {
                             "This side was read by sampling a CurveAnimation, not an exact keyframe read. "
                                     + "Pinning it as a drift-detection reference isn't reliable yet.");
                 }
+                // requestedClipKind is the pinned side's own provenance, and it travels onto the
+                // snapshot rather than staying a join away: the row outlives the comparison in the
+                // UI, and a CHANGED verdict on a sampled reference has to be readable as such.
                 MotionSnapshotRecord snapshot = switch (side.toLowerCase(java.util.Locale.ROOT)) {
                     case "source" -> motionSnapshots.capture(projectId, comparison.sourceAssetId(), kind,
                             comparisonId, comparison.sourceName(), comparison.sourceDuration(),
                             comparison.sourceFingerprint(), comparison.algorithmVersion(),
-                            comparison.sourceSettings());
+                            comparison.sourceSettings(), requestedClipKind);
                     case "candidate" -> motionSnapshots.capture(projectId, comparison.candidateAssetId(), kind,
                             comparisonId, comparison.candidateName(), comparison.candidateDuration(),
                             comparison.candidateFingerprint(), comparison.algorithmVersion(),
-                            comparison.candidateSettings());
+                            comparison.candidateSettings(), requestedClipKind);
                     default -> throw new IllegalArgumentException("side must be \"source\" or \"candidate\"");
                 };
                 sendJson(exchange, 201, snapshotView(snapshot));
@@ -1717,6 +1722,10 @@ public final class LocalBridgeServer implements AutoCloseable {
         view.put("algorithmVersion", record.algorithmVersion());
         view.put("supersedesSnapshotId", record.supersedesSnapshotId());
         view.put("status", record.status().name());
+        // Omitted rather than sent as null when the snapshot recorded no clip kind, matching how
+        // animationComparisonView reports the same fact: absent is UNKNOWN, and the UI shows no
+        // provenance label at all for it rather than implying an exact read.
+        record.clipKind().ifPresent(clipKind -> view.put("clipKind", clipKind));
         view.put("createdAt", record.createdAt());
         return view;
     }

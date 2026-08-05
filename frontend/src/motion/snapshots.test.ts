@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AnimationSnapshotKind } from '../bridge/localBridge';
 import {
   formatSnapshotFingerprint,
+  snapshotClipKindNote,
   snapshotKindLabel,
   snapshotStatusLabel,
   snapshotStatusTone,
@@ -29,6 +30,21 @@ describe('animation snapshot presentation', () => {
   it('shortens a long fingerprint but leaves a short one alone', () => {
     expect(formatSnapshotFingerprint('a'.repeat(64))).toBe(`${'a'.repeat(12)}…`);
     expect(formatSnapshotFingerprint('abc123')).toBe('abc123');
+  });
+
+  /**
+   * Three inputs, three distinct meanings, and only one of them earns words on screen.
+   *
+   * The one that matters most is the third: a snapshot pinned before the capture recorded
+   * clip kind has UNKNOWN provenance, and the honest rendering of unknown is silence. Giving
+   * it the keyframe treatment would be a claim the row cannot support — it would say "read
+   * exactly" about a row that never recorded how it was read.
+   */
+  it('notes a sampled clip and stays silent for exact and unknown ones', () => {
+    expect(snapshotClipKindNote('CURVE_SAMPLED')).toBe('Sampled from a curve');
+    expect(snapshotClipKindNote('KEYFRAME')).toBeNull();
+    expect(snapshotClipKindNote(undefined)).toBeNull();
+    expect(snapshotClipKindNote(null)).toBeNull();
   });
 
   it('sorts snapshots by name, then asset id, then kind', () => {

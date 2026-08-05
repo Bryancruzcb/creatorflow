@@ -105,7 +105,7 @@ class LocalBridgeServerTeamRoutesTest {
         var project = localProjects.adopt(Files.createDirectories(directory.resolve("project")));
         snapshot = motionSnapshots.capture(project.projectId(), "1042", MotionSnapshotKind.LAST_KNOWN_GOOD,
                 null, "courier_run", 1.25, SNAPSHOT_FINGERPRINT, ALGORITHM_VERSION,
-                PlaybackSettings.of(true, "Action"));
+                PlaybackSettings.of(true, "Action"), "KEYFRAME");
 
         server = new LocalBridgeServer(() -> Optional.of(directory), localProjects, scans,
                 decisions, releases, workspaceState, animationComparisons, motionSnapshots,

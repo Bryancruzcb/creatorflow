@@ -573,6 +573,22 @@ class LocalBridgeServerTest {
         HttpResponse<String> pinCandidate = postJson("/api/v1/projects/" + projectId + "/animation-snapshots", cookie,
                 origin.toString(), csrf, "{\"comparisonId\":\"" + comparisonId + "\",\"side\":\"candidate\",\"kind\":\"LAST_KNOWN_GOOD\"}");
         assertEquals(201, pinCandidate.statusCode(), pinCandidate.body());
+
+        // #131: the pin carries the side's provenance onto the snapshot, so the reference says
+        // how it was read without a join back to the comparison it came from. Asserted per side
+        // off the SAME comparison, which is what catches the mix-up worth catching: one side
+        // sampled, one exact, and a bug that copies either onto both.
+        assertEquals("CURVE_SAMPLED", json.readTree(pinSource.body()).get("clipKind").asText());
+        assertEquals("KEYFRAME", json.readTree(pinCandidate.body()).get("clipKind").asText());
+
+        // And it is on the listing the UI reads, not only on the creation response.
+        JsonNode listed = json.readTree(
+                get("/api/v1/projects/" + projectId + "/animation-snapshots", cookie).body()).get("items");
+        Map<String, String> kindByAsset = new java.util.HashMap<>();
+        listed.forEach(item -> kindByAsset.put(item.get("assetId").asText(),
+                item.hasNonNull("clipKind") ? item.get("clipKind").asText() : null));
+        assertEquals("CURVE_SAMPLED", kindByAsset.get("9001"));
+        assertEquals("KEYFRAME", kindByAsset.get("9002"));
     }
 
     /**

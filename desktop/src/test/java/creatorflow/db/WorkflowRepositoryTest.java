@@ -45,8 +45,10 @@ class WorkflowRepositoryTest {
                 assertTrue(result.next());
                 // A COUNT of applied migrations, not the highest version. Phase C added V014 and
                 // group review added V015 on separate branches; each branch wrote 14 for its own
-                // migration, so a merge that trusts either side is off by one.
-                assertEquals(15, result.getInt(1));
+                // migration, so a merge that trusts either side is off by one. V016 (snapshot
+                // clip kind) makes 16 — bump this with every migration added, and rebase before
+                // trusting the number if another branch is adding one too.
+                assertEquals(16, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }

@@ -1,4 +1,4 @@
-import type { AnimationSnapshotKind, AnimationSnapshotStatus } from '../bridge/localBridge';
+import type { AnimationClipKind, AnimationSnapshotKind, AnimationSnapshotStatus } from '../bridge/localBridge';
 
 /** Human label for a snapshot's role. */
 export function snapshotKindLabel(kind: AnimationSnapshotKind): string {
@@ -15,6 +15,17 @@ export function snapshotStatusLabel(status: AnimationSnapshotStatus): string {
     case 'CHANGED':
       return 'Changed since last snapshot';
   }
+}
+
+/**
+ * The provenance qualifier for a snapshot's clip, or `null` when it earns no words.
+ *
+ * Only CURVE_SAMPLED gets a label. A directly-read clip is the unremarkable case, and an older
+ * row with no recorded clip kind is UNKNOWN — silence is the honest rendering of both, because
+ * the alternative would be printing "exact" on a row that never recorded whether it was.
+ */
+export function snapshotClipKindNote(clipKind: AnimationClipKind | null | undefined): string | null {
+  return clipKind === 'CURVE_SAMPLED' ? 'Sampled from a curve' : null;
 }
 
 /** Shortens a 64-hex fingerprint to a scannable prefix for display. */

@@ -10,6 +10,7 @@ import {
 } from '../bridge/localBridge';
 import {
   formatSnapshotFingerprint,
+  snapshotClipKindNote,
   snapshotKindLabel,
   snapshotStatusLabel,
   snapshotStatusTone,
@@ -72,11 +73,18 @@ function SnapshotRow({ snapshot, share }: {
   /** Absent on the sample preview, where there is nothing real to share. */
   share?: { onShare: (snapshot: LocalAnimationSnapshot) => void; disabledReason: string | null };
 }) {
+  // Carried on the row itself rather than looked up through sourceComparisonId, so a reference
+  // says how it was read wherever it is shown — including after the comparison it came from has
+  // scrolled out of the session.
+  const clipKindNote = snapshotClipKindNote(snapshot.clipKind);
   return (
     <li className="animation-snapshots-row" data-kind={snapshot.kind}>
       <div className="animation-snapshots-row-main">
         <strong>{snapshot.name}</strong>
-        <small>ID {snapshot.assetId} · {snapshotKindLabel(snapshot.kind)}</small>
+        <small>
+          ID {snapshot.assetId} · {snapshotKindLabel(snapshot.kind)}
+          {clipKindNote ? <> · <span className="animation-snapshots-row-sampled">{clipKindNote}</span></> : null}
+        </small>
       </div>
       <span className={`animation-snapshots-status tone-${snapshotStatusTone(snapshot.status)}`}>
         {snapshotStatusLabel(snapshot.status)}

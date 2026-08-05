@@ -24,5 +24,18 @@ public record MotionSnapshotRecord(
         String supersedesSnapshotId,
         MotionSnapshotStatus status,
         PlaybackSettings settings,
+        String clipKindRaw,
         Instant createdAt) {
+
+    /**
+     * How the pinned clip's curves were read — {@code "KEYFRAME"} or {@code "CURVE_SAMPLED"} —
+     * recorded at capture time so a reference states its own provenance wherever it is shown.
+     *
+     * <p>Empty means UNKNOWN, which is a third state and not a synonym for KEYFRAME: every
+     * snapshot pinned before this was recorded reads empty, and inferring an exact read from
+     * silence would assert something the record never captured.
+     */
+    public java.util.Optional<String> clipKind() {
+        return java.util.Optional.ofNullable(clipKindRaw);
+    }
 }

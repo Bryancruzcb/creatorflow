@@ -350,3 +350,13 @@
 }
 .animation-snapshots-share-actions button:disabled { opacity: 0.6; cursor: progress; }
 .animation-snapshots-share-confirm { color: var(--ink); border-color: var(--ink-dim); }
+
+/*
+ * Clip provenance on a pinned row (#131). Italic and dim, in the same register as the pin card's
+ * sampled note above — a qualifier on the reference, not an alarm about it. Sampling is measured
+ * deterministic, so this row is as pinnable as any other; it just says what it is.
+ */
+.animation-snapshots-row-sampled {
+  font-style: italic;
+  color: var(--ink-dim);
+}
