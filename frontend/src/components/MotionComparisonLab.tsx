@@ -1164,14 +1164,19 @@ function RegistryMatchCard({ record, candidateName, pose, exact, mode }: {
  * authored source was copied. Same reason the snapshots panel labels a sampled side: the claim is
  * still true, but it is a claim about the reconstruction, and it has to say so on the surface that
  * makes it. The Studio plugin's own status line says the same thing.
+ *
+ * The similarity claims name the sampled side too, in short form. They promise a lead rather than a
+ * read, so there is no exactness to walk back — but this card is what gets screenshotted on its own,
+ * away from the snapshots panel that would otherwise be the only place the sampling shows.
  */
 export function evidenceExactnessClaim(comparison: LocalMotionComparison): string {
-  if (comparison.mirrored) return 'Similarity found MIRRORED, not as submitted';
-  if (!comparison.exactCurveData) return 'Similarity signal';
   const sourceSampled = comparison.sourceKind === 'CURVE_SAMPLED';
   const candidateSampled = comparison.candidateKind === 'CURVE_SAMPLED';
-  if (!sourceSampled && !candidateSampled) return 'Exact canonical curves';
-  const sides = sourceSampled && candidateSampled ? 'both sides' : sourceSampled ? 'the reference' : 'the candidate';
+  const sides = sourceSampled && candidateSampled ? 'both sides' : sourceSampled ? 'the reference' : candidateSampled ? 'the candidate' : null;
+  const sampledNote = sides ? ` — ${sides} curve-sampled` : '';
+  if (comparison.mirrored) return `Similarity found MIRRORED, not as submitted${sampledNote}`;
+  if (!comparison.exactCurveData) return `Similarity signal${sampledNote}`;
+  if (!sides) return 'Exact canonical curves';
   return `Exact canonical curves — ${sides} curve-sampled, so this matches the sampled reconstruction, not an authored-keyframe read`;
 }
 
