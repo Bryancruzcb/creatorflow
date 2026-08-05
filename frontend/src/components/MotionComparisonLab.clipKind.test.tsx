@@ -55,11 +55,35 @@ describe('Latest Studio evidence exactness claim', () => {
     expect(screen.getByText(/both sides curve-sampled, so this matches the sampled reconstruction, not an authored-keyframe read/)).toBeTruthy();
   });
 
-  it('leaves the mirrored and non-exact claims alone', () => {
-    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, verdict: 'HIGH_SIMILARITY', sourceKind: 'CURVE_SAMPLED' })} />);
-    expect(screen.getByText(/Similarity signal ·/)).toBeTruthy();
+  // The card is the part that gets screenshotted on its own, so a sampled side has to be
+  // readable without the snapshots panel next to it — on the similarity claims too, not just
+  // the exactness one. The similarity claims stay short: they promise a lead, not a read, so
+  // there is no exactness to walk back — only the side to name.
+  it('names the sampled side on the non-exact claim', () => {
+    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, verdict: 'HIGH_SIMILARITY', sourceKind: 'CURVE_SAMPLED', candidateKind: 'KEYFRAME' })} />);
+    expect(screen.getByText(/Similarity signal — the reference curve-sampled ·/)).toBeTruthy();
     cleanup();
-    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, mirrored: true, verdict: 'HIGH_SIMILARITY', sourceKind: 'CURVE_SAMPLED' })} />);
+    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, verdict: 'HIGH_SIMILARITY', sourceKind: 'KEYFRAME', candidateKind: 'CURVE_SAMPLED' })} />);
+    expect(screen.getByText(/Similarity signal — the candidate curve-sampled ·/)).toBeTruthy();
+    cleanup();
+    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, verdict: 'HIGH_SIMILARITY', sourceKind: 'CURVE_SAMPLED', candidateKind: 'CURVE_SAMPLED' })} />);
+    expect(screen.getByText(/Similarity signal — both sides curve-sampled ·/)).toBeTruthy();
+  });
+
+  it('names the sampled side on the mirrored claim', () => {
+    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, mirrored: true, verdict: 'HIGH_SIMILARITY', sourceKind: 'CURVE_SAMPLED', candidateKind: 'KEYFRAME' })} />);
+    expect(screen.getByText(/Similarity found MIRRORED, not as submitted — the reference curve-sampled ·/)).toBeTruthy();
+  });
+
+  it('leaves the similarity claims unqualified when neither side was sampled', () => {
+    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, verdict: 'HIGH_SIMILARITY', sourceKind: 'KEYFRAME', candidateKind: 'KEYFRAME' })} />);
+    expect(screen.getByText(/Similarity signal ·/)).toBeTruthy();
+    expect(screen.queryByText(/curve-sampled/i)).toBeNull();
+    cleanup();
+    // Records that predate clip kinds carry no kinds at all, and an absent kind is not a
+    // sampled one — those cards read exactly as they did before.
+    render(<LatestStudioEvidence comparison={comparison({ exactCurveData: false, mirrored: true, verdict: 'HIGH_SIMILARITY' })} />);
     expect(screen.getByText(/Similarity found MIRRORED, not as submitted ·/)).toBeTruthy();
+    expect(screen.queryByText(/curve-sampled/i)).toBeNull();
   });
 });
