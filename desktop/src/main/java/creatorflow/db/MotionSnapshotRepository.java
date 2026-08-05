@@ -30,10 +30,16 @@ public final class MotionSnapshotRepository {
         this.connection = database.connection();
     }
 
+    /**
+     * @param clipKind how this side's curves were read ({@code "KEYFRAME"} / {@code "CURVE_SAMPLED"}),
+     *                 or null when the caller does not know. Null and blank are both stored as SQL
+     *                 NULL, meaning UNKNOWN — the caller is never asked to invent a value, and this
+     *                 never defaults to KEYFRAME.
+     */
     public MotionSnapshotRecord capture(long projectId, String assetId, MotionSnapshotKind kind,
                                         String sourceComparisonId, String name, double duration,
                                         String fingerprint, String algorithmVersion,
-                                        PlaybackSettings settings) {
+                                        PlaybackSettings settings, String clipKind) {
         String asset = requireText(assetId, "asset ID");
         if (kind == null) throw new IllegalArgumentException("snapshot kind is required");
         String print = requireText(fingerprint, "fingerprint");
@@ -43,7 +49,8 @@ public final class MotionSnapshotRepository {
                 finiteNonNegative(duration, "duration"), print,
                 requireText(algorithmVersion, "algorithm version"),
                 null, MotionSnapshotStatus.FIRST_SNAPSHOT,
-                settings == null ? PlaybackSettings.unknown() : settings, Instant.now());
+                settings == null ? PlaybackSettings.unknown() : settings,
+                blankToNull(clipKind), Instant.now());
         synchronized (connection) {
             // Find-current and insert must be atomic so two captures can't both supersede the
             // same prior snapshot; the bridge serializes on this connection.
@@ -58,7 +65,7 @@ public final class MotionSnapshotRepository {
                     record.id(), projectId, asset, kind, record.sourceComparisonId(), record.name(),
                     record.duration(), print, record.algorithmVersion(),
                     previous.map(MotionSnapshotRecord::id).orElse(null), status,
-                    record.settings(), record.createdAt());
+                    record.settings(), record.clipKindRaw(), record.createdAt());
             insertLocked(toInsert);
             return toInsert;
         }
@@ -154,8 +161,8 @@ public final class MotionSnapshotRepository {
                 INSERT INTO motion_snapshots(
                   id, project_id, asset_id, kind, source_comparison_id, name, duration,
                   fingerprint, algorithm_version, supersedes_snapshot_id, status, created_at,
-                  looped, priority)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+                  looped, priority, clip_kind)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
             statement.setString(1, record.id());
             statement.setLong(2, record.projectId());
             statement.setString(3, record.assetId());
@@ -175,6 +182,7 @@ public final class MotionSnapshotRepository {
                 statement.setInt(13, looped ? 1 : 0);
             }
             statement.setString(14, record.settings().priority());
+            statement.setString(15, record.clipKindRaw());
             statement.executeUpdate();
         } catch (SQLException error) {
             throw new IllegalStateException("Could not persist motion snapshot", error);
@@ -190,6 +198,7 @@ public final class MotionSnapshotRepository {
                 result.getString("algorithm_version"), result.getString("supersedes_snapshot_id"),
                 MotionSnapshotStatus.valueOf(result.getString("status")),
                 readSettings(result),
+                result.getString("clip_kind"),
                 Instant.parse(result.getString("created_at")));
     }
 

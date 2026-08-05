@@ -65,15 +65,20 @@ export interface LocalMotionComparison {
    * this comparison. Absent means "not checked" — never read as a failure.
    */
   playability?: { source: AnimationPlayability; candidate: AnimationPlayability };
-  /**
-   * "KEYFRAME" (read directly from a KeyframeSequence) or "CURVE_SAMPLED"
-   * (baked from sampling a CurveAnimation at fixed intervals — an approximation,
-   * never as exact as a direct keyframe read). Absent for comparisons made
-   * before this field existed.
-   */
-  sourceKind?: 'KEYFRAME' | 'CURVE_SAMPLED';
-  candidateKind?: 'KEYFRAME' | 'CURVE_SAMPLED';
+  /** Absent for comparisons made before this field existed. */
+  sourceKind?: AnimationClipKind;
+  candidateKind?: AnimationClipKind;
 }
+
+/**
+ * How a clip's curve data was read out of Studio.
+ *
+ * "KEYFRAME" is read directly from a KeyframeSequence. "CURVE_SAMPLED" is baked from sampling a
+ * CurveAnimation at fixed intervals — an approximation, never as exact as a direct keyframe read.
+ * Absent, on any record that carries this, means the record predates the field: unknown, which is
+ * a third state and never a synonym for KEYFRAME.
+ */
+export type AnimationClipKind = 'KEYFRAME' | 'CURVE_SAMPLED';
 
 export interface RigPlayability {
   ok: boolean;
@@ -101,6 +106,11 @@ export interface LocalAnimationSnapshot {
   algorithmVersion: string;
   supersedesSnapshotId: string | null;
   status: AnimationSnapshotStatus;
+  /**
+   * How the pinned side's curves were read, recorded at capture time (#131). Absent on every
+   * snapshot pinned before the column existed — unknown provenance, never read as KEYFRAME.
+   */
+  clipKind?: AnimationClipKind;
   createdAt: string;
 }
 
