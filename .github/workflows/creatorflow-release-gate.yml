@@ -1,5 +1,15 @@
 name: CreatorFlow release gate
 
+# Dispatch-only, and it needs a manifest that main deliberately does not carry: which manifest
+# represents this repository is a product decision (#123). Fixture manifests live on
+# claude/release-gate-fixture-dispatch, one complete and one unresolved — dispatch with --ref that
+# branch and pass one of them as the manifest input.
+#
+# First exercised 2026-08-05 UTC, runs 30972362753 and 30972465476. Every step ran, on Temurin
+# 24.0.2: the complete manifest went green end to end, and the unresolved one recorded exit 2, still
+# uploaded its report, and failed at "Enforce result" — the gate refusing a release, which is the
+# point of it. Nothing in this file needed changing to make that work.
+
 on:
   workflow_dispatch:
     inputs:
@@ -32,7 +42,9 @@ jobs:
           # Must track maven.compiler.release in the parent pom, which #92 raised to 24 for
           # JavaFX 26. A JDK cannot compile --release above its own version, so this pin being
           # one behind meant the gate died at "Build release-gate CLI" before it ever read a
-          # manifest. It is workflow_dispatch-only and had never run, so nothing caught it.
+          # manifest, and nothing caught it because the workflow had never been dispatched. The
+          # first dispatch (see the note at the top) built and read a manifest, so the pin is now
+          # known good rather than assumed good — but only for release 24.
           java-version: "24"
           cache: maven
 
