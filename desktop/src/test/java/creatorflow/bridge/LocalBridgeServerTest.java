@@ -37,6 +37,7 @@ import creatorflow.service.opencloud.RateLimitedException;
 import creatorflow.service.team.TeamClient;
 import creatorflow.service.team.TeamSettings;
 import creatorflow.service.team.TeamStatus;
+import creatorflow.workflow.AnimationComparisonRecord;
 import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.ReleaseExportService;
 import creatorflow.workflow.ScanAccounting;
@@ -590,6 +591,85 @@ class LocalBridgeServerTest {
         HttpResponse<String> rejectedCandidate = pluginRequest(
                 "POST", "/plugin/v1/motion-comparisons", token, unknownCandidateKind);
         assertEquals(400, rejectedCandidate.statusCode(), rejectedCandidate.body());
+    }
+
+    /**
+     * The comparison view has to carry the playback settings the record already stores (#121).
+     *
+     * <p>Two clips identical except for {@code Looped} have identical curve data, so they get
+     * identical fingerprints, an EXACT_CURVE_DATA verdict, and every score at 100. That is correct
+     * and stays correct — the fingerprint is a curve-data claim and nothing else (see
+     * {@code creatorflow.motion.PlaybackSettings}). Both halves are pinned here on purpose: the
+     * scoring is asserted unchanged, so a later attempt to "fix" this by folding the flags into the
+     * fingerprint fails loudly, and the settings that explain why a looping idle and a one-shot pose
+     * read alike now actually reach the reader.
+     */
+    @Test
+    void motionComparisonViewCarriesBothSidesPlaybackSettings() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        String animation = """
+                {
+                  "assetId":"%s","name":"Idle","duration":1.0,"looped":%s,
+                  "priority":"%s","keyframes":[
+                    {"time":0.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                    {"time":1.0,"poses":[{"jointPath":"Root/Torso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                  ]
+                }
+                """;
+        String body = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("5001", "true", "Movement") + ",\"candidate\":"
+                + animation.formatted("5002", "false", "Action") + "}";
+        HttpResponse<String> compared = pluginRequest("POST", "/plugin/v1/motion-comparisons", token, body);
+        assertEquals(201, compared.statusCode(), compared.body());
+        JsonNode view = json.readTree(compared.body());
+
+        // Unchanged by design — the fix is presentation, and this says so in a way a rewrite breaks.
+        assertTrue(view.get("exactCurveData").asBoolean());
+        assertEquals(100, view.get("overallScore").asInt());
+
+        assertTrue(view.get("sourcePlayback").get("looped").asBoolean());
+        assertEquals("Movement", view.get("sourcePlayback").get("priority").asText());
+        assertFalse(view.get("candidatePlayback").get("looped").asBoolean());
+        assertEquals("Action", view.get("candidatePlayback").get("priority").asText());
+
+        // Re-read rather than only echoed: a reviewer opens this record days after the plugin ran,
+        // so the settings have to survive the columns, not just the response that wrote them.
+        JsonNode reread = json.readTree(get(
+                "/api/v1/motion-comparisons/" + view.get("id").asText(), cookie).body());
+        assertTrue(reread.get("sourcePlayback").get("looped").asBoolean());
+        assertEquals("Movement", reread.get("sourcePlayback").get("priority").asText());
+        assertFalse(reread.get("candidatePlayback").get("looped").asBoolean());
+        assertEquals("Action", reread.get("candidatePlayback").get("priority").asText());
+    }
+
+    /**
+     * Rows written before {@code V012} have NULL playback columns, and the view has to say nothing
+     * rather than guess.
+     *
+     * <p>A default would be worse than silence: rendering an unrecorded loop flag as "no" invents a
+     * difference nobody observed, which is the same mistake in the opposite direction from the one
+     * #121 fixes. {@code PlaybackSettings.unknown()} means unknown all the way to the wire.
+     */
+    @Test
+    void motionComparisonViewOmitsPlaybackSettingsThatWereNeverRecorded() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        AnimationComparisonRecord legacy = new AnimationComparisonRepository(database).insert(
+                projectId, "6001", "6002", "Idle", "Idle Copy", 1.0, 1.0,
+                "fingerprint-a", "fingerprint-a", 100, 100, 100, 100, true,
+                "{\"verdict\":\"EXACT_CURVE_DATA\"}", "creatorflow.motion-comparison/v1",
+                null, null, null, null, null, null);
+
+        JsonNode view = json.readTree(get("/api/v1/motion-comparisons/" + legacy.id(), cookie).body());
+        assertEquals("Exact curve data — provenance required", view.get("verdict").asText());
+        assertFalse(view.has("sourcePlayback"));
+        assertFalse(view.has("candidatePlayback"));
     }
 
     /**

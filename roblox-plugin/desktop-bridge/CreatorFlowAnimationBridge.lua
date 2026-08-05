@@ -1287,10 +1287,26 @@ compareButton.Activated:Connect(function()
 			-- submitted, so it is stated rather than folded into the percentage. The web surface
 			-- says this too; saying it in only one place is how the two routes start disagreeing.
 			local mirroredText = comparison.mirrored and " Matched MIRRORED, not as submitted." or ""
+			-- Looped and AnimationPriority are not curve data, so they are outside the fingerprint
+			-- on purpose: two clips that differ only in those genuinely do have identical curves,
+			-- and an exact verdict with 100s across the board is the honest reading. It is also the
+			-- reading that hides a looping idle next to a one-shot pose, so the difference is stated
+			-- here rather than left for someone to notice back in Studio. The web evidence card says
+			-- the same thing; a claim carried by only one surface is how the two start disagreeing.
+			local playbackDifferences = {}
+			if source.looped ~= candidate.looped then
+				table.insert(playbackDifferences, string.format("Looped: %s vs %s", source.looped and "yes" or "no", candidate.looped and "yes" or "no"))
+			end
+			if source.priority ~= candidate.priority then
+				table.insert(playbackDifferences, string.format("Priority: %s vs %s", tostring(source.priority), tostring(candidate.priority)))
+			end
+			local playbackText = #playbackDifferences > 0
+				and string.format(" Playback settings differ (%s), source first — this does not change the scores.", table.concat(playbackDifferences, ", "))
+				or ""
 			setStatus(
 				"success",
 				"Evidence saved · " .. formatScore(comparison.overallScore),
-				string.format("%s · %s.%s%s Open CreatorFlow to inspect record %s.", sourceId .. " ↔ " .. candidateId, verdict, exactText, mirroredText, comparisonId)
+				string.format("%s · %s.%s%s%s Open CreatorFlow to inspect record %s.", sourceId .. " ↔ " .. candidateId, verdict, exactText, mirroredText, playbackText, comparisonId)
 			)
 		end
 	end)

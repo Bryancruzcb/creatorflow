@@ -250,8 +250,11 @@ all but one are since fixed**:
 - `Looped`/`priority` are still excluded from the curve fingerprint — now a **documented,
   deliberate** definition (`PlaybackSettings.java`: EXACT_CURVE_DATA is a curve-data-only
   claim), with snapshot change-detection recording looped/priority beside the fingerprint
-  and classifying a Looped-only flip as CHANGED. Residual: the comparison-result view does
-  not yet surface a "playback settings differ" indicator — tracked in #121.
+  and classifying a Looped-only flip as CHANGED. The comparison-result view now says so too
+  (#121): the bridge payload carries both sides' recorded settings and the evidence card
+  prints "playback settings differ (…)" beside the verdict when they do, so a looping idle
+  next to a one-shot pose no longer reads as unqualified byte-equivalent evidence. Absent
+  settings stay silent — a record written before the columns existed observed nothing.
 - `PluginPairingService.revoke` — fixed: reachable via
   `POST /api/v1/projects/{id}/plugin-pairings/{pairingId}/revoke` and a Revoke button in
   the pairing list; issue + list + revoke complete the rotation surface.

@@ -595,6 +595,21 @@
   line-height: 1.5;
 }
 
+/*
+ * The playback-settings line (#121): how the two clips play, when they play differently.
+ *
+ * Rendered only when a difference exists, so it carries the review tone rather than the muted one
+ * the engine line uses — it is a fact the scores above cannot express, not a footnote about them.
+ */
+.motion-live-result-playback {
+  margin: 0;
+  padding: var(--space-2) var(--space-6) var(--space-3);
+  border-top: 1px solid var(--hairline);
+  color: var(--ink-dim);
+  font-size: var(--text-3xs);
+  line-height: 1.5;
+}
+
 .motion-live-result > div {
   display: grid;
   grid-template-columns: minmax(12rem, 2fr) repeat(4, minmax(5rem, 0.5fr));
