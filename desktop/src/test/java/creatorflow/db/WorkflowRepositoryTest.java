@@ -45,10 +45,12 @@ class WorkflowRepositoryTest {
                 assertTrue(result.next());
                 // A COUNT of applied migrations, not the highest version. Phase C added V014 and
                 // group review added V015 on separate branches; each branch wrote 14 for its own
-                // migration, so a merge that trusts either side is off by one. V016 (snapshot
-                // clip kind) makes 16 — bump this with every migration added, and rebase before
-                // trusting the number if another branch is adding one too.
-                assertEquals(16, result.getInt(1));
+                // migration, so a merge that trusts either side is off by one. It happened again
+                // with V016: snapshot clip kind and rig binding each claimed 16 on their own
+                // branch, and rig binding renumbered to V017 at rebase. 17 is the merged truth —
+                // bump this with every migration added, and rebase before trusting the number if
+                // another branch is adding one too.
+                assertEquals(17, result.getInt(1));
             }
             assertEquals(1, new ProjectRepository(database).count());
         }
@@ -137,7 +139,8 @@ class WorkflowRepositoryTest {
                     1.25, 1.18, "a".repeat(64), "b".repeat(64),
                     88, 91, 76, 100, false,
                     "{\"verdict\":\"MODERATE_SIMILARITY\"}", "creatorflow.motion-compare/v0.1",
-                    PlaybackSettings.of(true, "Movement"), PlaybackSettings.of(false, "Action"), null, null, null);
+                    PlaybackSettings.of(true, "Movement"), PlaybackSettings.of(false, "Action"),
+                    null, null, null, null);
             comparisonId = record.id();
             assertEquals(1, repository.forProject(projectId, 25, 0).size());
             assertEquals("1002", repository.findById(comparisonId).orElseThrow().candidateAssetId());

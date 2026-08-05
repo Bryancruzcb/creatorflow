@@ -348,7 +348,9 @@ as the owner's solo run or not at all. These gaps remain real and need that sess
    format; in review as PR #119.
 5. ~~Add a published-ID runtime probe on R6/R15~~ — shipped as Phase B (#118). Residual:
    the plugin's `RIG_ASSET_IDS` R6/R15 entries are `0` placeholders until a live Studio
-   session fills them (Rig Builder → copy asset ID).
+   session fills them (Rig Builder → copy asset ID). The structural joint-overlap check
+   (#122) is deliberately *not* on that dependency — it is derived desktop-side from the
+   submitted joint names and reports on every Compare regardless.
 6. Add an experience permission graph before claiming that an Animation ID is ready for both
    test and production.
 

@@ -31,6 +31,9 @@ import creatorflow.motion.MotionComparisonRequest;
 import creatorflow.motion.MotionSnapshotKind;
 import creatorflow.motion.NormalizedAnimation;
 import creatorflow.motion.PlaybackSettings;
+import creatorflow.motion.RigBindingReport;
+import creatorflow.motion.RigCompatibility;
+import creatorflow.motion.RigSkeleton;
 import creatorflow.workflow.AnimationComparisonRecord;
 import creatorflow.workflow.BatchDecisionService;
 import creatorflow.workflow.MotionSnapshotRecord;
@@ -352,6 +355,14 @@ public final class LocalBridgeServer implements AutoCloseable {
                     ? null : playabilityNode.toString();
             String sourceKind = clipKind(text(body, "sourceKind", null), "sourceKind");
             String candidateKind = clipKind(text(body, "candidateKind", null), "candidateKind");
+            /*
+             * Derived here and not in the plugin, and derived for every submission whether or not a
+             * live probe ran: the joint paths only exist at this moment (the record deliberately
+             * keeps no raw joint curves), and the check needs nothing from Studio — no rig asset, no
+             * playback, just the names. So a comparison from a plugin whose RIG_ASSET_IDS are still
+             * unfilled gets no playability report and still gets this.
+             */
+            String rigBindingJson = json.writeValueAsString(rigBindingView(source, candidate));
             AnimationComparisonRecord stored = animationComparisons.insert(
                     pairing.projectId(), source.assetId(), candidate.assetId(),
                     source.name(), candidate.name(), source.duration(), candidate.duration(),
@@ -361,7 +372,7 @@ public final class LocalBridgeServer implements AutoCloseable {
                     result.exactCurveData(), json.writeValueAsString(result), result.engineVersion(),
                     PlaybackSettings.of(source.looped(), source.priority()),
                     PlaybackSettings.of(candidate.looped(), candidate.priority()),
-                    playabilityJson, sourceKind, candidateKind);
+                    playabilityJson, sourceKind, candidateKind, rigBindingJson);
             sendJson(exchange, 201, animationComparisonView(stored));
             return;
         }
@@ -1661,6 +1672,35 @@ public final class LocalBridgeServer implements AutoCloseable {
         return view;
     }
 
+    /**
+     * Structural joint-overlap evidence for both sides against both stock rigs, shaped exactly like
+     * the plugin's {@code playability} object so the two read as one row per rig in the UI.
+     */
+    private static Map<String, Object> rigBindingView(NormalizedAnimation source, NormalizedAnimation candidate) {
+        Map<String, Object> view = new LinkedHashMap<>();
+        view.put("source", rigBindingSide(source));
+        view.put("candidate", rigBindingSide(candidate));
+        return view;
+    }
+
+    private static Map<String, Object> rigBindingSide(NormalizedAnimation animation) {
+        Map<String, Object> side = new LinkedHashMap<>();
+        side.put("r6", rigBindingEntry(RigCompatibility.check(animation, RigSkeleton.stockR6())));
+        side.put("r15", rigBindingEntry(RigCompatibility.check(animation, RigSkeleton.stockR15())));
+        return side;
+    }
+
+    private static Map<String, Object> rigBindingEntry(RigBindingReport report) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("rig", report.rig());
+        entry.put("channels", report.channels());
+        entry.put("boundChannels", report.boundChannels());
+        entry.put("boundPercent", report.boundPercent());
+        entry.put("warn", report.belowThreshold());
+        entry.put("unboundJoints", report.unboundJoints());
+        return entry;
+    }
+
     private Map<String, Object> animationComparisonView(AnimationComparisonRecord record) throws IOException {
         JsonNode result = json.readTree(record.resultJson());
         Map<String, Object> view = new LinkedHashMap<>();
@@ -1700,6 +1740,18 @@ public final class LocalBridgeServer implements AutoCloseable {
                 view.put("playability", json.readTree(raw));
             } catch (IOException error) {
                 throw new IllegalStateException("Stored playability JSON is invalid", error);
+            }
+        });
+        /*
+         * Beside playability, never inside it. A playability entry means a live probe ran on that
+         * rig; this one means CreatorFlow compared joint names locally. Both are evidence about the
+         * same rig and are shown together, but only one of them is an observation of Roblox.
+         */
+        record.rigBindingJson().ifPresent(raw -> {
+            try {
+                view.put("rigBinding", json.readTree(raw));
+            } catch (IOException error) {
+                throw new IllegalStateException("Stored rig binding JSON is invalid", error);
             }
         });
         record.sourceClipKind().ifPresent(kind -> view.put("sourceKind", kind));

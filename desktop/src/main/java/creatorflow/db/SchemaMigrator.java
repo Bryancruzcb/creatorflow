@@ -30,7 +30,9 @@ final class SchemaMigrator {
             new Migration(13, "animation_comparison_playability", "/creatorflow/db/migrations/V013__animation_comparison_playability.sql"),
             new Migration(14, "animation_comparison_clip_kind", "/creatorflow/db/migrations/V014__animation_comparison_clip_kind.sql"),
             new Migration(15, "decision_batches", "/creatorflow/db/migrations/V015__decision_batches.sql"),
-            new Migration(16, "motion_snapshot_clip_kind", "/creatorflow/db/migrations/V016__motion_snapshot_clip_kind.sql"));
+            new Migration(16, "motion_snapshot_clip_kind", "/creatorflow/db/migrations/V016__motion_snapshot_clip_kind.sql"),
+            new Migration(17, "animation_comparison_rig_binding",
+                    "/creatorflow/db/migrations/V017__animation_comparison_rig_binding.sql"));
 
     private final Connection connection;
 

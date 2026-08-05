@@ -483,6 +483,64 @@ class LocalBridgeServerTest {
     }
 
     @Test
+    void motionComparisonReportsStructuralRigBindingEvenWithoutAPlayabilityProbe() throws Exception {
+        ObjectMapper json = new ObjectMapper();
+        long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())
+                .get("projectId").asLong();
+        String token = json.readTree(post("/api/v1/projects/" + projectId + "/plugin-pairings",
+                cookie, origin.toString(), csrf).body()).get("token").asText();
+
+        // An R15-shaped clip: three channels named the way Roblox's stock R15 dummy names its parts,
+        // none of which exist on an R6 dummy.
+        String animation = """
+                {
+                  "assetId":"%s","name":"Walk","duration":1.0,"looped":true,
+                  "priority":"Movement","keyframes":[
+                    {"time":0.0,"poses":[
+                      {"jointPath":"HumanoidRootPart","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"},
+                      {"jointPath":"HumanoidRootPart/LowerTorso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"},
+                      {"jointPath":"HumanoidRootPart/LowerTorso/UpperTorso","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"},
+                      {"jointPath":"HumanoidRootPart/LowerTorso/UpperTorso/LeftUpperArm","transform":[0,0,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]},
+                    {"time":1.0,"poses":[
+                      {"jointPath":"HumanoidRootPart","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"},
+                      {"jointPath":"HumanoidRootPart/LowerTorso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"},
+                      {"jointPath":"HumanoidRootPart/LowerTorso/UpperTorso","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"},
+                      {"jointPath":"HumanoidRootPart/LowerTorso/UpperTorso/LeftUpperArm","transform":[0,0.25,0,1,0,0,0,1,0,0,0,1],"weight":1,"easingStyle":"Linear","easingDirection":"InOut"}]}
+                  ]
+                }
+                """;
+        // No "playability" key at all -- the exact submission a plugin sends while its stock-rig
+        // asset IDs are still unfilled. The structural check has to answer anyway; that is the
+        // whole point of deriving it here instead of in Studio.
+        String body = "{\"schema\":\"creatorflow.roblox-motion/v0.1\",\"source\":"
+                + animation.formatted("9101") + ",\"candidate\":" + animation.formatted("9102") + "}";
+        HttpResponse<String> compared = pluginRequest("POST", "/plugin/v1/motion-comparisons", token, body);
+        assertEquals(201, compared.statusCode(), compared.body());
+        JsonNode view = json.readTree(compared.body());
+        assertFalse(view.has("playability"));
+
+        JsonNode r15 = view.get("rigBinding").get("source").get("r15");
+        assertEquals("R15", r15.get("rig").asText());
+        assertEquals(4, r15.get("channels").asInt());
+        assertEquals(4, r15.get("boundChannels").asInt());
+        assertEquals(100, r15.get("boundPercent").asInt());
+        assertFalse(r15.get("warn").asBoolean());
+
+        JsonNode r6 = view.get("rigBinding").get("source").get("r6");
+        assertEquals(1, r6.get("boundChannels").asInt(), "only HumanoidRootPart exists on both rigs");
+        assertEquals(25, r6.get("boundPercent").asInt());
+        assertTrue(r6.get("warn").asBoolean());
+        assertTrue(r6.get("unboundJoints").toString().contains("LeftUpperArm"));
+
+        // Both sides are reported, and the record keeps it: a rig-binding warning has to survive
+        // the round trip to the history list, not just decorate the 201.
+        assertTrue(view.get("rigBinding").get("candidate").get("r6").get("warn").asBoolean());
+        String comparisonId = view.get("id").asText();
+        JsonNode reread = json.readTree(get("/api/v1/motion-comparisons/" + comparisonId, cookie).body());
+        assertEquals(25, reread.get("rigBinding").get("source").get("r6").get("boundPercent").asInt());
+    }
+
+    @Test
     void motionComparisonAcceptsAndReturnsOptionalClipKinds() throws Exception {
         ObjectMapper json = new ObjectMapper();
         long projectId = json.readTree(post("/api/v1/project-picker", cookie, origin.toString(), csrf).body())

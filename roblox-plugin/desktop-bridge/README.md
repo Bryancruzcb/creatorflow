@@ -81,6 +81,13 @@ reads **Not checked** (`NOT_VERIFIED`). A wrong-but-nonzero ID, or an ID that lo
 not a rig, lands in the exact same silent path — which is why a wrong ID is worse than the
 placeholder: it looks filled in while checking nothing.
 
+The **structural rig-binding line** under each of those rows is a different check and does not
+depend on any of this. CreatorFlow derives it desktop-side from the joint names the clip already
+sends — how many of the animation's channels name a joint the stock R6/R15 skeleton actually has —
+so it reports on every Compare whether or not these IDs are filled. That check is what catches a
+rig-incompatible clip; the live probe cannot, because Roblox plays such a clip without complaint
+(see issue #122).
+
 ### What research found (2026-08-03, not re-verified in a live Studio)
 
 - **Rig Builder does not hand you an asset ID.** The rig tool the code comment points at

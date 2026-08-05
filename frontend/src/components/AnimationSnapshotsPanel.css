@@ -123,6 +123,18 @@
 }
 .animation-snapshots-playability-row small { color: var(--ink-dim); font-size: var(--text-2xs); }
 
+.animation-snapshots-playability-rig { display: flex; flex-direction: column; gap: 0.15rem; }
+/* Indented to the probe row's text column, so the binding line reads as a second fact about the
+   same rig rather than a row of its own. */
+.animation-snapshots-bind {
+  padding-left: 2.6rem;
+  color: var(--ink-dim);
+  font-size: var(--text-2xs);
+}
+/* --review, not --blocked: a low bind fraction is a review lead for a person, never a verdict that
+   the clip is unusable. Same discipline the ownership mismatch copy follows. */
+.animation-snapshots-bind.is-warning { color: var(--review); }
+
 .animation-snapshots-sampled-note {
   margin: 0;
   font-size: var(--text-2xs);

@@ -65,6 +65,13 @@ export interface LocalMotionComparison {
    * this comparison. Absent means "not checked" — never read as a failure.
    */
   playability?: { source: AnimationPlayability; candidate: AnimationPlayability };
+  /**
+   * Structural joint-overlap evidence, derived by CreatorFlow from the submitted joint names —
+   * not an observation of Roblox, and deliberately not merged into `playability`. Present on any
+   * comparison stored since the check shipped, including ones no live probe ever ran for; absent
+   * on older records, whose joint paths were never retained and cannot be re-derived.
+   */
+  rigBinding?: { source: AnimationRigBinding; candidate: AnimationRigBinding };
   /** Absent for comparisons made before this field existed. */
   sourceKind?: AnimationClipKind;
   candidateKind?: AnimationClipKind;
@@ -89,6 +96,32 @@ export interface AnimationPlayability {
   /** Absent, not null, when that rig's probe never ran at all (e.g. the rig fetch failed) — reads NOT_VERIFIED, never a failed VERIFIED. */
   r6?: RigPlayability;
   r15?: RigPlayability;
+}
+
+/**
+ * How much of an animation's channel set a rig can actually bind.
+ *
+ * A live probe reports `ok: true` for a clip whose channels bind to nothing — Roblox neither errors
+ * nor warns when an animation's joints are not on the rig, it just silently plays the ones that are.
+ * This is the other half of the answer: "it loaded" plus "most of it binds here".
+ */
+export interface RigBinding {
+  rig: string;
+  /** Distinct joint names the animation targets. */
+  channels: number;
+  /** How many of those the rig has a joint for. */
+  boundChannels: number;
+  /** Floored, so the number shown never reads as passing next to a warning. */
+  boundPercent: number;
+  /** True below the bind threshold: too little of the clip lands on this rig to imply playability. */
+  warn: boolean;
+  /** A capped sample of the names with no place on this rig — examples for a reader, not the measurement. */
+  unboundJoints: string[];
+}
+
+export interface AnimationRigBinding {
+  r6: RigBinding;
+  r15: RigBinding;
 }
 
 export type AnimationSnapshotKind = 'LAST_KNOWN_GOOD' | 'LAST_PUBLISHED';

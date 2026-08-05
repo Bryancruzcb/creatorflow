@@ -41,13 +41,13 @@ class AnimationComparisonRepositoryTest {
         AnimationComparisonRecord withPlayability = repo.insert(projectId, "1001", "1002", "Walk", "Walk",
                 1.0, 1.0, "fp1", "fp2", 100, 100, 100, 100, true,
                 "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
-                playability, null, null);
+                playability, null, null, null);
         assertEquals(Optional.of(playability), withPlayability.playabilityJson());
 
         AnimationComparisonRecord withoutPlayability = repo.insert(projectId, "2001", "2002", "Run", "Run",
                 1.0, 1.0, "fp3", "fp4", 100, 100, 100, 100, true,
                 "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
-                null, null, null);
+                null, null, null, null);
         assertEquals(Optional.empty(), withoutPlayability.playabilityJson());
 
         assertEquals(Optional.of(playability), repo.findById(withPlayability.id()).orElseThrow().playabilityJson());
@@ -59,14 +59,14 @@ class AnimationComparisonRepositoryTest {
         AnimationComparisonRecord withKinds = repo.insert(projectId, "5001", "5002", "Walk", "Walk",
                 1.0, 1.0, "fp5", "fp6", 100, 100, 100, 100, true,
                 "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
-                null, "KEYFRAME", "CURVE_SAMPLED");
+                null, "KEYFRAME", "CURVE_SAMPLED", null);
         assertEquals(Optional.of("KEYFRAME"), withKinds.sourceClipKind());
         assertEquals(Optional.of("CURVE_SAMPLED"), withKinds.candidateClipKind());
 
         AnimationComparisonRecord withoutKinds = repo.insert(projectId, "6001", "6002", "Run", "Run",
                 1.0, 1.0, "fp7", "fp8", 100, 100, 100, 100, true,
                 "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
-                null, null, null);
+                null, null, null, null);
         assertEquals(Optional.empty(), withoutKinds.sourceClipKind());
         assertEquals(Optional.empty(), withoutKinds.candidateClipKind());
 
@@ -80,5 +80,31 @@ class AnimationComparisonRepositoryTest {
         AnimationComparisonRecord rereadWithout = repo.findById(withoutKinds.id()).orElseThrow();
         assertEquals(Optional.empty(), rereadWithout.sourceClipKind());
         assertEquals(Optional.empty(), rereadWithout.candidateClipKind());
+    }
+
+    @Test
+    void roundTripsOptionalRigBindingJsonIndependentlyOfPlayability() {
+        // Separate columns because the two answer different questions: playability is what a live
+        // Studio probe saw, rig binding is what CreatorFlow derived from the joint names. A record
+        // can carry either one alone -- most usefully the second one, on a plugin whose stock-rig
+        // asset IDs are still unfilled and therefore never probed anything.
+        String rigBinding = "{\"source\":{\"r6\":{\"boundPercent\":12,\"warn\":true}},"
+                + "\"candidate\":{\"r6\":{\"boundPercent\":100,\"warn\":false}}}";
+
+        AnimationComparisonRecord bindingOnly = repo.insert(projectId, "8001", "8002", "Walk", "Walk",
+                1.0, 1.0, "fp9", "fp10", 100, 100, 100, 100, true,
+                "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
+                null, null, null, rigBinding);
+        assertEquals(Optional.of(rigBinding), bindingOnly.rigBindingJson());
+        assertEquals(Optional.empty(), bindingOnly.playabilityJson());
+
+        AnimationComparisonRecord neither = repo.insert(projectId, "9001", "9002", "Run", "Run",
+                1.0, 1.0, "fp11", "fp12", 100, 100, 100, 100, true,
+                "{\"verdict\":\"MATCH\"}", "motion-v2", PlaybackSettings.unknown(), PlaybackSettings.unknown(),
+                null, null, null, null);
+        assertEquals(Optional.empty(), neither.rigBindingJson());
+
+        assertEquals(Optional.of(rigBinding), repo.findById(bindingOnly.id()).orElseThrow().rigBindingJson());
+        assertEquals(Optional.empty(), repo.findById(neither.id()).orElseThrow().rigBindingJson());
     }
 }
