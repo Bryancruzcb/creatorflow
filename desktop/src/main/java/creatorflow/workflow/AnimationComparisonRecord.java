@@ -27,6 +27,7 @@ public record AnimationComparisonRecord(
         String playabilityJsonRaw,
         String sourceClipKindRaw,
         String candidateClipKindRaw,
+        String rigBindingJsonRaw,
         Instant createdAt) {
 
     /** Raw playability JSON, if a probe ran for this comparison — absent for anything checked before this field existed. */
@@ -42,5 +43,21 @@ public record AnimationComparisonRecord(
     /** "KEYFRAME" or "CURVE_SAMPLED" — absent for comparisons made before Phase C shipped. */
     public java.util.Optional<String> candidateClipKind() {
         return java.util.Optional.ofNullable(candidateClipKindRaw);
+    }
+
+    /**
+     * Structural joint-overlap evidence: how much of each side binds to the stock R6/R15 skeletons.
+     *
+     * <p>Kept in its own column rather than folded into {@link #playabilityJson()} because the two
+     * have different provenance. Playability is what the Studio plugin observed on a live rig; this
+     * is derived locally from the submitted joint paths, and it exists for comparisons where no live
+     * probe ever ran. Mixing them would make "a report exists for this rig" — the thing the UI reads
+     * as VERIFIED — stop meaning "a live check happened".
+     *
+     * <p>Absent for comparisons stored before this field existed; the joint paths are not retained,
+     * so it cannot be backfilled.
+     */
+    public java.util.Optional<String> rigBindingJson() {
+        return java.util.Optional.ofNullable(rigBindingJsonRaw);
     }
 }

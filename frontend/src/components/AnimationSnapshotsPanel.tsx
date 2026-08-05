@@ -373,21 +373,47 @@ export function AnimationSnapshotsPanel({ bridgeClient, project, latestCompariso
                   ) : null}
                   {(() => {
                     const report = latestComparison?.playability?.[clip.side];
+                    const binding = latestComparison?.rigBinding?.[clip.side];
                     return (
                       <div className="animation-snapshots-side-playability">
                         {(['r6', 'r15'] as const).map((rig) => {
                           const rigResult = report?.[rig];
+                          const rigBinding = binding?.[rig];
                           return (
-                            <div key={rig} className="animation-snapshots-playability-row">
-                              <span className="animation-snapshots-playability-label">{rig.toUpperCase()}</span>
-                              <EvidenceBasisMark basis={rigResult ? 'VERIFIED' : 'NOT_VERIFIED'} compact />
-                              <small>
-                                {!rigResult
-                                  ? 'Not checked'
-                                  : rigResult.ok
-                                    ? 'Plays clean'
-                                    : rigResult.error ?? 'Playback error'}
-                              </small>
+                            <div key={rig} className="animation-snapshots-playability-rig">
+                              <div className="animation-snapshots-playability-row">
+                                <span className="animation-snapshots-playability-label">{rig.toUpperCase()}</span>
+                                <EvidenceBasisMark basis={rigResult ? 'VERIFIED' : 'NOT_VERIFIED'} compact />
+                                <small>
+                                  {!rigResult
+                                    ? 'Not checked'
+                                    : rigResult.ok
+                                      ? 'Plays clean'
+                                      : rigResult.error ?? 'Playback error'}
+                                </small>
+                              </div>
+                              {/*
+                                * Deliberately a second line under the probe's own, never folded into
+                                * it: "it loaded" and "most of it binds to this rig" are separate
+                                * facts from separate sources, and a clip can pass the first while
+                                * failing the second — the whole reason this check exists. Nothing
+                                * renders when the check has nothing to say (an older comparison, or
+                                * a clip with no channels at all).
+                                */}
+                              {rigBinding && rigBinding.channels > 0 ? (
+                                <small
+                                  className={rigBinding.warn
+                                    ? 'animation-snapshots-bind is-warning'
+                                    : 'animation-snapshots-bind'}
+                                  title={rigBinding.unboundJoints.length > 0
+                                    ? `No joint on this rig for: ${rigBinding.unboundJoints.join(', ')}`
+                                    : undefined}
+                                >
+                                  {rigBinding.warn
+                                    ? `Only ${rigBinding.boundPercent}% of channels bind to this rig (${rigBinding.boundChannels} of ${rigBinding.channels})`
+                                    : `${rigBinding.boundChannels} of ${rigBinding.channels} channels bind to this rig`}
+                                </small>
+                              ) : null}
                             </div>
                           );
                         })}

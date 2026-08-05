@@ -1,8 +1,8 @@
 // @vitest-environment jsdom
 import { describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import { AnimationSnapshotsPanel } from './AnimationSnapshotsPanel';
-import type { LocalBridgeClient, LocalMotionComparison, LocalProjectSummary } from '../bridge/localBridge';
+import type { LocalBridgeClient, LocalMotionComparison, LocalProjectSummary, RigBinding } from '../bridge/localBridge';
 
 function makeBridgeClient(): LocalBridgeClient {
   const client = {
@@ -73,5 +73,64 @@ describe('AnimationSnapshotsPanel playability evidence', () => {
       },
     })} />);
     expect(screen.getAllByText(/not checked/i).length).toBeGreaterThan(0);
+  });
+});
+
+describe('AnimationSnapshotsPanel rig binding evidence', () => {
+  function binding(overrides: Partial<RigBinding>): RigBinding {
+    return { rig: 'R6', channels: 16, boundChannels: 16, boundPercent: 100, warn: false, unboundJoints: [], ...overrides };
+  }
+
+  function bothSides(r6: RigBinding, r15: RigBinding) {
+    return { source: { r6, r15 }, candidate: { r6, r15 } };
+  }
+
+  it('warns when most of the clip binds to nothing on a rig, beside a clean probe result', () => {
+    // The exact case issue #122 is about: the live probe says the clip plays, and it does — on two
+    // of sixteen channels. Both statements have to be on the row at once, or "Plays clean" reads as
+    // "this animation works on R6".
+    render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
+      playability: {
+        source: { r6: { ok: true }, r15: { ok: true } },
+        candidate: { r6: { ok: true }, r15: { ok: true } },
+      },
+      rigBinding: bothSides(
+        binding({ rig: 'R6', boundChannels: 2, boundPercent: 12, warn: true, unboundJoints: ['LeftUpperArm', 'LeftHand'] }),
+        binding({ rig: 'R15' }),
+      ),
+    })} />);
+    expect(screen.getAllByText(/plays clean/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/only 12% of channels bind/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByTitle(/LeftUpperArm/).length).toBeGreaterThan(0);
+  });
+
+  it('states the binding fraction without a warning when the clip fits the rig', () => {
+    // Scoped to this render's own container: there is no setupFiles entry and so no RTL auto-
+    // cleanup in this project, and a `screen`-wide negative assertion would be answered by an
+    // earlier test's leftover DOM instead of this one's.
+    const { container } = render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
+      rigBinding: bothSides(binding({ rig: 'R6' }), binding({ rig: 'R15' })),
+    })} />);
+    expect(within(container).getAllByText(/16 of 16 channels bind/i).length).toBeGreaterThan(0);
+    expect(within(container).queryByText(/only .* of channels bind/i)).toBeNull();
+  });
+
+  it('reports binding even when no live probe ran at all', () => {
+    // The structural check needs no rig asset and no Studio, so a plugin whose RIG_ASSET_IDS are
+    // still placeholders produces no playability report and this evidence anyway. If this ever
+    // regressed to "only shown beside a probe", the check would be dark on every install today.
+    render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({
+      rigBinding: bothSides(
+        binding({ rig: 'R6', boundChannels: 2, boundPercent: 28, warn: true, unboundJoints: ['Left Arm'] }),
+        binding({ rig: 'R15', boundChannels: 2, boundPercent: 28, warn: true, unboundJoints: ['Left Arm'] }),
+      ),
+    })} />);
+    expect(screen.getAllByText(/not checked/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/only 28% of channels bind/i).length).toBeGreaterThan(0);
+  });
+
+  it('says nothing about a comparison stored before the check existed', () => {
+    const { container } = render(<AnimationSnapshotsPanel bridgeClient={makeBridgeClient()} project={PROJECT} latestComparison={comparison({})} />);
+    expect(within(container).queryByText(/channels bind/i)).toBeNull();
   });
 });

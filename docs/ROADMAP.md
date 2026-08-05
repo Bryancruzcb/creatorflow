@@ -83,8 +83,11 @@ loop/priority/markers, and loads clean. One residual, owner-only: the
 desktop-bridge plugin's `RIG_ASSET_IDS` R6/R15 entries are still `0`
 placeholders — filling them needs a live Studio session (Rig Builder → copy
 asset ID); until then the probe's standard-rig path no-ops gracefully. The
-structural rig-compatibility follow-on (a rig-incompatible animation still
-reports ok) is tracked in #122.
+structural rig-compatibility follow-on (#122) is built: every comparison now
+also reports what fraction of each clip's channels bind to the stock R6 and R15
+skeletons, and warns below 75%, so "plays clean" is no longer the whole claim.
+That check is derived locally from the submitted joint names — it needs no rig
+asset and no Studio, so it answers today, placeholders or not.
 
 ### Phase C — CurveAnimation support  *(in review — PR #119)*
 The plugin reads only `KeyframeSequence` today; PR #119 adds curve-based

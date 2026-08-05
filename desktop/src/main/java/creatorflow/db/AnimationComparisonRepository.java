@@ -33,7 +33,8 @@ public final class AnimationComparisonRepository {
                                             PlaybackSettings candidateSettings,
                                             String playabilityJson,
                                             String sourceClipKind,
-                                            String candidateClipKind) {
+                                            String candidateClipKind,
+                                            String rigBindingJson) {
         AnimationComparisonRecord record = new AnimationComparisonRecord(
                 UUID.randomUUID().toString(), projectId,
                 requireText(sourceAssetId, "source asset ID"),
@@ -52,6 +53,7 @@ public final class AnimationComparisonRepository {
                 playabilityJson == null || playabilityJson.isBlank() ? null : playabilityJson,
                 sourceClipKind == null || sourceClipKind.isBlank() ? null : sourceClipKind,
                 candidateClipKind == null || candidateClipKind.isBlank() ? null : candidateClipKind,
+                rigBindingJson == null || rigBindingJson.isBlank() ? null : rigBindingJson,
                 Instant.now());
         synchronized (connection) {
             try (PreparedStatement statement = connection.prepareStatement("""
@@ -61,8 +63,8 @@ public final class AnimationComparisonRepository {
                       overall_score, pose_score, timing_score, coverage_score, exact_curve_data,
                       result_json, algorithm_version, created_at,
                       source_looped, source_priority, candidate_looped, candidate_priority,
-                      playability_json, source_clip_kind, candidate_clip_kind)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
+                      playability_json, source_clip_kind, candidate_clip_kind, rig_binding_json)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""")) {
                 statement.setString(1, record.id());
                 statement.setLong(2, record.projectId());
                 statement.setString(3, record.sourceAssetId());
@@ -88,6 +90,7 @@ public final class AnimationComparisonRepository {
                 statement.setString(23, record.playabilityJson().orElse(null));
                 statement.setString(24, record.sourceClipKind().orElse(null));
                 statement.setString(25, record.candidateClipKind().orElse(null));
+                statement.setString(26, record.rigBindingJson().orElse(null));
                 statement.executeUpdate();
                 return record;
             } catch (SQLException error) {
@@ -164,6 +167,7 @@ public final class AnimationComparisonRepository {
                 result.getString("playability_json"),
                 result.getString("source_clip_kind"),
                 result.getString("candidate_clip_kind"),
+                result.getString("rig_binding_json"),
                 Instant.parse(result.getString("created_at")));
     }
 
