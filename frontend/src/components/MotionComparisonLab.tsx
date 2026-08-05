@@ -1180,13 +1180,46 @@ export function evidenceExactnessClaim(comparison: LocalMotionComparison): strin
   return `Exact canonical curves — ${sides} curve-sampled, so this matches the sampled reconstruction, not an authored-keyframe read`;
 }
 
+/**
+ * How the two clips play, stated beside the verdict when they play differently (#121).
+ *
+ * A looping idle and a one-shot pose built from the same curves get identical fingerprints, an
+ * EXACT_CURVE_DATA verdict and 100 across every score. That is right — the fingerprint covers curve
+ * data and the loop flag is not curve data — but on its own it reads as "these two are the same
+ * clip" to anyone reviewing the record. The settings were already stored beside the fingerprint and
+ * simply never shown, so this says the part the scores structurally cannot.
+ *
+ * Nothing here feeds a score, a verdict or a fingerprint; it is a sentence next to them.
+ *
+ * Returns null unless a setting was observed on BOTH sides and the two observations disagree. An
+ * unrecorded setting is not a difference: reporting one would invent an observation out of a record
+ * that predates the column, which is the same error #121 fixes, pointed the other way.
+ */
+export function playbackSettingsNote(comparison: LocalMotionComparison): string | null {
+  const source = comparison.sourcePlayback;
+  const candidate = comparison.candidatePlayback;
+  if (!source || !candidate) return null;
+  const differences: string[] = [];
+  if (source.looped !== undefined && candidate.looped !== undefined && source.looped !== candidate.looped) {
+    differences.push(`Looped: ${source.looped ? 'yes' : 'no'} vs ${candidate.looped ? 'yes' : 'no'}`);
+  }
+  if (source.priority !== undefined && candidate.priority !== undefined && source.priority !== candidate.priority) {
+    differences.push(`Priority: ${source.priority} vs ${candidate.priority}`);
+  }
+  if (!differences.length) return null;
+  return `Playback settings differ (${differences.join(', ')}) — reference first. `
+    + 'These sit outside the curve fingerprint, so they do not change the scores or the verdict.';
+}
+
 /** The stored-evidence card under the Studio pairing panel. Extracted so it can be rendered in a test. */
 export function LatestStudioEvidence({ comparison }: { comparison: LocalMotionComparison }) {
+  const playbackNote = playbackSettingsNote(comparison);
   return (
     <article className="motion-live-result">
       <header><span><i />Latest Studio evidence</span><time dateTime={comparison.createdAt}>{new Date(comparison.createdAt).toLocaleString()}</time></header>
       <div><span><small>Animation IDs</small><strong>{comparison.sourceAssetId} ↔ {comparison.candidateAssetId}</strong></span><span><small>Overall</small><strong>{comparison.overallPercent}%</strong></span><span><small>Pose</small><strong>{comparison.posePercent}%</strong></span><span><small>Timing</small><strong>{comparison.timingPercent}%</strong></span><span><small>Coverage</small><strong>{comparison.coveragePercent}%</strong></span></div>
       <footer><strong>{comparison.verdict}</strong><span>{evidenceExactnessClaim(comparison)} · evidence ID {comparison.id.slice(0, 8)}</span></footer>
+      {playbackNote ? <p className="motion-live-result-playback">{playbackNote}</p> : null}
       <p className="motion-live-result-engine">Scored by the {comparisonEngineLabel(comparison.algorithmVersion)} at submission{comparisonEngineCaveat(comparison.algorithmVersion) ? <> — {comparisonEngineCaveat(comparison.algorithmVersion)}</> : '.'}</p>
     </article>
   );

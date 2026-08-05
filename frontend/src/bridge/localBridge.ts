@@ -33,6 +33,23 @@ export interface LocalPluginPairingSummary {
   status: PluginPairingStatus;
 }
 
+/**
+ * One clip's playback settings as recorded when the comparison ran — how it plays, not what it
+ * animates.
+ *
+ * These sit deliberately outside the curve fingerprint (`PlaybackSettings.java`): two clips with
+ * identical curves and different loop flags really do have identical curve data, which is all
+ * EXACT_CURVE_DATA claims. They are recorded beside it so the difference can still be reported.
+ *
+ * Optional at both levels, and the two absences mean different things. The whole object is missing
+ * on records written before the columns existed; a single field is missing when only that one went
+ * unrecorded. Neither is a value — unknown is never a difference.
+ */
+export interface LocalPlaybackSettings {
+  looped?: boolean;
+  priority?: string;
+}
+
 export interface LocalMotionComparison {
   id: string;
   projectId: number;
@@ -75,6 +92,9 @@ export interface LocalMotionComparison {
   /** Absent for comparisons made before this field existed. */
   sourceKind?: AnimationClipKind;
   candidateKind?: AnimationClipKind;
+  /** How each side plays back. Absent for comparisons stored before these were recorded. */
+  sourcePlayback?: LocalPlaybackSettings;
+  candidatePlayback?: LocalPlaybackSettings;
 }
 
 /**

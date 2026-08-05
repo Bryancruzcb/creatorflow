@@ -1756,9 +1756,36 @@ public final class LocalBridgeServer implements AutoCloseable {
         });
         record.sourceClipKind().ifPresent(kind -> view.put("sourceKind", kind));
         record.candidateClipKind().ifPresent(kind -> view.put("candidateKind", kind));
+        /*
+         * Both sides' playback settings, so a reader can see why an EXACT_CURVE_DATA verdict with
+         * every score at 100 can still describe two clips that play differently (issue #121).
+         *
+         * The record has carried these since V012 and nothing displayed them, so a looping idle and
+         * a one-shot pose read as byte-equivalent evidence with no hint otherwise. This is a
+         * presentation fix and only that: the settings stay outside the fingerprint on purpose
+         * (PlaybackSettings), and no score, verdict or digest is computed from them here.
+         */
+        playbackSettingsView(record.sourceSettings()).ifPresent(settings -> view.put("sourcePlayback", settings));
+        playbackSettingsView(record.candidateSettings()).ifPresent(settings -> view.put("candidatePlayback", settings));
         view.put("result", result);
         view.put("creatorFlowUrl", origin + "/#workspace?view=motion");
         return view;
+    }
+
+    /**
+     * One side's recorded playback settings, or nothing at all.
+     *
+     * <p>Empty rather than defaulted when nothing was observed: a row written before {@code V012}
+     * knows neither that a clip loops nor that it does not, and sending {@code looped: false} for it
+     * would put an invented observation in front of a reviewer. Each field is omitted on its own for
+     * the same reason, so a half-recorded row reports only the half it has.
+     */
+    private static Optional<Map<String, Object>> playbackSettingsView(PlaybackSettings settings) {
+        if (settings == null || !settings.isKnown()) return Optional.empty();
+        Map<String, Object> view = new LinkedHashMap<>();
+        if (settings.looped() != null) view.put("looped", settings.looped());
+        if (settings.priority() != null) view.put("priority", settings.priority());
+        return Optional.of(view);
     }
 
     private Map<String, Object> snapshotView(MotionSnapshotRecord record) {
