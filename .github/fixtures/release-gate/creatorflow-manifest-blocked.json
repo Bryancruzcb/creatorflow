@@ -1,0 +1,105 @@
+{
+  "$schema" : "creatorflow.manifest/v0.1",
+  "project" : {
+    "name" : "creatorflow-docs-screenshots",
+    "release" : "0.0.0-ci-fixture"
+  },
+  "generatedAt" : "2026-08-05T03:26:41.293274100Z",
+  "summary" : {
+    "total" : 4,
+    "clear" : 4,
+    "similar" : 0,
+    "duplicate" : 0,
+    "unresolvedSources" : 4,
+    "pendingDecisions" : 4
+  },
+  "assets" : [ {
+    "path" : "preflight-blocked.png",
+    "fileName" : "preflight-blocked.png",
+    "fileType" : "png",
+    "sizeBytes" : 1557043,
+    "sha256" : "e7a76437bc0fa9387cd40bf19496d25d98cfd87b02fb41d99d2d677aa2048a01",
+    "width" : 2064,
+    "height" : 2166,
+    "fingerprints" : {
+      "dHash" : "105b2d2489223040",
+      "pHash" : "fdb7a949525a0703",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "preflight-evidence.png",
+    "fileName" : "preflight-evidence.png",
+    "fileType" : "png",
+    "sizeBytes" : 1183016,
+    "sha256" : "7279e411c3092514fc6d1640c4c071a857d4c23ccc36dd0f888f2809fcd793ca",
+    "width" : 2061,
+    "height" : 1625,
+    "fingerprints" : {
+      "dHash" : "22114702a7c68881",
+      "pHash" : "e6d219a5e6463dc8",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "web-asset.png",
+    "fileName" : "web-asset.png",
+    "fileType" : "png",
+    "sizeBytes" : 82072,
+    "sha256" : "54317df52258ab3bb64b7acd00dfd411356b05f205faca4bf0c9088152e845dc",
+    "width" : 1500,
+    "height" : 1350,
+    "fingerprints" : {
+      "dHash" : "0018008080828282",
+      "pHash" : "895b39a5e6662e64",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  }, {
+    "path" : "web-compare.png",
+    "fileName" : "web-compare.png",
+    "fileType" : "png",
+    "sizeBytes" : 39950,
+    "sha256" : "b2d2c66c7e31d313510e4295accfdb370a2b76d2f36363a757af2eeeddac76bf",
+    "width" : 1500,
+    "height" : 950,
+    "fingerprints" : {
+      "dHash" : "8080421a80808080",
+      "pHash" : "c3c33e3c3cc3c383",
+      "audio" : null
+    },
+    "verification" : "CLEAR",
+    "source" : {
+      "source" : null,
+      "license" : null,
+      "evidenceUrl" : null
+    },
+    "decision" : "PENDING",
+    "matches" : [ ],
+    "findings" : [ "No embedded authorship metadata. Common for exported game assets, but provenance cannot be confirmed from the file alone." ]
+  } ]
+}

@@ -7,13 +7,21 @@ carries no committed manifest — choosing the manifest that represents this rep
 decision (issue #123). So this branch, `claude/release-gate-fixture-dispatch`, carries a fixture
 instead, and the gate is dispatched with `--ref` pointed at it. `main` stays clean.
 
-Dispatch it with:
+There are two fixtures, because a gate that only ever passes proves nothing:
 
 ```bash
+# passes — the whole workflow goes green
 gh workflow run creatorflow-release-gate.yml \
   --repo Bryancruzcb/creatorflow \
   --ref claude/release-gate-fixture-dispatch \
   -f manifest=.github/fixtures/release-gate/creatorflow-manifest.json
+
+# policy-blocked — "Evaluate manifest" records exit 2, the report still uploads,
+# and "Enforce result" fails the run. A red run here is the gate working.
+gh workflow run creatorflow-release-gate.yml \
+  --repo Bryancruzcb/creatorflow \
+  --ref claude/release-gate-fixture-dispatch \
+  -f manifest=.github/fixtures/release-gate/creatorflow-manifest-blocked.json
 ```
 
 ## What it is
@@ -43,6 +51,11 @@ writer's own:
 The result is a `creatorflow.manifest/v0.2` manifest carrying an embedded `gate` block of `PASS`,
 so a dispatch also exercises `ReleaseGateCli`'s embedded-gate integrity check (exit 4 when a
 manifest's own claimed result disagrees with a fresh evaluation) rather than only the pass path.
+
+`creatorflow-manifest-blocked.json` is the *unedited* output of that same `ManifestCli` command —
+`creatorflow.manifest/v0.1`, four assets, no source evidence, all decisions `PENDING`. The gate
+answers it with four `UNRESOLVED_SOURCE` violations and exit 2. Keep it unedited: it is the
+counterexample that shows the workflow can still fail.
 
 ## What it is not
 
