@@ -1,49 +1,3 @@
-.atlas-stage-source .atlas-stage-icon { color: var(--review); border-color: color-mix(in srgb, var(--review) 34%, transparent); }
-.atlas-stage-decision .atlas-stage-icon,
-.atlas-stage-release .atlas-stage-icon { color: var(--clear); border-color: color-mix(in srgb, var(--clear) 34%, transparent); }
-.atlas-stage-blocked .atlas-stage-icon { color: var(--blocked); border-color: color-mix(in srgb, var(--blocked) 34%, transparent); }
-
-.atlas-stage-copy {
-  min-width: 0;
-  padding-left: var(--space-2);
-}
-
-.atlas-stage-copy small,
-.atlas-stage-copy strong,
-.atlas-stage-copy em {
-  display: block;
-}
-
-.atlas-stage-copy small,
-.atlas-stage-copy em {
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  font-style: normal;
-}
-
-.atlas-stage-copy small {
-  color: var(--ink-dim);
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-}
-
-.atlas-stage-copy strong {
-  min-height: 2.5rem;
-  margin: var(--space-2) 0;
-  /* `anywhere` broke filenames mid-token; the <wbr> marks in `breakable()` carry the wrapping now,
-     and `break-word` is the fallback for anything still too long to fit. */
-  overflow-wrap: break-word;
-  color: var(--ink);
-  font-size: 0.72rem;
-  font-weight: 500;
-  line-height: 1.45;
-}
-
-.atlas-stage-copy em {
-  color: var(--ink-dim);
-  line-height: 1.5;
-}
-
 .atlas-connector {
   position: absolute;
   z-index: 1;
@@ -63,10 +17,6 @@
   background: var(--blue-accent);
   border-radius: 50%;
   box-shadow: 0 0 0 4px color-mix(in srgb, var(--blue-accent) 14%, transparent);
-}
-
-.atlas-stage-blocked .atlas-connector {
-  background: repeating-linear-gradient(90deg, var(--blocked) 0 4px, transparent 4px 8px);
 }
 
 .atlas-detail {

@@ -50,11 +50,6 @@
     border-right: 0;
     border-bottom: 1px solid var(--hairline);
   }
-  .roblox-project-workbench {
-    grid-template-columns: minmax(14rem, 0.5fr) minmax(0, 1.5fr);
-  }
-  .roblox-project-inspector { grid-column: 1 / -1; }
-  .roblox-project-findings > div { grid-template-columns: 1fr; }
   .motion-clip-catalog { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .motion-investigation,
   .motion-evidence-grid {
@@ -88,33 +83,11 @@
 
 @media (max-width: 48rem) {
   .motion-scope-switch > div { grid-template-columns: 1fr; }
-  .roblox-project-masthead {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-  .roblox-project-masthead > div:last-child { width: 100%; }
-  .roblox-project-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .roblox-project-summary > div:last-child { grid-column: 1 / -1; }
-  .roblox-project-sync { grid-template-columns: auto minmax(0, 1fr); }
-  .roblox-project-sync button {
-    grid-column: 2;
-    justify-self: start;
-  }
-  .roblox-project-workbench { grid-template-columns: 1fr; }
-  .roblox-project-inspector { grid-column: auto; }
-  .roblox-project-tree { max-height: 24rem; }
-  .roblox-project-selection > header { grid-template-columns: auto minmax(0, 1fr); }
-  .roblox-project-selection > header > em {
-    grid-column: 2;
-    justify-self: start;
-  }
-  .roblox-project-preview { grid-template-columns: 1fr; }
   .roblox-animation-selection {
     align-items: flex-start;
     flex-direction: column;
   }
   .roblox-animation-selection .button { width: 100%; }
-  .roblox-project-findings > div { grid-template-columns: 1fr; }
   .motion-lab-header {
     align-items: flex-start;
     flex-direction: column;
@@ -123,7 +96,6 @@
   .motion-lab-header aside { width: 100%; min-width: 0; }
 
   .motion-plugin-intake > header,
-  .motion-pairing-action,
   .motion-live-result > header,
   .motion-live-result > footer {
     align-items: flex-start;
@@ -131,34 +103,12 @@
   }
 
   .motion-plugin-intake > header,
-  .motion-pairing-panel,
   .motion-desktop-boundary {
     padding: var(--space-4);
   }
 
-  .motion-pairing-fields,
   .motion-live-result > div {
     grid-template-columns: 1fr;
-  }
-
-  .motion-pairing-action .button,
-  .motion-pairing-field {
-    width: 100%;
-  }
-
-  .motion-pairing-list-head {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .motion-pairing-row {
-    grid-template-columns: 1fr auto;
-  }
-
-  .motion-pairing-timestamps {
-    grid-column: 1 / -1;
-    flex-direction: row;
-    gap: var(--space-2);
   }
 
   .motion-corpus-picker > header,
