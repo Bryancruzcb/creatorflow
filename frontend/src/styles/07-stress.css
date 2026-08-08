@@ -539,9 +539,6 @@
   margin: var(--space-6);
 }
 
-.compressed-preview > div:not(.heavy-viewer) { display: grid; gap: var(--space-3); }
-.compressed-preview .heavy-viewer { z-index: 5; }
-
 .failure-meaning {
   display: flex;
   align-items: center;

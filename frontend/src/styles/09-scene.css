@@ -458,11 +458,6 @@
   pointer-events: auto;
 }
 
-.viewer-top-dock .heavy-viewer-controls {
-  position: static;
-  justify-self: end;
-}
-
 .scene-budget-hud {
   position: static;
   width: min(18rem, 100%);
@@ -806,21 +801,9 @@
   font-variant-numeric: tabular-nums;
 }
 
-.heavy-viewer-comparing canvas {
-  cursor: grab;
-}
-
 @container (max-width: 42rem) {
   .viewer-top-dock {
     grid-template-columns: 1fr;
-  }
-
-  .viewer-top-dock .heavy-viewer-controls {
-    grid-row: 1;
-  }
-
-  .viewer-top-dock:has(.heavy-viewer-controls) .scene-budget-hud {
-    grid-row: 2;
   }
 
   .scene-budget-hud {
@@ -1101,10 +1084,6 @@
 
   .spin {
     animation: none;
-  }
-
-  .local-progress-track i {
-    transition: none;
   }
 }
 

@@ -1,0 +1,87 @@
+.manifest-import-notice {
+  width: min(calc(100% - clamp(2rem, 6vw, 4.8rem)), 89.2rem);
+  margin: var(--space-3) auto 0;
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+}
+
+.manifest-import-notice {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+}
+.manifest-import-notice > div {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.manifest-import-notice.notice-error > div > svg { color: var(--blocked); }
+
+.manifest-import-notice.notice-success > div > svg { color: var(--clear); }
+
+.manifest-import-notice.notice-info > div > svg { color: var(--blue-accent); }
+
+.manifest-import-notice strong,
+.manifest-import-notice small {
+  display: block;
+}
+
+.manifest-import-notice strong {
+  font-size: 0.72rem;
+  font-weight: 500;
+}
+
+.manifest-import-notice small,
+.manifest-import-notice li {
+  color: var(--ink-muted);
+  font-size: var(--text-2xs);
+}
+
+.manifest-import-notice ul {
+  margin: var(--space-2) 0 0;
+  padding-left: 1.15rem;
+}
+
+.manifest-import-notice code { color: var(--ink); }
+
+.manifest-import-notice > button {
+  display: grid;
+  flex: 0 0 2rem;
+  width: 2rem;
+  height: 2rem;
+  place-items: center;
+  color: var(--ink-muted);
+  background: transparent;
+  border: 1px solid transparent;
+  cursor: pointer;
+}
+
+.manifest-import-notice > button:hover {
+  color: var(--ink);
+  border-color: var(--hairline);
+}
+
+/* Formerly the tail of three separate selector lists (04-shell's shared notice rule,
+   05-heavy's notice small/li rule, and its own rule) layering purely by source order.
+   Merged here at the last position; the only overlapping property was color, where this
+   rule's blue-accent already beat the shared ink-muted. The notice keeps its own rules. */
+.manifest-import-progress {
+  width: min(calc(100% - clamp(2rem, 6vw, 4.8rem)), 89.2rem);
+  margin: var(--space-3) auto 0;
+  padding: var(--space-3) var(--space-4);
+  color: var(--blue-accent);
+  background: var(--graphite);
+  border: 1px solid var(--hairline-strong);
+  font-family: var(--font-mono);
+  font-size: var(--text-2xs);
+}
+@media (max-width: 48rem) {
+
+.manifest-import-notice,
+  .manifest-import-progress {
+    width: calc(100% - 2rem);
+  }
+}

@@ -2,19 +2,21 @@
  * The stylesheet, split into ordered slabs.
  *
  * THE NUMBERS ARE LOAD-BEARING. This is a plain sequential cut of what used to be one
- * 11,978-line file, in its original order, and several rules in it win on source order rather
- * than on specificity — `.local-ownership-facts dt` beats `.local-asset-inspector dt` by being
- * later, and nothing but position says so. Reordering these imports, or moving a rule between
- * files to make a name fit better, changes what renders. Verified by comparing built CSS before
- * and after the split: byte-identical.
+ * 11,978-line file, in its original order, and rules in it can win on source order rather
+ * than on specificity. The canonical example — `.local-ownership-facts dt` beating
+ * `.local-asset-inspector dt` purely by being later — was fixed at the selector during the
+ * issue #120 consolidation (the facts rules are dl-qualified now), but the property is still
+ * true of the sheet at large: reordering these imports changes what renders.
  *
- * Names describe what each slab mostly contains, not what it exclusively contains. A feature
- * whose rules were scattered through the original is still scattered — grouping them would mean
- * reordering, which is the one thing this split must not do. Consolidating a feature is a
- * separate, per-rule job that needs a specificity check on each move.
+ * The `features/` imports are the #120 consolidation: each file holds one feature's rules,
+ * extracted from its donor slab(s) and imported at the donor position. Every extraction was
+ * proven against the built cascade by scripts/css-cascade-check.mjs — identical per-selector
+ * resolution, no source-order winner flipped — with human-reviewed DOM-evidence verdicts for
+ * the ambiguous pairs recorded in audit/css-reviewed-pairs.txt.
  *
- * Adding rules: append to the slab that owns the surface. If a new rule has to sit late to win,
- * that is a specificity problem to fix at the selector, not a reason to put it in a later file.
+ * Adding rules: append to the feature file that owns the surface, or the slab if no feature
+ * file fits. If a new rule has to sit late to win, that is a specificity problem to fix at
+ * the selector, not a reason to put it in a later file.
  */
 @import './01-base.css';
 @import './02-evidence.css';
@@ -23,6 +25,8 @@
 @import './04-shell.css';
 @import './05-heavy.css';
 @import './06-local.css';
+@import './features/manifest-import.css';
+@import './features/project-switcher.css';
 @import './07-stress.css';
 @import './features/dependency-file.css';
 @import './features/failure-lab.css';
@@ -30,8 +34,10 @@
 @import './08-release.css';
 @import './features/release-map.css';
 @import './09-scene.css';
+@import './features/heavy-viewer.css';
 @import './10-roblox.css';
 @import './11-motion.css';
 @import './features/roblox-project.css';
 @import './features/motion-pairing.css';
 @import './features/generated-stream.css';
+@import './features/workspace-table.css';
