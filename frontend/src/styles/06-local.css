@@ -239,8 +239,6 @@
 
 .imported-empty strong { color: var(--ink); font-size: 0.72rem; font-weight: 500; }
 .imported-empty small { color: var(--ink-muted); font-size: var(--text-2xs); }
-
-.workspace-table-scroll { overflow-x: auto; }
 .imported-sources-view table { min-width: 42rem; }
 .imported-sources-view td:nth-child(2) { font-family: var(--font-mono); }
 
@@ -534,6 +532,14 @@
   transition: width 180ms var(--ease-state);
 }
 
+/* Moved from 09-scene's shared reduced-motion sweep so every .local-* rule lives here;
+   stays after the base rule above, same as it followed it across slabs. */
+@media (prefers-reduced-motion: reduce) {
+  .local-progress-track i {
+    transition: none;
+  }
+}
+
 .local-progress-metrics,
 .local-accounting {
   display: grid;
@@ -802,21 +808,21 @@
    actually rendered at 0.51rem, because the container rule was already winning. Reading the
    source told you the wrong number — only measuring the rendered element showed it.
 
-   Only these two are scoped, because only these two measured wrong. The siblings below are
-   correct for weaker reasons and should not be read as safe: `> small` is also outranked by
-   `.local-asset-inspector section > div small`, and survives only because both resolve to
-   --text-2xs; `.local-ownership-facts dt` ties `.local-asset-inspector dt` on specificity and
-   wins on source order alone. Either would break silently if the inspector rules moved or
-   changed value. Scoping them is worth doing — with a measurement to prove it, not by
-   inspection. */
+   Only these two are scoped, because only these two measured wrong. `> small` below is
+   correct for a weaker reason and should not be read as safe: it is outranked by
+   `.local-asset-inspector section > div small` and survives only because both resolve to
+   --text-2xs. The old positional tie on this panel's dt/dd — `.local-ownership-facts dt`
+   used to tie `.local-asset-inspector dt` and win on source order alone — is gone: the
+   facts rules are dl-qualified (0,1,2 vs 0,1,1), so the winner now wins on specificity
+   wherever either rule sits. */
 .local-ownership-verification .local-ownership-verdict > strong { display: inline-flex; align-items: center; gap: var(--space-1); font-size: var(--text-md); font-weight: 500; }
 .local-ownership-verification .local-ownership-verdict > p { margin: 0; color: var(--ink-muted); font-size: var(--text-sm); }
 /* The linkage line is the honesty boundary of this panel — it must not read as fine print. */
 .local-ownership-verdict > p.local-ownership-linkage { color: var(--ink); }
 .local-ownership-verdict > small { color: var(--ink-dim); font-size: var(--text-2xs); }
 .local-ownership-facts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-1) var(--space-3); margin: 0; }
-.local-ownership-facts dt { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-2xs); }
-.local-ownership-facts dd { margin: 0.1rem 0 0; overflow-wrap: anywhere; color: var(--ink); font-size: var(--text-sm); }
+dl.local-ownership-facts dt { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-2xs); }
+dl.local-ownership-facts dd { margin: 0.1rem 0 0; overflow-wrap: anywhere; color: var(--ink); font-size: var(--text-sm); }
 /* <small> carries a UA `font-size: smaller`, so it shrinks to ~0.8x its parent without any rule
    in this file ever saying so. That is why grepping declarations cannot find these: the 12px
    `dd` above produced 10px text with no 10px anywhere in the source. Pinned rather than left to
@@ -951,16 +957,6 @@
     display: none;
   }
 
-  .project-switcher {
-    grid-template-columns: 1fr;
-    justify-items: center;
-  }
-
-  .project-switcher-menu {
-    right: auto;
-    width: 18rem;
-  }
-
   .product-sidebar nav button {
     grid-template-columns: 1fr;
     justify-items: center;
@@ -1046,27 +1042,6 @@
     display: none;
   }
 
-  .project-switcher-wrap {
-    flex: 0 0 3rem;
-    padding: 0;
-  }
-
-  .project-switcher {
-    min-height: 2.7rem;
-    padding: 0.3rem;
-  }
-
-  .project-switcher > span {
-    width: 2rem;
-    height: 2rem;
-  }
-
-  .project-switcher-menu {
-    top: calc(100% + 0.5rem);
-    left: 0;
-    width: min(18rem, calc(100vw - 1rem));
-  }
-
   .product-sidebar nav {
     min-width: 0;
     display: flex;
@@ -1107,11 +1082,6 @@
   .overview-motion-entry {
     align-items: stretch;
     flex-direction: column;
-  }
-
-  .manifest-import-notice,
-  .manifest-import-progress {
-    width: calc(100% - 2rem);
   }
 
   .imported-view-heading {

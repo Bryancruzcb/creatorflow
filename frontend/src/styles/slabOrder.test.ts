@@ -10,8 +10,9 @@ import { describe, expect, it } from 'vitest';
  * verified byte-identical precisely because reordering it changes what renders. Three separate
  * bugs have already traced to position deciding a rule:
  *
- *  - `.local-ownership-facts dt` beats `.local-asset-inspector dt` on position alone; the tie is
- *    documented in 06-local.css and would break silently if either rule moved.
+ *  - `.local-ownership-facts dt` used to beat `.local-asset-inspector dt` on position alone;
+ *    the #120 consolidation fixed that tie at the selector (dl-qualified), but it stands as
+ *    the canonical example of the failure mode this file guards against.
  *  - A verdict headline authored at 16px rendered at 12px because a container's descendant rule
  *    outranked it.
  *  - A mobile override lost a specificity tie because it was written earlier in the file than the

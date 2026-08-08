@@ -19,6 +19,8 @@
 #
 # The one documented genuine tie (styles/index.css header): ownership-facts nests inside
 # the asset inspector, so their dt rules really do co-match.
+# (Resolved in step 5: the facts rules are dl-qualified now, so this pair no longer ties
+# on specificity — the entry stays as the record of why the qualification exists.)
 tie .local-asset-inspector dt | .local-ownership-facts dt
 
 disjoint .compression-lab>header | .dependency-file-inspector>header
@@ -407,3 +409,262 @@ disjoint .roblox-project-sync button:hover | .roblox-workload-list>button[aria-p
 disjoint .roblox-project-sync button | .roblox-workload-list>button
 disjoint .roblox-project-sync strong | .roblox-tree-select strong
 disjoint .roblox-project-sync strong | .workspace-table-action strong
+
+# Step-4 slices: heavy-viewer, manifest-import, project-switcher, workspace-table.
+# - .heavy-viewer-controls (HeavyAssetViewer.tsx:1152) holds only its own camera buttons;
+#   no flagged partner embeds a viewer component (LocalProjectWorkspace,
+#   ImportedProjectViews, ReleasePathLab import none; SceneTreePanel's one reference is
+#   not a mount inside its search box) and none renders inside the viewer's controls.
+# - The manifest-import surfaces (.manifest-import-notice, ProductWorkspace:991) are
+#   workspace chrome, siblings of <main>; view content never nests inside them.
+# - .project-switcher and its dropdown .project-switcher-menu(-actions)
+#   (ProductWorkspace:915) are sidebar chrome holding only their own rows and buttons.
+# - .workspace-table-view sections are the sources/releases views (ProductWorkspace:521/
+#   525); their partners (roblox-project, telemetry-lab, local-*, imported-*, motion-*)
+#   mount in different view branches of <main> and never nest.
+# - Everything else pairs child-combinator selectors with distinct single-class parents.
+disjoint .local-progress-copy span | .project-switcher>span
+disjoint .heavy-viewer>.heavy-viewer-loading>span | .product-topbar>.project-metadata-trigger span
+disjoint .heavy-viewer-controls button | .stress-matrix>button
+disjoint .heavy-viewer-controls button | .stress-pack-rows>button
+disjoint .product-sidebar-bottom button>span | .project-switcher-menu>button>span
+disjoint .heavy-viewer-controls button | .product-sidebar-bottom button
+disjoint .product-sidebar-bottom button | .project-switcher-menu>button
+disjoint .product-sidebar-brand>span | .project-switcher-menu>span
+disjoint .manifest-import-notice>div | .project-switcher div
+disjoint .difference-modebar button | .heavy-viewer-controls button
+disjoint .asset-browser>header span | .project-switcher-menu>button>span
+disjoint .asset-browser>header strong | .project-switcher-menu>button strong
+disjoint .asset-extension-list code | .manifest-import-notice code
+disjoint .asset-license-line small | .manifest-import-notice small
+disjoint .asset-license-line strong | .manifest-import-notice strong
+disjoint .capability-demo-notice strong | .manifest-import-notice strong
+disjoint .comparison-queue-strip button | .heavy-viewer-controls button
+disjoint .comparison-queue-strip>header strong | .workspace-table-view td strong
+disjoint .compression-lab h2 | .workspace-table-view h2
+disjoint .decision-queue header span | .project-switcher-menu>button>span
+disjoint .decision-queue header strong | .project-switcher-menu>button strong
+disjoint .decision-queue li small | .project-switcher-menu>button small
+disjoint .decision-queue li strong | .project-switcher-menu>button strong
+disjoint .dependency-file-inspector>header | .workspace-table-view>header
+disjoint .dependency-file-tree button strong | .workspace-table-view td strong
+disjoint .dependency-file-tree>button | .heavy-viewer-controls button
+disjoint .dependency-folder>button | .heavy-viewer-controls button
+disjoint .difference-modebar button[aria-pressed=true] | .heavy-viewer-controls button:focus-visible
+disjoint .difference-modebar button[aria-pressed=true] | .heavy-viewer-controls button:hover
+disjoint .difference-modebar--comparison button[aria-pressed=true] | .heavy-viewer-controls button:focus-visible
+disjoint .difference-modebar--comparison button[aria-pressed=true] | .heavy-viewer-controls button:hover
+disjoint .failure-lab h2 | .workspace-table-view h2
+disjoint .format-lab h2 | .workspace-table-view h2
+disjoint .gpu-pressure-row>button | .heavy-viewer-controls button
+disjoint .heavy-asset-filterbar button | .heavy-viewer-controls button
+disjoint .heavy-asset-list small | .manifest-import-notice small
+disjoint .heavy-asset-list>button.selected | .project-switcher-menu-actions button:hover
+disjoint .heavy-asset-list>button.selected | .project-switcher-menu>button:hover
+disjoint .heavy-asset-list>button.selected | .project-switcher-menu>button[aria-current=true]
+disjoint .heavy-asset-list>button:hover | .project-switcher-menu-actions button:hover
+disjoint .heavy-asset-list>button:hover | .project-switcher-menu>button:hover
+disjoint .heavy-asset-list>button:hover | .project-switcher-menu>button[aria-current=true]
+disjoint .heavy-asset-list>button | .manifest-import-notice>button
+disjoint .heavy-asset-list>button | .project-switcher-menu-actions button
+disjoint .heavy-asset-list>button | .project-switcher-menu>button
+disjoint .heavy-preview-gate>span | .project-switcher-menu>span
+disjoint .heavy-preview-gate>strong | .manifest-import-notice strong
+disjoint .heavy-viewer-controls button:focus-visible | .imported-releases-view .release-history button
+disjoint .heavy-viewer-controls button:focus-visible | .local-batch-selection>button:disabled
+disjoint .heavy-viewer-controls button:focus-visible | .local-gate-violation>button:disabled
+disjoint .heavy-viewer-controls button:hover | .imported-releases-view .release-history button
+disjoint .heavy-viewer-controls button:hover | .local-batch-selection>button:disabled
+disjoint .heavy-viewer-controls button:hover | .local-gate-violation>button:disabled
+disjoint .heavy-viewer-controls button | .imported-pagination button
+disjoint .heavy-viewer-controls button | .local-asset-ledger>button
+disjoint .heavy-viewer-controls button | .local-batch-chips>button
+disjoint .heavy-viewer-controls button | .local-batch-selection>button
+disjoint .heavy-viewer-controls button | .local-gate-violation>button
+disjoint .heavy-viewer-controls button | .local-partial-result button
+disjoint .heavy-viewer-controls button | .motion-clips button
+disjoint .heavy-viewer-controls button | .motion-transport>button
+disjoint .heavy-viewer-controls button | .project-run-stage>button
+disjoint .heavy-viewer-controls button | .release-mode-switch button
+disjoint .heavy-viewer-controls button | .release-needs button
+disjoint .heavy-viewer-controls button | .release-preference button
+disjoint .heavy-viewer-controls button | .scene-modebar button
+disjoint .heavy-viewer-controls button | .scene-tree-search button
+disjoint .heavy-viewer-controls button | .stress-tabs button
+disjoint .heavy-viewer-controls button | .subasset-match-list>button
+disjoint .heavy-viewer>.heavy-viewer-loading small | .local-batch-form>small[role=alert]
+disjoint .heavy-viewer>.heavy-viewer-loading small | .local-gate-violation>small.local-gate-nojump
+disjoint .heavy-viewer>.heavy-viewer-loading small | .local-ownership-form>small[role=alert]
+disjoint .heavy-viewer>.heavy-viewer-loading strong | .local-ownership-verification .local-ownership-verdict>strong
+disjoint .heavy-viewer>.heavy-viewer-loading strong | .release-map-shell-compact .release-map-node strong
+disjoint .heavy-viewer>.heavy-viewer-loading>span | .project-run-stage>span:first-child
+disjoint .heavy-viewer>.heavy-viewer-ready>span | .project-run-stage>span:first-child
+disjoint .imported-evidence-controls label>span | .project-switcher-menu>button>span
+disjoint .imported-ledger td strong | .project-switcher-menu>button strong
+disjoint .imported-ledger td | .workspace-table-view td
+disjoint .imported-ledger th | .workspace-table-view th
+disjoint .imported-pagination button:hover:not(:disabled) | .project-switcher-menu-actions button:hover
+disjoint .imported-pagination button:hover:not(:disabled) | .project-switcher-menu>button:hover
+disjoint .imported-pagination button:hover:not(:disabled) | .project-switcher-menu>button[aria-current=true]
+disjoint .imported-pagination button | .manifest-import-notice>button
+disjoint .imported-pagination button | .project-switcher-menu-actions button
+disjoint .imported-pagination button | .project-switcher-menu>button
+disjoint .imported-pagination>div | .manifest-import-notice>div
+disjoint .imported-release-boundary strong | .manifest-import-notice strong
+disjoint .imported-releases-view .release-history button | .manifest-import-notice>button:hover
+disjoint .imported-releases-view .release-history button | .project-switcher-menu-actions button:hover
+disjoint .imported-releases-view .release-history button | .project-switcher-menu>button:hover
+disjoint .imported-releases-view .release-history button | .project-switcher-menu>button[aria-current=true]
+disjoint .imported-snapshot-boundary strong | .manifest-import-notice strong
+disjoint .imported-snapshot-boundary>span | .project-switcher-menu>span
+disjoint .imported-verification-summary header span | .project-switcher-menu>button>span
+disjoint .imported-verification-summary header strong | .project-switcher-menu>button strong
+disjoint .imported-view-heading h2 | .workspace-table-view h2
+disjoint .imported-view-heading>div>span | .project-switcher-menu>button>span
+disjoint .local-accounting strong | .manifest-import-notice strong
+disjoint .local-asset-inspector li small | .project-switcher-menu>button small
+disjoint .local-asset-inspector li strong | .project-switcher-menu>button strong
+disjoint .local-asset-inspector li strong | .workspace-table-view td strong
+disjoint .local-asset-inspector>header>span | .project-switcher-menu>button>span
+disjoint .local-asset-inspector>section>span | .project-switcher-menu>button>span
+disjoint .local-asset-ledger>button strong | .project-switcher-menu>button strong
+disjoint .local-asset-ledger>button.selected | .project-switcher-menu-actions button:hover
+disjoint .local-asset-ledger>button.selected | .project-switcher-menu>button:hover
+disjoint .local-asset-ledger>button.selected | .project-switcher-menu>button[aria-current=true]
+disjoint .local-asset-ledger>button:hover | .project-switcher-menu-actions button:hover
+disjoint .local-asset-ledger>button:hover | .project-switcher-menu>button:hover
+disjoint .local-asset-ledger>button:hover | .project-switcher-menu>button[aria-current=true]
+disjoint .local-asset-ledger>button | .manifest-import-notice>button
+disjoint .local-asset-ledger>button | .project-switcher-menu-actions button
+disjoint .local-asset-ledger>button | .project-switcher-menu>button
+disjoint .local-asset-ledger>footer span | .project-switcher-menu>button>span
+disjoint .local-batch-assets>li strong | .project-switcher-menu>button strong
+disjoint .local-batch-chips>button.selected | .project-switcher-menu-actions button:hover
+disjoint .local-batch-chips>button.selected | .project-switcher-menu>button:hover
+disjoint .local-batch-chips>button.selected | .project-switcher-menu>button[aria-current=true]
+disjoint .local-batch-chips>button | .manifest-import-notice>button
+disjoint .local-batch-chips>button | .project-switcher-menu-actions button
+disjoint .local-batch-chips>button | .project-switcher-menu>button
+disjoint .local-batch-confirm>div | .manifest-import-notice>div
+disjoint .local-batch-form fieldset>small | .project-switcher-menu>button small
+disjoint .local-batch-narrowing>small | .manifest-import-notice small
+disjoint .local-batch-selection>button:disabled | .manifest-import-notice>button:hover
+disjoint .local-batch-selection>button:disabled | .project-switcher-menu-actions button:hover
+disjoint .local-batch-selection>button:disabled | .project-switcher-menu>button:hover
+disjoint .local-batch-selection>button:disabled | .project-switcher-menu>button[aria-current=true]
+disjoint .local-batch-selection>button | .manifest-import-notice>button
+disjoint .local-batch-selection>button | .project-switcher-menu-actions button
+disjoint .local-batch-selection>button | .project-switcher-menu>button
+disjoint .local-batch-selection>small | .manifest-import-notice small
+disjoint .local-bridge-badge small | .manifest-import-notice small
+disjoint .local-bridge-badge strong | .manifest-import-notice strong
+disjoint .local-decision-form label>span | .project-switcher-menu>button>span
+disjoint .local-decision-history>small | .manifest-import-notice small
+disjoint .local-format-groups small | .manifest-import-notice small
+disjoint .local-format-groups strong | .manifest-import-notice strong
+disjoint .local-gate-check>footer small | .project-switcher-menu>button small
+disjoint .local-gate-group>header>strong | .project-switcher-menu>button strong
+disjoint .local-gate-group>ul | .manifest-import-notice ul
+disjoint .local-gate-passed strong | .manifest-import-notice strong
+disjoint .local-gate-stale strong | .manifest-import-notice strong
+disjoint .local-gate-violation>button:disabled | .manifest-import-notice>button:hover
+disjoint .local-gate-violation>button:disabled | .project-switcher-menu-actions button:hover
+disjoint .local-gate-violation>button:disabled | .project-switcher-menu>button:hover
+disjoint .local-gate-violation>button:disabled | .project-switcher-menu>button[aria-current=true]
+disjoint .local-gate-violation>button | .manifest-import-notice>button
+disjoint .local-gate-violation>button | .project-switcher-menu-actions button
+disjoint .local-gate-violation>button | .project-switcher-menu>button
+disjoint .local-gate-violation>small | .manifest-import-notice small
+disjoint .local-monitor-empty strong | .manifest-import-notice strong
+disjoint .local-overview-boundary strong | .manifest-import-notice strong
+disjoint .local-ownership-verdict>small | .manifest-import-notice small
+disjoint .local-partial-result button | .manifest-import-notice>button
+disjoint .local-partial-result button | .project-switcher-menu-actions button
+disjoint .local-partial-result button | .project-switcher-menu>button
+disjoint .local-partial-result strong | .manifest-import-notice strong
+disjoint .local-policy-toggles small | .manifest-import-notice small
+disjoint .local-policy-toggles strong | .manifest-import-notice strong
+disjoint .local-progress-copy span | .project-switcher-menu>span
+disjoint .local-progress-copy strong | .manifest-import-notice strong
+disjoint .local-release-create label span | .project-switcher-menu>button>span
+disjoint .local-release-create>div strong | .project-switcher-menu>button strong
+disjoint .local-release-create>div>span | .project-switcher-menu>button>span
+disjoint .local-release-list details span | .project-switcher-menu>button>span
+disjoint .local-scan-error strong | .manifest-import-notice strong
+disjoint .local-scan-heading h2 | .workspace-table-view h2
+disjoint .local-scan-scope label>span | .project-switcher-menu>button>span
+disjoint .local-scan-scope>header strong | .project-switcher-menu>button strong
+disjoint .local-source-form>small | .manifest-import-notice small
+disjoint .local-source-form>strong | .manifest-import-notice strong
+disjoint .local-warning-list ul | .manifest-import-notice ul
+disjoint .local-workspace-boundary h2 | .workspace-table-view h2
+disjoint .local-workspace-boundary>div>span | .project-switcher-menu>button>span
+disjoint .manifest-fingerprints>div | .manifest-import-notice>div
+disjoint .manifest-import-notice small | .manifest-match-list small
+disjoint .manifest-import-notice small | .product-metric>small
+disjoint .manifest-import-notice small | .project-status-strip small
+disjoint .manifest-import-notice small | .release-history small
+disjoint .manifest-import-notice small | .snapshot-disclosure small
+disjoint .manifest-import-notice small | .stress-pack-rows small
+disjoint .manifest-import-notice strong | .manifest-match-list strong
+disjoint .manifest-import-notice strong | .manifest-source-record strong
+disjoint .manifest-import-notice strong | .overview-motion-entry strong
+disjoint .manifest-import-notice strong | .product-metric strong
+disjoint .manifest-import-notice strong | .project-readiness strong
+disjoint .manifest-import-notice strong | .release-history strong
+disjoint .manifest-import-notice strong | .snapshot-disclosure strong
+disjoint .manifest-import-notice strong | .stress-pack-rows strong
+disjoint .manifest-import-notice ul | .manifest-record-inspector ul
+disjoint .manifest-import-notice>button | .project-switcher-menu-actions button
+disjoint .manifest-import-notice>button | .project-switcher-menu>button
+disjoint .manifest-import-notice>button | .stress-pack-rows>button
+disjoint .manifest-import-notice>div | .overview-motion-entry>div
+disjoint .manifest-import-notice>div | .verification-bars>div
+disjoint .manifest-record-inspector>header>span | .project-switcher-menu>button>span
+disjoint .manifest-record-inspector>section>span | .project-switcher-menu>button>span
+disjoint .match-threshold-control span strong | .workspace-table-view td strong
+disjoint .metadata-inspector summary strong | .project-switcher-menu>button strong
+disjoint .motion-authoring-boundary strong | .workspace-table-action strong
+disjoint .motion-clip-catalog button strong | .workspace-table-view td strong
+disjoint .motion-corpus-picker h2 | .workspace-table-view h2
+disjoint .motion-corpus-picker>header>strong | .workspace-table-view td strong
+disjoint .motion-gate h2 | .workspace-table-view h2
+disjoint .motion-joint-evidence h2 | .workspace-table-view h2
+disjoint .motion-joint-evidence>header | .workspace-table-view>header
+disjoint .motion-plugin-intake h2 | .workspace-table-view h2
+disjoint .motion-result-panel h2 | .workspace-table-view h2
+disjoint .motion-roblox-path footer strong | .workspace-table-view td strong
+disjoint .motion-roblox-path h2 | .workspace-table-view h2
+disjoint .motion-scope-switch button strong | .workspace-table-view td strong
+disjoint .motion-scope-switch>header strong | .workspace-table-view td strong
+disjoint .motion-structure-evidence h2 | .workspace-table-view h2
+disjoint .motion-structure-evidence>header | .workspace-table-view>header
+disjoint .package-lab h2 | .workspace-table-view h2
+disjoint .product-sidebar-bottom button:hover | .project-switcher-menu-actions button:hover
+disjoint .product-sidebar-bottom button:hover | .project-switcher-menu>button:hover
+disjoint .product-sidebar-bottom button:hover | .project-switcher-menu>button[aria-current=true]
+disjoint .product-sidebar-bottom button | .project-switcher-menu-actions button
+disjoint .product-topbar>button:disabled | .project-switcher-menu-actions button:hover
+disjoint .product-topbar>button:disabled | .project-switcher-menu>button:hover
+disjoint .product-topbar>button:disabled | .project-switcher-menu>button[aria-current=true]
+disjoint .product-topbar>button | .project-switcher-menu-actions button
+disjoint .product-topbar>button | .project-switcher-menu>button
+disjoint .project-run-flow h2 | .workspace-table-view h2
+disjoint .project-switcher-menu-actions button | .stress-pack-rows>button
+disjoint .project-switcher-menu>button strong | .project-throughput header strong
+disjoint .project-switcher-menu>button>span | .project-throughput header span
+disjoint .project-switcher-menu>button>span | .stress-pack-summary header span
+disjoint .project-switcher-menu>button>span | .throughput-chart i span
+disjoint .project-switcher-menu>button>span | .workspace-table-view>header span
+disjoint .project-switcher-menu>button | .stress-pack-rows>button
+disjoint .project-switcher-menu>span | .project-switcher>span
+disjoint .project-switcher-menu>span | .workspace-user>span
+disjoint .release-friend-test h2 | .workspace-table-view h2
+disjoint .release-friend-test li p | .workspace-table-view>header p
+disjoint .release-publish-clarifier h2 | .workspace-table-view h2
+disjoint .release-record-boundary small | .workspace-table-action small
+disjoint .release-record-boundary strong | .workspace-table-action strong
+disjoint .release-stage-inspector h2 | .workspace-table-view h2
+disjoint .roblox-project-child-table button strong | .workspace-table-view td strong
+disjoint .roblox-project-masthead h2 | .workspace-table-view h2
+disjoint .telemetry-lab h2 | .workspace-table-view h2

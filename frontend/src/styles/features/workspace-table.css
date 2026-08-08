@@ -1,0 +1,97 @@
+.workspace-table-view {
+  padding: var(--space-6);
+}
+
+.workspace-table-view > header {
+  max-width: 54rem;
+  margin-bottom: var(--space-8);
+}
+
+.workspace-table-view h2 {
+  margin: var(--space-2) 0;
+  font-size: 1.65rem;
+  font-weight: 400;
+}
+
+.workspace-table-view > header p {
+  color: var(--ink-muted);
+}
+
+.workspace-table-view table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.workspace-table-view th,
+.workspace-table-view td {
+  padding: var(--space-4);
+  text-align: left;
+  border-bottom: 1px solid var(--hairline);
+  font-size: 0.72rem;
+}
+
+.workspace-table-view th {
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  font-weight: 400;
+}
+
+.workspace-table-view td {
+  color: var(--ink-muted);
+}
+
+.workspace-table-view td strong {
+  color: var(--ink);
+  font-weight: 500;
+}
+.workspace-table-scroll { overflow-x: auto; }
+.workspace-table-action {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-6);
+  padding: var(--space-4);
+  background: var(--desk);
+  border: 1px solid var(--hairline-strong);
+}
+
+.workspace-table-action strong,
+.workspace-table-action small {
+  display: block;
+}
+
+.workspace-table-action strong {
+  color: var(--ink);
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+.workspace-table-action small {
+  margin-top: var(--space-1);
+  color: var(--ink-dim);
+  font-size: var(--text-3xs);
+  line-height: 1.5;
+}
+
+@media (max-width: 48rem) {
+
+.workspace-table-view {
+    overflow-x: hidden;
+  }
+
+.workspace-table-view table {
+    display: block;
+    overflow-x: auto;
+  }
+}
+
+/* Split out of 11-motion's shared 48rem boundary rule (it also names release/motion
+   boundaries): must stay AFTER the base .workspace-table-action rule above to keep
+   collapsing the action row below 48rem. */
+@media (max-width: 48rem) {
+  .workspace-table-action {
+    grid-template-columns: 1fr;
+  }
+}

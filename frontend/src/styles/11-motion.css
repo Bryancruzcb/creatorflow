@@ -636,35 +636,6 @@
   border-color: color-mix(in srgb, var(--blue-accent) 42%, var(--hairline));
 }
 
-.workspace-table-action {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-6);
-  margin-top: var(--space-6);
-  padding: var(--space-4);
-  background: var(--desk);
-  border: 1px solid var(--hairline-strong);
-}
-
-.workspace-table-action strong,
-.workspace-table-action small {
-  display: block;
-}
-
-.workspace-table-action strong {
-  color: var(--ink);
-  font-size: 0.7rem;
-  font-weight: 500;
-}
-
-.workspace-table-action small {
-  margin-top: var(--space-1);
-  color: var(--ink-dim);
-  font-size: var(--text-3xs);
-  line-height: 1.5;
-}
-
 .release-record-boundary {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -957,16 +928,6 @@
     padding: var(--space-4);
   }
 
-  .workspace-table-view {
-    overflow-x: hidden;
-  }
-
-  .workspace-table-view table {
-    display: block;
-    overflow-x: auto;
-  }
-
-  .workspace-table-action,
   .release-record-boundary,
   .release-publish-clarifier,
   .motion-authoring-boundary {
