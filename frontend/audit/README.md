@@ -368,3 +368,11 @@ npm run css:dups                        # progress: selectors still defined in 2
 
 The baseline is a migration gate, not a standing check — any intentional style change
 rewrites it. Trust it only when `css:baseline` came from a commit you believe.
+
+A flipped pair whose selectors share a class token fails outright. A flipped pair that
+only shares a subject element (`.failure-lab header` vs `.dependency-file-inspector
+header`) conflicts only if one container can nest inside the other — which CSS cannot
+know — so `compare` exits 3 and demands a human verdict, recorded with its evidence in
+`audit/css-reviewed-pairs.txt`: `disjoint` accepts that pair's flips forever, `tie`
+makes any flip a hard failure. That file is the written-down half of issue #120's
+"each rule move specificity-checked".

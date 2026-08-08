@@ -45,6 +45,7 @@ const frontendDir = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const distAssets = join(frontendDir, 'dist', 'assets');
 const stylesDir = join(frontendDir, 'src', 'styles');
 const baselinePath = join(frontendDir, 'audit', '.css-cascade-baseline.json');
+const reviewedPath = join(frontendDir, 'audit', 'css-reviewed-pairs.txt');
 
 /** dist filenames carry a content hash: index-CttE2QQE.css -> index.css */
 const stableName = (f) => f.replace(/-[A-Za-z0-9_-]{8,12}(\.css)$/, '$1');
@@ -198,8 +199,42 @@ function snapshotDist() {
   return snap;
 }
 
+/**
+ * A flipped pair whose selectors share a class token is a hard failure: same feature,
+ * same elements, the winner genuinely changed. A flipped pair that only shares a subject
+ * element (".failure-lab header" vs ".dependency-file-inspector header") is a conflict
+ * only if one container can nest inside the other in the real DOM — which CSS cannot
+ * know. Those go to a review list, and a human verdict is recorded in
+ * audit/css-reviewed-pairs.txt: "disjoint" (containers never nest; flip is harmless,
+ * accepted forever) or "tie" (they DO co-match; any flip is a hard failure). The file is
+ * committed — it IS the per-move specificity check issue #120 asked for, written down.
+ */
+function loadReviewedPairs() {
+  const verdicts = new Map();
+  let text = '';
+  try {
+    text = readFileSync(reviewedPath, 'utf8');
+  } catch {
+    return verdicts;
+  }
+  for (const line of text.split('\n')) {
+    const m = line.match(/^(disjoint|tie)\s+(.+?)\s+\|\s+(.+?)(\s+--.*)?$/);
+    if (m) verdicts.set(pairSignature(m[2], m[3]), m[1]);
+  }
+  return verdicts;
+}
+
+const stripContext = (key) => key.split('␟')[1] || key;
+const pairSignature = (selA, selB) => [selA, selB].sort().join(' | ');
+const shareClassToken = (selA, selB) => {
+  const a = new Set(classTokens(selA));
+  return classTokens(selB).some((t) => a.has(t));
+};
+
 function compare(baseline, current) {
   const problems = [];
+  const review = [];
+  const reviewed = loadReviewedPairs();
   const show = (k) => k.replace(/␟/g, ' :: ').replace(/␞/g, '  <->  ');
   for (const file of new Set([...Object.keys(baseline), ...Object.keys(current)])) {
     const b = baseline[file];
@@ -226,10 +261,20 @@ function compare(baseline, current) {
     }
     for (const [pair, rel] of Object.entries(b.pairs)) {
       const cur = c.pairs[pair];
-      if (cur && cur !== rel) problems.push(`${file}: winner flipped: ${show(pair)} (${rel} became ${cur})`);
+      if (!cur || cur === rel) continue;
+      const [keyA, keyB] = pair.split('␞');
+      const selA = stripContext(keyA);
+      const selB = stripContext(keyB);
+      const verdict = reviewed.get(pairSignature(selA, selB));
+      if (verdict === 'disjoint') continue;
+      if (verdict === 'tie' || shareClassToken(selA, selB)) {
+        problems.push(`${file}: winner flipped: ${show(pair)} (${rel} became ${cur})`);
+      } else {
+        review.push(pairSignature(selA, selB));
+      }
     }
   }
-  return problems;
+  return { problems, review: [...new Set(review)] };
 }
 
 function dups() {
@@ -270,11 +315,19 @@ if (mode === 'baseline') {
     console.error(`No baseline at ${baselinePath} — run the baseline mode on a known-good build first.`);
     process.exit(2);
   }
-  const problems = compare(baseline, snapshotDist());
+  const { problems, review } = compare(baseline, snapshotDist());
   if (problems.length) {
     for (const p of problems) console.error(`FAIL ${p}`);
     console.error(`\n${problems.length} cascade differences against the baseline.`);
     process.exit(1);
+  }
+  if (review.length) {
+    console.error('Flipped subject-element pairs with no shared class token — CSS cannot tell whether');
+    console.error('these containers ever nest. Check the components and record each verdict in');
+    console.error(`${reviewedPath} as "disjoint <sig>" or "tie <sig>":\n`);
+    for (const sig of review) console.error(`  ${sig}`);
+    console.error(`\n${review.length} pairs need a review verdict.`);
+    process.exit(3);
   }
   console.log('Cascade identical to baseline: every selector resolves the same, no source-order winner flipped.');
 } else if (mode === 'dups') {
