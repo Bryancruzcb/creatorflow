@@ -1,0 +1,135 @@
+# Human verdicts for flipped subject-element pairs (css-cascade-check.mjs compare).
+# Format: "disjoint <selA> | <selB>" (containers never nest in the DOM; source-order flip
+# between them is unobservable) or "tie <selA> | <selB>" (they CAN style the same element;
+# any flip is a regression). Selectors are sorted lexically within a line.
+#
+# This file is the recorded half of issue #120's "each rule move specificity-checked".
+# A verdict must cite real DOM structure, not hope. Evidence for the entries below:
+#
+# - Every StressLab lab is a sibling <section> (StressLab.tsx): stress-matrix,
+#   system-check-*, compression-lab, failure-lab, package-lab, format-lab (contains
+#   format-executable + capacity-table), telemetry-lab (contains telemetry-table,
+#   motion-telemetry, telemetry-disclosure). The dependency explorer (dependency-file-tree,
+#   dependency-folder, dependency-file-inspector) renders only inside package-lab, so no
+#   element sits under two labs at once, and "X > child" pairs with distinct parents are
+#   disjoint by the child combinator alone.
+# - difference-modebar, heavy-asset-filterbar, scene-modebar, subasset-match-* exist only
+#   in ProductWorkspace.tsx views that never render inside StressLab, and none of them
+#   renders StressLab inside itself.
+#
+# The one documented genuine tie (styles/index.css header): ownership-facts nests inside
+# the asset inspector, so their dt rules really do co-match.
+tie .local-asset-inspector dt | .local-ownership-facts dt
+
+disjoint .compression-lab>header | .dependency-file-inspector>header
+disjoint .dependency-file-inspector>header | .failure-lab>header
+disjoint .dependency-file-inspector>header | .format-lab>header
+disjoint .dependency-file-inspector>header | .package-lab>header
+disjoint .dependency-file-tree>button | .stress-matrix>button
+disjoint .dependency-folder>button | .stress-matrix>button
+disjoint .dependency-file-inspector>header | .stress-matrix>header
+disjoint .dependency-file-inspector>header | .telemetry-lab>header
+disjoint .capacity-table>div | .dependency-file-inspector>div
+disjoint .dependency-file-inspector dl | .format-executable dl
+disjoint .dependency-file-inspector dl | .motion-telemetry dl
+disjoint .dependency-file-inspector>div | .motion-telemetry>div
+disjoint .dependency-file-inspector>div | .telemetry-table>div
+disjoint .dependency-file-inspector>header strong | .format-executable article>strong
+disjoint .dependency-file-inspector>header strong | .motion-telemetry>div>strong
+disjoint .dependency-file-inspector>header strong | .subasset-match-panel header strong
+disjoint .dependency-file-inspector>header | .subasset-match-panel>header
+disjoint .dependency-file-inspector>p strong | .format-executable article>strong
+disjoint .dependency-file-inspector>p strong | .motion-telemetry>div>strong
+disjoint .dependency-file-inspector>p strong | .subasset-match-panel header strong
+disjoint .dependency-file-inspector>p | .telemetry-disclosure p
+disjoint .dependency-file-inspector>p | .telemetry-table p
+disjoint .dependency-file-tree button strong | .format-executable article>strong
+disjoint .dependency-file-tree button strong | .motion-telemetry>div>strong
+disjoint .dependency-file-tree button strong | .subasset-match-panel header strong
+disjoint .dependency-file-tree button.selected | .difference-modebar button[aria-pressed=true]
+disjoint .dependency-file-tree button.selected | .difference-modebar--comparison button[aria-pressed=true]
+disjoint .dependency-file-tree button:hover | .difference-modebar button[aria-pressed=true]
+disjoint .dependency-file-tree button:hover | .difference-modebar--comparison button[aria-pressed=true]
+disjoint .dependency-file-tree button | .difference-modebar button
+disjoint .dependency-file-tree button | .heavy-asset-filterbar button
+disjoint .dependency-file-tree button | .scene-modebar button
+disjoint .dependency-file-tree>button | .difference-modebar button
+disjoint .dependency-file-tree>button | .heavy-asset-filterbar button
+disjoint .dependency-file-tree>button | .scene-modebar button
+disjoint .dependency-file-tree>button | .subasset-match-list>button
+disjoint .dependency-folder>button | .difference-modebar button
+disjoint .dependency-folder>button | .heavy-asset-filterbar button
+disjoint .dependency-folder>button | .scene-modebar button
+disjoint .dependency-folder>button | .subasset-match-list>button
+
+# ReleasePathLab.tsx: ReleaseMap (release-map-shell/help/node) renders in its own sibling
+# <section> (line ~668); .release-preference is a separate panel in a later sibling block
+# (~682). Neither contains the other, and both pairs use child/descendant scopes under
+# those distinct containers.
+disjoint .release-map-help small | .release-preference>small
+disjoint .release-map-node>span | .release-preference>span
+
+# RobloxAssetStressSet.tsx: .roblox-asset-stress is the section, .generated-stream-probe a
+# div inside it, .generated-stream-readout inside the probe -- both flagged selectors use
+# the child combinator with distinct parent elements. The readout's small/strong partners
+# (.release-record-boundary, .workspace-table-action in ProductWorkspace table views;
+# .motion-authoring-boundary in MotionComparisonLab) live in views that never render
+# RobloxAssetStressSet and are never rendered inside it (it mounts bare at
+# ProductWorkspace:363 in the stress view).
+disjoint .generated-stream-probe>header | .roblox-asset-stress>header
+disjoint .generated-stream-readout small | .release-record-boundary small
+disjoint .generated-stream-readout strong | .motion-authoring-boundary strong
+disjoint .generated-stream-readout strong | .release-record-boundary strong
+disjoint .generated-stream-readout strong | .workspace-table-action strong
+
+# StressLab.tsx again, failure-lab + system-check slices: .failure-lab (441) and the
+# system-check surfaces (.system-check-report-entry 403, .system-check-guide/-purpose
+# 409-411) are top-level siblings of every other lab section; compression-ledger/-saving
+# and gpu-pressure-row sit inside compression-lab (430-433), stress-motion-layout is its
+# own section (420) with motion-gate inside it. Cross-view partners (difference-modebar,
+# scene-modebar, subasset-match-panel) are ProductWorkspace-only, as recorded above. The
+# em[data-state=X] pairs are additionally disjoint because one element cannot hold two
+# different data-state values at once.
+disjoint .capacity-table>div | .system-check-purpose>div
+disjoint .motion-telemetry>div | .system-check-purpose>div
+disjoint .capacity-table strong | .system-check-purpose strong
+disjoint .compression-ledger strong | .system-check-purpose strong
+disjoint .compression-saving strong | .system-check-purpose strong
+disjoint .dependency-file-inspector>div | .system-check-purpose>div
+disjoint .dependency-file-inspector>header strong | .failure-lab article strong
+disjoint .dependency-file-inspector>header strong | .system-check-report-entry>div strong
+disjoint .dependency-file-inspector>p strong | .failure-lab article strong
+disjoint .dependency-file-inspector>p strong | .system-check-report-entry>div strong
+disjoint .dependency-file-inspector>p | .system-check-purpose p
+disjoint .dependency-file-tree button em[data-state=failed] | .failure-lab article em[data-state=passed]
+disjoint .dependency-file-tree button em[data-state=failed] | .failure-lab article em[data-state=running]
+disjoint .dependency-file-tree button em[data-state=passed] | .failure-lab article em[data-state=failed]
+disjoint .dependency-file-tree button em[data-state=passed] | .failure-lab article em[data-state=running]
+disjoint .dependency-file-tree button em[data-state=warning] | .failure-lab article em[data-state=passed]
+disjoint .dependency-file-tree button em[data-state=warning] | .failure-lab article em[data-state=running]
+disjoint .dependency-file-tree button strong | .failure-lab article strong
+disjoint .dependency-file-tree button strong | .system-check-report-entry>div strong
+disjoint .difference-modebar>div | .system-check-purpose>div
+disjoint .failure-lab article code | .package-lab>footer code
+disjoint .failure-lab article p | .format-executable article>p
+disjoint .failure-lab article strong | .format-executable article>strong
+disjoint .failure-lab article strong | .motion-telemetry>div>strong
+disjoint .failure-lab article strong | .system-check-report-entry>div strong
+disjoint .failure-lab article>span | .format-executable article>span
+disjoint .failure-lab article>span | .system-check-purpose>div>span
+disjoint .failure-lab header p | .format-executable article>p
+disjoint .format-executable article>strong | .system-check-report-entry>div strong
+disjoint .gpu-pressure-row strong | .system-check-purpose strong
+disjoint .motion-gate>div>span | .system-check-purpose>div>span
+disjoint .motion-telemetry>div>strong | .system-check-report-entry>div strong
+disjoint .package-lab>footer span | .system-check-purpose>div>span
+disjoint .scene-modebar>div | .system-check-purpose>div
+disjoint .stress-matrix>button>small | .system-check-report-entry>div small
+disjoint .stress-matrix>button>span | .system-check-purpose>div>span
+disjoint .stress-matrix>button>strong | .system-check-report-entry>div strong
+disjoint .stress-matrix>header span | .system-check-purpose>div>span
+disjoint .stress-motion-layout aside strong | .system-check-report-entry>div strong
+disjoint .subasset-match-panel header span | .system-check-purpose>div>span
+disjoint .subasset-match-panel header strong | .system-check-report-entry>div strong
+disjoint .system-check-purpose strong | .telemetry-table strong
+disjoint .system-check-purpose>div | .telemetry-table>div

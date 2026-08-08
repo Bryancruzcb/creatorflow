@@ -1,0 +1,49 @@
+.failure-lab > div > article {
+  display: grid;
+  grid-template-columns: 3rem minmax(15rem, 0.75fr) minmax(18rem, 1.2fr) minmax(11rem, 0.72fr);
+  align-items: center;
+  gap: var(--space-4);
+  min-height: 6rem;
+  padding: var(--space-3) var(--space-6);
+  border-bottom: 1px solid var(--hairline);
+}
+
+.failure-lab article > span { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); }
+
+.failure-lab article strong,
+.failure-lab article code,
+.failure-lab article > div > small { display: block; }
+
+.failure-lab article strong { font-size: 0.73rem; font-weight: 500; }
+
+.failure-lab article code { margin-top: var(--space-1); color: var(--ink-dim); font-size: var(--text-3xs); }
+
+.failure-lab article > div > small { margin-top: var(--space-1); color: var(--ink-muted); font-size: var(--text-3xs); }
+
+.failure-lab article p { margin: 0; color: var(--ink-muted); font-size: var(--text-2xs); line-height: 1.5; }
+
+.failure-lab article p > span { display: block; margin-bottom: var(--space-1); color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); }
+
+.failure-lab article em { display: inline-flex; align-items: center; gap: var(--space-2); color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); font-style: normal; }
+
+.failure-lab article em[data-state='passed'] { color: var(--clear); }
+
+.failure-lab article em[data-state='failed'] { color: var(--blocked); }
+
+.failure-lab article em[data-state='running'] { color: var(--stress-blue); }
+
+.failure-lab header p {
+  max-width: 72ch;
+  margin: 0;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  line-height: 1.55;
+}
+
+@media (max-width: 48rem) {
+
+.failure-lab > div > article { grid-template-columns: 2rem 1fr; padding: var(--space-3); }
+
+.failure-lab article p,
+  .failure-lab article em { grid-column: 2; }
+}
