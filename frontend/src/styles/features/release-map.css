@@ -1,0 +1,191 @@
+.release-map-shell {
+  min-width: 0;
+  background: var(--desk);
+  border-right: 1px solid var(--hairline);
+}
+
+.release-map-help {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  min-height: 2.8rem;
+  padding: 0 var(--space-4);
+  color: var(--ink-dim);
+  border-bottom: 1px solid var(--hairline);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+}
+
+.release-map-help > span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.release-map-help small {
+  font-size: inherit;
+}
+
+.release-map-scroll {
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+.release-map-canvas {
+  position: relative;
+  min-width: 54rem;
+  height: 39rem;
+  overflow: hidden;
+  background-color: var(--desk);
+  background-image: radial-gradient(circle, color-mix(in srgb, var(--ink-dim) 28%, transparent) 0.7px, transparent 0.8px);
+  background-size: 1rem 1rem;
+}
+
+.release-map-edges {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+}
+
+.release-map-edges line {
+  stroke: var(--ink-dim);
+  stroke-width: 1;
+  stroke-dasharray: 4 4;
+  opacity: 0.62;
+}
+
+.release-map-edges line[data-state='clear'] {
+  stroke: var(--clear);
+  stroke-dasharray: none;
+  opacity: 0.7;
+}
+
+.release-map-edges line[data-state='blocked'] {
+  stroke: var(--blocked);
+  opacity: 0.8;
+}
+
+.release-map-edges marker path {
+  fill: var(--ink-dim);
+}
+
+.release-map-node {
+  position: absolute;
+  display: grid;
+  gap: var(--space-2);
+  width: 9.2rem;
+  min-height: 4.7rem;
+  padding: var(--space-3);
+  color: var(--ink);
+  text-align: left;
+  background: color-mix(in srgb, var(--graphite) 96%, transparent);
+  border: 1px solid var(--hairline-strong);
+  box-shadow: 0 0.4rem 1.2rem rgb(0 0 0 / 18%);
+  transform: translate(-50%, -50%);
+  touch-action: none;
+  user-select: none;
+  cursor: grab;
+}
+
+.release-map-node:active {
+  cursor: grabbing;
+}
+
+.release-map-node:hover,
+.release-map-node.selected {
+  background: var(--raised);
+  border-color: color-mix(in srgb, var(--blue-accent) 58%, var(--hairline));
+}
+
+.release-map-node.selected {
+  outline: 2px solid color-mix(in srgb, var(--blue-accent) 65%, transparent);
+  outline-offset: 2px;
+}
+
+/**
+ * Same defect as `.release-mode-research`, caught by reading the stylesheets rather than by the
+ * gate: this selection outline is (0,2,0) and `button:focus-visible` is (0,1,1), so a SELECTED node
+ * would show its selection ring while focused and nothing would mark it as the focused one. The
+ * audit did not flag it only because no node is selected on load, which is exactly the kind of
+ * conditional the next person would have to rediscover.
+ */
+
+.release-map-node.selected:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}
+
+.release-map-node[data-state='blocked'] {
+  border-left: 2px solid var(--blocked);
+}
+
+.release-map-node[data-state='active'],
+.release-map-node[data-state='ready'] {
+  border-left: 2px solid var(--review);
+}
+
+.release-map-node[data-state='clear'] {
+  border-left: 2px solid var(--clear);
+}
+
+.release-map-node > span {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  color: var(--ink-dim);
+}
+
+.release-map-node > span small {
+  padding-left: var(--space-2);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+}
+
+.release-map-grip {
+  opacity: 0.55;
+}
+
+.release-map-node strong {
+  overflow: hidden;
+  font-size: var(--text-2xs);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.release-map-node em {
+  color: var(--ink-dim);
+  font-family: var(--font-mono);
+  font-size: var(--text-3xs);
+  font-style: normal;
+}
+
+.release-map-shell-compact {
+  border-right: 0;
+}
+
+.release-map-shell-compact .release-map-canvas {
+  min-width: 100%;
+  height: 36.2rem;
+}
+
+.release-map-shell-compact .release-map-node {
+  width: 5.2rem;
+  padding: var(--space-2);
+}
+
+.release-map-shell-compact .release-map-node strong {
+  font-size: var(--text-2xs);
+}
+
+/* Split out of 08-release's shared 66rem rule (it also names .guided-release-path):
+   the override must stay AFTER the base .release-map-shell rule above to keep winning. */
+@media (max-width: 66rem) {
+  .release-map-shell {
+    border-right: 0;
+  }
+}

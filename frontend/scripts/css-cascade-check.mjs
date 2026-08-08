@@ -217,7 +217,7 @@ function loadReviewedPairs() {
   } catch {
     return verdicts;
   }
-  for (const line of text.split('\n')) {
+  for (const line of text.split(/\r?\n/)) {
     const m = line.match(/^(disjoint|tie)\s+(.+?)\s+\|\s+(.+?)(\s+--.*)?$/);
     if (m) verdicts.set(pairSignature(m[2], m[3]), m[1]);
   }

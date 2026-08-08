@@ -23,7 +23,12 @@
 @import './05-heavy.css';
 @import './06-local.css';
 @import './07-stress.css';
+@import './features/dependency-file.css';
+@import './features/failure-lab.css';
+@import './features/system-check.css';
 @import './08-release.css';
+@import './features/release-map.css';
 @import './09-scene.css';
 @import './10-roblox.css';
 @import './11-motion.css';
+@import './features/generated-stream.css';
