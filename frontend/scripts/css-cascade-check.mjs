@@ -231,6 +231,23 @@ const shareClassToken = (selA, selB) => {
   return classTokens(selB).some((t) => a.has(t));
 };
 
+/**
+ * ".atlas-stage > button.selected" vs ".match-source-list > button.selected" share the
+ * .selected state token, but the subject's DIRECT parent differs — the pair can only
+ * co-match if one element carries both parent classes. That is a DOM question, so such
+ * pairs go to the review list instead of failing outright. Returns the parent compound
+ * when the selector ends "<class-compound> > <subject>", else null.
+ */
+const directParentCompound = (sel) => {
+  const m = sel.match(/((?:\.[\w-]+)+)\s*>\s*[^\s>+~]+$/);
+  return m ? m[1] : null;
+};
+const parentsForceDomQuestion = (selA, selB) => {
+  const pa = directParentCompound(selA);
+  const pb = directParentCompound(selB);
+  return !!(pa && pb && !shareClassToken(pa, pb));
+};
+
 function compare(baseline, current) {
   const problems = [];
   const review = [];
@@ -267,7 +284,7 @@ function compare(baseline, current) {
       const selB = stripContext(keyB);
       const verdict = reviewed.get(pairSignature(selA, selB));
       if (verdict === 'disjoint') continue;
-      if (verdict === 'tie' || shareClassToken(selA, selB)) {
+      if (verdict === 'tie' || (shareClassToken(selA, selB) && !parentsForceDomQuestion(selA, selB))) {
         problems.push(`${file}: winner flipped: ${show(pair)} (${rel} became ${cur})`);
       } else {
         review.push(pairSignature(selA, selB));

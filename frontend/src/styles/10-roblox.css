@@ -46,93 +46,6 @@
 .motion-scope-switch button strong { color: currentColor; font-size: var(--text-2xs); font-weight: 500; }
 .motion-scope-switch button small { margin-top: var(--space-1); }
 
-.roblox-project-example {
-  display: grid;
-  gap: var(--space-4);
-}
-
-.roblox-project-masthead {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: var(--space-8);
-  padding: var(--space-6);
-  background: var(--graphite);
-  border: 1px solid var(--hairline-strong);
-}
-
-.roblox-project-masthead > div:first-child { max-width: 70ch; }
-.roblox-project-masthead span,
-.roblox-project-masthead small,
-.roblox-project-masthead em { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); font-style: normal; }
-.roblox-project-masthead h2 { margin: var(--space-1) 0 var(--space-2); font-size: 1.3rem; font-weight: 500; }
-.roblox-project-masthead p { margin: 0; color: var(--ink-muted); font-size: var(--text-2xs); line-height: 1.6; }
-.roblox-project-masthead > div:last-child { min-width: 11rem; padding: var(--space-3) var(--space-4); background: var(--desk); border: 1px solid var(--hairline); }
-.roblox-project-masthead > div:last-child > * { display: block; }
-.roblox-project-masthead > div:last-child strong { margin-block: var(--space-1); color: var(--ink); font-size: 0.78rem; font-weight: 500; }
-
-.roblox-project-summary {
-  display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: 1px;
-  background: var(--hairline);
-  border: 1px solid var(--hairline-strong);
-}
-
-.roblox-project-summary > div { padding: var(--space-3) var(--space-4); background: var(--desk); }
-.roblox-project-summary strong,
-.roblox-project-summary small { display: block; }
-.roblox-project-summary strong { color: var(--ink); font-family: var(--font-mono); font-size: 0.86rem; font-weight: 500; }
-.roblox-project-summary small { margin-top: var(--space-1); color: var(--ink-dim); font-size: var(--text-3xs); }
-
-.roblox-project-sync {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: var(--space-3);
-  padding: var(--space-3) var(--space-4);
-  color: var(--motion-candidate);
-  background: color-mix(in srgb, var(--motion-candidate) 5%, var(--graphite));
-  border: 1px solid color-mix(in srgb, var(--motion-candidate) 25%, var(--hairline));
-}
-
-.roblox-project-sync[data-simulated='true'] { color: var(--clear); border-color: color-mix(in srgb, var(--clear) 28%, var(--hairline)); }
-.roblox-project-sync strong,
-.roblox-project-sync small { display: block; }
-.roblox-project-sync strong { color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
-.roblox-project-sync small { margin-top: var(--space-1); color: var(--ink-dim); font-size: var(--text-3xs); }
-.roblox-project-sync button { display: inline-flex; align-items: center; gap: var(--space-2); min-height: 2.25rem; padding-inline: var(--space-3); color: var(--ink-muted); background: var(--desk); border: 1px solid var(--hairline-strong); font-family: var(--font-mono); font-size: var(--text-3xs); cursor: pointer; }
-.roblox-project-sync button:hover { color: var(--ink); background: var(--raised); }
-
-.roblox-project-workbench {
-  display: grid;
-  grid-template-columns: minmax(14rem, 0.5fr) minmax(27rem, 1.28fr) minmax(19rem, 0.72fr);
-  min-height: 44rem;
-  gap: 1px;
-  background: var(--hairline-strong);
-  border: 1px solid var(--hairline-strong);
-}
-
-.roblox-project-explorer,
-.roblox-project-selection,
-.roblox-project-inspector { min-width: 0; background: var(--graphite); }
-
-.roblox-project-explorer > header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: var(--space-3);
-  min-height: 3.8rem;
-  padding: var(--space-3) var(--space-4);
-  border-bottom: 1px solid var(--hairline);
-}
-
-.roblox-project-explorer > header strong { font-size: var(--text-2xs); font-weight: 500; }
-.roblox-project-explorer > header small { max-width: 15rem; color: var(--ink-dim); font-size: var(--text-3xs); line-height: 1.4; text-align: right; }
-.roblox-project-explorer > label { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: var(--space-2); min-height: 2.5rem; margin: var(--space-3); padding-inline: var(--space-3); color: var(--ink-dim); background: var(--desk); border: 1px solid var(--hairline); }
-.roblox-project-explorer input { min-width: 0; color: var(--ink); background: transparent; border: 0; outline: 0; font-size: var(--text-3xs); }
-.roblox-project-explorer input::placeholder { color: var(--ink-dim); }
-
 .roblox-findings-filter {
   display: flex;
   align-items: center;
@@ -153,12 +66,6 @@
 .roblox-findings-filter:hover,
 .roblox-findings-filter[aria-pressed='true'] { color: var(--ink); background: var(--raised); }
 .roblox-findings-filter[aria-pressed='true'] { border-color: color-mix(in srgb, var(--review) 38%, var(--hairline)); }
-
-.roblox-project-tree {
-  max-height: 34rem;
-  overflow-y: auto;
-  padding-bottom: var(--space-4);
-}
 
 .roblox-tree-row {
   display: grid;
@@ -183,46 +90,9 @@
 .roblox-tree-select strong { color: currentColor; font-size: var(--text-3xs); font-weight: 500; }
 .roblox-tree-select small { color: var(--ink-dim); font-size: var(--text-3xs); }
 .roblox-tree-select > svg:last-child { color: var(--review); }
-
-.roblox-project-selection > nav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-1);
-  min-height: 2.8rem;
-  padding: var(--space-2) var(--space-4);
-  overflow-x: auto;
-  border-bottom: 1px solid var(--hairline);
-}
-
-.roblox-project-selection > nav button { flex: 0 0 auto; padding: 0; color: var(--ink-dim); background: transparent; border: 0; font-family: var(--font-mono); font-size: var(--text-3xs); cursor: pointer; }
-.roblox-project-selection > nav button:hover { color: var(--ink); }
-.roblox-project-selection > nav svg { flex: 0 0 auto; color: var(--ink-dim); }
-
-.roblox-project-selection > header {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: start;
-  gap: var(--space-3);
-  padding: var(--space-5) var(--space-6);
-  border-bottom: 1px solid var(--hairline);
-}
-
-.roblox-project-selection > header > span { display: grid; width: 2.2rem; height: 2.2rem; place-items: center; color: var(--motion-candidate); background: var(--desk); border: 1px solid var(--hairline); }
-.roblox-project-selection > header small { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); }
-.roblox-project-selection > header h3 { margin: var(--space-1) 0; font-size: 1rem; font-weight: 500; }
-.roblox-project-selection > header p { max-width: 68ch; margin: 0; color: var(--ink-muted); font-size: var(--text-3xs); line-height: 1.5; }
-.roblox-project-selection > header > em,
-.roblox-project-child-table button > em { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); font-style: normal; }
 [data-evidence='clear'] { --evidence-color: var(--clear); }
 [data-evidence='review'] { --evidence-color: var(--review); }
 [data-evidence='blocked'] { --evidence-color: var(--blocked); }
-.roblox-project-selection > header > em[data-evidence],
-.roblox-project-child-table button > em[data-evidence] { color: var(--evidence-color, var(--ink-dim)); }
-
-.roblox-project-preview { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; padding: 1px; background: var(--hairline); }
-.roblox-project-preview article { position: relative; min-height: 9rem; overflow: hidden; background: radial-gradient(120% 120% at 50% 40%, var(--graphite), var(--desk)); }
-.roblox-project-preview img { width: 100%; height: 100%; object-fit: contain; object-position: center; padding: var(--space-3); opacity: 0.94; }
-.roblox-project-preview span { position: absolute; right: var(--space-3); bottom: var(--space-3); left: var(--space-3); padding: var(--space-2) var(--space-3); color: var(--ink); background: color-mix(in srgb, var(--desk) 88%, transparent); border: 1px solid var(--hairline); font-size: var(--text-3xs); }
 
 .roblox-selection-preview { position: relative; min-height: 16rem; overflow: hidden; background: radial-gradient(130% 130% at 50% 35%, var(--graphite), var(--desk)); border-bottom: 1px solid var(--hairline); }
 .roblox-selection-preview img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; object-position: center; padding: var(--space-6); }
@@ -232,50 +102,6 @@
 .roblox-animation-selection span,
 .roblox-animation-selection small { display: block; color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); }
 .roblox-animation-selection strong { display: block; margin-block: var(--space-1); color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
-
-.roblox-project-child-table > header { display: flex; justify-content: space-between; gap: var(--space-3); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--hairline); }
-.roblox-project-child-table > header strong { font-size: var(--text-2xs); font-weight: 500; }
-.roblox-project-child-table > header small { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); }
-.roblox-project-child-table > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--space-3); width: 100%; min-height: 3rem; padding: var(--space-2) var(--space-4); color: var(--ink-dim); text-align: left; background: transparent; border: 0; border-bottom: 1px solid var(--hairline); cursor: pointer; }
-.roblox-project-child-table > button:hover { color: var(--ink); background: var(--raised); }
-.roblox-project-child-table button span > * { display: block; }
-.roblox-project-child-table button strong { color: currentColor; font-size: var(--text-2xs); font-weight: 500; }
-.roblox-project-child-table button small { color: var(--ink-dim); font-size: var(--text-3xs); }
-.roblox-project-child-table > div { display: flex; align-items: center; gap: var(--space-2); min-height: 2.8rem; padding: var(--space-2) var(--space-4); color: var(--ink-dim); border-bottom: 1px solid var(--hairline); }
-.roblox-project-child-table > div code { overflow-wrap: anywhere; font-size: var(--text-3xs); }
-.roblox-project-child-table > p { margin: 0; padding: var(--space-6); color: var(--ink-dim); font-size: var(--text-3xs); }
-
-.roblox-project-inspector { padding: var(--space-3); overflow-y: auto; }
-.roblox-project-inspector .metadata-inspector-body { grid-template-columns: 1fr; }
-.roblox-project-inspector .metadata-inspector dl > div { grid-template-columns: 1fr auto; }
-.roblox-project-inspector .metadata-inspector dt { grid-column: 1 / -1; }
-.roblox-project-inspector .metadata-inspector dl small { grid-column: 1 / -1; }
-
-.roblox-project-findings { background: var(--graphite); border: 1px solid var(--hairline-strong); }
-.roblox-project-findings > header { display: flex; align-items: center; justify-content: space-between; gap: var(--space-4); padding: var(--space-3) var(--space-4); border-bottom: 1px solid var(--hairline); }
-.roblox-project-findings > header > div { display: flex; align-items: center; gap: var(--space-2); color: var(--review); }
-.roblox-project-findings > header strong,
-.roblox-project-findings > header small { display: block; }
-.roblox-project-findings > header strong { color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
-.roblox-project-findings > header small,
-.roblox-project-findings > header em { color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); font-style: normal; }
-.roblox-project-findings > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 1px; background: var(--hairline); }
-.roblox-project-findings button { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: start; gap: var(--space-2); min-height: 6rem; padding: var(--space-3) var(--space-4); color: var(--ink-dim); text-align: left; background: var(--desk); border: 0; cursor: pointer; }
-.roblox-project-findings button:hover { color: var(--ink); background: var(--raised); }
-.roblox-project-findings button span { grid-column: 1 / -1; }
-.roblox-project-findings button strong,
-.roblox-project-findings button small { display: block; }
-.roblox-project-findings button strong { color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
-.roblox-project-findings button small { margin-top: var(--space-1); color: var(--ink-muted); font-size: var(--text-3xs); line-height: 1.45; }
-.roblox-project-findings button em { overflow: hidden; color: var(--ink-dim); font-family: var(--font-mono); font-size: var(--text-3xs); font-style: normal; text-overflow: ellipsis; white-space: nowrap; }
-.roblox-project-findings button[data-state='blocked'] { box-shadow: inset 0 -2px color-mix(in srgb, var(--blocked) 60%, transparent); }
-.roblox-project-findings button[data-state='review'] { box-shadow: inset 0 -2px color-mix(in srgb, var(--review) 60%, transparent); }
-
-.roblox-project-boundary { display: flex; align-items: center; gap: var(--space-3); padding: var(--space-3) var(--space-4); color: var(--motion-candidate); background: var(--graphite); border: 1px solid var(--hairline-strong); }
-.roblox-project-boundary strong,
-.roblox-project-boundary small { display: block; }
-.roblox-project-boundary strong { color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
-.roblox-project-boundary small { margin-top: var(--space-1); color: var(--ink-dim); font-size: var(--text-3xs); }
 
 .motion-plugin-intake {
   background: var(--graphite);
@@ -344,200 +170,12 @@
   background: var(--clear);
 }
 
-.motion-pairing-panel {
-  padding: var(--space-4) var(--space-6);
-}
-
-.motion-pairing-action {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-
-.motion-pairing-action strong,
-.motion-pairing-action small {
-  display: block;
-}
-
-.motion-pairing-action strong {
-  color: var(--ink);
-  font-size: 0.7rem;
-  font-weight: 500;
-}
-
-.motion-pairing-action small {
-  margin-top: 0.12rem;
-  color: var(--ink-dim);
-  font-size: var(--text-3xs);
-}
-
-.motion-pairing-fields {
-  display: grid;
-  grid-template-columns: minmax(12rem, 0.8fr) minmax(14rem, 1.2fr);
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-}
-
-.motion-pairing-field {
-  display: grid;
-  gap: var(--space-1);
-}
-
-.motion-pairing-field > span {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.motion-pairing-field > span button {
-  padding: 0;
-  color: var(--blue-accent);
-  background: transparent;
-  border: 0;
-  cursor: pointer;
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-}
-
-.motion-pairing-fields input {
-  min-width: 0;
-  height: 2.6rem;
-  padding-inline: var(--space-3);
-  color: var(--ink);
-  background: var(--desk);
-  border: 1px solid var(--hairline-strong);
-  outline: 0;
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-}
-
-.motion-pairing-fields input:focus {
-  border-color: var(--focus);
-}
-
 .motion-pairing-empty,
 .motion-evidence-inbox-empty,
 .motion-bridge-message {
   margin: var(--space-3) 0 0;
   color: var(--ink-dim);
   font-size: var(--text-2xs);
-}
-
-.motion-pairing-list {
-  margin-top: var(--space-4);
-  padding-top: var(--space-3);
-  border-top: 1px solid var(--hairline);
-}
-
-.motion-pairing-list-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: var(--space-3);
-}
-
-.motion-pairing-list-head strong,
-.motion-pairing-list-head small {
-  display: block;
-}
-
-.motion-pairing-list-head strong {
-  color: var(--ink);
-  font-size: 0.7rem;
-  font-weight: 500;
-}
-
-.motion-pairing-list-head small {
-  margin-top: 0.12rem;
-  color: var(--ink-dim);
-  font-size: var(--text-3xs);
-}
-
-.motion-pairing-refresh {
-  font: inherit;
-  font-size: var(--text-3xs);
-  color: var(--ink-muted);
-  background: transparent;
-  border: 1px solid var(--hairline);
-  border-radius: 8px;
-  padding: 0.28rem 0.55rem;
-  cursor: pointer;
-}
-
-.motion-pairing-refresh:hover { color: var(--ink); border-color: var(--hairline-strong); }
-.motion-pairing-refresh:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
-
-.motion-pairing-rows {
-  list-style: none;
-  margin: var(--space-3) 0 0;
-  padding: 0;
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-}
-
-.motion-pairing-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr auto;
-  align-items: center;
-  gap: var(--space-2) var(--space-3);
-  padding: var(--space-2) var(--space-3);
-  border: 1px solid var(--hairline);
-  border-left: 3px solid var(--hairline-strong);
-  border-radius: 9px;
-  background: var(--desk);
-}
-
-.motion-pairing-row[data-tone="positive"] { border-left-color: var(--clear); }
-
-.motion-pairing-row code {
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  color: var(--ink-muted);
-}
-
-.motion-pairing-status {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.3rem;
-  font-family: var(--font-mono);
-  font-size: var(--text-3xs);
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  padding: 0.2rem 0.45rem;
-  border-radius: 999px;
-  white-space: nowrap;
-  border: 1px solid var(--hairline-strong);
-  color: var(--ink-muted);
-  background: var(--raised);
-}
-
-.motion-pairing-status::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
-.motion-pairing-status.tone-positive { color: var(--clear); border-color: color-mix(in srgb, var(--clear) 38%, var(--hairline)); background: color-mix(in srgb, var(--clear) 12%, transparent); }
-
-.motion-pairing-timestamps {
-  display: flex;
-  flex-direction: column;
-  gap: 0.05rem;
-  font-size: var(--text-3xs);
-  color: var(--ink-dim);
-}
-
-.motion-pairing-timestamps small { font-size: var(--text-3xs); text-transform: uppercase; letter-spacing: 0.04em; }
-.motion-pairing-timestamps time { font-family: var(--font-mono); }
-
-.motion-pairing-row .button,
-.motion-pairing-row button.button-secondary {
-  padding: 0.28rem 0.6rem;
-  font-size: var(--text-3xs);
-}
-
-.motion-pairing-inactive {
-  color: var(--ink-dim);
-  font-size: var(--text-3xs);
-  text-align: center;
 }
 
 .motion-desktop-boundary {

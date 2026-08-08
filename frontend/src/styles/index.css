@@ -19,6 +19,7 @@
 @import './01-base.css';
 @import './02-evidence.css';
 @import './03-comparison.css';
+@import './features/atlas-stage.css';
 @import './04-shell.css';
 @import './05-heavy.css';
 @import './06-local.css';
@@ -31,4 +32,6 @@
 @import './09-scene.css';
 @import './10-roblox.css';
 @import './11-motion.css';
+@import './features/roblox-project.css';
+@import './features/motion-pairing.css';
 @import './features/generated-stream.css';

@@ -133,3 +133,277 @@ disjoint .subasset-match-panel header span | .system-check-purpose>div>span
 disjoint .subasset-match-panel header strong | .system-check-report-entry>div strong
 disjoint .system-check-purpose strong | .telemetry-table strong
 disjoint .system-check-purpose>div | .telemetry-table>div
+
+# atlas-stage slice. EvidenceAtlas.tsx: .atlas-stage-copy lives inside the .atlas-pipeline
+# <ol> (148-156); .atlas-detail (169) is the ol's SIBLING, so it never contains a stage.
+# All comparison-*/difference-*/match-* partners are MatchWorkbench.tsx, which mounts only
+# in PreflightWorkspace while EvidenceAtlas mounts only in App.tsx -- neither imports the
+# other (grep 0/0). The >button.selected pairs additionally need one element to carry two
+# different container classes, which no JSX assigns.
+disjoint .atlas-detail strong | .atlas-stage-copy strong
+disjoint .atlas-stage-blocked>button.selected | .match-source-list>button.selected
+disjoint .atlas-stage-copy em | .difference-exact>em
+disjoint .atlas-stage-copy em | .difference-visible>em
+disjoint .atlas-stage-copy strong | .comparison-toolbar strong
+disjoint .atlas-stage-copy strong | .comparison-watch strong
+disjoint .atlas-stage-copy strong | .match-limit strong
+disjoint .atlas-stage-copy strong | .match-list-heading strong
+disjoint .atlas-stage>button.selected | .match-source-list>button.selected
+disjoint .atlas-stage>button:hover | .match-source-list>button.selected
+disjoint .atlas-stage>button | .comparison-modebar button
+disjoint .atlas-stage>button | .match-source-list>button
+
+# roblox-project + motion-pairing slices (the 10/11-slab families). Evidence:
+# - RobloxProjectExample (all .roblox-project-*, .roblox-animation-selection,
+#   .roblox-selection-preview, .roblox-tree-select) mounts EXACTLY once, as the
+#   else-branch of the ternary at MotionComparisonLab.tsx:1722; every flagged motion-*
+#   container is either inside the ternary's other branch (pairing panel, corpus picker,
+#   clip catalog, live result, joint evidence, plugin intake, exact-state, step-readout,
+#   result panel) or a sibling section after it (.motion-boundary-note:1724,
+#   .motion-roblox-path:1726) -- none is ever an ancestor or descendant of the example.
+# - Inside RobloxProjectExample: masthead/summary/sync are top-level siblings; the two
+#   preview divs are mutually exclusive ternary branches; animation-selection is a
+#   sibling section; the explorer tree (.roblox-tree-select buttons) is its own pane.
+# - Inside MotionComparisonLab: .motion-pairing-action/-list-head live in the pairing
+#   panel; .motion-desktop-boundary is that panel's mutually exclusive else-branch;
+#   authoring-boundary/boundary-note/exact-state/step-readout are separate siblings.
+# - Cross-view: MotionComparisonLab mounts only in the motion view (ProductWorkspace:1016),
+#   RobloxAssetStressSet (.roblox-workload-*) only in the stress view, ReleasePathLab
+#   (.release-publish-clarifier) in the release flow; .workspace-utility-panel /
+#   -notifications-panel (PW:989) and .product-search are chrome siblings of <main> --
+#   no view content ever nests inside them.
+disjoint .motion-clip-catalog button | .roblox-project-child-table>button
+disjoint .motion-clip-catalog button | .roblox-project-findings button
+disjoint .motion-clip-catalog button | .roblox-project-sync button
+disjoint .motion-corpus-picker>header | .roblox-project-child-table>header
+disjoint .motion-corpus-picker>header | .roblox-project-explorer>header
+disjoint .motion-corpus-picker>header | .roblox-project-findings>header
+disjoint .motion-corpus-picker>header | .roblox-project-selection>header
+disjoint .motion-joint-evidence>div | .roblox-project-findings>div
+disjoint .motion-joint-evidence>header | .roblox-project-findings>header
+disjoint .motion-joint-evidence>header | .roblox-project-selection>header
+disjoint .motion-live-result>div | .roblox-project-findings>div
+disjoint .motion-live-result>header | .roblox-project-findings>header
+disjoint .motion-live-result>header | .roblox-project-selection>header
+disjoint .motion-plugin-intake>header | .roblox-project-child-table>header
+disjoint .motion-plugin-intake>header | .roblox-project-explorer>header
+disjoint .motion-plugin-intake>header | .roblox-project-findings>header
+disjoint .motion-plugin-intake>header | .roblox-project-selection>header
+disjoint .motion-roblox-path>div | .roblox-project-child-table>div
+disjoint .motion-roblox-path>div | .roblox-project-findings>div
+disjoint .motion-roblox-path>div | .roblox-project-summary>div
+disjoint .motion-roblox-path>header | .roblox-project-selection>header
+disjoint .motion-roblox-path>header | .roblox-project-explorer>header
+disjoint .motion-roblox-path>header | .roblox-project-findings>header
+disjoint .motion-scope-switch>div | .roblox-project-findings>div
+disjoint .roblox-asset-stress>header | .roblox-project-child-table>header
+disjoint .roblox-asset-stress>header | .roblox-project-explorer>header
+disjoint .roblox-asset-stress>header | .roblox-project-findings>header
+disjoint .roblox-asset-stress>header | .roblox-project-selection>header
+disjoint .roblox-project-findings>div | .workspace-notifications-panel>div
+disjoint .roblox-project-selection>header | .roblox-workload-detail>header
+disjoint .motion-authoring-boundary p | .roblox-project-child-table>p
+disjoint .motion-authoring-boundary p | .roblox-project-masthead p
+disjoint .motion-authoring-boundary strong | .motion-pairing-action strong
+disjoint .motion-authoring-boundary strong | .motion-pairing-list-head strong
+disjoint .motion-authoring-boundary strong | .roblox-project-boundary strong
+disjoint .motion-authoring-boundary strong | .roblox-project-summary strong
+disjoint .motion-authoring-boundary strong | .roblox-project-sync strong
+disjoint .motion-boundary-note p | .roblox-project-child-table>p
+disjoint .motion-boundary-note p | .roblox-project-masthead p
+disjoint .motion-boundary-note strong | .motion-pairing-action strong
+disjoint .motion-boundary-note strong | .motion-pairing-list-head strong
+disjoint .motion-boundary-note strong | .roblox-project-summary strong
+disjoint .motion-category-filter button[aria-pressed=true] | .roblox-project-findings button[data-state=blocked]
+disjoint .motion-category-filter button[aria-pressed=true] | .roblox-project-findings button[data-state=review]
+disjoint .motion-category-filter button | .roblox-project-child-table>button
+disjoint .motion-category-filter button | .roblox-project-findings button
+disjoint .motion-category-filter button | .roblox-project-sync button
+disjoint .motion-clip-catalog button small | .roblox-project-findings button small
+disjoint .motion-clip-catalog button strong | .roblox-project-findings button strong
+disjoint .motion-clip-catalog button strong | .roblox-project-findings>header strong
+disjoint .motion-clip-catalog button[aria-pressed=true] | .roblox-project-findings button[data-state=blocked]
+disjoint .motion-clip-catalog button[aria-pressed=true] | .roblox-project-findings button[data-state=review]
+disjoint .motion-compare-transport label | .roblox-project-explorer>label
+disjoint .motion-compare-transport>button | .roblox-project-child-table>button
+disjoint .motion-compare-transport>button | .roblox-project-findings button
+disjoint .motion-compare-transport>button | .roblox-project-sync button
+disjoint .motion-corpus-picker h2 | .roblox-project-masthead h2
+disjoint .motion-corpus-picker>footer span | .roblox-project-selection>header>span
+disjoint .motion-corpus-picker>header p | .roblox-project-selection>header p
+disjoint .motion-corpus-picker>header span | .roblox-project-selection>header>span
+disjoint .motion-corpus-picker>header>strong | .roblox-project-child-table button strong
+disjoint .motion-corpus-picker>header>strong | .roblox-project-child-table>header strong
+disjoint .motion-corpus-picker>header>strong | .roblox-project-explorer>header strong
+disjoint .motion-corpus-picker>header>strong | .roblox-project-findings button strong
+disjoint .motion-corpus-picker>header>strong | .roblox-project-findings>header strong
+disjoint .motion-desktop-boundary small | .motion-pairing-action small
+disjoint .motion-desktop-boundary small | .motion-pairing-list-head small
+disjoint .motion-desktop-boundary small | .roblox-project-boundary small
+disjoint .motion-desktop-boundary small | .roblox-project-masthead small
+disjoint .motion-desktop-boundary small | .roblox-project-summary small
+disjoint .motion-desktop-boundary small | .roblox-project-sync small
+disjoint .motion-desktop-boundary strong | .motion-pairing-action strong
+disjoint .motion-desktop-boundary strong | .motion-pairing-list-head strong
+disjoint .motion-desktop-boundary strong | .roblox-project-summary strong
+disjoint .motion-exact-state small | .motion-pairing-action small
+disjoint .motion-exact-state small | .motion-pairing-list-head small
+disjoint .motion-exact-state small | .roblox-project-boundary small
+disjoint .motion-exact-state small | .roblox-project-masthead small
+disjoint .motion-exact-state small | .roblox-project-summary small
+disjoint .motion-exact-state small | .roblox-project-sync small
+disjoint .motion-exact-state strong | .motion-pairing-action strong
+disjoint .motion-exact-state strong | .motion-pairing-list-head strong
+disjoint .motion-exact-state strong | .roblox-project-summary strong
+disjoint .motion-frame-strip>span | .roblox-project-preview span
+disjoint .motion-joint-evidence h2 | .roblox-project-masthead h2
+disjoint .motion-joint-evidence>div>div | .roblox-project-findings>header>div
+disjoint .motion-joint-evidence>div>p | .roblox-project-selection>header p
+disjoint .motion-joint-evidence>div | .roblox-project-child-table>div
+disjoint .motion-joint-evidence>div | .roblox-project-summary>div
+disjoint .motion-joint-evidence>header | .roblox-project-child-table>header
+disjoint .motion-joint-evidence>header | .roblox-project-explorer>header
+disjoint .motion-live-result>div strong | .roblox-project-child-table button strong
+disjoint .motion-live-result>div | .roblox-project-child-table>div
+disjoint .motion-live-result>div | .roblox-project-summary>div
+disjoint .motion-live-result>footer span | .roblox-project-selection>header>span
+disjoint .motion-live-result>footer strong | .roblox-project-child-table button strong
+disjoint .motion-live-result>header span | .roblox-project-selection>header>span
+disjoint .motion-live-result>header | .roblox-project-child-table>header
+disjoint .motion-live-result>header | .roblox-project-explorer>header
+disjoint .motion-pairing-action small | .release-record-boundary small
+disjoint .motion-pairing-action small | .roblox-workload-list small
+disjoint .motion-pairing-action small | .workspace-notifications-panel small
+disjoint .motion-pairing-action small | .workspace-table-action small
+disjoint .motion-pairing-action strong | .motion-step-readout>strong
+disjoint .motion-pairing-action strong | .release-record-boundary strong
+disjoint .motion-pairing-action strong | .roblox-workload-list strong
+disjoint .motion-pairing-action strong | .workspace-notifications-panel strong
+disjoint .motion-pairing-field>span button | .workspace-notifications-panel>div>button
+disjoint .motion-pairing-field>span button | .workspace-utility-panel>header>button
+disjoint .motion-pairing-field>span | .roblox-project-preview span
+disjoint .motion-pairing-list-head small | .release-record-boundary small
+disjoint .motion-pairing-list-head small | .roblox-workload-list small
+disjoint .motion-pairing-list-head small | .workspace-notifications-panel small
+disjoint .motion-pairing-list-head small | .workspace-table-action small
+disjoint .motion-pairing-list-head strong | .motion-step-readout>strong
+disjoint .motion-pairing-list-head strong | .release-record-boundary strong
+disjoint .motion-pairing-list-head strong | .roblox-workload-list strong
+disjoint .motion-pairing-list-head strong | .workspace-notifications-panel strong
+disjoint .motion-plugin-intake h2 | .roblox-project-masthead h2
+disjoint .motion-plugin-intake>header p | .roblox-project-selection>header p
+disjoint .motion-plugin-intake>header>span | .roblox-project-selection>header>span
+disjoint .motion-result-panel h2 | .roblox-project-masthead h2
+disjoint .motion-result-panel header strong | .roblox-project-child-table button strong
+disjoint .motion-result-panel header strong | .roblox-project-child-table>header strong
+disjoint .motion-result-panel header strong | .roblox-project-explorer>header strong
+disjoint .motion-result-panel header strong | .roblox-project-findings button strong
+disjoint .motion-result-panel header strong | .roblox-project-findings>header strong
+disjoint .motion-result-panel>header>span | .roblox-project-selection>header>span
+disjoint .motion-result-panel>header | .roblox-project-explorer>header
+disjoint .motion-result-panel>header | .roblox-project-findings>header
+disjoint .motion-result-panel>header | .roblox-project-selection>header
+disjoint .motion-result-panel>p | .roblox-project-child-table>p
+disjoint .motion-roblox-path article small | .roblox-project-findings button small
+disjoint .motion-roblox-path article span | .roblox-project-selection>header>span
+disjoint .motion-roblox-path article | .roblox-project-preview article
+disjoint .motion-roblox-path footer span | .roblox-project-selection>header>span
+disjoint .motion-roblox-path footer strong | .roblox-project-child-table button strong
+disjoint .motion-roblox-path footer strong | .roblox-project-child-table>header strong
+disjoint .motion-roblox-path footer strong | .roblox-project-explorer>header strong
+disjoint .motion-roblox-path footer strong | .roblox-project-findings button strong
+disjoint .motion-roblox-path footer strong | .roblox-project-findings>header strong
+disjoint .motion-roblox-path h2 | .roblox-project-masthead h2
+disjoint .motion-roblox-path>header p | .roblox-project-selection>header p
+disjoint .motion-roblox-path>header span | .roblox-project-selection>header>span
+disjoint .motion-roblox-path>header | .roblox-project-child-table>header
+disjoint .motion-signal-list>div | .roblox-project-child-table>div
+disjoint .motion-signal-list>div | .roblox-project-findings>div
+disjoint .motion-stage-labels span | .roblox-project-masthead span
+disjoint .motion-stage-labels span | .roblox-project-preview span
+disjoint .motion-stage-state span | .roblox-project-preview span
+disjoint .motion-step-readout>strong | .roblox-project-boundary strong
+disjoint .motion-step-readout>strong | .roblox-project-summary strong
+disjoint .motion-step-readout>strong | .roblox-project-sync strong
+disjoint .motion-structure-evidence h2 | .roblox-project-masthead h2
+disjoint .product-search>button | .roblox-project-child-table>button
+disjoint .product-search>button | .roblox-project-findings button
+disjoint .product-search>button | .roblox-project-sync button
+disjoint .release-publish-clarifier dl>div | .roblox-project-findings>header>div
+disjoint .release-publish-clarifier h2 | .roblox-project-masthead h2
+disjoint .release-publish-clarifier p | .roblox-project-child-table>p
+disjoint .release-publish-clarifier p | .roblox-project-masthead p
+disjoint .release-publish-clarifier>div>span | .roblox-project-selection>header>span
+disjoint .release-record-boundary small | .roblox-project-boundary small
+disjoint .release-record-boundary small | .roblox-project-masthead small
+disjoint .release-record-boundary small | .roblox-project-summary small
+disjoint .release-record-boundary small | .roblox-project-sync small
+disjoint .release-record-boundary strong | .roblox-project-boundary strong
+disjoint .release-record-boundary strong | .roblox-project-summary strong
+disjoint .release-record-boundary strong | .roblox-project-sync strong
+disjoint .roblox-animation-selection span | .roblox-project-preview span
+disjoint .roblox-animation-selection strong | .roblox-project-summary strong
+disjoint .roblox-asset-stress>footer small | .roblox-project-explorer>header small
+disjoint .roblox-asset-stress>footer small | .roblox-project-findings button small
+disjoint .roblox-asset-stress>footer strong | .roblox-project-child-table button strong
+disjoint .roblox-asset-stress>header p | .roblox-project-selection>header p
+disjoint .roblox-asset-stress>header span | .roblox-project-selection>header>span
+disjoint .roblox-asset-stress>header>small | .roblox-project-child-table button small
+disjoint .roblox-asset-stress>header>small | .roblox-project-child-table>header small
+disjoint .roblox-asset-stress>header>small | .roblox-project-explorer>header small
+disjoint .roblox-asset-stress>header>small | .roblox-project-findings button small
+disjoint .roblox-asset-stress>header>small | .roblox-project-findings>header small
+disjoint .roblox-asset-stress>header>small | .roblox-project-selection>header small
+disjoint .roblox-project-boundary strong | .workspace-table-action strong
+disjoint .roblox-project-child-table button strong | .roblox-workload-detail>aside strong
+disjoint .roblox-project-child-table button strong | .roblox-workload-detail>header strong
+disjoint .roblox-project-child-table button strong | .workspace-utility-panel>header strong
+disjoint .roblox-project-child-table button>em | .roblox-workload-detail>header em
+disjoint .roblox-project-child-table>button:hover | .roblox-workload-list>button:hover
+disjoint .roblox-project-child-table>button:hover | .roblox-workload-list>button[aria-pressed=true]
+disjoint .roblox-project-child-table>button | .roblox-workload-list>button
+disjoint .roblox-project-child-table>div | .workspace-notifications-panel>div
+disjoint .roblox-project-child-table>header strong | .roblox-workload-detail>header strong
+disjoint .roblox-project-child-table>header strong | .workspace-utility-panel>header strong
+disjoint .roblox-project-child-table>header | .roblox-workload-detail>header
+disjoint .roblox-project-child-table>header | .workspace-utility-panel>header
+disjoint .roblox-project-child-table>p | .roblox-workload-detail>p
+disjoint .roblox-project-explorer>header small | .roblox-workload-detail>aside small
+disjoint .roblox-project-explorer>header strong | .roblox-workload-detail>header strong
+disjoint .roblox-project-explorer>header strong | .workspace-utility-panel>header strong
+disjoint .roblox-project-explorer>header | .roblox-workload-detail>header
+disjoint .roblox-project-explorer>header | .workspace-utility-panel>header
+disjoint .roblox-project-findings button em | .roblox-workload-detail>header em
+disjoint .roblox-project-findings button small | .roblox-workload-detail>aside small
+disjoint .roblox-project-findings button small | .roblox-workload-detail>header small
+disjoint .roblox-project-findings button strong | .roblox-workload-detail>header strong
+disjoint .roblox-project-findings button strong | .workspace-utility-panel>header strong
+disjoint .roblox-project-findings button:hover | .roblox-workload-list>button:hover
+disjoint .roblox-project-findings button:hover | .roblox-workload-list>button[aria-pressed=true]
+disjoint .roblox-project-findings button[data-state=blocked] | .roblox-workload-list>button[aria-pressed=true]
+disjoint .roblox-project-findings button[data-state=review] | .roblox-workload-list>button[aria-pressed=true]
+disjoint .roblox-project-findings button | .roblox-workload-list>button
+disjoint .roblox-project-findings>header em | .roblox-workload-detail>header em
+disjoint .roblox-project-findings>header strong | .roblox-workload-detail>header strong
+disjoint .roblox-project-findings>header strong | .workspace-utility-panel>header strong
+disjoint .roblox-project-findings>header | .roblox-workload-detail>header
+disjoint .roblox-project-findings>header | .workspace-utility-panel>header
+disjoint .roblox-project-masthead em | .roblox-workload-list em
+disjoint .roblox-project-masthead p | .roblox-workload-detail>p
+disjoint .roblox-project-masthead span | .roblox-selection-preview span
+disjoint .roblox-project-preview img | .roblox-selection-preview img
+disjoint .roblox-project-selection>header>em | .roblox-workload-detail>header em
+disjoint .roblox-project-selection>header>span | .workspace-utility-panel>header>span
+disjoint .roblox-project-selection>header | .workspace-utility-panel>header
+disjoint .roblox-project-selection>nav button | .workspace-notifications-panel>div>button
+disjoint .roblox-project-selection>nav button | .workspace-utility-panel>header>button
+disjoint .roblox-project-summary strong | .roblox-tree-select strong
+disjoint .roblox-project-summary strong | .roblox-workload-list strong
+disjoint .roblox-project-summary strong | .workspace-notifications-panel strong
+disjoint .roblox-project-summary strong | .workspace-table-action strong
+disjoint .roblox-project-summary>div | .workspace-notifications-panel>div
+disjoint .roblox-project-sync button:hover | .roblox-workload-list>button:hover
+disjoint .roblox-project-sync button:hover | .roblox-workload-list>button[aria-pressed=true]
+disjoint .roblox-project-sync button | .roblox-workload-list>button
+disjoint .roblox-project-sync strong | .roblox-tree-select strong
+disjoint .roblox-project-sync strong | .workspace-table-action strong
