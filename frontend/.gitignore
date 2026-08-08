@@ -5,6 +5,7 @@ vite.config.js
 vite.config.d.ts
 test-results/
 playwright-report/
+audit/.css-cascade-baseline.json
 work/
 .impeccable/
 
