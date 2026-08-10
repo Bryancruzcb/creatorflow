@@ -235,9 +235,14 @@ Confirmed-major, still open:
 3. **`styles.css` monolith** — *resolved 2026-07-28 (PR #67, after #66's rendered-output
    harness and a 128-dead-rule purge).* Split into 11 ordered slab files +
    `frontend/src/styles/index.css`, byte-identical output, slab order test-enforced
-   (`styles/slabOrder.test.ts`). Deeper per-rule consolidation is optional follow-up work —
-   the cascade is position-dependent in documented places, so any rule move needs the
-   harness. Tracked in #120.
+   (`styles/slabOrder.test.ts`). The deeper per-rule consolidation followed on 2026-08-08
+   (PRs #140–#143, closed #120): eleven feature families extracted into
+   `styles/features/`, the triple-defined `.manifest-import-progress` merged, and the
+   documented `.local-ownership-facts` positional tie fixed at the selector. Every move
+   was proven on the built cascade by `frontend/scripts/css-cascade-check.mjs`
+   (`npm run css:baseline` / `css:compare` / `css:dups`), with human DOM-evidence
+   verdicts for ambiguous source-order pairs recorded in
+   `frontend/audit/css-reviewed-pairs.txt`.
 4. **Stale `frontend/*.md` docs** — *resolved 2026-07-26 (PR #41, "honest docs").*
 
 Notable verified minors from the July-13 review — **re-verified against code 2026-08-02;

@@ -7,15 +7,12 @@ message was checked against the code it comes from.
 
 ## 0. Prep (~10 min, before opening Studio)
 
-The PR #119 checklist must run against the PR #119 build — the bridge plugin, desktop
-(Java V014), and frontend all changed on that branch.
+*(This section originally required a checkout of the PR #119 branch. #119 merged on
+2026-08-03 and the branch is gone — plain `main` IS that build now.)*
 
-1. Get a checkout of branch `claude/phaseC-curve-animation-support`. If you don't have one:
-   `git -C C:/Users/isdis/git/creatorflow worktree add ../creatorflow-pr119 origin/claude/phaseC-curve-animation-support`
-   (remove it afterwards with `git worktree remove ../creatorflow-pr119`).
-2. From that checkout, build and run the desktop with its workspace. `JAVA_HOME` must
-   point at a JDK 24+ — check with `mvn -version`, not `java -version` (see
-   `docs/HANDOFF.md`):
+1. Use the main checkout at `C:/Users/isdis/git/creatorflow`, updated (`git pull`).
+2. Build and run the desktop with its workspace. `JAVA_HOME` must point at a JDK 24+ —
+   check with `mvn -version`, not `java -version` (see `docs/HANDOFF.md`):
 
    ```bash
    npm --prefix frontend ci
@@ -30,7 +27,8 @@ The PR #119 checklist must run against the PR #119 build — the bridge plugin, 
    locally* in `roblox-plugin/desktop-bridge/README.md`).
 5. Pair: copy the loopback URL + pairing token from the desktop's Motion workspace, click
    the **CreatorFlow** toolbar button in Studio, paste both, **Test connection**. Pass:
-   "Connected to CreatorFlow".
+   "Connected to CreatorFlow". Tokens expire after 8 hours (and the endpoint port changes
+   across desktop restarts) — resuming a previous day's session always means re-pairing.
 
 ## 1. Rig IDs for the playability probe (~5 min)
 
@@ -45,17 +43,18 @@ Full detail and evidence: *Stock rig asset IDs for the playability probe* in
    right-click each in Explorer → **Save to Roblox…** → **Model**. Re-run the test line on
    your own two IDs — each must print the rig name and the matching
    `Enum.HumanoidRigType`.
-3. Edit `RIG_ASSET_IDS` in the installed plugin source (branch copy: lines 137–138) to the
-   confirmed IDs → **Save and Reload Plugin**.
+3. Edit `RIG_ASSET_IDS` in the installed plugin source (lines 137–138) to the confirmed
+   IDs → **Save and Reload Plugin**.
 4. **Write down both IDs.** They still need a follow-up commit into `main`'s
-   `CreatorFlowAnimationBridge.lua` lines 133–134.
+   `CreatorFlowAnimationBridge.lua` lines 137–138 — the installed copy and the repo file
+   are separate.
 
 Leave the two rigs in the workspace — block 2 animates the R15 one. After any Compare in
 block 2, the R6/R15 rows in the desktop's Animation Snapshots panel should now read
 **Plays clean** (or a real error) instead of **Not checked**; if they still say
 **Not checked**, an ID is wrong.
 
-## 2. PR #119 live checklist (~25 min)
+## 2. Curve-animation (Phase C) live checklist (~25 min)
 
 ### 2a. Author the test clips (~10 min)
 
@@ -126,10 +125,10 @@ create.roblox.com → Development Items → Images, then paste the returned id i
 
 ## 4. After the session — bring back
 
-- The two rig IDs → commit into `main`'s `CreatorFlowAnimationBridge.lua` lines 133–134.
+- The two rig IDs → commit into `main`'s `CreatorFlowAnimationBridge.lua` lines 137–138.
 - The icon image id → commit into `Main.server.luau` line 26.
-- The 2b/2c/2d results → tick the matching boxes in the PR branch's bridge README manual
-  checklist and/or paste your notes on PR #119, then do your normal review/merge pass.
+- The 2b/2c/2d results → tick the matching boxes in the bridge README's manual checklist
+  on `main` (the PR #119 branch this used to point at is merged and deleted).
 - Anything that failed, verbatim — a failure here is exactly what the checklist exists to
   catch.
 
