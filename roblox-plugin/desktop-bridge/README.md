@@ -144,8 +144,8 @@ local m = game:GetService("InsertService"):LoadAsset(5421500442) local rig = m:F
 
 ### The exact edit once confirmed
 
-In `CreatorFlowAnimationBridge.lua` (lines 133–134 on `main`; 137–138 on the PR #119
-branch), replace:
+In `CreatorFlowAnimationBridge.lua` (lines 137–138 on `main` — the PR #119 branch this
+used to distinguish is merged), replace:
 
 ```lua
 	R6 = 0, -- TODO: insert a stock R6 dummy via Studio's Avatar tab -> Rig Builder, copy its asset ID here

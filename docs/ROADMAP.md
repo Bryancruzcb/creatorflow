@@ -89,8 +89,8 @@ skeletons, and warns below 75%, so "plays clean" is no longer the whole claim.
 That check is derived locally from the submitted joint names — it needs no rig
 asset and no Studio, so it answers today, placeholders or not.
 
-### Phase C — CurveAnimation support  *(in review — PR #119)*
-The plugin reads only `KeyframeSequence` today; PR #119 adds curve-based
+### Phase C — CurveAnimation support  *(merged 2026-08-03 — PR #119)*
+The plugin reads only `KeyframeSequence` today; PR #119 added curve-based
 animations on a deterministic curve canonical format. Built by owner decision
 (2026-08-01, recorded in its design spec); awaiting owner review plus the
 owner's solo live-Studio checklist.

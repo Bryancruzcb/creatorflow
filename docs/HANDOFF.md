@@ -18,7 +18,7 @@ facts win. Read `ROBLOX_WORKFLOW_RESEARCH.md` for the landscape research behind 
 ownership verification Phase A (#33/#38, merged 2026-07-26), the stylesheet split
 (#67), JavaFX 26 (#92, desktop launch verified 2026-08-02), Spring Boot 4
 (#107), the runtime playability probe Phase B (#118), and Phase C
-(CurveAnimation) is in review as PR #119. The friend test was **cancelled
+(CurveAnimation, PR #119, merged 2026-08-03). The friend test was **cancelled
 permanently by the project owner on 2026-07-30** — see `ROADMAP.md` for the
 gate-closure record; phases proceed by per-phase owner decision.
 
@@ -353,7 +353,7 @@ as the owner's solo run or not at all. These gaps remain real and need that sess
 3. Confirm the local bridge survives desktop restart, token rotation, Studio HTTP denial, and
    a request near the 2 MiB boundary.
 4. ~~Add `CurveAnimation`~~ — Phase C does exactly this on a deterministic curve canonical
-   format; in review as PR #119.
+   format; merged 2026-08-03 as PR #119.
 5. ~~Add a published-ID runtime probe on R6/R15~~ — shipped as Phase B (#118). Residual:
    the plugin's `RIG_ASSET_IDS` R6/R15 entries are `0` placeholders until a live Studio
    session fills them (Rig Builder → copy asset ID). The structural joint-overlap check
