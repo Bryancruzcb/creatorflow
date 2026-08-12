@@ -95,21 +95,25 @@ animations on a deterministic curve canonical format. Built by owner decision
 (2026-08-01, recorded in its design spec); awaiting owner review plus the
 owner's solo live-Studio checklist.
 
-### Phase D — Team polish  *(next — owner decision 2026-08-02, recorded here)*
-What remains: batch decisions and a smoother BLOCKED-resolution flow. The other
-two former scope items are already done — the `styles.css` monolith was split
-into ordered slabs by #67 (2026-07-28; deeper per-rule consolidation is parked
-in #120), and both held dependency majors
-shipped: JavaFX 26 via #92 (2026-07-29) and Spring Boot 4 via #107
-(2026-07-30).
+### Phase D — Team polish  *(shipped 2026-08-03 — PRs #127 and #129)*
+Batch decisions over grouped assets and a BLOCKED-resolution flow with a gate
+check, per the owner decision of 2026-08-02. The other two former scope items
+had already shipped — the `styles.css` monolith was split into ordered slabs by
+#67 (2026-07-28; the deeper per-rule consolidation followed 2026-08-08 as PRs
+#140–#143, closing #120), and both held dependency majors shipped: JavaFX 26
+via #92 (2026-07-29) and Spring Boot 4 via #107 (2026-07-30).
 
-### Phase E — Shared team provenance  *(approved to build — owner decision 2026-08-02)*
+### Phase E — Shared team provenance  *(shipped 2026-08-03 — PRs #128 and #130)*
 The honest rebirth of the old cloud registry: not a public "copied/not-copied"
 judge, but a shared store so a team's members check provenance against each
-other. The friend-test demand gate is closed (see above); the owner approved
-building this phase on 2026-08-02 (this document is the record of that
-decision). It is expected to explicitly repurpose the frozen `server/` tree — a
-call the phase's design spec must record before build.
+other. The friend-test demand gate was closed (see above); the owner approved
+building on 2026-08-02, and it shipped as two PRs — #128 retired the old
+gallery half of the frozen `server/` tree (−4,105 lines), #130 added the team
+provenance store: shared observations keyed by the motion-curve fingerprint,
+live-only lookup (offline renders as *unknown*, never "nobody has this"),
+observations only (nothing verdict-shaped is ever shared), and the legacy
+registry routes flag-gated default-off (`creatorflow.legacy-registry.enabled`)
+so the frozen Rojo plugin is not silently broken.
 
 ## Standing constraints (every phase)
 
