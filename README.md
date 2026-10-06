@@ -131,15 +131,106 @@ review lead, never a verdict) is exactly right.
 Full detail in [`docs/STRATEGIC-REDIRECT.md`](docs/STRATEGIC-REDIRECT.md) and the
 [consolidation report](docs/CONSOLIDATION-REPORT.md) that mapped the decision against the code.
 
+## Release-manifest milestone
+
+`creatorflow-core` now has the first working slice of the release-preflight direction:
+
+- `ProjectScanner` recursively inventories supported creative files using project-relative paths.
+- Every file runs through the existing SHA-256, image, audio, and metadata layers.
+- Relationships inside the project—exact duplicates, perceptually similar images, and related audio—are retained in the inventory.
+- `CreativeManifest` defines the versioned `creatorflow.manifest/v0.1` contract.
+- `ManifestJson` writes deterministic JSON and re-imports it.
+- The JSON Schema ships inside the core JAR as `creatorflow-manifest-v0.1.schema.json`.
+- Source/license resolution is an explicit interface; an absent record remains unresolved instead of being mistaken for a clean ownership result.
+
+Run the current CLI bridge against a real project directory:
+
+```bash
+mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
+  -Dexec.mainClass=creatorflow.manifest.ManifestCli \
+  -Dexec.args='/path/to/project MyProject 0.1.0 /path/to/manifest.json'
+```
+
+Append `--exclude <directory-name>` (repeatable) to keep fixture or vendor trees out of the scan
+on top of the built-in exclusions — e.g. this repository's own dogfood scan needs
+`--exclude stress-fixtures`, whose deliberately duplicated test textures would otherwise
+hard-block the release gate.
+
+The scanner also supports configurable exclusions, ordered progress events, cancellation with a usable partial manifest, per-file failure isolation, dependency findings, and symlink containment. The desktop module now owns a loopback-only local bridge and migrated workflow store for project selection, insert-only scan runs, source evidence, append-only decisions, releases, and workspace restoration.
+
+To run the desktop-owned browser workspace directly from a frontend build:
+
+```bash
+npm --prefix frontend run build
+mvn -pl desktop javafx:run \
+  -Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true
+```
+
+The app prints the workspace URL (`CreatorFlow workspace: http://127.0.0.1:<port>/launch?...`)
+to the console at startup, so the session is recoverable even if no browser opens.
+(The old `-Djavafx.options="..."` form silently failed to reach the app JVM — the desktop
+pom now forwards these properties itself.)
+
+For a self-contained desktop artifact, activate the packaging profile by supplying the same build
+directory at package time:
+
+```bash
+mvn -pl desktop -am package \
+  -Dcreatorflow.web.dist=$(pwd)/frontend/dist
+```
+
+Large demonstration GLBs are intentionally optional: serving an external `dist` keeps ordinary
+desktop builds lean, while the packaged profile is available for an offline showcase build.
+
+### Roblox animation bridge prototype
+
+CreatorFlow now has a loopback-only Roblox Studio input for animation evidence. The Studio plugin
+reads two animation IDs that the signed-in creator is permitted to access, flattens each clip into
+stable joint paths and local `CFrame` values, and sends one bounded JSON request to the desktop
+app. The Java core recanonicalizes that data, computes deterministic
+SHA-256 curve fingerprints, compares pose/timing/joint coverage, and stores the result with the
+selected local project. Raw joint curves are not retained in SQLite.
+
+Studio pairing flow:
+
+1. Build the React workspace and run the desktop-owned browser workspace with the commands above.
+2. Open a local project, choose **Animation compare**, and create a temporary Studio pairing.
+3. Install [`roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua`](roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua)
+   using the source-first instructions in the [desktop-bridge guide](roblox-plugin/desktop-bridge/README.md).
+4. Paste the displayed loopback endpoint and token into Studio, test the connection, then compare
+   two permitted animation IDs. The evidence inbox refreshes automatically.
+
+Both Roblox clip types are read. A `KeyframeSequence` is read exactly. A `CurveAnimation` has no
+keyframes to read, so the plugin samples its position and rotation curves 20 times a second into the
+same pose shape, and every comparison carries how each side was read — `KEYFRAME` or
+`CURVE_SAMPLED` — through to the workspace, where a sampled side is labeled "Sampled from a curve —
+not an exact read." Sampled sides can still be pinned as drift-detection snapshots: a live-Studio
+spike found the sampling bit-identical across repeat reads and a register/refetch round trip, so a
+sampled fingerprint does not wobble into a false "this animation changed." Curve support reads
+position/rotation on rig-joint paths only, and a curve clip with none of those is rejected with that
+reason. Inaccessible/private assets, rig retargeting, and copyright conclusions stay outside v0.1.
+Roblox Studio decides whether an animation can be read; CreatorFlow does not bypass asset
+permissions.
+
+Run the default release policy against a manifest with machine-readable output:
+
+```bash
+mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
+  -Dexec.mainClass=creatorflow.manifest.ReleaseGateCli \
+  -Dexec.args='/path/to/manifest.json --output /path/to/gate-report.json'
+```
+
+The command exits `0` when the release passes, `2` when policy blocks it, and `3` for invalid input or execution failure. Push CI runs it on the fixtures in `.github/fixtures/release-gate/` and fails the push when the passing fixture is BLOCKED. `.github/workflows/creatorflow-release-gate.yml` is the manual run of the same check.
+
 ## Legacy: the community gallery
 
-> **Deleted (2026-08-02). This section is history, written in the present tense of the time.**
-> Everything from here down describes the pre-redirect community-gallery direction, and **the code
-> for it no longer exists**: the uploads, gallery pages, version stacks, comments, disputes,
-> Thymeleaf templates and browser session login were removed when `server/` was repurposed as the
-> team provenance store. The desktop's "Community registry" settings card is gone with them.
-> Nothing below describes anything you can run today; it is kept because the reasoning is part of
-> how the project got here. What `server/` is now is in [`server/README.md`](server/README.md).
+> **Deleted (2026-08-02). The gallery history below is written in the present tense of the time.**
+> It runs through "The Roblox Studio plugin." The uploads, gallery pages, version stacks, comments,
+> disputes, Thymeleaf templates and browser session login were removed when `server/` was
+> repurposed as the team provenance store. The desktop's "Community registry" settings card is gone
+> with them. That history does not describe anything you can run today. It is kept because the
+> reasoning is part of how the project got here. The release-gate commands are in the section
+> above. What `server/` is now is in [`server/README.md`](server/README.md).
 
 - **Gallery** — a dark, media-first grid ("screening room") with search, image/audio filters and
   a *feedback wanted* view; version badges and flags are labeled right on the tile
@@ -256,97 +347,6 @@ rojo build roblox-plugin --plugin CreatorFlow.rbxm   # installs into Studio's pl
 
 See [`roblox-plugin/README.md`](roblox-plugin/README.md) for setup and the roadmap
 (team registries, Roblox animation-ID lifecycle tracking, version stacks from Studio).
-
-## Release-manifest milestone
-
-`creatorflow-core` now has the first working slice of the release-preflight direction:
-
-- `ProjectScanner` recursively inventories supported creative files using project-relative paths.
-- Every file runs through the existing SHA-256, image, audio, and metadata layers.
-- Relationships inside the project—exact duplicates, perceptually similar images, and related audio—are retained in the inventory.
-- `CreativeManifest` defines the versioned `creatorflow.manifest/v0.1` contract.
-- `ManifestJson` writes deterministic JSON and re-imports it.
-- The JSON Schema ships inside the core JAR as `creatorflow-manifest-v0.1.schema.json`.
-- Source/license resolution is an explicit interface; an absent record remains unresolved instead of being mistaken for a clean ownership result.
-
-Run the current CLI bridge against a real project directory:
-
-```bash
-mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
-  -Dexec.mainClass=creatorflow.manifest.ManifestCli \
-  -Dexec.args='/path/to/project MyProject 0.1.0 /path/to/manifest.json'
-```
-
-Append `--exclude <directory-name>` (repeatable) to keep fixture or vendor trees out of the scan
-on top of the built-in exclusions — e.g. this repository's own dogfood scan needs
-`--exclude stress-fixtures`, whose deliberately duplicated test textures would otherwise
-hard-block the release gate.
-
-The scanner also supports configurable exclusions, ordered progress events, cancellation with a usable partial manifest, per-file failure isolation, dependency findings, and symlink containment. The desktop module now owns a loopback-only local bridge and migrated workflow store for project selection, insert-only scan runs, source evidence, append-only decisions, releases, and workspace restoration.
-
-To run the desktop-owned browser workspace directly from a frontend build:
-
-```bash
-npm --prefix frontend run build
-mvn -pl desktop javafx:run \
-  -Dcreatorflow.web.root=$(pwd)/frontend/dist -Dcreatorflow.web.open=true
-```
-
-The app prints the workspace URL (`CreatorFlow workspace: http://127.0.0.1:<port>/launch?...`)
-to the console at startup, so the session is recoverable even if no browser opens.
-(The old `-Djavafx.options="..."` form silently failed to reach the app JVM — the desktop
-pom now forwards these properties itself.)
-
-For a self-contained desktop artifact, activate the packaging profile by supplying the same build
-directory at package time:
-
-```bash
-mvn -pl desktop -am package \
-  -Dcreatorflow.web.dist=$(pwd)/frontend/dist
-```
-
-Large demonstration GLBs are intentionally optional: serving an external `dist` keeps ordinary
-desktop builds lean, while the packaged profile is available for an offline showcase build.
-
-### Roblox animation bridge prototype
-
-CreatorFlow now has a loopback-only Roblox Studio input for animation evidence. The Studio plugin
-reads two animation IDs that the signed-in creator is permitted to access, flattens each clip into
-stable joint paths and local `CFrame` values, and sends one bounded JSON request to the desktop
-app. The Java core recanonicalizes that data, computes deterministic
-SHA-256 curve fingerprints, compares pose/timing/joint coverage, and stores the result with the
-selected local project. Raw joint curves are not retained in SQLite.
-
-Studio pairing flow:
-
-1. Build the React workspace and run the desktop-owned browser workspace with the commands above.
-2. Open a local project, choose **Animation compare**, and create a temporary Studio pairing.
-3. Install [`roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua`](roblox-plugin/desktop-bridge/CreatorFlowAnimationBridge.lua)
-   using the source-first instructions in the [desktop-bridge guide](roblox-plugin/desktop-bridge/README.md).
-4. Paste the displayed loopback endpoint and token into Studio, test the connection, then compare
-   two permitted animation IDs. The evidence inbox refreshes automatically.
-
-Both Roblox clip types are read. A `KeyframeSequence` is read exactly. A `CurveAnimation` has no
-keyframes to read, so the plugin samples its position and rotation curves 20 times a second into the
-same pose shape, and every comparison carries how each side was read — `KEYFRAME` or
-`CURVE_SAMPLED` — through to the workspace, where a sampled side is labeled "Sampled from a curve —
-not an exact read." Sampled sides can still be pinned as drift-detection snapshots: a live-Studio
-spike found the sampling bit-identical across repeat reads and a register/refetch round trip, so a
-sampled fingerprint does not wobble into a false "this animation changed." Curve support reads
-position/rotation on rig-joint paths only, and a curve clip with none of those is rejected with that
-reason. Inaccessible/private assets, rig retargeting, and copyright conclusions stay outside v0.1.
-Roblox Studio decides whether an animation can be read; CreatorFlow does not bypass asset
-permissions.
-
-Run the default release policy against a manifest with machine-readable output:
-
-```bash
-mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
-  -Dexec.mainClass=creatorflow.manifest.ReleaseGateCli \
-  -Dexec.args='/path/to/manifest.json --output /path/to/gate-report.json'
-```
-
-The command exits `0` when the release passes, `2` when policy blocks it, and `3` for invalid input or execution failure. `.github/workflows/creatorflow-release-gate.yml` shows the CI integration and report upload.
 
 ## API
 

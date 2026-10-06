@@ -10,7 +10,7 @@
   <packaging>pom</packaging>
 
   <name>CreatorFlow</name>
-  <description>Asset management for creative work with a built-in originality verification engine.</description>
+  <description>Local-first release-preflight for small Roblox teams: snapshot diffing, provenance evidence, and deterministic PASS/BLOCKED release records.</description>
 
   <modules>
     <module>core</module>
