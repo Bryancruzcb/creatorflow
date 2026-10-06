@@ -271,7 +271,9 @@ public final class ReleaseExportService {
         removed.removeAll(after.keySet());
         TreeSet<String> changed = new TreeSet<>();
         for (String path : after.keySet()) {
-            if (before.containsKey(path) && !after.get(path).equals(before.get(path))) changed.add(path);
+            if (before.containsKey(path) && fileBytesChanged(before.get(path), after.get(path))) {
+                changed.add(path);
+            }
         }
         int unresolved = (int) current.assets().stream().filter(asset -> !asset.source().resolved()).count();
         int approved = count(current, ReleaseDecision.APPROVED);
@@ -280,6 +282,14 @@ public final class ReleaseExportService {
         return new ReleaseComparison(previous == null ? null : previous.id(), added.size(), changed.size(),
                 removed.size(), List.copyOf(added), List.copyOf(changed), List.copyOf(removed),
                 unresolved, approved, blocked, excluded);
+    }
+
+    /**
+     * Content change means the file bytes. An approval, source note, or other record on the same
+     * SHA-256 is not one.
+     */
+    private static boolean fileBytesChanged(AssetEntry before, AssetEntry after) {
+        return !before.sha256().equals(after.sha256());
     }
 
     private static CreativeManifest emptyPrevious(CreativeManifest current) {

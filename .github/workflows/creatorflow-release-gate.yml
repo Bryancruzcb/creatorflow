@@ -1,14 +1,13 @@
 name: CreatorFlow release gate
 
-# Dispatch-only, and it needs a manifest that main deliberately does not carry: which manifest
-# represents this repository is a product decision (#123). Fixture manifests live on
-# claude/release-gate-fixture-dispatch, one complete and one unresolved — dispatch with --ref that
-# branch and pass one of them as the manifest input.
+# Manual runs against a chosen manifest. Push and pull-request CI is the release-gate job in
+# ci.yml, which runs the two fixtures under .github/fixtures/release-gate/. A BLOCKED result on
+# the passing fixture fails that push. This file stays dispatch-only so a caller can pass a
+# different path.
 #
 # First exercised 2026-08-05 UTC, runs 30972362753 and 30972465476. Every step ran, on Temurin
 # 24.0.2: the complete manifest went green end to end, and the unresolved one recorded exit 2, still
-# uploaded its report, and failed at "Enforce result" — the gate refusing a release, which is the
-# point of it. Nothing in this file needed changing to make that work.
+# uploaded its report, and failed at "Enforce result". The gate refusing a release is the point.
 
 on:
   workflow_dispatch:
@@ -16,7 +15,7 @@ on:
       manifest:
         description: Repository-relative CreatorFlow manifest path
         required: true
-        default: creatorflow-manifest.json
+        default: .github/fixtures/release-gate/creatorflow-manifest.json
 
 jobs:
   gate:

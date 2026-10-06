@@ -62,7 +62,10 @@ class ReleaseExportServiceTest {
             ReleaseBundle second = fixture.service.create(project.projectId(), run.id(), "1.0.1");
             assertTrue(second.report().passed());
             assertEquals(first.release().id(), second.comparison().previousReleaseId());
-            assertEquals(List.of("art/hero.png"), second.comparison().changedPaths());
+            assertEquals(first.manifest().assets().getFirst().sha256(),
+                    second.manifest().assets().getFirst().sha256());
+            assertEquals(List.of(), second.comparison().changedPaths());
+            assertEquals(0, second.comparison().changed());
             assertEquals(0, second.comparison().unresolved());
             assertEquals(1, second.comparison().approved());
             assertEquals(ReleaseDecision.APPROVED,

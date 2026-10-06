@@ -220,7 +220,7 @@ mvn -q -pl core org.codehaus.mojo:exec-maven-plugin:3.3.0:java \
   -Dexec.args='/path/to/manifest.json --output /path/to/gate-report.json'
 ```
 
-The command exits `0` when the release passes, `2` when policy blocks it, and `3` for invalid input or execution failure. `.github/workflows/creatorflow-release-gate.yml` shows the CI integration and report upload.
+The command exits `0` when the release passes, `2` when policy blocks it, and `3` for invalid input or execution failure. Push CI runs it on the fixtures in `.github/fixtures/release-gate/` and fails the push when the passing fixture is BLOCKED. `.github/workflows/creatorflow-release-gate.yml` is the manual run of the same check.
 
 ## Legacy: the community gallery
 

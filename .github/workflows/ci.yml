@@ -69,3 +69,37 @@ jobs:
       # is off catches nothing.
       - name: Audit gates
         run: npm run test:audit
+
+  # The dispatch workflow does not run on a push. This job does. The passing fixture must exit 0,
+  # so a BLOCKED result fails the push. The blocked fixture must exit 2. If the gate accepts it,
+  # the push fails.
+  release-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6.0.1
+        with:
+          distribution: temurin
+          java-version: '24'
+          cache: maven
+      - name: Build release-gate CLI
+        run: mvn -B -q -pl core package dependency:copy-dependencies -DincludeScope=runtime
+      - name: Passing fixture must clear the gate
+        run: |
+          java -cp 'core/target/classes:core/target/dependency/*' \
+            creatorflow.manifest.ReleaseGateCli \
+            .github/fixtures/release-gate/creatorflow-manifest.json \
+            --output core/target/creatorflow-gate-report.json
+      - name: Blocked fixture must fail the gate
+        shell: bash
+        run: |
+          set +e
+          java -cp 'core/target/classes:core/target/dependency/*' \
+            creatorflow.manifest.ReleaseGateCli \
+            .github/fixtures/release-gate/creatorflow-manifest-blocked.json \
+            --output core/target/creatorflow-gate-report-blocked.json
+          code=$?
+          if [ "$code" -ne 2 ]; then
+            echo "::error::Blocked fixture exited $code. Expected 2. A BLOCKED manifest the gate accepts fails this push."
+            exit 1
+          fi
