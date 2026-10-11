@@ -77,10 +77,31 @@ try {
   page.on('response', (response) => {
     const url = response.url();
     if (url.endsWith('.glb')) models.set(url, response.status());
-    if (response.status() >= 400) failures.push(`${response.status()} ${url}`);
+    // The workspace probes for the desktop bridge at the site root and treats a 404 as "no bridge"
+    // (bridge/localBridge.ts). That is the expected answer on Pages, not a broken deploy.
+    if (response.status() >= 400 && new URL(url).pathname !== '/api/v1/session') failures.push(`${response.status()} ${url}`);
   });
 
-  await page.goto(`${SITE}#sample-preflight`);
+  // The landing page's download links must resolve under the deploy base. The schema link used to
+  // be root-absolute ("/creatorflow-manifest-v0.1.schema.json"), which 404s on a project site. A
+  // 200 alone proves nothing here: vite preview answers an unknown path with index.html, so the
+  // body has to parse as the JSON it claims to be.
+  await page.goto(SITE);
+  await page.getByRole('heading', { level: 1 }).waitFor();
+  const downloads = await page.locator('a[download$=".json"]').evaluateAll((links) => links.map((link) => link.href));
+  if (downloads.length < 2) failures.push(`expected the landing page to link the manifest and the schema, found ${downloads.length} JSON downloads`);
+  for (const url of new Set(downloads)) {
+    if (!url.startsWith(SITE)) failures.push(`${url} is not under ${SITE}`);
+    const response = await page.request.get(url);
+    let parsed = null;
+    try { parsed = JSON.parse(await response.text()); } catch {}
+    if (response.status() !== 200 || parsed === null || typeof parsed !== 'object') failures.push(`${url} did not serve JSON (${response.status()})`);
+  }
+  console.log(`Landing downloads checked: ${[...new Set(downloads)].map((url) => url.slice(SITE.length)).join(', ')}`);
+
+  // The sample preflight lives in the workspace's Evidence view; the landing page shows the same
+  // release as a route.
+  await page.goto(`${SITE}#workspace?view=evidence`);
   const start = page.getByRole('button', { name: 'Start local scan' }).first();
   await start.waitFor({ state: 'visible' });
   await start.click();
