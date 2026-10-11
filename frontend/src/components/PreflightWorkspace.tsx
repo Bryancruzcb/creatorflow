@@ -166,7 +166,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
         <span>Production bridge</span>
         <div><strong>Java core → manifest v0.1</strong><small>32 real local files scanned · 0 bytes uploaded · source gaps preserved</small></div>
         <a href={assetUrl('/assets/creatorflow-real-assets-manifest.json')} download="creatorflow-real-assets-manifest.json">Download generated manifest <ArrowDownToLine size={14} /></a>
-        <a href="/creatorflow-manifest-v0.1.schema.json" download="creatorflow-manifest-v0.1.schema.json">JSON Schema <ArrowDownToLine size={14} /></a>
+        <a href={assetUrl('creatorflow-manifest-v0.1.schema.json')} download="creatorflow-manifest-v0.1.schema.json">JSON Schema <ArrowDownToLine size={14} /></a>
       </div>
 
       <div className={`preflight-app scan-${scanState}`}>
