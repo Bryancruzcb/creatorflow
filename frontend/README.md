@@ -34,7 +34,7 @@ npm run preview
 
 ## What is implemented
 
-- A landing page with pointer-responsive depth, a scroll-composed evidence dossier, and a semantic interactive evidence pipeline.
+- A landing page that draws the sample release as a survey route: the verdict as a survey marker, then four stations (Scan, Review the evidence, Resolve exceptions, Export) whose states come from the release's counting rules, plus the live evidence rig as a side trail.
 - A dedicated product workspace with project overview, asset browser, evidence workflow, source library, and release history views.
 - A working browser-only sample preflight with scan progress, evidence filters, asset inspection, human resolution actions, and JSON manifest export.
 - A complete three-record investigation flow: clickable findings, a camera-locked registered reveal, explicit visual/container/identity deltas, source switching, limitation language, and source attachment.
@@ -78,7 +78,10 @@ The manifest exported by this demo is plain JSON. It is not cryptographically si
 
 ## Source map
 
-- `src/App.tsx` — landing-page composition, navigation, and scroll scenes.
+- `src/App.tsx` — landing/workspace switch and the live-rig side trail.
+- `src/components/ReleaseRoute.tsx` — the landing page's survey route, with its loading, empty and error states.
+- `src/releaseRoute.ts` — the release's counting rules, route stations, and copy-on-write sample decisions, shared with the workspace's release bar.
+- `src/routeGeometry.ts` — the landing page's contour lines and route path, as calculations.
 - `src/components/PreflightWorkspace.tsx` — complete sample state machine and manifest export.
 - `src/components/ProductWorkspace.tsx` — standalone multi-view product shell and heavy-asset browser.
 - `src/components/ImportedProjectViews.tsx` — read-only real-manifest overview, evidence, sources, and release snapshot views.
@@ -90,8 +93,7 @@ The manifest exported by this demo is plain JSON. It is not cryptographically si
 - `src/components/SceneTreePanel.tsx` — searchable, collapsible, keyboard-accessible virtualized hierarchy for very large GLB scene graphs.
 - `src/components/StressLab.tsx` — seven-workload local suite, dependency/failure inspection, telemetry, and report export.
 - `src/components/AnimatedAssetViewer.tsx` — orbitable rig/morph viewer with clip selection, playback, and timeline scrubbing.
-- `src/components/HeroWorkspace.tsx` — layered product-preview composition.
-- `src/components/EvidenceAtlas.tsx` — accessible, interactive five-stage release chain with resolved and missing-license branches.
+- `src/components/HeroWorkspace.tsx`, `src/components/EvidenceAtlas.tsx`, `src/components/WorkflowRecord.tsx` — the earlier landing page's hero card, evidence map and how-it-works record. Not mounted since the survey-route landing page; kept with their tests.
 - `src/components/MatchWorkbench.tsx` — registered visual comparison, explicit delta register, and multi-source investigation workflow.
 - `src/components/GlbComparisonViewer.tsx` — camera-locked, split-rendered real-GLB comparison with viewport pausing and WebGL fallback.
 - `scripts/derive-glb-assets.mjs` — reproducibly creates project-side derivatives from all five licensed source GLBs.
