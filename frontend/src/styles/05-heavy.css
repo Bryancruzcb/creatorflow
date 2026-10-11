@@ -53,7 +53,7 @@
 
 .project-status-strip > div:first-child > strong {
   margin: 0.2rem 0;
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   font-weight: 500;
 }
 
@@ -66,7 +66,7 @@
 
 .project-readiness strong {
   color: var(--ink);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -104,7 +104,7 @@
 
 .overview-motion-entry strong {
   color: var(--ink);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -124,7 +124,7 @@
   display: block;
   margin: var(--space-2) 0 0.1rem;
   color: var(--ink);
-  font-size: 1.35rem;
+  font-size: var(--text-lg);
   font-weight: 400;
   letter-spacing: -0.02em;
 }
@@ -162,7 +162,7 @@
 .asset-browser > header strong {
   display: block;
   margin-top: 0.2rem;
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -247,7 +247,7 @@
 }
 
 .decision-queue li strong {
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -272,7 +272,7 @@
 .stress-pack-summary h2 {
   max-width: 42rem;
   margin: 0.35rem 0 0;
-  font-size: 1.35rem;
+  font-size: var(--text-lg);
   font-weight: 400;
   letter-spacing: -0.02em;
 }
@@ -320,7 +320,7 @@
 
 .stress-pack-rows strong {
   color: var(--ink);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -392,7 +392,7 @@
 
 .heavy-asset-list strong {
   overflow: hidden;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -498,7 +498,7 @@
 
 .heavy-preview-gate > strong {
   grid-column: 1;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
@@ -525,7 +525,7 @@
 
 .heavy-detail-copy h2 {
   margin: var(--space-1) 0 var(--space-2);
-  font-size: 1.45rem;
+  font-size: var(--text-lg);
   font-weight: 400;
 }
 
@@ -533,7 +533,7 @@
   max-width: 48rem;
   margin: 0;
   color: var(--ink-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-2xs);
 }
 
 .heavy-detail-copy > a,
@@ -577,7 +577,7 @@
   margin-top: var(--space-1);
   overflow: hidden;
   color: var(--ink);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   text-overflow: ellipsis;
 }
 
@@ -614,7 +614,7 @@
 
 .asset-license-line strong {
   color: var(--ink);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -653,7 +653,7 @@
 }
 
 .release-history strong {
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -695,7 +695,7 @@
 .imported-verification-summary header strong {
   display: block;
   margin-top: 0.2rem;
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -718,7 +718,7 @@
 }
 
 .verification-bars > div > span strong {
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -748,7 +748,7 @@
 .verification-bars em {
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-style: normal;
   text-align: right;
 }
@@ -771,7 +771,7 @@
 
 .imported-snapshot-boundary strong {
   color: var(--ink);
-  font-size: 0.74rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -812,7 +812,7 @@
 
 .capability-demo-notice strong {
   color: var(--ink);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -836,7 +836,7 @@
 
 .imported-view-heading h2 {
   margin: var(--space-2) 0;
-  font-size: 1.55rem;
+  font-size: var(--text-xl);
   font-weight: 400;
 }
 
@@ -844,7 +844,7 @@
   max-width: 68ch;
   margin: 0;
   color: var(--ink-muted);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
 }
 
 .snapshot-disclosure {

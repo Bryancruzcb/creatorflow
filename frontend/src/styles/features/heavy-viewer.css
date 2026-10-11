@@ -69,7 +69,7 @@
 }
 
 .heavy-viewer > .heavy-viewer-loading strong {
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 

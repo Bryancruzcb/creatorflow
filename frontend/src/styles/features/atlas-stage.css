@@ -94,7 +94,7 @@
      and `break-word` is the fallback for anything still too long to fit. */
   overflow-wrap: break-word;
   color: var(--ink);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
   line-height: 1.45;
 }

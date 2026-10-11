@@ -34,7 +34,7 @@
 
 .stress-clarity .stress-lab-header h1 {
   margin: 0.35rem 0 0.45rem;
-  font-size: 1.9rem;
+  font-size: var(--text-xl);
   font-weight: 500;
   letter-spacing: -0.03em;
   text-wrap: balance;
@@ -43,7 +43,7 @@
 .stress-clarity .stress-lab-header p {
   max-width: 72ch;
   color: var(--ink-muted);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   line-height: 1.55;
   text-wrap: pretty;
 }
@@ -110,20 +110,20 @@
 .stress-verdict-primary small {
   color: var(--ink-dim);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-verdict-primary strong {
   margin-top: 0.22rem;
   color: var(--ink);
-  font-size: 1rem;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
 .stress-verdict-primary p {
   margin: 0.2rem 0 0;
   color: var(--ink-muted);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   line-height: 1.45;
 }
 
@@ -139,7 +139,7 @@
 .stress-boundary-copy strong {
   display: block;
   color: var(--ink);
-  font-size: 0.84rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
@@ -147,7 +147,7 @@
   max-width: 72ch;
   margin: 0.24rem 0 0;
   color: var(--ink-muted);
-  font-size: 0.77rem;
+  font-size: var(--text-2xs);
   line-height: 1.5;
 }
 
@@ -201,7 +201,7 @@
 
 .stress-clarity .stress-matrix > header span,
 .stress-clarity .stress-matrix > header small {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-clarity .stress-matrix > header span {
@@ -209,7 +209,7 @@
 }
 
 .stress-clarity .stress-matrix > header strong {
-  font-size: 0.92rem;
+  font-size: var(--text-sm);
 }
 
 .stress-clarity .stress-matrix > button {
@@ -233,7 +233,7 @@
 
 .stress-clarity .stress-matrix > button > span {
   color: var(--ink-dim);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-check-copy strong,
@@ -245,21 +245,21 @@
 
 .stress-check-copy strong {
   color: var(--ink);
-  font-size: 0.86rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
 .stress-check-copy small {
   margin-top: 0.3rem;
   color: var(--ink-muted);
-  font-size: 0.76rem;
+  font-size: var(--text-2xs);
   line-height: 1.45;
 }
 
 .stress-clarity .stress-matrix > button > p {
   margin: 0;
   color: var(--ink-muted);
-  font-size: 0.74rem;
+  font-size: var(--text-2xs);
   line-height: 1.45;
 }
 
@@ -275,7 +275,7 @@
 }
 
 .stress-clarity .stress-state {
-  font-size: 0.69rem;
+  font-size: var(--text-2xs);
   line-height: 1.35;
   text-transform: none;
 }
@@ -289,11 +289,11 @@
 }
 
 .stress-clarity .system-check-report-entry > div strong {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .system-check-report-entry > div small {
-  font-size: 0.74rem;
+  font-size: var(--text-2xs);
 }
 
 .system-check-guide,
@@ -330,7 +330,7 @@
 
 .system-check-guide > summary strong {
   color: var(--ink);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
@@ -368,11 +368,11 @@
 }
 
 .stress-clarity .system-check-purpose strong {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .system-check-purpose small {
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-detail-navigation > header {
@@ -390,14 +390,14 @@
 
 .stress-detail-navigation > header strong {
   color: var(--ink);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
 .stress-detail-navigation > header small {
   max-width: 68ch;
   color: var(--ink-muted);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   text-align: right;
 }
 
@@ -419,7 +419,7 @@
 .stress-clarity .stress-tabs button {
   min-height: 3rem;
   padding-inline: 0.9rem;
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-clarity .stress-tabs button:focus-visible {
@@ -451,7 +451,7 @@
 .stress-clarity .package-lab header span,
 .stress-clarity .format-lab header span,
 .stress-clarity .telemetry-lab header span {
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-clarity .compression-lab h2,
@@ -460,7 +460,7 @@
 .stress-clarity .format-lab h2,
 .stress-clarity .telemetry-lab h2 {
   margin: 0.35rem 0;
-  font-size: 1.35rem;
+  font-size: var(--text-lg);
   font-weight: 500;
 }
 
@@ -469,7 +469,7 @@
 .stress-clarity .package-lab header p,
 .stress-clarity .format-lab header p,
 .stress-clarity .telemetry-lab header p {
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   line-height: 1.55;
 }
 
@@ -480,11 +480,11 @@
 }
 
 .stress-clarity .failure-meaning strong {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .failure-meaning small {
-  font-size: 0.73rem;
+  font-size: var(--text-2xs);
   line-height: 1.45;
 }
 
@@ -504,11 +504,11 @@
 }
 
 .stress-clarity .failure-lab article strong {
-  font-size: 0.84rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .failure-lab article p {
-  font-size: 0.76rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-clarity .dependency-file-tree button strong,
@@ -517,7 +517,7 @@
 .stress-clarity .format-executable article > strong,
 .stress-clarity .capacity-table strong,
 .stress-clarity .telemetry-table strong {
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .stress-clarity .dependency-file-tree button small,
@@ -534,7 +534,7 @@
 .stress-clarity .telemetry-table code,
 .stress-clarity .telemetry-table p,
 .stress-clarity .telemetry-table .telemetry-head {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 
 .stress-clarity .motion-transport label,
@@ -542,7 +542,7 @@
 .stress-clarity .motion-clips button,
 .stress-clarity .motion-runtime-readout,
 .stress-clarity .motion-state {
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 
 @media (max-width: 76rem) {
@@ -624,7 +624,7 @@
   }
 
   .stress-clarity .stress-lab-header h1 {
-    font-size: 1.55rem;
+    font-size: var(--text-xl);
   }
 
   .stress-verdict-primary,

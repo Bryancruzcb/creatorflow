@@ -63,27 +63,27 @@
   /* ---------------------------------------------------------------------------------------
      TYPE SCALE
 
-     There was no type scale. 667 font-size declarations used 77 distinct values, and the
-     sub-1rem band was populated in ~0.01rem steps - 0.38, 0.39, 0.40, 0.41 ... - which at a
-     16px root is 0.16px apart. Those are not hierarchy levels, they are one-off guesses, and
-     they are why the interface reads as flat: 88% of sizes sat under 12px and 57% under 10px,
-     so nothing could be emphasised by size.
+     Six sizes: 12 / 13 / 15 / 18 / 28 / 44. Nothing renders under 12px.
 
-     Nine steps, and a floor. --text-3xs (11px) is the smallest size anything may use; the
-     6-10px text currently in the UI is below practical legibility and is what the migration
-     replaces. Adopt these per surface - see the migration note in NEXT-IMPROVEMENTS.md.
+     History, because the numbers explain the names. There was no scale at first: 667
+     font-size declarations used 77 distinct values, 88% of them under 12px. A nine-step scale
+     with an 11px floor replaced that (NEXT-IMPROVEMENTS.md), and the type-floor audit made it
+     stick. The 2026-10 makeover (DESIGN.md) tightened it again to six sizes and a 12px floor,
+     because nine near-neighbours still read as busy.
 
-     Nothing consumes these yet, so adding them changes no rendering.
+     The nine names stay, so no declaration had to move: neighbouring names now share a value.
+     --text-3xs and --text-2xs are both 12, --text-sm and --text-md both 15, --text-xl and
+     --text-2xl both 28. Use the canonical name for new rules: 2xs, xs, sm, lg, xl, display.
      --------------------------------------------------------------------------------------- */
-  --text-3xs: 0.6875rem;
+  --text-3xs: 0.75rem;
   --text-2xs: 0.75rem;
   --text-xs: 0.8125rem;
-  --text-sm: 0.875rem;
-  --text-md: 1rem;
+  --text-sm: 0.9375rem;
+  --text-md: 0.9375rem;
   --text-lg: 1.125rem;
-  --text-xl: 1.5rem;
-  --text-2xl: 2rem;
-  --text-display: clamp(2.5rem, 1.6rem + 3.4vw, 4rem);
+  --text-xl: 1.75rem;
+  --text-2xl: 1.75rem;
+  --text-display: 2.75rem;
 
   /* Weight had collapsed to two usable levels: 500 appeared 169 times against 3 for true bold,
      so with the size range also compressed there was no instrument left for emphasis. */
@@ -141,7 +141,7 @@ body {
   background: var(--desk);
   color: var(--ink);
   font-family: var(--font-sans);
-  font-size: 1rem;
+  font-size: var(--text-md);
   font-weight: 400;
   line-height: 1.65;
   letter-spacing: 0.006em;
@@ -195,6 +195,13 @@ p {
 code {
   font-family: var(--font-mono);
   font-variant-ligatures: none;
+}
+
+/* The UA gives <small> `font-size: smaller`, about 0.83x its parent, which lands between scale
+   steps and, inside 13px text, under the 12px floor. Pin it to the smallest step; any class rule
+   that sizes a <small> on purpose still wins on specificity. */
+small {
+  font-size: var(--text-2xs);
 }
 
 .site-shell {
@@ -294,10 +301,10 @@ code {
 .brand-glyph i:nth-child(2) { inset: 0 0 auto auto; border-top: 1px solid; border-right: 1px solid; }
 .brand-glyph i:nth-child(3) { inset: auto auto 0 0; border-bottom: 1px solid; border-left: 1px solid; }
 .brand-glyph i:nth-child(4) { inset: auto 0 0 auto; border-right: 1px solid; border-bottom: 1px solid; }
-.brand-glyph b { position: absolute; inset: 50% auto auto 50%; font-family: var(--font-mono); font-size: 1.1rem; font-weight: 400; transform: translate(-50%, -53%); }
+.brand-glyph b { position: absolute; inset: 50% auto auto 50%; font-family: var(--font-mono); font-size: var(--text-lg); font-weight: 400; transform: translate(-50%, -53%); }
 
 .brand-name {
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   font-weight: 500;
   letter-spacing: -0.02em;
 }
@@ -423,7 +430,7 @@ code {
 .decision-title code,
 .decision-meta dt {
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 400;
   line-height: 1.45;
   color: var(--ink-dim);
@@ -464,7 +471,7 @@ code {
 
 .hero-copy h1 {
   margin-bottom: var(--space-6);
-  font-size: clamp(3.4rem, 17vw, 5.75rem);
+  font-size: var(--text-display);
   font-weight: 400;
   line-height: 0.96;
   letter-spacing: -0.04em;
@@ -474,7 +481,7 @@ code {
   max-width: 38rem;
   margin-bottom: var(--space-8);
   color: var(--ink-muted);
-  font-size: 1.06rem;
+  font-size: var(--text-lg);
   line-height: 1.72;
 }
 
@@ -509,7 +516,7 @@ code {
   color: var(--ink-muted);
   border-top: 1px solid var(--hairline);
   font-family: var(--font-mono);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
 }
 
 .hero-assurances span {
@@ -624,7 +631,7 @@ code {
 .sample-intro h2,
 .closing-section h2 {
   margin-bottom: var(--space-6);
-  font-size: clamp(2.25rem, 8vw, 4.6rem);
+  font-size: var(--text-display);
   font-weight: 400;
   line-height: 1.04;
   letter-spacing: -0.035em;

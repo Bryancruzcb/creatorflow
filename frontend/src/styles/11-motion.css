@@ -270,7 +270,7 @@
 
 .workspace-utility-panel > header strong {
   color: var(--ink);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -374,7 +374,7 @@
 
 .roblox-asset-stress > header h2 {
   margin: var(--space-1) 0 var(--space-2);
-  font-size: clamp(1.05rem, 2vw, 1.5rem);
+  font-size: var(--text-lg);
   font-weight: 400;
   letter-spacing: -0.02em;
 }
@@ -499,14 +499,14 @@
 .roblox-workload-detail > header strong {
   margin-top: 0.1rem;
   color: var(--ink);
-  font-size: 0.76rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
 .roblox-workload-detail > header em {
   color: var(--ink);
   font-family: var(--font-mono);
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-style: normal;
 }
 
@@ -655,7 +655,7 @@
 
 .release-record-boundary strong {
   color: var(--ink);
-  font-size: 0.69rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -700,7 +700,7 @@
 .release-publish-clarifier h2 {
   margin: var(--space-1) 0 var(--space-2);
   color: var(--ink);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
@@ -775,7 +775,7 @@
 .motion-authoring-boundary strong {
   display: block;
   color: var(--ink);
-  font-size: 0.69rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 

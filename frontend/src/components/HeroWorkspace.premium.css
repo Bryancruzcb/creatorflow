@@ -159,7 +159,7 @@
   max-width: 22ch;
   margin: 0;
   color: var(--proof-ink);
-  font-size: clamp(1.05rem, 2vw, 1.42rem);
+  font-size: var(--text-lg);
   font-weight: 450;
   line-height: 1.2;
   letter-spacing: -0.025em;
@@ -516,7 +516,7 @@
 .cf-proof-decision > strong {
   margin-top: auto;
   color: var(--proof-amber);
-  font-size: clamp(1.05rem, 2vw, 1.42rem);
+  font-size: var(--text-lg);
   font-weight: 450;
   letter-spacing: -0.025em;
 }

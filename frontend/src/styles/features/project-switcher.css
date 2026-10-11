@@ -85,7 +85,7 @@
 
 .project-switcher-menu > button strong {
   overflow: hidden;
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
   text-overflow: ellipsis;
   white-space: nowrap;

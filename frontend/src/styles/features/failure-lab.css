@@ -14,7 +14,7 @@
 .failure-lab article code,
 .failure-lab article > div > small { display: block; }
 
-.failure-lab article strong { font-size: 0.73rem; font-weight: 500; }
+.failure-lab article strong { font-size: var(--text-2xs); font-weight: 500; }
 
 .failure-lab article code { margin-top: var(--space-1); color: var(--ink-dim); font-size: var(--text-3xs); }
 

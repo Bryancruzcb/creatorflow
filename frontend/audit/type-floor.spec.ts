@@ -4,7 +4,8 @@ import { open, surfaces } from './surfaces';
 /**
  * The type floor, measured on rendered elements rather than on declarations.
  *
- * `NEXT-IMPROVEMENTS.md` sets the floor at --text-3xs (11px). Grepping styles.css cannot enforce
+ * The floor is 12px, the smallest step of the six-size scale in DESIGN.md (it was 11px, set by
+ * `NEXT-IMPROVEMENTS.md`, until the 2026-10 makeover raised it). Grepping styles.css cannot enforce
  * it: on the .local-* pass a headline authored at 16px rendered at 12px, because
  * `.local-asset-inspector section > div strong` (0,1,3) outranked `.local-ownership-verdict >
  * strong` (0,1,1). Authored size is not rendered size, so this asserts the rendered one.
@@ -14,7 +15,7 @@ import { open, surfaces } from './surfaces';
  * already-clean surface fails immediately.
  */
 
-const FLOOR_PX = 11;
+const FLOOR_PX = 12;
 
 /**
  * Surfaces whose type scale has not been migrated yet. Each is expected to fail today; the test
