@@ -18,6 +18,13 @@ import { AssetArtwork } from './AssetArtwork';
 import { MatchWorkbench } from './MatchWorkbench';
 import { StatusMark } from './StatusMark';
 import { assetUrl } from '../assetUrl';
+import {
+  SAMPLE_RELEASE,
+  SCAN_STEPS,
+  applyPreparedResolutions as preparedResolutions,
+  attachSourceRecord as withSourceRecord,
+  releaseCounts,
+} from '../releaseRoute';
 
 type ScanState = 'idle' | 'scanning' | 'complete';
 type FilterValue = 'all' | EvidenceStatus;
@@ -26,13 +33,7 @@ interface PreflightWorkspaceProps {
   startSignal: number;
 }
 
-const scanMessages = [
-  'Indexing project files',
-  'Computing exact hashes',
-  'Comparing visual signatures',
-  'Inspecting audio fingerprints',
-  'Checking license records',
-];
+const scanMessages = SCAN_STEPS;
 
 export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
   const reduceMotion = useReducedMotion();
@@ -46,11 +47,9 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
   const lastSignal = useRef(0);
 
   const selected = assets.find((asset) => asset.id === selectedId) ?? assets[0];
-  const unresolved = assets.filter((asset) => asset.decision === 'blocked' || asset.decision === 'pending' || asset.decision === 'needs-review');
-  const blocked = assets.filter((asset) => asset.status === 'blocked' && asset.decision !== 'excluded').length;
-  const review = assets.filter((asset) => asset.status === 'review' && asset.decision !== 'approved').length;
-  const clear = assets.filter((asset) => asset.decision === 'approved').length;
-  const releaseReady = scanState === 'complete' && unresolved.length === 0;
+  // One set of counting rules for this bar and the landing page's route: see releaseRoute.ts.
+  const { blocked, review, clear, unresolved } = releaseCounts(assets);
+  const releaseReady = scanState === 'complete' && unresolved === 0;
   const investigatingAsset = assets.find((asset) => asset.id === investigatingId);
 
   const visibleAssets = useMemo(
@@ -104,18 +103,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
   }
 
   function applyPreparedResolutions() {
-    setAssets((current) => current.map((asset) => {
-      if (asset.id === 'avocado-prop' || asset.id === 'harbor-fish') {
-        return { ...asset, license: 'CC0 1.0 · upstream source record attached', decision: 'approved', status: 'clear' };
-      }
-      if (asset.id === 'ui-icon-set') {
-        return { ...asset, decision: 'excluded' };
-      }
-      if (asset.id === 'ambient-loop') {
-        return { ...asset, decision: 'excluded' };
-      }
-      return asset;
-    }));
+    setAssets((current) => preparedResolutions(current));
     setNotice('Prepared resolutions applied: two CC0 source records attached and two unverified assets excluded from this release.');
   }
 
@@ -133,13 +121,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
 
   function attachSourceRecord(match: SourceMatch) {
     if (!investigatingAsset) return;
-    setAssets((current) => current.map((asset) => asset.id === investigatingAsset.id ? {
-      ...asset,
-      origin: match.provider,
-      license: `${match.license} · source record attached`,
-      status: 'clear',
-      decision: 'approved',
-    } : asset));
+    setAssets((current) => withSourceRecord(current, investigatingAsset.id, match));
     setNotice(`${match.title} attached to ${investigatingAsset.name}; required credit added to the release record.`);
     setInvestigatingId(null);
   }
@@ -147,15 +129,15 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
   function exportManifest() {
     if (!releaseReady) return;
     const manifest = buildReleaseManifest(assets, {
-      projectName: 'Northwind',
-      release: '1.2.0',
+      projectName: SAMPLE_RELEASE.projectName,
+      release: SAMPLE_RELEASE.release,
       generatedAt: new Date().toISOString(),
     });
     const blob = new Blob([JSON.stringify(manifest, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
     link.href = url;
-    link.download = 'northwind-1.2-creative-manifest.json';
+    link.download = SAMPLE_RELEASE.manifestFileName;
     link.click();
     URL.revokeObjectURL(url);
     setNotice('Creative asset manifest exported for Northwind 1.2.');
@@ -320,7 +302,7 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
                   <div className="resolved-note"><StatusMark value={selected.decision} /> This asset no longer blocks the release.</div>
                 )}
 
-                {unresolved.length > 0 && (
+                {unresolved > 0 && (
                   <button type="button" className="button button-secondary prepared-button" onClick={applyPreparedResolutions}>
                     Apply prepared sample resolutions
                   </button>
