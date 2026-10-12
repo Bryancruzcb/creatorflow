@@ -166,7 +166,7 @@ function OverviewView({ onOpenAsset, onOpenEvidence, onOpenMotion }: { onOpenAss
   return (
     <div className="product-overview">
       <section className="project-status-strip">
-        <div><span className="workspace-kicker">Current release</span><strong>Northwind / Release 2.4</strong><small>Sample project</small></div>
+        <div><strong>Northwind / Release 2.4</strong><small>Sample project</small></div>
         <div className="project-readiness"><ShieldCheck size={18} /><span><strong>88% ready</strong><small>12 decisions left</small></span></div>
         <button className="button button-primary" type="button" onClick={onOpenEvidence}>Review evidence</button>
       </section>
@@ -453,7 +453,7 @@ function AssetsView() {
                     { label: 'SHA-256', value: selected.hash, mono: true, copyValue: selected.hash },
                     { label: 'Scene summary', value: `${selected.nodes} nodes · ${selected.meshes} meshes · ${selected.primitives} primitives` },
                     { label: 'Materials / textures', value: `${selected.materials} / ${selected.textures}` },
-                    ...(selected.robloxWorkflow ? [{ label: 'Roblox use case', value: selected.robloxWorkflow.label, note: selected.robloxWorkflow.note }] : []),
+                    ...(selected.robloxWorkflow ? [{ label: 'Roblox use case', value: selected.robloxWorkflow.label }] : []),
                   ],
                 },
                 {
@@ -518,7 +518,7 @@ function SourcesView({ onOpenEvidence }: { onOpenEvidence: () => void }) {
     ['Sketchfab / Loïc Norgeot', '1 record', 'CC BY 4.0', 'Attribution ready'],
     ['Northwind team archive', '5 imports', 'References upstream', 'Linked'],
   ];
-  return <section className="workspace-table-view"><header><span>Evidence library</span><h2>Sources and permissions</h2><p>Attached once, reused across releases.</p></header><table><thead><tr><th>Provider</th><th>Records</th><th>License coverage</th><th>State</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell}>{index === 0 ? <strong>{cell}</strong> : cell}</td>)}</tr>)}</tbody></table><footer className="workspace-table-action"><span><strong>Missing a source?</strong><small>Decisions happen on the evidence item.</small></span><button className="button button-primary" type="button" onClick={onOpenEvidence}>Open unresolved evidence</button></footer></section>;
+  return <section className="workspace-table-view"><header><span>Evidence library</span><h2>Sources and permissions</h2></header><table><thead><tr><th>Provider</th><th>Records</th><th>License coverage</th><th>State</th></tr></thead><tbody>{rows.map((row) => <tr key={row[0]}>{row.map((cell, index) => <td key={cell}>{index === 0 ? <strong>{cell}</strong> : cell}</td>)}</tr>)}</tbody></table><footer className="workspace-table-action"><span><strong>Missing a source?</strong><small>Decisions happen on the evidence item.</small></span><button className="button button-primary" type="button" onClick={onOpenEvidence}>Open unresolved evidence</button></footer></section>;
 }
 
 function ReleasesView({ onOpenEvidence, onOpenReleaseFlow }: { onOpenEvidence: () => void; onOpenReleaseFlow: () => void }) {
@@ -608,6 +608,7 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
   const activeLocal = activeDataset === 'local' ? localProject : null;
   const projectName = activeLocal?.name ?? activeManifest?.project.name ?? 'Northwind';
   const projectSubtitle = activeLocal ? 'Local project' : activeManifest ? `Release ${activeManifest.project.release}` : 'Sample data';
+  const datasetIndicator = activeLocal ? 'Local project' : activeManifest ? 'Imported snapshot' : 'Sample data';
   const projectInitials = projectName.split(/\s+|[-_]/).filter(Boolean).slice(0, 2).map((part) => part[0]).join('').toUpperCase() || 'CF';
 
   const navigationItems = useMemo(() => navigation.map((item) => {
@@ -948,14 +949,15 @@ function ProductWorkspaceContent({ onExit }: { onExit: () => void }) {
           of the document instead of at the content the dialog was covering. */}
       <div className="product-workspace-main" id="workspace-main" tabIndex={-1}>
         <header className="product-topbar">
-          <div><span>{projectSubtitle}</span><strong>{view === 'settings' ? 'Settings' : navigationItems.find((item) => item.id === view)?.label}</strong><small className="dataset-indicator" aria-label={`Active dataset: ${activeLocal ? 'local project' : activeManifest ? 'imported snapshot' : 'sample data'}`}>{activeLocal ? 'Local project' : activeManifest ? 'Imported snapshot' : 'Sample data'}</small></div>
+          {/* The dataset word is shown once: the subtitle only appears when it says something the indicator does not (an imported release). */}
+          <div>{projectSubtitle !== datasetIndicator ? <span>{projectSubtitle}</span> : null}<strong>{view === 'settings' ? 'Settings' : navigationItems.find((item) => item.id === view)?.label}</strong><small className="dataset-indicator" aria-label={`Active dataset: ${activeLocal ? 'local project' : activeManifest ? 'imported snapshot' : 'sample data'}`}>{datasetIndicator}</small></div>
           <form className="product-search" role="search" onSubmit={submitWorkspaceSearch}><label><Search size={15} /><input aria-label="Search current project" value={workspaceQuery} onChange={(event) => setWorkspaceQuery(event.target.value)} placeholder="Search…" /></label><button type="submit" aria-label="Search CreatorFlow workspace"><Search size={15} /></button></form>
           <button className="project-metadata-trigger" type="button" aria-expanded={projectMetadataOpen} onClick={() => setProjectMetadataOpen((current) => !current)}><FileJson2 size={16} /><span>Metadata</span></button>
           <button type="button" aria-label={activeLocal || activeManifest ? 'No notifications here' : 'Notifications'} aria-expanded={activeLocal || activeManifest ? undefined : notificationsOpen} disabled={Boolean(activeLocal || activeManifest)} onClick={() => setNotificationsOpen((current) => !current)}><Bell size={17} />{activeLocal || activeManifest ? null : <i />}</button>
           <div className="workspace-user"><span>BC</span><div><strong>Bryan Cruz</strong><small>Owner</small></div></div>
         </header>
 
-        {view !== 'settings' ? <WorkspaceProofRibbon view={view} onNavigate={changeView} datasetLabel={`${projectName} · ${activeLocal ? 'local project' : activeManifest ? 'imported snapshot' : 'sample data'}`} /> : null}
+        {view !== 'settings' ? <WorkspaceProofRibbon view={view} onNavigate={changeView} datasetLabel={projectName} /> : null}
 
         {projectMetadataOpen ? <section className="project-metadata-panel" aria-label="Current project metadata"><MetadataInspector
           kind="Project"

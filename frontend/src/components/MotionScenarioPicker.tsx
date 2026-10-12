@@ -78,7 +78,6 @@ export function MotionScenarioPicker({ sourceName, candidateName, onSelect, scen
         <div>
           <span className="motion-scenario-kicker"><Layers size={14} /> Similarity scenarios</span>
           <h2>See the whole range, not one score.</h2>
-          <p>Click a card to load that pair below. Bands are computed live.</p>
         </div>
       </header>
 

@@ -115,7 +115,6 @@ export function WorkspaceSettingsView({ onClearSavedViewState }: { onClearSavedV
         <div>
           <span><SlidersHorizontal size={15} /> Workspace defaults</span>
           <h1>Settings that change the workbench.</h1>
-          <p>Choose how CreatorFlow opens animation evidence, previews local fixtures, and presents a release. Every change applies immediately and stays in this browser.</p>
         </div>
         <aside data-state={saveState}>{saveState === 'saved' ? <Check size={15} /> : <Database size={15} />}<span><strong>{saveState === 'saved' ? 'Saved on this device' : 'Browser storage unavailable'}</strong><small>{saveState === 'saved' ? 'No account or cloud sync required' : 'Changes last until this tab closes'}</small></span></aside>
       </header>
@@ -170,7 +169,7 @@ export function WorkspaceSettingsView({ onClearSavedViewState }: { onClearSavedV
         </section>
 
         <section className="workspace-settings-section" aria-labelledby="settings-release-title">
-          <header><Workflow size={18} /><div><h2 id="settings-release-title">Release workflow</h2><p>Guide and Map show the same release record through different working views.</p></div></header>
+          <header><Workflow size={18} /><div><h2 id="settings-release-title">Release workflow</h2></div></header>
           <div className="workspace-settings-rows">
             <div className="workspace-setting-row workspace-setting-row-wide">
               <SettingCopy title="Default release view" detail="Guide prioritizes the next action. Map preserves parallel work and dependencies." />

@@ -705,3 +705,26 @@
     transform: none;
   }
 }
+
+/* The hero's Guide-and-Map explanation, behind a disclosure since the declutter pass. */
+.release-flow-how {
+  margin-top: var(--space-2);
+}
+
+.release-flow-how summary {
+  /* list-item keeps the native disclosure triangle, so it reads as something that opens. */
+  display: list-item;
+  padding: 4px 0;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.release-flow-how summary:hover {
+  color: var(--ink);
+}
+
+.release-flow-how summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
+}

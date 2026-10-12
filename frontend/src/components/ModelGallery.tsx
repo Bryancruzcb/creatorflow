@@ -174,7 +174,6 @@ export function ModelGallery() {
         <div>
           <span className="workspace-kicker"><Boxes size={14} /> Model gallery · {galleryModels.length} CC0 assets</span>
           <h2>A rack of real low-poly models — spin any of them.</h2>
-          <p>Every stat below is read straight from the file as it loads, so nothing here is a placeholder number.</p>
         </div>
         <span className="model-gallery-license">{GALLERY_LICENSE.spdx}</span>
       </header>

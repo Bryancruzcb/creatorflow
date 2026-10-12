@@ -381,7 +381,7 @@ export function StressLab() {
   return (
     <div className="stress-lab stress-clarity">
       <header className="stress-lab-header">
-        <div><span>CreatorFlow device diagnostics</span><h1>Can this device run the inspection tools?</h1><p>Six sample files, to tell a browser problem from a project problem.</p></div>
+        <div><h1>Can this device run the inspection tools?</h1><p>Six sample files, to tell a browser problem from a project problem.</p></div>
         <button aria-busy={runningAll} className="button button-primary" type="button" onClick={runAll} disabled={runningAll}>{runningAll ? <RefreshCw aria-hidden="true" className="stress-spin" size={15} /> : <Zap aria-hidden="true" size={15} />} {runningAll && runningIndex >= 0 ? `Running ${runningIndex + 1}/6: ${suite[runningIndex].label}` : 'Run all 6 checks'}</button>
       </header>
 
@@ -394,7 +394,7 @@ export function StressLab() {
       {view === 'overview' ? (
         <>
           <section className="stress-matrix">
-            <header><span>Six checks</span><strong>Known sample files, run on this device.</strong><small>Select a row for detail. Statuses are about sample files, not your project.</small></header>
+            <header><span>Six checks</span><strong>Known sample files, run on this device.</strong></header>
             {suite.map((test, index) => {
               const result = results[test.id];
               return <button key={test.id} type="button" data-state={result.state} onClick={() => setView(test.view)} aria-label={`Open ${test.label}: ${stateLabel(result.state)}`}><span>{String(index + 1).padStart(2, '0')}</span><div className="stress-check-copy"><strong>{test.label}</strong><small>{test.purpose}</small></div><p>{result.finding ?? 'No result yet.'}</p><div className="stress-check-status"><small>Sample file</small><em className={`stress-state stress-state-${result.state}`}><StateMark state={result.state} />{stateLabel(result.state)}</em></div></button>;
@@ -410,7 +410,7 @@ export function StressLab() {
             <summary><span><Gauge size={16} /><strong>How to read this</strong></span><span>3 steps <ChevronDown size={15} /></span></summary>
             <section className="system-check-purpose" aria-label="How to use the system check"><div><span>1</span><p><strong>Run the samples</strong><small>Reads about 60 MB locally. Nothing is uploaded.</small></p></div><div><span>2</span><p><strong>Open a failed check</strong><small>Its section shows what failed.</small></p></div><div><span>3</span><p><strong>Export if useful</strong><small>For comparing devices or reporting a bug.</small></p></div></section>
           </details>
-          <section className="stress-detail-navigation"><header><strong>Go deeper</strong><small>The samples and measurements behind each check.</small></header>{sectionNavigation}</section>
+          <section className="stress-detail-navigation"><header><strong>Go deeper</strong></header>{sectionNavigation}</section>
         </>
       ) : null}
 
