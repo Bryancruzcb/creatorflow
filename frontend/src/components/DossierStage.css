@@ -135,7 +135,7 @@
 
 .evidence-rig-poster span {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: var(--ink-muted);
 }
 
@@ -168,7 +168,7 @@
   align-items: center;
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: var(--ink-muted);
   background: oklch(22% 0.008 240 / 0.86);
   border: 1px solid var(--hairline);
@@ -207,7 +207,7 @@
 .evidence-rig-eyebrow {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: var(--ink-muted);
   text-transform: uppercase;
   letter-spacing: 0.08em;
@@ -217,13 +217,13 @@
   display: grid;
   gap: var(--space-1);
   margin: 0;
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   color: var(--ink);
 }
 
 .evidence-rig-overall span {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   color: var(--ink-muted);
 }
 
@@ -241,7 +241,7 @@
   align-items: center;
   padding: var(--space-2) var(--space-3);
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   color: var(--ink-muted);
   background: var(--graphite);
   border: 1px solid var(--hairline);
@@ -294,13 +294,13 @@
 .evidence-rig-joint {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   color: var(--ink);
 }
 
 .evidence-rig-score {
   margin: 0;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
 }
 
@@ -328,7 +328,7 @@
 
 .evidence-rig-meta dt {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -342,7 +342,7 @@
   /* Long attribution and filenames must wrap rather than push the panel wider than its column. */
   min-width: 0;
   overflow-wrap: anywhere;
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--ink);
 }
 
@@ -352,7 +352,7 @@
   align-items: flex-start;
   margin: 0;
   padding-top: var(--space-4);
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--ink-muted);
   border-top: 1px solid var(--hairline);
 }

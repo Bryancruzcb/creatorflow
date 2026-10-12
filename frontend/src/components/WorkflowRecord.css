@@ -69,7 +69,7 @@
   width: 2rem;
   height: 1.6rem;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   border: 1px solid var(--hairline);
 }
@@ -92,7 +92,7 @@
 }
 
 .workflow-step-copy strong {
-  font-size: 1.05rem;
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--ink-muted);
 }
@@ -102,7 +102,7 @@
 }
 
 .workflow-step-copy small {
-  font-size: 0.85rem;
+  font-size: var(--text-xs);
   color: var(--ink-dim);
 }
 
@@ -118,7 +118,7 @@
 
 .workflow-step-produces {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   white-space: nowrap;
 }
@@ -148,7 +148,7 @@
 .workflow-panel-kicker {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
   text-transform: uppercase;
   letter-spacing: 0.06em;
@@ -157,7 +157,7 @@
 .workflow-panel-file {
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.95rem;
+  font-size: var(--text-sm);
   color: var(--ink);
   /* A manifest path is one long token; it wraps at any character rather than widening the grid. */
   overflow-wrap: anywhere;
@@ -206,7 +206,7 @@
 
 .workflow-fields dt {
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
 }
 
@@ -214,7 +214,7 @@
   min-width: 0;
   margin: 0;
   font-family: var(--font-mono);
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   color: var(--ink);
   overflow-wrap: anywhere;
 }
@@ -224,21 +224,21 @@
   gap: var(--space-1);
   margin: 0;
   padding: var(--space-4);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   color: var(--ink-muted);
   background: var(--graphite);
   border-left: 2px solid var(--review);
 }
 
 .workflow-match strong {
-  font-size: 1.15rem;
+  font-size: var(--text-lg);
   font-weight: 500;
   color: var(--review);
 }
 
 .workflow-match small {
   font-family: var(--font-mono);
-  font-size: 0.75rem;
+  font-size: var(--text-2xs);
   color: var(--ink-dim);
 }
 
@@ -254,7 +254,7 @@
   padding: var(--space-4);
   overflow: auto;
   font-family: var(--font-mono);
-  font-size: 0.78rem;
+  font-size: var(--text-2xs);
   line-height: 1.55;
   color: var(--ink-muted);
   background: var(--graphite);

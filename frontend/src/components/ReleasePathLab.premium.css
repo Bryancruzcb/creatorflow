@@ -30,7 +30,7 @@
 
 .release-proof-ribbon-heading strong {
   color: var(--ink);
-  font-size: 0.76rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 
@@ -226,7 +226,7 @@
 
 .release-manifest-face strong {
   color: var(--ink);
-  font-size: 0.82rem;
+  font-size: var(--text-xs);
   font-weight: 500;
 }
 
@@ -704,4 +704,27 @@
   .release-manifest-fold.is-handoff .release-manifest-back {
     transform: none;
   }
+}
+
+/* The hero's Guide-and-Map explanation, behind a disclosure since the declutter pass. */
+.release-flow-how {
+  margin-top: var(--space-2);
+}
+
+.release-flow-how summary {
+  /* list-item keeps the native disclosure triangle, so it reads as something that opens. */
+  display: list-item;
+  padding: 4px 0;
+  color: var(--ink-muted);
+  font-size: var(--text-xs);
+  cursor: pointer;
+}
+
+.release-flow-how summary:hover {
+  color: var(--ink);
+}
+
+.release-flow-how summary:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 3px;
 }

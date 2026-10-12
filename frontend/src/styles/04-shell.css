@@ -229,7 +229,7 @@
 
 .product-topbar > div:first-child strong {
   color: var(--ink);
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
   font-weight: 500;
 }
 
@@ -259,7 +259,7 @@
   background: transparent;
   border: 0;
   outline: 0;
-  font-size: 0.7rem;
+  font-size: var(--text-2xs);
 }
 
 .product-topbar input::placeholder {
@@ -375,7 +375,7 @@
 .metadata-inspector summary strong {
   margin-top: 0.14rem;
   color: var(--ink);
-  font-size: 0.72rem;
+  font-size: var(--text-2xs);
   font-weight: 500;
 }
 

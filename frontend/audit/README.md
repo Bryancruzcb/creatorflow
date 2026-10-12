@@ -25,8 +25,8 @@ tree off live pages.
 
 ## `type-floor.spec.ts`
 
-Asserts no visible text renders below **11px** (`--text-3xs`, the floor set in
-`NEXT-IMPROVEMENTS.md`).
+Asserts no visible text renders below **12px**, the smallest step of the six-size scale in the root
+`DESIGN.md`. (It was 11px, the floor `NEXT-IMPROVEMENTS.md` set, until the 2026-10 makeover.)
 
 Surfaces listed in `UNMIGRATED` are known debt: they log their count and smallest size to CI
 output instead of failing. **It is a ratchet — entries come off as surfaces migrate, and nothing

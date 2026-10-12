@@ -51,7 +51,7 @@
 .system-check-report-entry > div strong,
 .system-check-report-entry > div small { display: block; }
 
-.system-check-report-entry > div strong { color: var(--ink); font-size: 0.7rem; font-weight: 500; }
+.system-check-report-entry > div strong { color: var(--ink); font-size: var(--text-2xs); font-weight: 500; }
 
 .system-check-report-entry > div small { margin-top: var(--space-1); color: var(--ink-dim); font-size: var(--text-3xs); }
 

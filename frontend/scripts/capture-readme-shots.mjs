@@ -60,14 +60,14 @@ async function waitForServer(url, tries = 60) {
 }
 
 /**
- * Both panels are taller than the viewport, and the site header is sticky, so an element
+ * Both panels are taller than the viewport, and the workspace top bar is sticky, so an element
  * screenshot scrolls the panel under the header and photographs the nav bar sitting on top of
  * it. Scrolling the panel to just below the header first, and then clipping the full-page
  * capture to the panel's own box, leaves the header outside the frame — and keeps the WebGL
  * canvas on screen, which the comparison viewer's render loop requires to keep drawing.
  */
 async function shootPanel(page, selector, file) {
-  const header = await page.locator('.site-header').boundingBox();
+  const header = await page.locator('.product-topbar').boundingBox();
   const clearance = header?.height ?? 0;
   const { clip, stickyBottom } = await page.evaluate(({ selector, clearance }) => {
     const el = document.querySelector(selector);
@@ -98,7 +98,9 @@ async function newWorkspacePage(browser) {
 
 /** Runs the sample preflight scan and waits for it to finish. */
 async function runScan(page) {
-  await page.goto(`${URL_BASE}/#sample-preflight`);
+  // The sample preflight lives in the workspace's Evidence view since the landing page became the
+  // release route.
+  await page.goto(`${URL_BASE}/#workspace?view=evidence`);
   const start = page.getByRole('button', { name: 'Start local scan' }).first();
   await start.waitFor({ state: 'visible' });
   await start.click();

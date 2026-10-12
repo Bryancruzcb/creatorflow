@@ -465,7 +465,6 @@ function ReleaseProofRibbon({ selectedId, onSelect }: { selectedId: string; onSe
       <div className="release-proof-ribbon-heading">
         <span>Shared release record</span>
         <strong>Northwind 2.4 RC</strong>
-        <small>Guide and Map read these same sample states</small>
       </div>
       <ol>
         {proofCheckpoints.map((checkpoint, index) => {
@@ -525,7 +524,7 @@ function ReleaseViewExplainer({ mode }: { mode: ReleaseMode }) {
     return (
       <div className="release-view-explainer" data-mode="guided">
         <span className="release-view-explainer-icon"><ListTree size={17} /></span>
-        <div><strong>Guide is the execution view.</strong><p>Follow a dependency-safe order, see the current blocker, and open the next tool without learning the whole graph first.</p></div>
+        <div><strong>Guide is the execution view.</strong></div>
         <dl><div><dt>Answers</dt><dd>What do I do next?</dd></div><div><dt>Best for</dt><dd>Owners running the release</dd></div></dl>
       </div>
     );
@@ -607,7 +606,7 @@ export function ReleasePathLab({ onNavigate }: { onNavigate: (view: ReleaseDesti
   return (
     <div className="release-path-lab">
       <section className="release-flow-hero">
-        <div><span className="workspace-kicker">Roblox release preflight · interactive example plan</span><h1>One release record. Two ways to work.</h1><p><strong>Guide</strong> answers “what should I do next?” <strong>Map</strong> answers “what can happen in parallel, and what does this block?” Both read the same 11 stages and evidence states. Side-by-side Compare exists only to test which view your team understands faster.</p></div>
+        <div><h1>One release record. Two ways to work.</h1><details className="release-flow-how"><summary>How Guide and Map differ</summary><p><strong>Guide</strong> answers “what should I do next?” <strong>Map</strong> answers “what can happen in parallel, and what does this block?” Both read the same 11 stages and evidence states. Side-by-side Compare exists only to test which view your team understands faster.</p></details></div>
         <button className="button button-primary" type="button" onClick={() => onNavigate('motion')}><Activity size={15} /> Review animation evidence</button>
       </section>
 
@@ -673,7 +672,7 @@ export function ReleasePathLab({ onNavigate }: { onNavigate: (view: ReleaseDesti
       </section>
 
       <section className="release-friend-test">
-        <header><div><span>Temporary research mode · 3 minutes</span><h2>Test understanding, then choose one working view.</h2></div><small>Default choice saved only in this browser</small></header>
+        <header><div><span>Temporary research mode · 3 minutes</span><h2>Test understanding, then choose one working view.</h2></div></header>
         <ol>
           <li><span>01</span><p><strong>Find the blocker</strong>What prevents this candidate from reaching a Limited publish?</p></li>
           <li><span>02</span><p><strong>Find parallel work</strong>What can the animator and playtest team do at the same time?</p></li>

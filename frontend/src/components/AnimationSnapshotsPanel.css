@@ -54,7 +54,7 @@
   background: oklch(71.3% 0.1172 80.74 / 0.1);
 }
 .animation-snapshots-sample-head small { color: var(--ink-dim); font-size: var(--text-xs); }
-.animation-snapshots-sample-read { margin: 0.75rem 0 0; font-size: 0.8rem; color: var(--ink-muted); }
+.animation-snapshots-sample-read { margin: 0.75rem 0 0; font-size: var(--text-xs); color: var(--ink-muted); }
 .animation-snapshots-sample-read strong { color: var(--ink); }
 .animation-snapshots-sample-read em { color: var(--review); font-style: normal; font-weight: 600; }
 
@@ -166,7 +166,7 @@
   font-size: var(--text-xs);
   padding: 0.35rem 0;
 }
-.animation-snapshots-error { margin: 0.6rem 0 0; color: var(--blocked); font-size: 0.8rem; }
+.animation-snapshots-error { margin: 0.6rem 0 0; color: var(--blocked); font-size: var(--text-xs); }
 
 .animation-snapshots-list-head {
   display: flex;
