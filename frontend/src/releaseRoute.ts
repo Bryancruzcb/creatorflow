@@ -108,8 +108,6 @@ export interface Station {
   name: string;
   /** The workflow step this station is. */
   title: string;
-  body: string;
-  output: string;
   state: StationState;
   /** The state in words, always shown beside its icon. */
   word: string;
@@ -148,8 +146,6 @@ export function routeStations(phase: ScanPhase, counts: ReleaseCounts): Station[
     ...meta,
     number: `0${index + 1}`,
     title: workflowSteps[index].title,
-    body: workflowSteps[index].body,
-    output: workflowSteps[index].output,
     ...stationState(index, phase, counts),
   }));
 }

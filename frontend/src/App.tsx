@@ -50,9 +50,7 @@ function DossierSection() {
   return (
     <section className="route-side-trail" id="product" ref={ref} aria-labelledby="dossier-title">
       <div className="route-side-trail-head">
-        <p className="route-label">Side trail · the motion check, live</p>
         <h2 id="dossier-title">Every exception arrives with context.</h2>
-        <p>Two clips from one rig. Every joint the check flags is lit on the model — pick one.</p>
       </div>
 
       <Suspense fallback={<div className="evidence-rig-placeholder" aria-hidden="true" />}>

@@ -201,22 +201,10 @@ function StationStatus({ station }: { station: Station }) {
   return <span className={`route-status state-${station.state}`}><Icon aria-hidden="true" />{station.word}</span>;
 }
 
-function StepFoot({ station }: { station: Station }) {
-  return (
-    <span className="route-step">
-      <span>{station.body}</span>
-      <span className="route-step-out"><ArrowRight aria-hidden="true" /> {station.output}</span>
-    </span>
-  );
-}
-
 function CardHead({ station, here }: { station: Station; here: boolean }) {
   return (
     <header className="route-card-head">
-      <div>
-        <p className="route-label">Station {station.number}</p>
-        <h2 id={`station-title-${station.id}`}>{station.title}</h2>
-      </div>
+      <h2 id={`station-title-${station.id}`}>{station.title}</h2>
       {here ? <HereTag className="route-here-head" /> : null}
       <StationStatus station={station} />
     </header>
@@ -350,27 +338,17 @@ function GroupList({ assets, group, title, actions }: { assets: readonly AssetRe
 
 // ------------------------------------------------------------------------------- the verdict
 
-function verdictCopy(counts: ReleaseCounts): { tone: ReleaseGroup; word: string; Icon: LucideIcon; headline: string; lede: string } {
+function verdictCopy(counts: ReleaseCounts): { tone: ReleaseGroup; word: string; Icon: LucideIcon; headline: string; lede: string | null } {
   const project = `${SAMPLE_RELEASE.projectName} ${SAMPLE_RELEASE.shortRelease}`;
-  const excluded = counts.excluded ? ` ${plural(counts.excluded, 'file is', 'files are')} left out of this release.` : '';
-  if (counts.ready) {
-    return {
-      tone: 'clear', word: 'Ready.', Icon: CircleCheck, headline: `${project} can ship.`,
-      lede: `Every file has a decision. ${plural(counts.clear, 'file is', 'files are')} approved.${excluded}`,
-    };
-  }
-  const review = counts.review ? ` ${counts.review} ${counts.blocked ? 'more ' : ''}${counts.review === 1 ? 'needs' : 'need'} a person to review the evidence.` : '';
-  const approved = ` ${counts.clear} ${counts.clear === 1 ? 'is' : 'are'} approved.`;
+  // The counts sit in the readout right below, so the lede says only what they cannot: why a file is blocked.
+  if (counts.ready) return { tone: 'clear', word: 'Ready.', Icon: CircleCheck, headline: `${project} can ship.`, lede: null };
   if (counts.blocked) {
     return {
       tone: 'blocked', word: 'Blocked.', Icon: OctagonX, headline: `${project} can't ship yet.`,
-      lede: `${plural(counts.blocked, 'file is', 'files are')} blocked: a license or rights record is missing or incomplete.${review}${approved}${excluded}`,
+      lede: `${counts.blocked === 1 ? 'The blocked file is' : 'Blocked files are'} missing a license or rights record, or it is incomplete.`,
     };
   }
-  return {
-    tone: 'review', word: 'Needs review.', Icon: CircleDot, headline: `${project} can't ship yet.`,
-    lede: `${review.trim()}${approved}${excluded}`,
-  };
+  return { tone: 'review', word: 'Needs review.', Icon: CircleDot, headline: `${project} can't ship yet.`, lede: null };
 }
 
 function Verdict({ counts, stations, current, onOpenMotion }: { counts: ReleaseCounts; stations: Station[]; current: number; onOpenMotion: () => void }) {
@@ -384,9 +362,9 @@ function Verdict({ counts, stations, current, onOpenMotion }: { counts: ReleaseC
     <div className="route-stop route-top">
       <div className="route-lane"><span className={`route-marker tone-${copy.tone}`} data-route-point><SurveyMarker /></span></div>
       <section className="route-verdict" aria-labelledby="verdict-title">
-        <p className="route-label">Verdict · {SAMPLE_RELEASE.projectName} release {SAMPLE_RELEASE.shortRelease} · sample data</p>
+        <p className="route-label">Sample data</p>
         <h1 id="verdict-title"><span className={`route-verdict-word tone-${copy.tone}`}><copy.Icon aria-hidden="true" />{copy.word}</span> {copy.headline}</h1>
-        <p className="route-lede">{copy.lede}</p>
+        {copy.lede ? <p className="route-lede">{copy.lede}</p> : null}
         <ul className="route-readout num">
           <li className="strong"><span className="tone-blocked"><OctagonX aria-hidden="true" /></span><b>{counts.blocked}</b> blocked</li>
           <li className="strong"><span className="tone-review"><CircleDot aria-hidden="true" /></span><b>{counts.review}</b> need review</li>
@@ -428,20 +406,14 @@ function ScanCard({ station, here, assets, onRescan }: { station: Station; here:
             return <li key={asset.id}><KindIcon aria-hidden="true" />{extensionOf(asset.name)}<span className="sr-only"> {asset.name}</span></li>;
           })}
         </ul>
-        <p className="route-art-caption"><span>{assets.length} files indexed and fingerprinted</span><span className="mono">{SAMPLE_RELEASE.projectName} / Release {SAMPLE_RELEASE.shortRelease}</span></p>
       </div>
       <CardHead station={station} here={here} />
       <div className="route-card-body">
         <ul className="route-checks">{SCAN_STEPS.map((step) => <li key={step}><Check aria-hidden="true" />{step}</li>)}</ul>
-        <p className="route-facts-line num">
-          <span><HardDrive aria-hidden="true" />{assets.length} sample files</span>
-          <span><Lock aria-hidden="true" />0 bytes uploaded</span>
-          <span><CircleCheck aria-hidden="true" />{SCAN_STEPS.length} of {SCAN_STEPS.length} checks ran</span>
-        </p>
-        <p className="route-note"><ShieldCheck aria-hidden="true" />Sample walkthrough: these findings were prepared in advance, nothing was uploaded.</p>
+        <p className="route-facts-line num"><span><CircleCheck aria-hidden="true" />{SCAN_STEPS.length} of {SCAN_STEPS.length} checks ran</span></p>
+        <p className="route-note"><ShieldCheck aria-hidden="true" />Sample walkthrough: these findings were prepared in advance.</p>
       </div>
       <footer className="route-card-foot">
-        <StepFoot station={station} />
         <button className="button button-secondary route-push" type="button" onClick={onRescan}><RotateCcw size={16} aria-hidden="true" />Run the scan again</button>
       </footer>
     </>
@@ -469,7 +441,7 @@ function EvidenceCard({ station, here, assets, actions, onOpenMotion }: { statio
           {near.length ? (
             <div>
               <h3>Near-exact copies <span className="mono num">{near.length} at {nearAt}%</span></h3>
-              <p>{near.every((asset) => asset.origin === near[0].origin) ? `All ${near.length} trace to ${near[0].origin}. ` : ''}What decides each one is whether its source record is attached.</p>
+              {near.every((asset) => asset.origin === near[0].origin) ? <p>All {near.length} trace to {near[0].origin}.</p> : null}
               <ul className="route-shots">
                 {near.map((asset) => (
                   <li key={asset.id}>
@@ -483,7 +455,6 @@ function EvidenceCard({ station, here, assets, actions, onOpenMotion }: { statio
           {weak.length ? (
             <div>
               <h3>Weak resemblances <span className="mono num">{weak.length} at {weakRange}</span></h3>
-              <p>Leads for a person to check.</p>
               <ul className="route-weak">
                 {weak.map((asset) => (
                   <li key={asset.id}>
@@ -502,14 +473,12 @@ function EvidenceCard({ station, here, assets, actions, onOpenMotion }: { statio
       <div className="route-trail">
         <img src={RIG_POSTER_URL} alt="Joint diagram of the RobotExpressive animation rig" width={64} height={73} loading="lazy" />
         <div>
-          <p>Animations follow their own trail: two Roblox animation IDs in, one motion fingerprint out.</p>
           <span className="route-trail-links">
             <button className="route-link" type="button" onClick={onOpenMotion}><GitBranch aria-hidden="true" />Compare two Roblox animations</button>
             <a className="route-link quiet" href="#product">See the live rig below</a>
           </span>
         </div>
       </div>
-      <footer className="route-card-foot"><StepFoot station={station} /></footer>
     </>
   );
 }
@@ -518,10 +487,12 @@ function ExceptionsCard({ station, here, assets, counts, actions, onResolve }: {
   const order: ReleaseGroup[] = ['blocked', 'review', 'clear', 'excluded'];
   const blockers = assetsInGroup(assets, 'blocked');
   const ownerless = blockers.filter((asset) => asset.owner === 'Unassigned').length;
-  const stillInReview = counts.review ? ` The ${plural(counts.review, 'file', 'files')} that need review ${counts.review === 1 ? 'is' : 'are'} still open in station 02.` : '';
-  const lead = blockers.length
-    ? <><b>Start with the {plural(blockers.length, 'blocker', 'blockers')}.</b> {ownerless === blockers.length ? (blockers.length === 1 ? 'It has no owner yet.' : 'None of them has an owner yet.') : ownerless ? `${ownerless} of them ${ownerless === 1 ? 'has' : 'have'} no owner yet.` : 'Each one has an owner.'}{stillInReview}</>
-    : <>No file is blocked.{stillInReview}</>;
+  // The rows show each owner; the lead only names the gap a reader would otherwise have to count.
+  const lead = !blockers.length
+    ? 'No file is blocked.'
+    : ownerless === blockers.length
+      ? (blockers.length === 1 ? 'The blocker has no owner yet.' : `None of the ${blockers.length} blockers has an owner yet.`)
+      : ownerless ? `${ownerless} of the ${blockers.length} blockers ${ownerless === 1 ? 'has' : 'have'} no owner yet.` : null;
   const tally = `${counts.total} files: ${counts.blocked} blocked, ${counts.review} need review, ${counts.clear} approved${counts.excluded ? `, ${counts.excluded} excluded` : ''}`;
   return (
     <>
@@ -541,12 +512,13 @@ function ExceptionsCard({ station, here, assets, counts, actions, onResolve }: {
         </p>
       </div>
       <CardHead station={station} here={here} />
-      <p className="route-card-lead">{lead}</p>
+      {lead ? <p className="route-card-lead">{lead}</p> : null}
       <GroupList assets={assets} group="blocked" actions={actions} />
-      <footer className="route-card-foot">
-        {counts.unresolved ? <button className="button button-primary" type="button" onClick={onResolve}><FileCheck2 size={16} aria-hidden="true" />Resolve sample exceptions</button> : null}
-        <StepFoot station={station} />
-      </footer>
+      {counts.unresolved ? (
+        <footer className="route-card-foot">
+          <button className="button button-primary" type="button" onClick={onResolve}><FileCheck2 size={16} aria-hidden="true" />Resolve sample exceptions</button>
+        </footer>
+      ) : null}
     </>
   );
 }
@@ -580,7 +552,6 @@ function ExportCard({ station, here, assets, counts, actions, onExport }: { stat
           <a href={MANIFEST_URL} download="creatorflow-real-assets-manifest.json"><ArrowDownToLine aria-hidden="true" />Download generated manifest</a>
           <a href={SCHEMA_URL} download="creatorflow-manifest-v0.1.schema.json"><ArrowDownToLine aria-hidden="true" />JSON Schema</a>
         </span>
-        <StepFoot station={station} />
       </footer>
     </>
   );
@@ -631,36 +602,35 @@ function QuietCard({ station, here, children }: { station: Station; here: boolea
   );
 }
 
-function PendingVerdict({ tone, label, headline, lede, children }: { tone: ReleaseGroup | 'neutral'; label: string; headline: ReactNode; lede: string; children?: ReactNode }) {
+function PendingVerdict({ tone, label, headline, lede, children }: { tone: ReleaseGroup | 'neutral'; label: string; headline: ReactNode; lede?: string; children?: ReactNode }) {
   return (
     <div className="route-stop route-top">
       <div className="route-lane"><span className={`route-marker tone-${tone}`} data-route-point><SurveyMarker /></span></div>
       <section className="route-verdict" aria-labelledby="verdict-title">
         <p className="route-label">{label}</p>
         <h1 id="verdict-title">{headline}</h1>
-        <p className="route-lede">{lede}</p>
+        {lede ? <p className="route-lede">{lede}</p> : null}
         {children}
       </section>
     </div>
   );
 }
 
-const VERDICT_LABEL = `Verdict · ${SAMPLE_RELEASE.projectName} release ${SAMPLE_RELEASE.shortRelease} · sample data`;
+const VERDICT_LABEL = 'Sample data';
 
 /** Before the scan: no verdict, and the route starts at station 01. */
 export function IdleView({ stations, total, onStart }: { stations: Station[]; total: number; onStart: () => void }) {
   const [scan, ...rest] = stations;
   return (
     <>
-      <PendingVerdict tone="neutral" label={VERDICT_LABEL} headline="No verdict yet." lede={`The route starts with a local scan of ${total} prepared sample files. Nothing uploads.`} />
+      <PendingVerdict tone="neutral" label={VERDICT_LABEL} headline="No verdict yet." />
       <ol className="route-stops">
         <Stop station={scan} index={0} here>
           <CardHead station={scan} here />
           <div className="route-state">
-            <p>Project selected. No preflight yet. {total} prepared sample files in {SAMPLE_RELEASE.projectName} {SAMPLE_RELEASE.shortRelease}, ready to scan.</p>
+            <p>{total} prepared sample files in {SAMPLE_RELEASE.projectName} {SAMPLE_RELEASE.shortRelease}, ready to scan. Nothing uploads.</p>
             <button className="button button-primary" type="button" onClick={onStart}><ScanSearch size={16} aria-hidden="true" />Start local scan</button>
           </div>
-          <footer className="route-card-foot"><StepFoot station={scan} /></footer>
         </Stop>
         {rest.map((station, index) => (
           <Stop key={station.id} station={station} index={index + 1} here={false}>
@@ -716,17 +686,15 @@ export function FailedView({ stations, onRetry }: { stations: Station[]; onRetry
         tone="blocked"
         label={VERDICT_LABEL}
         headline={<span className="route-verdict-word tone-blocked"><TriangleAlert aria-hidden="true" />No verdict.</span>}
-        lede="The sample check stopped before it reached a verdict. Nothing was uploaded."
       />
       <ol className="route-stops">
         <Stop station={scan} index={0} here>
           <CardHead station={scan} here />
           <div className="route-state error" role="alert">
             <h3><TriangleAlert aria-hidden="true" />The check could not finish</h3>
-            <p>Something went wrong while drawing the sample results. Running the check again starts from the prepared sample.</p>
+            <p>Something went wrong while drawing the sample results. Nothing was uploaded.</p>
             <button className="button button-primary" type="button" onClick={onRetry}><RotateCcw size={16} aria-hidden="true" />Run the check again</button>
           </div>
-          <footer className="route-card-foot"><StepFoot station={scan} /></footer>
         </Stop>
         {rest.map((station, index) => (
           <Stop key={station.id} station={station} index={index + 1} here={false}><QuietCard station={station} here={false} /></Stop>
@@ -922,7 +890,7 @@ export function ReleaseRoute({ onOpenWorkspace, initialPhase = 'complete', child
       <a className="skip-link" href="#main">Skip to main content</a>
       <header className="route-bar">
         <a href="#top" className="brand-link" aria-label="CreatorFlow home"><BrandMark /></a>
-        <span className="route-crumb"><span aria-hidden="true">/</span><b>{SAMPLE_RELEASE.projectName}</b><span>Release {SAMPLE_RELEASE.shortRelease}</span><span className="route-tag-box">Sample data</span></span>
+        <span className="route-crumb"><span aria-hidden="true">/</span><b>{SAMPLE_RELEASE.projectName}</b><span>Release {SAMPLE_RELEASE.shortRelease}</span></span>
         <div className="route-bar-actions">
           <button className="button route-ghost" type="button" aria-label="Compare two Roblox animations" onClick={() => onOpenWorkspace('motion')}><Fingerprint size={16} aria-hidden="true" /><span className="route-long">Compare animations</span></button>
           <button className="button button-secondary" type="button" onClick={() => onOpenWorkspace('overview')}>Open workspace</button>
@@ -961,7 +929,7 @@ export function ReleaseRoute({ onOpenWorkspace, initialPhase = 'complete', child
       </main>
       <footer className="route-footer">
         <div>
-          <p><b>Detection proves conflicts, never originality.</b> A clear result means no conflict was found in the registries we checked. Ownership still comes from licenses, declarations, and provenance. Files stay on this machine; fingerprints and decisions travel.</p>
+          <p><b>Detection proves conflicts, never originality.</b> A clear result means no conflict was found in the registries we checked. Ownership still comes from licenses, declarations, and provenance.</p>
           <a href="https://github.com/Bryancruzcb/creatorflow" target="_blank" rel="noreferrer">View the Java engine on GitHub <ArrowRight size={14} aria-hidden="true" /></a>
         </div>
       </footer>

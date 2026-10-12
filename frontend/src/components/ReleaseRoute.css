@@ -106,17 +106,6 @@
   font-weight: 500;
 }
 
-.route-tag-box {
-  padding: 1px 6px;
-  border: 1px solid var(--hairline-strong);
-  border-radius: 4px;
-  color: var(--ink-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-2xs);
-  letter-spacing: var(--track-label);
-  text-transform: uppercase;
-  white-space: nowrap;
-}
 
 .route-bar-actions {
   display: flex;
@@ -496,26 +485,8 @@
   font-size: var(--text-xs);
 }
 
-.route-step {
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 4px 10px;
-}
 
-.route-step-out {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--ink);
-  font-family: var(--font-mono);
-}
 
-.route-page .route-step-out .lucide {
-  width: 14px;
-  height: 14px;
-  align-self: center;
-}
 
 .route-card-foot .button {
   min-height: 36px;
@@ -576,15 +547,6 @@
   color: var(--blue-accent);
 }
 
-.route-art-caption {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: space-between;
-  gap: 4px 16px;
-  margin-top: 12px;
-  color: var(--ink-muted);
-  font-size: var(--text-xs);
-}
 
 .route-checks {
   display: grid;
@@ -780,10 +742,6 @@
   border-radius: 8px;
 }
 
-.route-trail p {
-  color: var(--ink-muted);
-  font-size: var(--text-xs);
-}
 
 .route-trail-links {
   display: flex;

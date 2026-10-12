@@ -150,7 +150,6 @@ export function PreflightWorkspace({ startSignal }: PreflightWorkspaceProps) {
     <section className="sample-preflight" id="sample-preflight" aria-labelledby="sample-title">
       <div className="sample-intro">
         <div>
-          <p className="section-index">Interactive sample</p>
           <h2 id="sample-title">Make the release decision.</h2>
           <p>Sample data, running in your browser. Nothing uploads.</p>
         </div>
